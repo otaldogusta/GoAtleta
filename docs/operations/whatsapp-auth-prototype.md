@@ -1,10 +1,22 @@
-# Protótipo de confirmação de telefone pelo WhatsApp
+# Confirmação de telefone pelo WhatsApp
 
 ## Estado
 
-Este pacote prepara o transporte oficial `Supabase Auth -> Send SMS Hook -> Meta WhatsApp Cloud API`.
-Ele não habilita autenticação por telefone, não altera produção e não contém credenciais.
-O perfil continua com `phoneVerificationEnabled = false` até o teste oficial completo passar.
+O fluxo oficial usa `Supabase Auth -> Send SMS Hook -> Meta WhatsApp Cloud API`.
+Ele confirma a propriedade do telefone informado no perfil por meio de
+`phone_change`; o telefone não é usado como método primário de login e nenhuma
+credencial fica no cliente ou neste repositório.
+
+Estado verificado em 25/09/2026:
+
+- a confirmação está habilitada na tela de perfil;
+- `whatsapp-auth-hook` e `meta-whatsapp-webhook` estão ativos no projeto Supabase;
+- todos os nomes de segredo exigidos estão cadastrados no Supabase (valores não inspecionados);
+- a revisão Meta de `whatsapp_business_messaging` e `public_profile` está em andamento;
+- `whatsapp_business_management` não faz parte da solicitação, pois não é necessária para o OTP.
+
+Esse inventário confirma a configuração, mas não substitui um teste de ponta a
+ponta com um novo OTP em telefone controlado.
 
 As páginas públicas exigidas pela Meta ficam em `/privacy`, `/terms` e
 `/data-deletion`. A recepção de eventos usa `meta-whatsapp-webhook`, separada
@@ -23,9 +35,9 @@ credenciais definitivas estiverem disponíveis.
 - A Edge Function envia o OTP com um template Meta da categoria `AUTHENTICATION`.
 - O cliente confirma o código no endpoint canônico `type=phone_change`; a função nunca marca telefone como verificado.
 
-## Configuração do teste oficial
+## Configuração operacional
 
-1. No painel Meta for Developers, adicione o produto WhatsApp e use o número de teste fornecido pela Meta.
+1. No painel Meta for Developers, mantenha o produto WhatsApp associado ao número oficial ou a um número controlado de teste.
 2. Cadastre somente os telefones fictícios/controlados permitidos como destinatários de teste.
 3. Crie um template `AUTHENTICATION` com botão OTP `COPY_CODE`, idioma `pt_BR`, expiração de cinco minutos e nome `goatleta_phone_verification`.
 4. Configure os segredos diretamente no Supabase, sem colocá-los em `.env`, GitHub, chat ou código cliente:
@@ -37,9 +49,9 @@ credenciais definitivas estiverem disponíveis.
    - `META_WHATSAPP_AUTH_TEMPLATE_LANGUAGE`
    - `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`
    - `META_WHATSAPP_APP_SECRET`
-5. Faça deploy somente da função `whatsapp-auth-hook` em um ambiente de teste.
+5. Ao alterar o transporte de OTP, publique somente `whatsapp-auth-hook`; publique `meta-whatsapp-webhook` apenas quando o receptor também mudar.
 6. Em Authentication > Hooks, selecione `Send SMS` e informe o endpoint HTTPS da função. Copie o segredo gerado para `SEND_SMS_HOOK_SECRET`.
-7. Habilite Phone Auth no ambiente de teste com confirmação automática desligada.
+7. Mantenha Phone Auth habilitado com confirmação automática desligada.
 
 Valores não secretos esperados no primeiro teste:
 
@@ -67,15 +79,16 @@ Confirme a versão da Graph API exibida no painel Meta antes do teste; ela é co
 5. A implementação inicial apenas confirma o recebimento. Ela não grava o
    corpo, telefone, nome ou conteúdo das mensagens em logs ou tabelas.
 
-## Portões antes de habilitar no produto
+## Portões de operação contínua
 
 - template aprovado e envio recebido em um telefone controlado;
 - OTP correto aceito e OTP incorreto/expirado recusado pelo Supabase;
-- reenvio limitado, CAPTCHA e rate limits revisados;
+- reenvio limitado no cliente e rate limits do Supabase Auth revisados; avaliar CAPTCHA antes de ampliar o volume;
 - nenhuma credencial exposta no bundle ou logs;
 - falha da Meta não confirma telefone e retorna erro recuperável;
 - política de privacidade e consentimento atualizados;
 - teste Android real do fluxo completo;
-- decisão explícita sobre custo e número de produção.
+- custos e número de produção revisados;
+- aprovação e eventuais exigências da análise Meta acompanhadas até a conclusão.
 
 Não use Baileys, sessão por QR Code ou WhatsApp Web como fallback deste fluxo.

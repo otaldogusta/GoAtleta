@@ -8,6 +8,16 @@ type PhoneVerificationUser = {
 
 export const PHONE_VERIFICATION_RESEND_DELAY_MS = 60_000;
 
+export const getPhoneVerificationTarget = (
+  countryCode: string,
+  nationalPhone: string,
+) => {
+  const countryDigits = countryCode.replace(/\D/g, "");
+  const nationalDigits = nationalPhone.replace(/\D/g, "");
+  const digits = `${countryDigits}${nationalDigits}`;
+  return digits.length >= 10 && digits.length <= 15 ? `+${digits}` : "";
+};
+
 export const getPhoneVerificationRetrySeconds = (
   retryUntil: number,
   now: number,

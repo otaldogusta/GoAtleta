@@ -1,5 +1,6 @@
 import {
   getConfirmedPhone,
+  getPhoneVerificationTarget,
   getPhoneVerificationRetrySeconds,
   hasConfirmedPhone,
 } from "../phone-verification";
@@ -28,5 +29,12 @@ describe("phone verification", () => {
     expect(getPhoneVerificationRetrySeconds(61_000, 1_500)).toBe(60);
     expect(getPhoneVerificationRetrySeconds(61_000, 61_000)).toBe(0);
     expect(getPhoneVerificationRetrySeconds(61_000, 70_000)).toBe(0);
+  });
+
+  it("accepts valid international targets and rejects invalid E.164 lengths", () => {
+    expect(getPhoneVerificationTarget("+55", "(41) 93300-8130")).toBe("+5541933008130");
+    expect(getPhoneVerificationTarget("+1", "202-555-0147")).toBe("+12025550147");
+    expect(getPhoneVerificationTarget("+55", "93300")).toBe("");
+    expect(getPhoneVerificationTarget("+999", "123456789012345")).toBe("");
   });
 });

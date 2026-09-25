@@ -16,14 +16,24 @@ Deno.serve(async (request) => {
   if (!rawSecret.startsWith("v1,whsec_")) {
     return json(503, { error: { http_code: 503, message: "Canal de confirmação indisponível." } });
   }
+
+  const body = await request.text();
+  if (body.length > 64_000) return json(413, { error: { http_code: 413, message: "Solicitação inválida." } });
+
+  let event: {
+    user?: { phone?: unknown; phone_change?: unknown; new_phone?: unknown };
+    sms?: { otp?: unknown; phone?: unknown };
+  };
+
   try {
-    const body = await request.text();
-    if (body.length > 64_000) return json(413, { error: { http_code: 413, message: "Solicitação inválida." } });
     const verifier = new Webhook(rawSecret.replace(/^v1,whsec_/, ""));
-    const event = verifier.verify(body, Object.fromEntries(request.headers)) as {
-      user?: { phone?: unknown; phone_change?: unknown; new_phone?: unknown };
-      sms?: { otp?: unknown; phone?: unknown };
-    };
+    event = verifier.verify(body, Object.fromEntries(request.headers)) as typeof event;
+  } catch {
+    console.warn("whatsapp-auth-hook signature rejected");
+    return json(401, { error: { http_code: 401, message: "Assinatura inválida." } });
+  }
+
+  try {
     const phone = resolveWhatsAppAuthDestination(event.user, event.sms);
     const otp = typeof event.sms?.otp === "string" ? event.sms.otp : "";
     await sendWhatsAppAuthCode(phone, otp, readWhatsAppAuthConfig());

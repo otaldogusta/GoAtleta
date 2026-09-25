@@ -30,6 +30,7 @@ import type { AthletePosition, ClassGroup } from "../src/core/models";
 import { useAuth } from "../src/auth/auth";
 import {
   getConfirmedPhone,
+  getPhoneVerificationTarget,
   getPhoneVerificationRetrySeconds,
   PHONE_VERIFICATION_RESEND_DELAY_MS,
 } from "../src/auth/phone-verification";
@@ -44,6 +45,10 @@ import { resolveProfileInstitution } from "../src/screens/student/profile-instit
 
 import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
+import {
+  getMyProfessionalProfile,
+  saveMyProfessionalProfile,
+} from "../src/api/professional-profile";
 import {
     removeMyProfilePhotoObject,
     uploadMyProfilePhoto,
@@ -604,7 +609,7 @@ export default function ProfileScreen() {
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [dangerZoneExpanded, setDangerZoneExpanded] = useState(false);
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>("personal");
-  const [professionalExpandedSection, setProfessionalExpandedSection] = useState<string | null>("professional");
+  const [professionalExpandedSection, setProfessionalExpandedSection] = useState<string | null>("personal");
   const [mobileNameDraft, setMobileNameDraft] = useState("");
   const [mobileBirthDraft, setMobileBirthDraft] = useState("");
   const [mobilePhoneDraft, setMobilePhoneDraft] = useState("");
@@ -1307,6 +1312,44 @@ export default function ProfileScreen() {
   }, [currentAccountName, session?.user, student]);
 
   useEffect(() => {
+    if (student || !session?.user?.id) return;
+    let active = true;
+    void getMyProfessionalProfile()
+      .then((profile) => {
+        if (!active) return;
+        const authenticatedPhone = resolvePhoneDraft(getConfirmedPhone(session.user));
+        const nextValues = {
+          name: currentAccountName === PROFILE_NAME_FALLBACK ? "" : currentAccountName,
+          birth: profile.birthDate ? formatStudentBirthDate(profile.birthDate) : "",
+          phone: authenticatedPhone.phone,
+          cpf: profile.cpfMasked,
+          rg: profile.rg,
+          address: profile.address,
+          genderIdentity: profile.genderIdentity,
+          guardianName: "",
+          guardianPhone: "",
+          guardianRelation: "",
+          countryCode: authenticatedPhone.countryCode,
+          guardianCountryCode: "+55",
+        };
+        setMobileNameDraft(nextValues.name);
+        setMobileBirthDraft(nextValues.birth);
+        setMobilePhoneDraft(nextValues.phone);
+        setMobileCpfDraft(nextValues.cpf);
+        setMobileRgDraft(nextValues.rg);
+        setMobileAddressDraft(nextValues.address);
+        setMobileGenderIdentityDraft(nextValues.genderIdentity);
+        setMobileCountryCode(nextValues.countryCode);
+        setMobileCountryIso(authenticatedPhone.countryIso);
+        setMobileProfileBaseline(nextValues);
+      })
+      .catch((error) => {
+        if (active) console.warn("Professional profile unavailable", getFriendlyErrorMessage(error));
+      });
+    return () => { active = false; };
+  }, [currentAccountName, session?.user, student]);
+
+  useEffect(() => {
     const nextValues = {
       position: student?.positionPrimary ?? "indefinido",
       secondaryPosition: student?.positionSecondary ?? "indefinido",
@@ -1908,9 +1951,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const mobilePhoneE164 = mobilePhoneDraft.replace(/\D/g, "")
-    ? `+${mobileCountryCode.replace(/\D/g, "")}${mobilePhoneDraft.replace(/\D/g, "")}`
-    : "";
+  const mobilePhoneE164 = getPhoneVerificationTarget(mobileCountryCode, mobilePhoneDraft);
   const mobileGuardianPhoneE164 = mobileGuardianPhoneDraft.replace(/\D/g, "")
     ? `+${mobileGuardianCountryCode.replace(/\D/g, "")}${mobileGuardianPhoneDraft.replace(/\D/g, "")}`
     : "";
@@ -1943,7 +1984,8 @@ export default function ProfileScreen() {
     })(),
     cpf: !mobileCpfDraft.trim()
       ? "Informe o CPF."
-      : validateCpf(mobileCpfDraft)
+      : (mobileCpfDraft === mobileProfileBaseline.cpf && mobileCpfDraft.includes("*"))
+        || validateCpf(mobileCpfDraft)
         ? null
         : "Confira o CPF informado.",
   };
@@ -2052,6 +2094,16 @@ export default function ProfileScreen() {
           medicationNotes: mobileMedicationUseDraft ? mobileMedicationNotesDraft.trim() : "",
           healthObservations: mobileHealthObservationsDraft.trim(),
         });
+      } else if (birthDate) {
+        const cpfWasPreserved = mobileCpfDraft === mobileProfileBaseline.cpf
+          && mobileProfileBaseline.cpf.includes("*");
+        await saveMyProfessionalProfile({
+          birthDate,
+          cpfInput: cpfWasPreserved ? null : mobileCpfDraft,
+          rg: mobileRgDraft.trim(),
+          address: mobileAddressDraft.trim(),
+          genderIdentity: mobileGenderIdentityDraft.trim(),
+        });
       }
       if (normalizedName !== currentAccountName) await updateProfileName(normalizedName);
       await refreshRole();
@@ -2081,12 +2133,10 @@ export default function ProfileScreen() {
   };
 
   const requestMobilePhoneVerification = async () => {
-    const phoneDigits = mobilePhoneDraft.replace(/\D/g, "");
     if (
       requestingPhoneVerification
       || phoneVerificationRetrySeconds > 0
-      || phoneDigits.length < 10
-      || phoneDigits.length > 11
+      || !mobilePhoneE164
     ) return;
 
     setRequestingPhoneVerification(true);
@@ -2127,6 +2177,16 @@ export default function ProfileScreen() {
           guardianName: mobileGuardianNameDraft.trim(),
           guardianPhone: mobileGuardianPhoneE164,
           guardianRelation: mobileGuardianRelationDraft.trim(),
+        });
+      } else if (birthDate) {
+        const cpfWasPreserved = mobileCpfDraft === mobileProfileBaseline.cpf
+          && mobileProfileBaseline.cpf.includes("*");
+        await saveMyProfessionalProfile({
+          birthDate,
+          cpfInput: cpfWasPreserved ? null : mobileCpfDraft,
+          rg: mobileRgDraft.trim(),
+          address: mobileAddressDraft.trim(),
+          genderIdentity: mobileGenderIdentityDraft.trim(),
         });
       }
       if (mobileNameDraft.trim() !== currentAccountName) await updateProfileName(mobileNameDraft.trim());
@@ -2360,7 +2420,7 @@ export default function ProfileScreen() {
           paddingBottom: Math.max(
             16,
             insets.bottom + (responsiveLayout.isMobile ? 92 : 16),
-            isStudentMobileProfile && Platform.OS === "web" && mobileProfileHasChanges ? 96 : 0,
+            Platform.OS === "web" && mobileProfileHasChanges ? 96 : 0,
           ),
         }}
         refreshControl={
@@ -2579,7 +2639,7 @@ export default function ProfileScreen() {
                         >
                           <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
                         </Pressable>
-                      ) : phoneVerificationEnabled && mobilePhoneNeedsVerification && mobilePhoneDraft.replace(/\D/g, "").length >= 10 ? (
+                      ) : phoneVerificationEnabled && mobilePhoneNeedsVerification && Boolean(mobilePhoneE164) ? (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={phoneVerificationRequested ? "Reenviar código pelo WhatsApp" : "Validar celular pelo WhatsApp"}
@@ -3476,6 +3536,79 @@ export default function ProfileScreen() {
 
             <View key="settings" style={{ minWidth: 0, gap: 12 }}>
             <MobileProfileSection
+              icon="personSolid"
+              title="Dados pessoais"
+              subtitle="Identificação e contato"
+              expanded={professionalExpandedSection === "personal"}
+              onPress={() => setProfessionalExpandedSection((current) => current === "personal" ? null : "personal")}
+            >
+              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+                Nome, celular, data de nascimento e CPF são obrigatórios. Os demais dados são opcionais.
+              </Text>
+              <View style={{ gap: 7 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo (obrigatório)</Text>
+                <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                  <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.name : null} />
+                  <TextInput accessibilityLabel="Nome completo" autoCapitalize="words" value={mobileNameDraft} onChangeText={setMobileNameDraft} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
+                </View>
+              </View>
+              <View style={{ gap: 7 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento (obrigatória)</Text>
+                <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                  <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.birthDate : null} />
+                  <NativeDateInput
+                    accessibilityLabel="Data de nascimento"
+                    value={Platform.OS === "web" ? (parseStudentBirthDate(mobileBirthDraft) ?? "") : mobileBirthDraft}
+                    onChangeText={(value) => {
+                      if (Platform.OS === "web") setMobileBirthDraft(value ? formatStudentBirthDate(value) : "");
+                      else {
+                        const digits = value.replace(/\D/g, "").slice(0, 8);
+                        setMobileBirthDraft([digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("/"));
+                      }
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ gap: 7 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Celular (obrigatório)</Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ width: 92, minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, justifyContent: "center" }}>
+                    <TextInput accessibilityLabel="Código do país" keyboardType="phone-pad" value={mobileCountryCode} onChangeText={(value) => setMobileCountryCode(`+${value.replace(/\D/g, "").slice(0, 3)}`)} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0 }} />
+                  </View>
+                  <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: 6, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                    <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
+                    <TextInput accessibilityLabel="Celular" keyboardType="phone-pad" placeholder="(00) 00000-0000" placeholderTextColor={colors.muted} value={mobilePhoneDraft} onChangeText={(value) => { const digits = value.replace(/\D/g, "").slice(0, 15); setMobilePhoneDraft(digits.length <= 11 ? (digits ? formatStudentPhone(digits) : "") : digits); setPendingPhoneVerification(""); setPhoneVerificationCode(""); setPhoneVerificationError(null); setPhoneVerificationRetryUntil(0); }} style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0 }} />
+                    {isDisplayedPhoneVerified ? (
+                      <Pressable accessibilityRole="button" accessibilityLabel="Remover número de celular" onPress={() => void removeMobilePhone()} disabled={removingPhone} suppressWebHoverFeedback disableWebPressScale style={{ width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", opacity: removingPhone ? 0.55 : 1 }}><GoAtletaIcon name="trash" size={17} color={colors.dangerText} /></Pressable>
+                    ) : mobilePhoneNeedsVerification && Boolean(mobilePhoneE164) ? (
+                      <Pressable accessibilityRole="button" accessibilityLabel="Validar celular pelo WhatsApp" onPress={() => void requestMobilePhoneVerification()} disabled={requestingPhoneVerification || phoneVerificationRetrySeconds > 0} disableWebPressScale style={{ minHeight: 38, paddingHorizontal: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: requestingPhoneVerification || phoneVerificationRetrySeconds > 0 ? 0.55 : 1 }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>{requestingPhoneVerification ? "Enviando..." : phoneVerificationRetrySeconds > 0 ? `Reenviar em ${phoneVerificationRetrySeconds}s` : "Validar"}</Text></Pressable>
+                    ) : null}
+                  </View>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{isDisplayedPhoneVerified ? "Número verificado" : "Confirme o número pelo WhatsApp"}</Text>
+              </View>
+              {phoneVerificationRequested ? (
+                <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.secondaryBg, overflow: "visible" }}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Código recebido pelo WhatsApp</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ minHeight: 46, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                      <FloatingFieldError message={phoneVerificationError} />
+                      <TextInput accessibilityLabel="Código de confirmação do celular" keyboardType="number-pad" autoComplete="one-time-code" placeholder="000000" placeholderTextColor={colors.muted} maxLength={6} value={phoneVerificationCode} onChangeText={(value) => { setPhoneVerificationCode(value.replace(/\D/g, "").slice(0, 6)); setPhoneVerificationError(null); }} style={{ color: colors.text, fontSize: 17, fontWeight: "800", letterSpacing: 4, textAlign: "center", paddingVertical: 0, borderRadius: 0 }} />
+                    </View>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Confirmar código do celular" onPress={() => void confirmMobilePhone()} disabled={phoneVerificationCode.length !== 6 || verifyingPhone} disableWebPressScale style={{ minHeight: 46, paddingHorizontal: 14, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: phoneVerificationCode.length !== 6 || verifyingPhone ? 0.55 : 1 }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>{verifyingPhone ? "Confirmando..." : "Confirmar"}</Text></Pressable>
+                  </View>
+                </View>
+              ) : null}
+              <View style={{ gap: 10 }}>
+                {[{ label: "CPF (obrigatório)", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(value.includes("*") ? value : maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const }, { label: "RG (opcional)", accessibilityLabel: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG", keyboardType: "default" as const }].map((field) => {
+                  const fieldError = field.accessibilityLabel === "CPF" && mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.cpf : null;
+                  return <View key={field.label} style={{ gap: 7 }}><Text style={{ color: colors.muted, fontSize: 13 }}>{field.label}</Text><View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}><FloatingFieldError message={fieldError} /><TextInput accessibilityLabel={field.accessibilityLabel} keyboardType={field.keyboardType} placeholder={field.placeholder} placeholderTextColor={colors.muted} value={field.value} onChangeText={field.onChangeText} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0 }} /></View></View>;
+                })}
+              </View>
+              <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
+              <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
+            </MobileProfileSection>
+            <MobileProfileSection
               icon="coordination"
               title="Perfil profissional"
               subtitle={`${profileDisplay.label} · ${activeOrganization?.name || "Sem instituição ativa"}`}
@@ -4018,8 +4151,9 @@ export default function ProfileScreen() {
       <FloatingSaveBar
         bottom={responsiveLayout.isMobile ? insets.bottom + 104 : 18}
         visible={Boolean(
-          isStudentMobileProfile
-          && (mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)
+            isStudentMobileProfile
+              ? (mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)
+              : mobileProfileHasChanges
         )}
         label={savingMobileProfile
           ? "Salvando..."
@@ -4028,8 +4162,8 @@ export default function ProfileScreen() {
             : "Salvar alterações"}
         onPress={async () => {
           if (savingMobileProfile || athleteModalities.saving) return;
-          if ((mobileProfileHasChanges || mobileSportsHasChanges) && !(await saveMobileStudentProfile())) return;
-          if (athleteModalities.dirty && !(await athleteModalities.save())) return;
+          if ((mobileProfileHasChanges || (isStudentMobileProfile && mobileSportsHasChanges)) && !(await saveMobileStudentProfile())) return;
+          if (isStudentMobileProfile && athleteModalities.dirty && !(await athleteModalities.save())) return;
           setPendingProfileNotice(null);
           showSaveToast({ message: "Alterações salvas.", variant: "success" });
         }}
