@@ -41,68 +41,10 @@ type Institution = {
   note: string;
 };
 
-const institutions: Institution[] = [
-  {
-    id: "rede",
-    name: "Rede Esportes Pinhais",
-    responsible: "Mariah",
-    email: "ma********@redeesportes.com",
-    product: "goatleta",
-    period: "Renova em 18/09/2026",
-    status: "active",
-    users: 48,
-    note: "Contato comercial direto. Cobrança externa ao aplicativo.",
-  },
-  {
-    id: "campeoes",
-    name: "Instituto Campeões",
-    responsible: "Mariana Costa",
-    email: "ma********@esporte.com",
-    product: "goatleta",
-    period: "Avaliação até 26/09/2026",
-    status: "evaluation",
-    users: 22,
-    note: "Aguardando retorno sobre continuidade.",
-  },
-  {
-    id: "sul",
-    name: "Centro Esportivo Sul",
-    responsible: "Ricardo Alves",
-    email: "ri********@gmail.com",
-    product: "goatleta_pro",
-    period: "Renova em 02/10/2026",
-    status: "active",
-    users: 31,
-    note: "Operação ativa e sem pendências.",
-  },
-  {
-    id: "clube",
-    name: "Clube Atlético Pinhais",
-    responsible: "Carla Teixeira",
-    email: "ca********@gmail.com",
-    product: "goatleta_pro",
-    period: "Revisar em 12/09/2026",
-    status: "paused",
-    users: 17,
-    note: "Pausa manual registrada pela administração SaaS.",
-  },
-  {
-    id: "futuro",
-    name: "Associação Futuro",
-    responsible: "Pedro Fonseca",
-    email: "pe********@clubes.com",
-    product: "goatleta_pro",
-    period: "Renova em 08/10/2026",
-    status: "active",
-    users: 29,
-    note: "Renovação acompanhada pela equipe comercial.",
-  },
-];
-
 const labels = {
   evaluation: "Em avaliação",
   active: "Ativa",
-  paused: "Pausada",
+  paused: "Suspensa",
   cancelled: "Removida",
 } as const;
 const productLabels = {
@@ -173,9 +115,10 @@ export function PlatformDashboard() {
   const wide = width >= 1200;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | InstitutionStatus>("all");
-  const [selectedId, setSelectedId] = useState("rede");
-  const [items, setItems] = useState<Institution[]>(institutions);
+  const [selectedId, setSelectedId] = useState("");
+  const [items, setItems] = useState<Institution[]>([]);
   const [sourceItems, setSourceItems] = useState<PlatformInstitution[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editProduct, setEditProduct] = useState<PlatformProduct>("goatleta");
@@ -185,6 +128,7 @@ export function PlatformDashboard() {
   const [editNote, setEditNote] = useState("");
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const loaded = await platformListInstitutions();
       setSourceItems(loaded);
@@ -195,14 +139,18 @@ export function PlatformDashboard() {
           : (loaded[0]?.organizationId ?? ""),
       );
     } catch (error) {
-      if (!__DEV__)
-        showSaveToast({
-          variant: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Não foi possível carregar as instituições.",
-        });
+      setSourceItems([]);
+      setItems([]);
+      setSelectedId("");
+      showSaveToast({
+        variant: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar as instituições.",
+      });
+    } finally {
+      setLoading(false);
     }
   }, [showSaveToast]);
 
@@ -224,13 +172,24 @@ export function PlatformDashboard() {
       ),
     [filter, items, query],
   );
-  const selected =
-    items.find((item) => item.id === selectedId) ?? filtered[0] ?? items[0];
+  const selected = items.find((item) => item.id === selectedId) ??
+    filtered[0] ??
+    items[0] ?? {
+      id: "",
+      name: loading ? "Carregando…" : "Nenhuma instituição",
+      responsible: "—",
+      email: "",
+      product: "goatleta" as const,
+      period: "—",
+      status: "evaluation" as const,
+      users: 0,
+      note: "",
+    };
   const selectedSource = sourceItems.find(
     (item) => item.organizationId === selected?.id,
   );
   const startEditing = () => {
-    if (!selected) return;
+    if (!selected.id) return;
     setEditProduct(selected.product);
     setEditStatus(selected.status);
     setEditCommercialStatus(selectedSource?.commercialStatus ?? "ok");
@@ -238,7 +197,7 @@ export function PlatformDashboard() {
     setEditing(true);
   };
   const saveInstitution = async () => {
-    if (!selected || busy) return;
+    if (!selected.id || busy) return;
     setBusy(true);
     try {
       if (!selectedSource) {
@@ -287,29 +246,35 @@ export function PlatformDashboard() {
       setBusy(false);
     }
   };
-  const removeInstitution = async () => {
-    if (!selected || busy || selected.status === "cancelled") return;
+  const suspendInstitution = async () => {
+    if (
+      !selected.id ||
+      busy ||
+      selected.status === "cancelled" ||
+      selected.status === "paused"
+    )
+      return;
 
     await confirm({
-      title: "Remover instituição do SaaS?",
+      title: "Suspender instituição?",
       message:
-        "A instituição sairá da operação normal. Usuários, histórico e dados esportivos serão preservados, e ela poderá ser restaurada depois.",
-      confirmLabel: "Remover instituição",
+        "Ela ficará na aba Suspensas, com histórico e dados preservados para reativação posterior. Registre o motivo na nota comercial.",
+      confirmLabel: "Suspender instituição",
       cancelLabel: "Cancelar",
-      loadingLabel: "Removendo…",
+      loadingLabel: "Suspendendo…",
       tone: "danger",
       onConfirm: async () => {
         if (!selectedSource) {
           setItems((current) =>
             current.map((item) =>
-              item.id === selected.id ? { ...item, status: "cancelled" } : item,
+              item.id === selected.id ? { ...item, status: "paused" } : item,
             ),
           );
         } else {
           await platformUpdateInstitutionAccount({
             organizationId: selected.id,
             product: selectedSource.product,
-            lifecycleStatus: "cancelled",
+            lifecycleStatus: "paused",
             commercialStatus: selectedSource.commercialStatus,
             evaluationEndsAt: selectedSource.evaluationEndsAt,
             activatedAt: selectedSource.activatedAt,
@@ -321,11 +286,10 @@ export function PlatformDashboard() {
         }
 
         setEditing(false);
-        setFilter("all");
-        setSelectedId("");
+        setFilter("paused");
         showSaveToast({
           variant: "success",
-          message: "Instituição removida da operação.",
+          message: "Instituição marcada como suspensa.",
         });
       },
     });
@@ -662,106 +626,143 @@ export function PlatformDashboard() {
                   </Text>
                 </View>
               ) : null}
-              {filtered.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setSelectedId(item.id)}
+              {loading ? (
+                <View
                   style={{
-                    minHeight: 64,
+                    minHeight: 72,
                     borderTopWidth: 1,
                     borderTopColor: colors.border,
-                    backgroundColor:
-                      selected.id === item.id
-                        ? colors.successBg
-                        : "transparent",
-                    paddingHorizontal: 16,
-                    paddingVertical: 9,
-                    flexDirection: "row",
                     alignItems: "center",
-                    gap: 10,
+                    justifyContent: "center",
                   }}
                 >
-                  <View
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Carregando instituições…
+                  </Text>
+                </View>
+              ) : null}
+              {!loading && filtered.length === 0 ? (
+                <View
+                  style={{
+                    minHeight: 72,
+                    borderTopWidth: 1,
+                    borderTopColor: colors.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Nenhuma instituição encontrada.
+                  </Text>
+                </View>
+              ) : null}
+              {!loading &&
+                filtered.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => setSelectedId(item.id)}
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 19,
-                      backgroundColor: colors.infoBg,
+                      minHeight: 64,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                      backgroundColor:
+                        selected.id === item.id
+                          ? colors.successBg
+                          : "transparent",
+                      paddingHorizontal: 16,
+                      paddingVertical: 9,
+                      flexDirection: "row",
                       alignItems: "center",
-                      justifyContent: "center",
+                      gap: 10,
                     }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "900" }}>
-                      {item.name.slice(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ flex: width >= 760 ? 1.25 : 1, minWidth: 0 }}>
-                    <Text
-                      numberOfLines={1}
+                    <View
                       style={{
-                        color: colors.text,
-                        fontSize: 13,
-                        fontWeight: "800",
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: colors.infoBg,
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
-                      {item.name}
-                    </Text>
-                    {width < 760 ? (
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        {item.responsible} · {productLabels[item.product]}
+                      <Text style={{ color: colors.text, fontWeight: "900" }}>
+                        {item.name.slice(0, 2).toUpperCase()}
                       </Text>
-                    ) : null}
-                  </View>
-                  {width >= 760 ? (
-                    <>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          numberOfLines={1}
-                          style={{ color: colors.text, fontSize: 12 }}
-                        >
-                          {item.responsible}
-                        </Text>
-                        <Text
-                          numberOfLines={1}
-                          style={{ color: colors.muted, fontSize: 10 }}
-                        >
-                          {item.email}
-                        </Text>
-                      </View>
+                    </View>
+                    <View
+                      style={{ flex: width >= 760 ? 1.25 : 1, minWidth: 0 }}
+                    >
                       <Text
-                        style={{ width: 90, color: colors.text, fontSize: 12 }}
-                      >
-                        {productLabels[item.product]}
-                      </Text>
-                      <Text
+                        numberOfLines={1}
                         style={{
-                          width: 150,
-                          color: colors.muted,
-                          fontSize: 11,
+                          color: colors.text,
+                          fontSize: 13,
+                          fontWeight: "800",
                         }}
                       >
-                        {item.period}
+                        {item.name}
                       </Text>
-                    </>
-                  ) : null}
-                  <View style={{ width: width >= 760 ? 100 : undefined }}>
-                    <StatusPill status={item.status} />
-                  </View>
-                  {width >= 760 ? (
-                    <Text
-                      style={{
-                        width: 48,
-                        color: colors.text,
-                        fontSize: 12,
-                        fontWeight: "800",
-                        textAlign: "center",
-                      }}
-                    >
-                      {item.users}
-                    </Text>
-                  ) : null}
-                </Pressable>
-              ))}
+                      {width < 760 ? (
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {item.responsible} · {productLabels[item.product]}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {width >= 760 ? (
+                      <>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text
+                            numberOfLines={1}
+                            style={{ color: colors.text, fontSize: 12 }}
+                          >
+                            {item.responsible}
+                          </Text>
+                          <Text
+                            numberOfLines={1}
+                            style={{ color: colors.muted, fontSize: 10 }}
+                          >
+                            {item.email}
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            width: 90,
+                            color: colors.text,
+                            fontSize: 12,
+                          }}
+                        >
+                          {productLabels[item.product]}
+                        </Text>
+                        <Text
+                          style={{
+                            width: 150,
+                            color: colors.muted,
+                            fontSize: 11,
+                          }}
+                        >
+                          {item.period}
+                        </Text>
+                      </>
+                    ) : null}
+                    <View style={{ width: width >= 760 ? 100 : undefined }}>
+                      <StatusPill status={item.status} />
+                    </View>
+                    {width >= 760 ? (
+                      <Text
+                        style={{
+                          width: 48,
+                          color: colors.text,
+                          fontSize: 12,
+                          fontWeight: "800",
+                          textAlign: "center",
+                        }}
+                      >
+                        {item.users}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                ))}
             </View>
             <View
               style={{
@@ -1069,11 +1070,14 @@ export function PlatformDashboard() {
               ) : (
                 <Button label="Gerenciar instituição" onPress={startEditing} />
               )}
-              {!editing && selected.status !== "cancelled" ? (
+              {!editing &&
+              selected.id &&
+              selected.status !== "cancelled" &&
+              selected.status !== "paused" ? (
                 <Pressable
-                  onPress={() => void removeInstitution()}
+                  onPress={() => void suspendInstitution()}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remover ${selected.name} do SaaS`}
+                  accessibilityLabel={`Suspender ${selected.name}`}
                   style={{
                     minHeight: 44,
                     borderRadius: radius.internal,
@@ -1085,30 +1089,32 @@ export function PlatformDashboard() {
                   }}
                 >
                   <Text style={{ color: colors.dangerText, fontWeight: "800" }}>
-                    Remover do SaaS
+                    Suspender instituição
                   </Text>
                 </Pressable>
               ) : null}
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/platform/accesses",
-                    params: { institution: selected.name },
-                  })
-                }
-                style={{
-                  minHeight: 44,
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800" }}>
-                  Ver acessos
-                </Text>
-              </Pressable>
+              {selected.id ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/platform/accesses",
+                      params: { institution: selected.name },
+                    })
+                  }
+                  style={{
+                    minHeight: 44,
+                    borderRadius: radius.internal,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "800" }}>
+                    Ver acessos
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </ResponsiveGrid>
         </ResponsivePage>
