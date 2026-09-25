@@ -1,6 +1,6 @@
 # Planejamento, periodização e contexto
 
-O GoAtleta trata o plano de aula como um documento versionado. A turma e a data
+O Go Atleta trata o plano de aula como um documento versionado. A turma e a data
 são vinculadas somente quando o professor decide aplicar esse documento.
 
 ```mermaid

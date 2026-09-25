@@ -11,7 +11,7 @@ e audita a fila global.
 
 1. A pessoa cria e confirma a conta.
 2. Em `/pending`, procura uma instituição pelo nome.
-3. Envia uma solicitação idempotente para o produto GoAtleta.
+3. Envia uma solicitação idempotente para o produto Go Atleta.
 4. A tela passa a exibir instituição, produto e status da solicitação.
 5. A coordenação recebe a solicitação em `Coordenação > Gestão` e pode aprovar ou
    recusar.
@@ -79,12 +79,12 @@ cobrança automática e não expõem dados financeiros sensíveis na tela bloque
 
 ## Decisão financeira validada com a operação
 
-O GoAtleta deve representar duas relações financeiras independentes:
+O Go Atleta deve representar duas relações financeiras independentes:
 
 1. **Atleta → instituição:** mensalidade, matrícula ou taxa cobrada pela escola.
-   A instituição combina e recebe o pagamento fora do GoAtleta enquanto a
+   A instituição combina e recebe o pagamento fora do Go Atleta enquanto a
    cobrança real permanecer desabilitada.
-2. **Instituição → GoAtleta:** assinatura SaaS contratada pela instituição. Esse
+2. **Instituição → Go Atleta:** assinatura SaaS contratada pela instituição. Esse
    estado pertence exclusivamente ao painel do administrador da plataforma.
 
 O vencimento de uma cobrança do atleta é informativo. Ele não remove o vínculo,
@@ -112,7 +112,7 @@ for verdade.
 | Informar vencimento do atleta | Consulta | Cria e atualiza | Não altera |
 | Marcar pagamento do atleta | Não | Manualmente | Não altera |
 | Suspender acesso do atleta | Não | Manual e auditável | Suporte excepcional |
-| Contratar/pagar o GoAtleta | Não | Responsável da instituição | Acompanha assinatura |
+| Contratar/pagar o Go Atleta | Não | Responsável da instituição | Acompanha assinatura |
 | Liberar instituição no SaaS | Não | Não | Sim |
 
 ## Checklist consolidado
@@ -171,18 +171,18 @@ for verdade.
       data, sem mudar acesso, vínculo ou disponibilidade do plano.
 - [ ] Permitir à coordenação marcar manualmente `Pago`, `Isento` ou `Cancelado`.
 - [ ] Exibir instrução de pagamento informada pela instituição, sem prometer
-      processamento dentro do GoAtleta.
+      processamento dentro do Go Atleta.
 - [ ] Testar que cobrança vencida não bloqueia o usuário nem remove seu plano.
 - [ ] Testar que somente uma suspensão explícita altera o acesso.
 
-### 4. Administração SaaS do GoAtleta
+### 4. Administração SaaS do Go Atleta
 
 - [x] Criar rota protegida `/platform/accesses`.
 - [x] Criar navegação SaaS separada da coordenação, com `Painel` e `Acessos`.
 - [x] Listar solicitações globais com usuário, instituição, produto e status.
 - [x] Permitir busca, filtros, seleção, aprovação e recusa.
 - [x] Restringir fila e revisão a `platform_admins` ou claim confiável.
-- [x] Preservar o shell, sidebar animada e componentes responsivos do GoAtleta.
+- [x] Preservar o shell, sidebar animada e componentes responsivos do Go Atleta.
 - [x] Criar mockup e aprovar a nova tela `/platform` antes da implementação.
 - [x] Na tela `/platform`, listar instituições, responsáveis, produto contratado,
       período de avaliação, assinatura SaaS e situação comercial.

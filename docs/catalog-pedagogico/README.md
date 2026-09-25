@@ -1,8 +1,8 @@
-# Catalogo Pedagogico do GoAtleta
+# Catalogo Pedagogico do Go Atleta
 
 ## Objetivo
 
-Este pacote documenta como manter e evoluir o Catalogo Pedagogico do voleibol no GoAtleta.
+Este pacote documenta como manter e evoluir o Catalogo Pedagogico do voleibol no Go Atleta.
 
 O catalogo nao e uma lista solta de exercicios. Ele e a camada explicita de conhecimento pedagogico usada para orientar selecao, ranqueamento, explicacao e revisao de atividades.
 

@@ -4,13 +4,13 @@ Data: 08/09/2026. Estado: direção visual aprovada pelo usuário; implementaç�
 
 ## Objetivo
 
-Transformar a tela em um ambiente completo de criação, apresentação e reutilização de jogadas e exercícios de voleibol. A quadra ocupa a maior área útil; ferramentas e propriedades aparecem conforme a ação. Manter a identidade navy/verde do GoAtleta, tema claro e escuro, autenticação e isolamento por organização.
+Transformar a tela em um ambiente completo de criação, apresentação e reutilização de jogadas e exercícios de voleibol. A quadra ocupa a maior área útil; ferramentas e propriedades aparecem conforme a ação. Manter a identidade navy/verde do Go Atleta, tema claro e escuro, autenticação e isolamento por organização.
 
 ## Referência e evidências
 
 - Coach Tactic Board: Volley, descrição oficial Android: https://play.google.com/store/apps/details?hl=en_AU&id=com.bluelinden.coachboardvolleyball
 - A descrição anuncia ferramentas de desenho com 16 tipos de linha, materiais de treino, quadra inteira/meia quadra/treino/lousa, equipes, substituições por arraste, personalização de jogadores, pastas e exportação. Não houve instalação nem teste prático do app concorrente; formatos e limites de exportação Android precisam de confirmação.
-- GoAtleta: inspeção autenticada da Quadra Visual no localhost e leitura de `app/class/[id]/visual-tech.tsx`, `src/components/visual-court/VisualCourtCanvas.tsx`, `VisualCourtTimelineControls.tsx` e `src/core/visual-court.ts`.
+- Go Atleta: inspeção autenticada da Quadra Visual no localhost e leitura de `app/class/[id]/visual-tech.tsx`, `src/components/visual-court/VisualCourtCanvas.tsx`, `VisualCourtTimelineControls.tsx` e `src/core/visual-court.ts`.
 
 ## Estado anterior à implementação
 

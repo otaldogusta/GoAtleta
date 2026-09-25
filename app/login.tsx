@@ -37,6 +37,7 @@ import { isBiometricsSupported } from "../src/security/biometrics";
 import { isSupabaseConfigured } from "../src/api/config";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useAppTheme } from "../src/ui/app-theme";
+import { authLayout } from "../src/ui/auth-layout";
 import { Button } from "../src/ui/Button";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
@@ -256,6 +257,14 @@ export default function LoginScreen() {
         routeCode: typeof inviteCode === "string" ? inviteCode : undefined,
         storedCode: storedTrainerCode,
       });
+      const hasPendingInvite = Boolean(
+        pendingStudentToken || pendingRelationshipToken || pendingTrainerCode,
+      );
+      if (!hasPendingInvite && !loginRedirectTarget) {
+        // The root authorization boundary chooses the role/platform home after
+        // its authoritative access checks finish.
+        return;
+      }
       const target = resolvePendingInviteRedirect({
         pendingStudentToken,
         pendingTrainerCode,
@@ -442,10 +451,10 @@ export default function LoginScreen() {
               style={{
                 flex: 1,
                 justifyContent: "center",
-                maxWidth: 440,
+                maxWidth: authLayout.contentMaxWidth,
                 width: "100%",
                 alignSelf: "center",
-                gap: 18,
+                gap: authLayout.sectionGap,
                 opacity: enterAnim,
                 transform: [
                   {
@@ -534,12 +543,12 @@ export default function LoginScreen() {
 
             <Animated.View
               style={{
-                padding: 18,
-                borderRadius: 22,
+                padding: authLayout.cardPadding,
+                borderRadius: authLayout.cardRadius,
                 backgroundColor: colors.card,
                 borderWidth: 0,
                 overflow: "visible",
-                gap: 14,
+                gap: authLayout.cardGap,
                 opacity: enterAnim,
                 transform: [
                   {
@@ -620,12 +629,12 @@ export default function LoginScreen() {
                     borderColor: message && (fromSignup === "1" || message.toLowerCase().includes("email"))
                       ? colors.dangerSolidBg
                       : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
-                    borderRadius: 12,
+                    borderRadius: authLayout.fieldRadius,
                     backgroundColor: loginInputBg,
                     overflow: "hidden",
-                    paddingHorizontal: 14,
+                    paddingHorizontal: authLayout.fieldHorizontalPadding,
                     paddingVertical: 10,
-                    minHeight: 50,
+                    minHeight: authLayout.fieldHeight,
                     justifyContent: "center",
                   }}
                 >
@@ -729,12 +738,12 @@ export default function LoginScreen() {
                         alignItems: "center",
                         borderWidth: 1,
                         borderColor: message && !(fromSignup === "1" || message.toLowerCase().includes("email")) ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
-                        paddingHorizontal: 14,
+                        paddingHorizontal: authLayout.fieldHorizontalPadding,
                         paddingVertical: 10,
-                        borderRadius: 12,
+                        borderRadius: authLayout.fieldRadius,
                         backgroundColor: loginInputBg,
                         overflow: "hidden",
-                        height: 50,
+                        height: authLayout.fieldHeight,
                       }}
                     >
                       <TextInput

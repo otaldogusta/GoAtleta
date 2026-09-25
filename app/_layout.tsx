@@ -35,6 +35,8 @@ import {
   sanitizePostLoginRedirect,
 } from "../src/auth/post-login-redirect";
 import { RoleProvider, useRole } from "../src/auth/role";
+import { resolvePlatformRouteAccess } from "../src/auth/platform-route-access";
+import { usePlatformAdminAccessState } from "../src/auth/use-platform-admin-access";
 import {
   getTrainerPermissionKey,
   hasOrganizationAdminAccess,
@@ -95,8 +97,16 @@ Sentry.init({
   enabled: Boolean(sentryDsn),
   // Email proof is a credential. Do not collect events or breadcrumbs while
   // the confirmation entry still owns it (including before React mounts).
-  beforeSend: (event) => typeof window !== "undefined" && window.location.pathname === "/staff-invite" ? null : event,
-  beforeBreadcrumb: (breadcrumb) => typeof window !== "undefined" && window.location.pathname === "/staff-invite" ? null : breadcrumb,
+  beforeSend: (event) =>
+    typeof window !== "undefined" &&
+    window.location.pathname === "/staff-invite"
+      ? null
+      : event,
+  beforeBreadcrumb: (breadcrumb) =>
+    typeof window !== "undefined" &&
+    window.location.pathname === "/staff-invite"
+      ? null
+      : breadcrumb,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -229,8 +239,13 @@ function RootLayoutContent() {
     retry: retryBootstrap,
   } = useBootstrap();
   const rootState = useRootNavigationState();
-  const { session, loading, exchangeCodeForSession, consumeAuthUrl } =
-    useAuth();
+  const {
+    session,
+    loading,
+    exchangeCodeForSession,
+    consumeAuthUrl,
+    refreshUser,
+  } = useAuth();
   const {
     role,
     student,
@@ -280,17 +295,34 @@ function RootLayoutContent() {
       Platform.OS === "web" &&
       typeof window !== "undefined" &&
       (new URLSearchParams(window.location.search).has("code") ||
-        new URLSearchParams(window.location.hash.replace(/^#/, "")).has("access_token")),
+        new URLSearchParams(window.location.hash.replace(/^#/, "")).has(
+          "access_token",
+        )),
   );
   const navReady = Boolean(rootState?.key);
   const isAdminProfile =
     role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
+  const { allowed: hasPlatformAccess, loading: platformAccessLoading } =
+    usePlatformAdminAccessState();
+  const isPlatformAdminProfile = hasPlatformAccess;
+  const isPlatformOnlyProfile =
+    hasPlatformAccess && session?.user?.app_metadata?.platform_only === true;
+  useEffect(() => {
+    if (
+      !hasPlatformAccess ||
+      session?.user?.app_metadata?.platform_only !== undefined
+    ) {
+      return;
+    }
+    void refreshUser();
+  }, [hasPlatformAccess, refreshUser, session?.user?.app_metadata]);
   const hasOrgAdminAccess = hasOrganizationAdminAccess(
     activeOrganizationId,
     organizations,
   );
-  const appHomeHref =
-    role === "student" || role === "pending"
+  const appHomeHref = isPlatformAdminProfile
+    ? "/platform"
+    : role === "student" || role === "pending"
       ? "/student/home"
       : role === "family"
         ? "/family/home"
@@ -347,13 +379,15 @@ function RootLayoutContent() {
     Platform.OS === "web" &&
     normalizedPathname === "/platform/accesses" &&
     typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("designPreview") === "accesses";
+    new URLSearchParams(window.location.search).get("designPreview") ===
+      "accesses";
   const isDevPlatformDashboardPreview =
     __DEV__ &&
     Platform.OS === "web" &&
     normalizedPathname === "/platform" &&
     typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("designPreview") === "dashboard";
+    new URLSearchParams(window.location.search).get("designPreview") ===
+      "dashboard";
   const isInviteRoute =
     normalizedPathname === "/staff-invite" ||
     normalizedPathname === "/invite" ||
@@ -361,7 +395,8 @@ function RootLayoutContent() {
     normalizedPathname === "/family-invite" ||
     normalizedPathname.startsWith("/family-invite/");
   const isEmailAccessVerified = hasVerifiedEmailAccess(session?.user);
-  const needsHybridEmailVerification = Boolean(session) && !isEmailAccessVerified;
+  const needsHybridEmailVerification =
+    Boolean(session) && !isEmailAccessVerified;
   const isPublicRoute =
     isDevPlatformAccessPreview ||
     isDevPlatformDashboardPreview ||
@@ -371,6 +406,15 @@ function RootLayoutContent() {
         normalizedPathname === prefix ||
         normalizedPathname.startsWith(`${prefix}/`),
     );
+  const platformRouteAccess = resolvePlatformRouteAccess({
+    pathname: normalizedPathname,
+    hasSession: Boolean(session),
+    accessLoading: platformAccessLoading,
+    hasPlatformAccess,
+    authenticatedFallback: appHomeHref,
+    isDesignPreview:
+      isDevPlatformAccessPreview || isDevPlatformDashboardPreview,
+  });
   const shouldShowFirstAccessProfile =
     Boolean(session) &&
     (role === "trainer" || role === "family") &&
@@ -660,11 +704,13 @@ function RootLayoutContent() {
     // Do not redirect users away from reset-password screen during password recovery
     if (normalizedPathname === "/reset-password") return;
 
-    if (shouldRestrictToEmailVerification({
-      user: session?.user,
-      pathname: normalizedPathname,
-      isInviteRoute,
-    })) {
+    if (
+      shouldRestrictToEmailVerification({
+        user: session?.user,
+        pathname: normalizedPathname,
+        isInviteRoute,
+      })
+    ) {
       const email = encodeURIComponent(session?.user?.email ?? "");
       router.replace(`/verify-email?email=${email}`);
       return;
@@ -689,6 +735,16 @@ function RootLayoutContent() {
 
     const authDestinationHref = appHomeHref;
 
+    if (
+      session &&
+      platformAccessLoading &&
+      ["/onboarding", "/welcome", "/login", "/signup"].includes(
+        normalizedPathname,
+      )
+    ) {
+      return;
+    }
+
     if (normalizedPathname === "/onboarding") {
       redirectTo = session ? authDestinationHref : "/welcome";
     } else if (
@@ -700,6 +756,8 @@ function RootLayoutContent() {
       redirectTo = authDestinationHref;
     } else if (!session && normalizedPathname === "/") {
       redirectTo = "/welcome";
+    } else if (platformRouteAccess.redirectTo && !session) {
+      redirectTo = platformRouteAccess.redirectTo;
     } else if (!session && !isPublicRoute) {
       const currentRoute =
         Platform.OS === "web" && typeof window !== "undefined"
@@ -715,6 +773,24 @@ function RootLayoutContent() {
       if (redirectTo !== normalizedPathname) {
         router.replace(redirectTo as Parameters<typeof router.replace>[0]);
       }
+      return;
+    }
+
+    if (platformRouteAccess.redirectTo) {
+      router.replace(
+        platformRouteAccess.redirectTo as Parameters<typeof router.replace>[0],
+      );
+      return;
+    }
+
+    if (
+      session &&
+      isPlatformOnlyProfile &&
+      !normalizedPathname.startsWith("/platform") &&
+      !isPublicRoute &&
+      !isInviteRoute
+    ) {
+      router.replace("/platform");
       return;
     }
 
@@ -783,7 +859,6 @@ function RootLayoutContent() {
         return;
       }
     }
-
   }, [
     biometricsEnabled,
     isInviteRoute,
@@ -791,6 +866,8 @@ function RootLayoutContent() {
     hasCredentialLoginBypass,
     isUnlocked,
     isDevStudentConsultationPreview,
+    isDevPlatformAccessPreview,
+    isDevPlatformDashboardPreview,
     effectiveProfile,
     entryInviteCode,
     loading,
@@ -806,8 +883,13 @@ function RootLayoutContent() {
     session,
     hasOrgAdminAccess,
     isAdminProfile,
+    isPlatformAdminProfile,
+    isPlatformOnlyProfile,
     appHomeHref,
     organizationLoading,
+    hasPlatformAccess,
+    platformAccessLoading,
+    platformRouteAccess.redirectTo,
     appStartedAtRef,
     oauthResolving,
   ]);
@@ -827,8 +909,14 @@ function RootLayoutContent() {
       const nextAfterAuth = sanitizePostLoginRedirect(urlParams.get("next"));
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
-      const redirectAfterAuth = async (authenticatedSession: typeof session) => {
-        const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
+      const redirectAfterAuth = async (
+        authenticatedSession: typeof session,
+      ) => {
+        const [
+          pendingStudentToken,
+          pendingRelationshipToken,
+          pendingTrainerCode,
+        ] = await Promise.all([
           getPendingInvite(),
           getPendingRelationshipInvite(),
           getPendingTrainerInvite(),
@@ -843,7 +931,9 @@ function RootLayoutContent() {
           session: authenticatedSession,
           pendingDestination,
           hasPendingInvite: Boolean(
-            pendingStudentToken || pendingRelationshipToken || pendingTrainerCode,
+            pendingStudentToken ||
+            pendingRelationshipToken ||
+            pendingTrainerCode,
           ),
         });
         router.replace(destination as Parameters<typeof router.replace>[0]);
@@ -882,8 +972,14 @@ function RootLayoutContent() {
       const nextAfterAuth = sanitizePostLoginRedirect(searchParams.get("next"));
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
-      const redirectAfterAuth = async (authenticatedSession: typeof session) => {
-        const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
+      const redirectAfterAuth = async (
+        authenticatedSession: typeof session,
+      ) => {
+        const [
+          pendingStudentToken,
+          pendingRelationshipToken,
+          pendingTrainerCode,
+        ] = await Promise.all([
           getPendingInvite(),
           getPendingRelationshipInvite(),
           getPendingTrainerInvite(),
@@ -898,7 +994,9 @@ function RootLayoutContent() {
           session: authenticatedSession,
           pendingDestination,
           hasPendingInvite: Boolean(
-            pendingStudentToken || pendingRelationshipToken || pendingTrainerCode,
+            pendingStudentToken ||
+            pendingRelationshipToken ||
+            pendingTrainerCode,
           ),
         });
         router.replace(destination as Parameters<typeof router.replace>[0]);
@@ -1100,6 +1198,16 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
               : "Carregando..."
           }
         />
+        <StatusBar style={mode === "dark" ? "light" : "dark"} />
+      </View>
+    );
+  }
+
+  if (platformRouteAccess.blockRender) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenBackdrop variant="boot" />
+        <FullscreenLoadingState label="Validando acesso..." />
         <StatusBar style={mode === "dark" ? "light" : "dark"} />
       </View>
     );
@@ -1350,11 +1458,11 @@ function BiometricAuthBoundary() {
                 <ConfirmUndoProvider>
                   <SaveToastProvider>
                     <RefreshFeedbackProvider>
-                    <GuidanceProvider>
-                      <CopilotProvider>
-                        <RootLayoutContent />
-                      </CopilotProvider>
-                    </GuidanceProvider>
+                      <GuidanceProvider>
+                        <CopilotProvider>
+                          <RootLayoutContent />
+                        </CopilotProvider>
+                      </GuidanceProvider>
                     </RefreshFeedbackProvider>
                   </SaveToastProvider>
                 </ConfirmUndoProvider>

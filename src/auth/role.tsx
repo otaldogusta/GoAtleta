@@ -29,6 +29,7 @@ import {
   setActiveRolePreference,
 } from "./active-role";
 import { useAuth } from "./auth";
+import { hasVerifiedEmailAccess } from "./email-verification-state";
 import type { SelectableUserRole, UserRole } from "./role-types";
 import {
   resolveAvailableUserRoles,
@@ -263,6 +264,16 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           setAvailableRoles([]);
           setStudent(null);
           setStudentAccessResolution(null);
+          setFamilyContexts([]);
+          setSelectedFamilyStudent(null);
+          return;
+        }
+
+        if (!hasVerifiedEmailAccess(refreshSession.user)) {
+          setRole("pending");
+          setAvailableRoles([]);
+          setStudent(null);
+          setStudentAccessResolution("verification_required");
           setFamilyContexts([]);
           setSelectedFamilyStudent(null);
           return;

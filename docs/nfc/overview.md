@@ -1,6 +1,6 @@
 # NFC
 
-Este é o documento canônico para o estado atual do NFC no GoAtleta. O relatório
+Este é o documento canônico para o estado atual do NFC no Go Atleta. O relatório
 completo de arquitetura e correções foi preservado como histórico.
 
 ## Estado atual
@@ -11,7 +11,7 @@ completo de arquitetura e correções foi preservado como histórico.
   não há uma seção NFC separada na navegação da turma.
 - A ação de vínculo aparece apenas para administradores da organização. Uma tag
   já vinculada a outro aluno não é reassociada silenciosamente.
-- No web, o GoAtleta detecta `NDEFReader` e tenta a leitura Web NFC. Navegador,
+- No web, o Go Atleta detecta `NDEFReader` e tenta a leitura Web NFC. Navegador,
   permissão, hardware ausente e tag sem NDEF recebem mensagens operacionais
   diferentes; a presença da API sozinha não confirma o hardware.
 - A rota operacional NFC independente permanece disponível para compatibilidade

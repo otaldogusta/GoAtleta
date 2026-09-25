@@ -1,6 +1,6 @@
 # Treinamento Resistido Integrado (Gym & Court)
 
-Este documento centraliza e unifica todo o ecossistema de integração do treinamento resistido (academia/musculação) com o treino de quadra no GoAtleta.
+Este documento centraliza e unifica todo o ecossistema de integração do treinamento resistido (academia/musculação) com o treino de quadra no Go Atleta.
 
 ---
 
@@ -69,7 +69,7 @@ A integração foi dividida e executada em 5 fatias de entregáveis (Slices):
 
 ## 🔍 Sinais de QA e Observabilidade Atuais
 
-O pipeline de observability do GoAtleta analisa a coerência do microciclo:
+O pipeline de observability do Go Atleta analisa a coerência do microciclo:
 1. **Risco de Interferência (`resistance_interference_risk`)**: Disparado se há alta carga de salto na quadra combinada com treino resistido de potência de pernas no mesmo dia ou próximo.
    - *Aviso*: *"Confira se a recuperação e a distribuição da carga entre sessões está adequada."*
 2. **Transferência Fraca (`resistance_transfer_weak`)**: Quando um treino resistido não declara o `transferTarget` correspondente à ação na quadra.

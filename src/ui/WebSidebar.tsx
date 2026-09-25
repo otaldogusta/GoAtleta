@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
+import { usePlatformAdminAccess } from "../auth/use-platform-admin-access";
 import { canUseProfilePreview } from "../dev/profile-preview-access";
 import { useRole, type UserRole } from "../auth/role";
 import {
@@ -15,7 +16,10 @@ import { navigateToPrimaryRoute } from "../navigation/primary-route-navigation";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { formatUnreadNotificationBadge } from "../notifications/unread-notification-count";
 import { resolveNotificationOrganizationId } from "../notifications/notification-organization";
-import { PROFILE_NAME_FALLBACK, resolveProfileDisplayName } from "../core/profile-name";
+import {
+  PROFILE_NAME_FALLBACK,
+  resolveProfileDisplayName,
+} from "../core/profile-name";
 import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
 import { useOptionalOrganization } from "../providers/organization-context";
 import { brandPalette, radius } from "../theme/tokens";
@@ -48,7 +52,8 @@ type SidebarItem = {
 const SIDEBAR_COMPACT_WIDTH = 88;
 const SIDEBAR_EXPANDED_WIDTH = 292;
 const SIDEBAR_FINANCE_WIDTH = 220;
-const SIDEBAR_EXPANSION_DISTANCE = SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
+const SIDEBAR_EXPANSION_DISTANCE =
+  SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
 const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded-v2";
 
 const roleSubtitle: Record<AppRole, string> = {
@@ -113,9 +118,9 @@ const profileSwitchOptions: readonly {
 
 const getDisplayName = (session: ReturnType<typeof useAuth>["session"]) => {
   const user = session?.user as
-    | { email?: string; user_metadata?: Record<string, unknown> }
-    | undefined;
-  const metadataName = user?.user_metadata?.full_name ?? user?.user_metadata?.name;
+    { email?: string; user_metadata?: Record<string, unknown> } | undefined;
+  const metadataName =
+    user?.user_metadata?.full_name ?? user?.user_metadata?.name;
   return resolveProfileDisplayName({
     displayName: metadataName,
     email: user?.email,
@@ -155,7 +160,15 @@ function BrandMark({
   );
 }
 
-function BrandWordmark({ role, fill = true, subtitle }: { role: AppRole; fill?: boolean; subtitle?: string }) {
+function BrandWordmark({
+  role,
+  fill = true,
+  subtitle,
+}: {
+  role: AppRole;
+  fill?: boolean;
+  subtitle?: string;
+}) {
   return (
     <View style={{ flex: fill ? 1 : undefined, minWidth: 0, gap: 2 }}>
       <GoAtletaBrandWordmark height={18} tone="light" />
@@ -226,7 +239,7 @@ function SidebarToggleButton({
     >
       <View
         style={
-          ({
+          {
             width: 28,
             height: 28,
             borderRadius: 14,
@@ -241,7 +254,7 @@ function SidebarToggleButton({
               : "rgba(255,255,255,0.16)",
             boxShadow: "0 6px 18px rgba(2,6,23,0.28)",
             transition: "background-color 140ms ease, border-color 140ms ease",
-          }) as any
+          } as any
         }
       >
         <GoAtletaIcon
@@ -262,9 +275,13 @@ export function WebSidebar({
 }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const isPlatformWorkspace = role === "coord" && pathname.startsWith("/platform");
+  const isPlatformWorkspace =
+    role === "coord" && pathname.startsWith("/platform");
   const { mode, colors } = useAppTheme();
   const { session, signOut } = useAuth();
+  const canAccessPlatform = usePlatformAdminAccess();
+  const isPlatformOnlyAccount =
+    canAccessPlatform && session?.user?.app_metadata?.platform_only === true;
   const {
     availableRoles,
     student,
@@ -285,12 +302,17 @@ export function WebSidebar({
     true,
     role === "family" ? "student" : role,
   );
-  const unreadNotificationBadge = formatUnreadNotificationBadge(unreadNotificationCount);
+  const unreadNotificationBadge = formatUnreadNotificationBadge(
+    unreadNotificationCount,
+  );
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [profileSwitcherTop, setProfileSwitcherTop] = useState(12);
-  const isFinanceWorkspace = showCompact && pathname.startsWith("/coord/finance");
-  const [sidebarExpandedPreference, setSidebarExpandedState] = useState<boolean | null>(() => {
+  const isFinanceWorkspace =
+    showCompact && pathname.startsWith("/coord/finance");
+  const [sidebarExpandedPreference, setSidebarExpandedState] = useState<
+    boolean | null
+  >(() => {
     if (!canPersistExpansion || typeof window === "undefined") return null;
     const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
     if (stored === "expanded") return true;
@@ -300,7 +322,9 @@ export function WebSidebar({
   const [supportsHoverPointer, setSupportsHoverPointer] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const [hoveredCompactItemKey, setHoveredCompactItemKey] = useState<string | null>(null);
+  const [hoveredCompactItemKey, setHoveredCompactItemKey] = useState<
+    string | null
+  >(null);
   const [compactTooltip, setCompactTooltip] = useState<{
     key: string;
     label: string;
@@ -310,7 +334,11 @@ export function WebSidebar({
   const profileSwitcherTriggerRef = useRef<View | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    )
+      return;
 
     const hoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -355,12 +383,18 @@ export function WebSidebar({
   const hasStudentRole = availableRoles.includes("student");
   const hasFamilyRole = availableRoles.includes("family");
   const hasHybridAccount = availableRoles.length > 1;
-  const canUseDevPreview = canUseProfilePreview(session?.user?.email) && Boolean(setDevProfilePreview);
+  const canUseDevPreview =
+    canUseProfilePreview(session?.user?.email) && Boolean(setDevProfilePreview);
   const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
-    hasHybridAccount, isOrgAdmin, canUseDevPreview,
-    hasTrainerRole, hasStudentRole, hasFamilyRole,
+    hasHybridAccount,
+    isOrgAdmin,
+    canUseDevPreview,
+    hasTrainerRole,
+    hasStudentRole,
+    hasFamilyRole,
   });
-  const canSwitchProfile = visibleProfileSwitchIds.length > 1;
+  const canSwitchProfile =
+    !isPlatformOnlyAccount && visibleProfileSwitchIds.length > 1;
   const selectedPreview = rolePreview[role];
   const profilePath = getScopedProfilePath(pathname || "/");
   const isProfileMenuOpen = profileMenuOpen;
@@ -384,7 +418,7 @@ export function WebSidebar({
       closeProfileMenu();
       navigateToPrimaryRoute({ router, href: href as never });
     },
-    [pathname, router, closeProfileMenu]
+    [pathname, router, closeProfileMenu],
   );
 
   const setSidebarExpanded = useCallback(
@@ -394,10 +428,10 @@ export function WebSidebar({
       if (!canPersistExpansion || typeof window === "undefined") return;
       window.localStorage.setItem(
         SIDEBAR_EXPANDED_STORAGE_KEY,
-        nextExpanded ? "expanded" : "compact"
+        nextExpanded ? "expanded" : "compact",
       );
     },
-    [canPersistExpansion, closeProfileMenu]
+    [canPersistExpansion, closeProfileMenu],
   );
 
   useEffect(() => {
@@ -406,7 +440,8 @@ export function WebSidebar({
       setSidebarExpanded(!expanded);
     };
     window.addEventListener("goatleta:toggle-sidebar", handleToggle);
-    return () => window.removeEventListener("goatleta:toggle-sidebar", handleToggle);
+    return () =>
+      window.removeEventListener("goatleta:toggle-sidebar", handleToggle);
   }, [expanded, setSidebarExpanded]);
 
   useEffect(() => {
@@ -426,11 +461,14 @@ export function WebSidebar({
     if (!isProfileMenuOpen || typeof document === "undefined") return;
 
     const isEventInsideMenu = (target: EventTarget | null) => {
-      if (typeof Node === "undefined" || !(target instanceof Node)) return false;
-      const rootElement = profileMenuRootRef.current as unknown as HTMLElement | null;
+      if (typeof Node === "undefined" || !(target instanceof Node))
+        return false;
+      const rootElement =
+        profileMenuRootRef.current as unknown as HTMLElement | null;
       if (rootElement?.contains(target)) return true;
       const targetEl = target as HTMLElement;
-      if (targetEl.closest?.('[data-goatleta-profile-menu="true"]')) return true;
+      if (targetEl.closest?.('[data-goatleta-profile-menu="true"]'))
+        return true;
       return false;
     };
 
@@ -509,20 +547,33 @@ export function WebSidebar({
       }
       router.replace(previewRoutes[preview] as never);
     },
-    [closeProfileMenu, setSidebarExpanded, canUseDevPreview, visibleProfileSwitchIds, refreshRole, router, setActiveRole, setDevProfilePreview]
+    [
+      closeProfileMenu,
+      setSidebarExpanded,
+      canUseDevPreview,
+      visibleProfileSwitchIds,
+      refreshRole,
+      router,
+      setActiveRole,
+      setDevProfilePreview,
+    ],
   );
 
   const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
-    visibleProfileSwitchIds.includes(option.id)
+    visibleProfileSwitchIds.includes(option.id),
   );
 
   const openProfileSwitcher = () => {
-    const triggerElement = profileSwitcherTriggerRef.current as unknown as HTMLElement | null;
+    const triggerElement =
+      profileSwitcherTriggerRef.current as unknown as HTMLElement | null;
     const triggerRect = triggerElement?.getBoundingClientRect?.();
     if (triggerRect && typeof window !== "undefined") {
       const estimatedHeight = 56 + visibleProfileSwitchOptions.length * 54;
       setProfileSwitcherTop(
-        Math.max(12, Math.min(triggerRect.top, window.innerHeight - estimatedHeight - 12))
+        Math.max(
+          12,
+          Math.min(triggerRect.top, window.innerHeight - estimatedHeight - 12),
+        ),
       );
     }
     setProfileSwitcherOpen(true);
@@ -552,20 +603,25 @@ export function WebSidebar({
         "data-goatleta-profile-menu": "true",
       } as any)}
       accessibilityLabel="Alternar workspace"
-      style={{
-        position: "absolute",
-        zIndex: 3201,
-        width: 236,
-        left: placement === "expanded" ? activeExpandedWidth - 12 : "calc(100% - 2px)",
-        top: placement === "expanded" ? profileSwitcherTop : 10,
-        borderRadius: radius.xl,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.14)",
-        backgroundColor: "#1F2937",
-        padding: 10,
-        gap: 4,
-        boxShadow: "0 24px 60px rgba(0,0,0,0.42)",
-      } as any}
+      style={
+        {
+          position: "absolute",
+          zIndex: 3201,
+          width: 236,
+          left:
+            placement === "expanded"
+              ? activeExpandedWidth - 12
+              : "calc(100% - 2px)",
+          top: placement === "expanded" ? profileSwitcherTop : 10,
+          borderRadius: radius.xl,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.14)",
+          backgroundColor: "#1F2937",
+          padding: 10,
+          gap: 4,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.42)",
+        } as any
+      }
     >
       <Text
         style={{
@@ -583,7 +639,7 @@ export function WebSidebar({
       {visibleProfileSwitchOptions.map((option) => {
         const active = selectedPreview === option.id;
         return (
-        <Pressable
+          <Pressable
             key={option.id}
             accessibilityLabel={`Abrir workspace ${option.label}`}
             accessibilityState={{ selected: active }}
@@ -595,7 +651,9 @@ export function WebSidebar({
               flexDirection: "row",
               alignItems: "center",
               gap: 11,
-              backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
+              backgroundColor: active
+                ? "rgba(255,255,255,0.10)"
+                : "transparent",
             }}
           >
             <GoAtletaIcon
@@ -684,19 +742,41 @@ export function WebSidebar({
               flexDirection: "row",
               alignItems: "center",
               gap: 11,
-              backgroundColor: isProfileSwitcherOpen ? "rgba(255,255,255,0.08)" : "transparent",
+              backgroundColor: isProfileSwitcherOpen
+                ? "rgba(255,255,255,0.08)"
+                : "transparent",
             }}
           >
-            <GoAtletaIcon name="swap" size={18} color="rgba(255,255,255,0.72)" />
+            <GoAtletaIcon
+              name="swap"
+              size={18}
+              color="rgba(255,255,255,0.72)"
+            />
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }}>
+              <Text
+                style={{
+                  color: brandPalette.white,
+                  fontSize: 13,
+                  fontWeight: "800",
+                }}
+              >
                 Alternar perfil
               </Text>
-              <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
-                Atual: {isPlatformWorkspace ? "Administrador SaaS" : roleProfileLabel[role]}
+              <Text
+                style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
+                numberOfLines={1}
+              >
+                Atual:{" "}
+                {isPlatformWorkspace
+                  ? "Administrador SaaS"
+                  : roleProfileLabel[role]}
               </Text>
             </View>
-            <GoAtletaIcon name="chevronForward" size={17} color="rgba(255,255,255,0.62)" />
+            <GoAtletaIcon
+              name="chevronForward"
+              size={17}
+              color="rgba(255,255,255,0.62)"
+            />
           </Pressable>
 
           <View
@@ -710,36 +790,116 @@ export function WebSidebar({
         </>
       ) : null}
 
-      <Pressable
-        onHoverIn={() => setProfileSwitcherOpen(false)}
-        onPress={openProfile}
-        style={{
-          minHeight: 44,
-          borderRadius: radius.card,
-          paddingHorizontal: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 11,
-        }}
-      >
-        <GoAtletaIcon
-          name="management"
-          size={19}
-          color="rgba(255,255,255,0.78)"
-        />
-        <Text style={{ flex: 1, color: brandPalette.white, fontSize: 13, fontWeight: "700" }}>
-          Perfil e configurações
-        </Text>
-      </Pressable>
+      {canAccessPlatform &&
+      !isPlatformOnlyAccount &&
+      (!isPlatformWorkspace || organizationContext?.activeOrganization) ? (
+        <Pressable
+          accessibilityLabel={
+            isPlatformWorkspace
+              ? "Voltar à administração da instituição"
+              : "Abrir administração SaaS"
+          }
+          onHoverIn={() => setProfileSwitcherOpen(false)}
+          onPress={() =>
+            navigateTo(isPlatformWorkspace ? "/coord/dashboard" : "/platform")
+          }
+          style={{
+            minHeight: 44,
+            borderRadius: radius.card,
+            paddingHorizontal: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 11,
+          }}
+        >
+          <GoAtletaIcon
+            name={isPlatformWorkspace ? "coordination" : "lock"}
+            size={19}
+            color={brandPalette.quadra}
+          />
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Text
+              style={{
+                color: brandPalette.white,
+                fontSize: 13,
+                fontWeight: "800",
+              }}
+            >
+              {isPlatformWorkspace
+                ? "Administração da instituição"
+                : "Administração SaaS"}
+            </Text>
+            <Text
+              style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
+              numberOfLines={1}
+            >
+              {isPlatformWorkspace
+                ? "Voltar ao workspace operacional"
+                : "Gestão global do Go Atleta"}
+            </Text>
+          </View>
+          <GoAtletaIcon
+            name="chevronForward"
+            size={17}
+            color="rgba(255,255,255,0.62)"
+          />
+        </Pressable>
+      ) : null}
 
-      <View
-        style={{
-          height: 1,
-          backgroundColor: "rgba(255,255,255,0.10)",
-          marginHorizontal: 8,
-          marginVertical: 4,
-        }}
-      />
+      {canAccessPlatform &&
+      !isPlatformOnlyAccount &&
+      (!isPlatformWorkspace || organizationContext?.activeOrganization) ? (
+        <View
+          style={{
+            height: 1,
+            backgroundColor: "rgba(255,255,255,0.10)",
+            marginHorizontal: 8,
+            marginVertical: 4,
+          }}
+        />
+      ) : null}
+
+      {!isPlatformOnlyAccount ? (
+        <Pressable
+          onHoverIn={() => setProfileSwitcherOpen(false)}
+          onPress={openProfile}
+          style={{
+            minHeight: 44,
+            borderRadius: radius.card,
+            paddingHorizontal: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 11,
+          }}
+        >
+          <GoAtletaIcon
+            name="management"
+            size={19}
+            color="rgba(255,255,255,0.78)"
+          />
+          <Text
+            style={{
+              flex: 1,
+              color: brandPalette.white,
+              fontSize: 13,
+              fontWeight: "700",
+            }}
+          >
+            Perfil e configurações
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {!isPlatformOnlyAccount ? (
+        <View
+          style={{
+            height: 1,
+            backgroundColor: "rgba(255,255,255,0.10)",
+            marginHorizontal: 8,
+            marginVertical: 4,
+          }}
+        />
+      ) : null}
 
       <Pressable
         accessibilityLabel="Sair da conta"
@@ -755,7 +915,9 @@ export function WebSidebar({
         }}
       >
         <GoAtletaIcon name="logout" size={19} color="#FCA5A5" />
-        <Text style={{ flex: 1, color: "#FCA5A5", fontSize: 13, fontWeight: "700" }}>
+        <Text
+          style={{ flex: 1, color: "#FCA5A5", fontSize: 13, fontWeight: "700" }}
+        >
           Sair
         </Text>
       </Pressable>
@@ -763,7 +925,7 @@ export function WebSidebar({
   );
 
   const compactTabs = ROLE_TABS[role].filter(
-    (tab) => !tab.isCenter && !(role === "prof" && tab.key === "profile")
+    (tab) => !tab.isCenter && !(role === "prof" && tab.key === "profile"),
   );
   const tabItems = compactTabs.map((tab) => ({
     key: tab.key,
@@ -782,7 +944,9 @@ export function WebSidebar({
     return isTrainerPathAllowed(item.href, memberPermissions, false);
   };
 
-  const mainItems: SidebarItem[] = isPlatformWorkspace ? [] : tabItems.filter(canShowItem);
+  const mainItems: SidebarItem[] = isPlatformWorkspace
+    ? []
+    : tabItems.filter(canShowItem);
 
   const operationalItemsByRole: Record<AppRole, SidebarItem[]> = {
     prof: [
@@ -922,23 +1086,22 @@ export function WebSidebar({
     ],
     family: [],
   };
-  const platformItems: SidebarItem[] =
-    isPlatformWorkspace
-      ? [
-          {
-            key: "platform-dashboard",
-            label: "Painel",
-            href: "/platform",
-            icon: "home",
-          },
-          {
-            key: "platform-accesses",
-            label: "Acessos",
-            href: "/platform/accesses",
-            icon: "lock",
-          },
-        ]
-      : [];
+  const platformItems: SidebarItem[] = isPlatformWorkspace
+    ? [
+        {
+          key: "platform-dashboard",
+          label: "Painel",
+          href: "/platform",
+          icon: "home",
+        },
+        {
+          key: "platform-accesses",
+          label: "Acessos",
+          href: "/platform/accesses",
+          icon: "lock",
+        },
+      ]
+    : [];
   const operationalItems = (
     isPlatformWorkspace ? platformItems : operationalItemsByRole[role]
   ).filter(canShowItem);
@@ -947,7 +1110,9 @@ export function WebSidebar({
     : orderWebSidebarItems(role, [...mainItems, ...operationalItems]);
 
   const isClassRoute =
-    pathname === "/classes" || pathname === "/class" || pathname.startsWith("/class/");
+    pathname === "/classes" ||
+    pathname === "/class" ||
+    pathname.startsWith("/class/");
   const isActiveItem = (item: SidebarItem) => {
     if (isPlatformWorkspace) return pathname === item.href;
     return (
@@ -967,8 +1132,11 @@ export function WebSidebar({
     const showCompactTooltip = (event?: unknown) => {
       setHoveredCompactItemKey(item.key);
 
-      const target = (event as { currentTarget?: { getBoundingClientRect?: () => DOMRect } } | undefined)
-        ?.currentTarget;
+      const target = (
+        event as
+          | { currentTarget?: { getBoundingClientRect?: () => DOMRect } }
+          | undefined
+      )?.currentTarget;
       const rect = target?.getBoundingClientRect?.();
       if (!rect) {
         return;
@@ -981,8 +1149,12 @@ export function WebSidebar({
       });
     };
     const hideCompactTooltip = () => {
-      setHoveredCompactItemKey((current) => (current === item.key ? null : current));
-      setCompactTooltip((current) => (current?.key === item.key ? null : current));
+      setHoveredCompactItemKey((current) =>
+        current === item.key ? null : current,
+      );
+      setCompactTooltip((current) =>
+        current?.key === item.key ? null : current,
+      );
     };
     const compactTooltipEvents = {
       dataSet: { goatletaSidebarTooltip: item.label },
@@ -1026,7 +1198,9 @@ export function WebSidebar({
             borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
+            backgroundColor: active
+              ? "rgba(65, 217, 132, 0.16)"
+              : webShellTokens.sidebarSoft,
           }}
         >
           <GoAtletaIcon
@@ -1052,7 +1226,13 @@ export function WebSidebar({
               borderColor: "rgba(255,255,255,0.12)",
             }}
           >
-            <Text style={{ color: brandPalette.white, fontSize: 9, fontWeight: "900" }}>
+            <Text
+              style={{
+                color: brandPalette.white,
+                fontSize: 9,
+                fontWeight: "900",
+              }}
+            >
               {item.badge}
             </Text>
           </View>
@@ -1060,28 +1240,32 @@ export function WebSidebar({
         {hovered && !compactTooltip ? (
           <View
             pointerEvents="none"
-            style={{
-              position: "absolute",
-              left: 68,
-              top: 8,
-              zIndex: 10000,
-              minHeight: 34,
-              justifyContent: "center",
-              paddingHorizontal: 12,
-              borderRadius: 12,
-              backgroundColor: "rgba(15,23,42,0.98)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.14)",
-              boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
-            } as any}
+            style={
+              {
+                position: "absolute",
+                left: 68,
+                top: 8,
+                zIndex: 10000,
+                minHeight: 34,
+                justifyContent: "center",
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                backgroundColor: "rgba(15,23,42,0.98)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.14)",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+              } as any
+            }
           >
             <Text
-              style={{
-                color: brandPalette.white,
-                fontSize: 12,
-                fontWeight: "800",
-                whiteSpace: "nowrap",
-              } as any}
+              style={
+                {
+                  color: brandPalette.white,
+                  fontSize: 12,
+                  fontWeight: "800",
+                  whiteSpace: "nowrap",
+                } as any
+              }
             >
               {item.label}
             </Text>
@@ -1127,7 +1311,9 @@ export function WebSidebar({
             borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
+            backgroundColor: active
+              ? "rgba(65, 217, 132, 0.16)"
+              : webShellTokens.sidebarSoft,
           }}
         >
           <GoAtletaIcon
@@ -1138,7 +1324,7 @@ export function WebSidebar({
         </View>
         <Text
           style={
-            ({
+            {
               flex: 1,
               color: active ? brandPalette.white : "rgba(255,255,255,0.72)",
               fontSize: 13,
@@ -1150,7 +1336,7 @@ export function WebSidebar({
                 : expanded
                   ? "opacity 150ms ease 70ms, transform 220ms cubic-bezier(0.16, 1, 0.3, 1) 50ms"
                   : "opacity 80ms ease, transform 120ms ease",
-            }) as any
+            } as any
           }
           numberOfLines={1}
         >
@@ -1170,7 +1356,13 @@ export function WebSidebar({
               borderColor: webShellTokens.sidebarHover,
             }}
           >
-            <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: 11, fontWeight: "800" }}>
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.78)",
+                fontSize: 11,
+                fontWeight: "800",
+              }}
+            >
               {item.badge}
             </Text>
           </View>
@@ -1232,7 +1424,7 @@ export function WebSidebar({
         accessibilityElementsHidden={!expanded}
         importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
         style={
-          ({
+          {
             width: activeExpandedWidth,
             height: "100vh",
             maxHeight: "100dvh",
@@ -1251,7 +1443,7 @@ export function WebSidebar({
             outlineStyle: "none",
             userSelect: "none",
             WebkitTapHighlightColor: "transparent",
-          }) as any
+          } as any
         }
       >
         <SidebarToggleButton
@@ -1264,35 +1456,39 @@ export function WebSidebar({
         />
 
         <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: activeExpandedWidth,
-            overflow: "hidden",
-            backgroundColor: sidebarBackgroundColor,
-            borderRightWidth: 1,
-            borderRightColor: "rgba(255,255,255,0.06)",
-            clipPath: expanded
-              ? "inset(0 0 0 0)"
-              : `inset(0 ${SIDEBAR_EXPANSION_DISTANCE}px 0 0)`,
-            transition: sidebarPanelTransition,
-            willChange: "clip-path",
-            transform: "translateZ(0)",
-            backfaceVisibility: "hidden",
-            contain: "paint",
-          } as any}
+          style={
+            {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: activeExpandedWidth,
+              overflow: "hidden",
+              backgroundColor: sidebarBackgroundColor,
+              borderRightWidth: 1,
+              borderRightColor: "rgba(255,255,255,0.06)",
+              clipPath: expanded
+                ? "inset(0 0 0 0)"
+                : `inset(0 ${SIDEBAR_EXPANSION_DISTANCE}px 0 0)`,
+              transition: sidebarPanelTransition,
+              willChange: "clip-path",
+              transform: "translateZ(0)",
+              backfaceVisibility: "hidden",
+              contain: "paint",
+            } as any
+          }
         >
           <View
-            style={({
-              width: activeExpandedWidth,
-              height: "100%",
-              paddingTop: 18,
-              paddingBottom: "max(18px, env(safe-area-inset-bottom, 0px))",
-              paddingHorizontal: 10,
-              gap: 18,
-            }) as any}
+            style={
+              {
+                width: activeExpandedWidth,
+                height: "100%",
+                paddingTop: 18,
+                paddingBottom: "max(18px, env(safe-area-inset-bottom, 0px))",
+                paddingHorizontal: 10,
+                gap: 18,
+              } as any
+            }
           >
             <View
               style={{
@@ -1303,20 +1499,32 @@ export function WebSidebar({
                 overflow: "hidden",
               }}
             >
-              <View style={{ width: 68, alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  width: 68,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <BrandMark size={44} decorative />
               </View>
               <View style={[{ flex: 1, minWidth: 0 }, sidebarLabelRevealStyle]}>
                 <BrandWordmark
                   role={role}
-                  subtitle={isPlatformWorkspace ? "Administração SaaS" : undefined}
+                  subtitle={
+                    isPlatformWorkspace ? "Administração SaaS" : undefined
+                  }
                 />
               </View>
             </View>
 
             <ScrollView
               style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
-              contentContainerStyle={{ gap: 6, paddingVertical: 2, paddingBottom: 6 }}
+              contentContainerStyle={{
+                gap: 6,
+                paddingVertical: 2,
+                paddingBottom: 6,
+              }}
               showsVerticalScrollIndicator={false}
             >
               <View style={{ gap: 6 }}>
@@ -1325,7 +1533,9 @@ export function WebSidebar({
             </ScrollView>
 
             <View ref={profileMenuRootRef} style={{ position: "relative" }}>
-              {expanded && isProfileMenuOpen ? renderProfileMenu("expanded") : null}
+              {expanded && isProfileMenuOpen
+                ? renderProfileMenu("expanded")
+                : null}
 
               <Pressable
                 accessibilityLabel={
@@ -1341,8 +1551,12 @@ export function WebSidebar({
                   minHeight: 58,
                   borderRadius: 18,
                   borderWidth: 1,
-                  borderColor: isProfileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
-                  backgroundColor: isProfileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
+                  borderColor: isProfileMenuOpen
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.10)",
+                  backgroundColor: isProfileMenuOpen
+                    ? "rgba(255,255,255,0.13)"
+                    : "rgba(255,255,255,0.08)",
                   paddingLeft: 14,
                   paddingRight: 12,
                   flexDirection: "row",
@@ -1363,16 +1577,36 @@ export function WebSidebar({
                     justifyContent: "center",
                   }}
                 >
-                  <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+                  <Text
+                    style={{
+                      color: webShellTokens.primary,
+                      fontSize: 12,
+                      fontWeight: "900",
+                    }}
+                  >
                     {professorInitials}
                   </Text>
                 </View>
-                <View style={[{ flex: 1, minWidth: 0 }, sidebarLabelRevealStyle]}>
-                  <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }} numberOfLines={1}>
+                <View
+                  style={[{ flex: 1, minWidth: 0 }, sidebarLabelRevealStyle]}
+                >
+                  <Text
+                    style={{
+                      color: brandPalette.white,
+                      fontSize: 13,
+                      fontWeight: "800",
+                    }}
+                    numberOfLines={1}
+                  >
                     {professorName}
                   </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
-                    {isPlatformWorkspace ? "Administrador SaaS" : roleProfileLabel[role]}
+                  <Text
+                    style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
+                    numberOfLines={1}
+                  >
+                    {isPlatformWorkspace
+                      ? "Administrador SaaS"
+                      : roleProfileLabel[role]}
                   </Text>
                 </View>
                 <GoAtletaIcon
@@ -1429,29 +1663,33 @@ export function WebSidebar({
           {compactTooltip ? (
             <View
               pointerEvents="none"
-              style={{
-                position: "fixed",
-                left: SIDEBAR_COMPACT_WIDTH - 4,
-                top: compactTooltip.top,
-                zIndex: 10000,
-                minHeight: 34,
-                justifyContent: "center",
-                paddingHorizontal: 12,
-                borderRadius: 12,
-                backgroundColor: "rgba(15,23,42,0.98)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.14)",
-                boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
-                transform: [{ translateY: -17 }],
-              } as any}
+              style={
+                {
+                  position: "fixed",
+                  left: SIDEBAR_COMPACT_WIDTH - 4,
+                  top: compactTooltip.top,
+                  zIndex: 10000,
+                  minHeight: 34,
+                  justifyContent: "center",
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  backgroundColor: "rgba(15,23,42,0.98)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.14)",
+                  boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+                  transform: [{ translateY: -17 }],
+                } as any
+              }
             >
               <Text
-                style={{
-                  color: brandPalette.white,
-                  fontSize: 12,
-                  fontWeight: "800",
-                  whiteSpace: "nowrap",
-                } as any}
+                style={
+                  {
+                    color: brandPalette.white,
+                    fontSize: 12,
+                    fontWeight: "800",
+                    whiteSpace: "nowrap",
+                  } as any
+                }
               >
                 {compactTooltip.label}
               </Text>
@@ -1472,16 +1710,28 @@ export function WebSidebar({
 
           <ScrollView
             style={{ flex: 1, minHeight: 0 }}
-            contentContainerStyle={{ gap: 6, alignItems: "center", paddingVertical: 2, paddingBottom: 6 }}
+            contentContainerStyle={{
+              gap: 6,
+              alignItems: "center",
+              paddingVertical: 2,
+              paddingBottom: 6,
+            }}
             showsVerticalScrollIndicator={false}
           >
             {navigationItems.map(renderCompactNavItem)}
           </ScrollView>
 
-          <View ref={profileMenuRootRef} style={{ position: "relative", alignSelf: "center" }}>
+          <View
+            ref={profileMenuRootRef}
+            style={{ position: "relative", alignSelf: "center" }}
+          >
             {isProfileMenuOpen ? renderProfileMenu("compact") : null}
             <Pressable
-              accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+              accessibilityLabel={
+                isProfileMenuOpen
+                  ? "Fechar menu de perfil"
+                  : "Abrir menu de perfil"
+              }
               accessibilityState={{ expanded: isProfileMenuOpen }}
               onPress={toggleProfileMenu}
               style={{
@@ -1512,7 +1762,13 @@ export function WebSidebar({
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+                <Text
+                  style={{
+                    color: webShellTokens.primary,
+                    fontSize: 12,
+                    fontWeight: "900",
+                  }}
+                >
                   {professorInitials}
                 </Text>
               </View>

@@ -1,6 +1,6 @@
 # Vínculo de atleta por solicitação
 
-Migração `20260914025117_athlete_access_requests.sql` aplicada no Supabase do GoAtleta
+Migração `20260914025117_athlete_access_requests.sql` aplicada no Supabase do Go Atleta
 com autorização em 13/09/2026 (horário de Brasília). Regressão SQL passou após a
 aplicação, com dados fictícios e rollback. App não publicado. Falta validar o ciclo
 autenticado visual no localhost; nenhuma solicitação real foi aprovada ou convertida.

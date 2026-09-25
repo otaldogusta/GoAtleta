@@ -6,6 +6,13 @@ type PhoneVerificationUser = {
   };
 };
 
+export const PHONE_VERIFICATION_RESEND_DELAY_MS = 60_000;
+
+export const getPhoneVerificationRetrySeconds = (
+  retryUntil: number,
+  now: number,
+) => Math.max(0, Math.ceil((retryUntil - now) / 1000));
+
 export const getConfirmedPhone = (
   user: PhoneVerificationUser | null | undefined,
 ) => {

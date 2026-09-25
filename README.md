@@ -1,6 +1,6 @@
-# GoAtleta
+# Go Atleta
 
-Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
+Uso o Go Atleta para planejar, registrar e acompanhar treinos com meus alunos.
 
 ## Documentação
 

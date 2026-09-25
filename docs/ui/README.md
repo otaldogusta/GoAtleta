@@ -1,4 +1,4 @@
-# Interface web do GoAtleta
+# Interface web do Go Atleta
 
 Este diretório é a fonte canônica para decisões visuais e responsivas do web.
 A Home do professor é a referência de densidade, navegação e hierarquia.

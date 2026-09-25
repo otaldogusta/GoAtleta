@@ -1,4 +1,4 @@
-# Documentação do GoAtleta
+# Documentação do Go Atleta
 
 Este é o índice canônico dos documentos do projeto. Use esta página como ponto de entrada antes de abrir arquivos antigos.
 

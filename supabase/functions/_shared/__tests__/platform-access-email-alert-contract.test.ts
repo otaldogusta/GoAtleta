@@ -17,17 +17,20 @@ describe("platform access email alert contract", () => {
     );
     expect(functionSource).toContain('Deno.env.get("PLATFORM_ALERT_EMAIL")');
     expect(functionSource).toContain('Deno.env.get("RESEND_API_KEY")');
-    expect(functionSource).toContain('createdNewRequest = true');
+    expect(functionSource).toContain("createdNewRequest = true");
     expect(functionSource).toContain(
       "if (createdNewRequest && !alertedRequestIds.has(accessRequestId))",
     );
     expect(functionSource).toContain("https://goatleta.com/platform/accesses");
+    expect(functionSource).toContain('"Go Atleta Pro" : "Go Atleta"');
   });
 
   test("keeps email delivery best effort so a provider failure does not lose the request", () => {
     expect(functionSource).toContain("return emailResponse.ok");
     expect(functionSource).toContain("catch {\n    return false;");
-    expect(functionSource).not.toContain("throw new Error(\"EMAIL_ALERT_FAILED\")");
+    expect(functionSource).not.toContain(
+      'throw new Error("EMAIL_ALERT_FAILED")',
+    );
   });
 
   test("offers a professional request with an explicit product on the pending screen", () => {
@@ -36,6 +39,7 @@ describe("platform access email alert contract", () => {
     );
     expect(pendingScreenSource).toContain("await requestAccessReview({");
     expect(pendingScreenSource).toContain("requestedProduct,");
+    expect(pendingScreenSource).toContain("APP_PRODUCT_LABELS[product]");
     expect(pendingScreenSource).toContain("Solicitar acesso profissional");
   });
 });

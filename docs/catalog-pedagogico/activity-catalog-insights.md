@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Transformar a auditoria do Catalogo GoAtleta em sinais internos e acionaveis para evolucao pedagogica do catalogo.
+Transformar a auditoria do Catalogo Go Atleta em sinais internos e acionaveis para evolucao pedagogica do catalogo.
 
 Os insights ajudam a responder perguntas como:
 

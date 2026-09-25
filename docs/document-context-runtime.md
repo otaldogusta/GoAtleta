@@ -1,6 +1,6 @@
 # Contexto Documental e Runtime Acadêmico
 
-O GoAtleta usa uma única inteligência para o Assistente e para a geração de planos. O Google Drive é uma fonte pré-processada da camada documental; não existe uma “IA do Drive” paralela e nenhum pedido relê todas as pastas.
+O Go Atleta usa uma única inteligência para o Assistente e para a geração de planos. O Google Drive é uma fonte pré-processada da camada documental; não existe uma “IA do Drive” paralela e nenhum pedido relê todas as pastas.
 
 O runtime acadêmico amplia a inteligência documental e a base `kb_documents` existentes. Ele não cria vínculo automático com turma, não promove materiais para `scientific_sources` e não altera planos confirmados.
 
@@ -11,7 +11,7 @@ O runtime acadêmico amplia a inteligência documental e a base `kb_documents` e
 1. `academic-drive-sync` recebe uma pasta previamente autorizada, enumera os itens e persiste fonte, revisão, `content_hash`, classificação, vínculo, trechos e embeddings no escopo `user_academic` ou `workspace_academic`.
 2. `resolveAIContext` valida usuário, workspace, turma, tela e data da ação.
 3. `resolveAIMemory` carrega somente memórias compatíveis com esses escopos.
-4. `resolveAIDocumentContext` seleciona estado confirmado do GoAtleta, histórico realizado anterior à aula e documentos relevantes.
+4. `resolveAIDocumentContext` seleciona estado confirmado do Go Atleta, histórico realizado anterior à aula e documentos relevantes.
 5. O Assistente recebe um único bloco `DOCUMENT_CONTEXT`.
 6. `document-context-resolve` expõe o mesmo resolvedor, em modo somente leitura, para `buildAutoPlanForCycleDay`.
 7. Referências usadas ficam registradas no novo plano e aparecem de forma resumida no modal “Ver plano”.

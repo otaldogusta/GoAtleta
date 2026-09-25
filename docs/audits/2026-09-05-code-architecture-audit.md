@@ -1,4 +1,4 @@
-# Auditoria de código e arquitetura — GoAtleta
+# Auditoria de código e arquitetura — Go Atleta
 
 Data: 05/09/2026. Base: `8f8810db`, branch `main`. `origin/main` local aponta para o mesmo commit; não foi feita consulta de deploy nem confirmação de produção.
 
@@ -211,7 +211,7 @@ O lint em `app src` registrou **357 erros e 279 avisos** em 1.181 arquivos anali
 - `@xmldom/xmldom`: [GHSA-6gmq-8vp8-gcm6](https://github.com/advisories/GHSA-6gmq-8vp8-gcm6).
 - `decode-uri-component` → `query-string` → `expo-router`: [GHSA-vcc3-ghjq-m6fr](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr).
 
-**Correção/aceite:** atualizar dependências transitivas de maneira compatível com Expo e validar os caminhos de importação/parser. A sugestão automática de `npm audit` envolve uma troca principal do expo-router para 5.1.11; não aplicar `--force` mecanicamente. A auditoria confirma versões sinalizadas, não a exploração de todos esses caminhos no GoAtleta. Dependências exclusivamente de desenvolvimento não estão cobertas por esse comando.
+**Correção/aceite:** atualizar dependências transitivas de maneira compatível com Expo e validar os caminhos de importação/parser. A sugestão automática de `npm audit` envolve uma troca principal do expo-router para 5.1.11; não aplicar `--force` mecanicamente. A auditoria confirma versões sinalizadas, não a exploração de todos esses caminhos no Go Atleta. Dependências exclusivamente de desenvolvimento não estão cobertas por esse comando.
 
 ## Dívida estrutural: onde o código tende a se enroscar
 

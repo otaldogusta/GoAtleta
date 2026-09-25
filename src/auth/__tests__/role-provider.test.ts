@@ -58,6 +58,11 @@ jest.mock("../session", () => ({
   getValidAccessToken: () => mockGetValidAccessToken(),
 }));
 
+jest.mock("../email-verification-state", () => ({
+  hasVerifiedEmailAccess: (user: { app_metadata?: { email_verified_hybrid_at?: string } }) =>
+    Boolean(user?.app_metadata?.email_verified_hybrid_at),
+}));
+
 type RoleSnapshot = {
   role: string | null;
   availableRoles: string[];
@@ -85,14 +90,14 @@ const session = {
   access_token: "cached-access-token",
   refresh_token: "cached-refresh-token",
   expires_at: 2_000_000_000,
-  user: { id: "user-1", email: "student@example.com" },
+  user: { id: "user-1", email: "student@example.com", app_metadata: { email_verified_hybrid_at: "verified" } },
 };
 
 const secondSession = {
   ...session,
   access_token: "second-access-token",
   refresh_token: "second-refresh-token",
-  user: { id: "user-2", email: "family@example.com" },
+  user: { id: "user-2", email: "family@example.com", app_metadata: { email_verified_hybrid_at: "verified" } },
 };
 
 const buildFamilyContext = (studentId: string) => ({
@@ -182,6 +187,33 @@ describe("RoleProvider bootstrap resilience", () => {
     });
     expect(latestRoleState).toMatchObject({ role: "trainer", availableRoles: ["trainer"], student: null });
     expect(mockGetDevProfilePreview).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unverified password session pending without reading protected data", async () => {
+    mockUseAuth.mockReturnValue({
+      session: {
+        ...session,
+        user: { id: "user-1", email: "student@example.com", app_metadata: { provider: "email" } },
+      },
+    });
+    const fetchSpy = jest.spyOn(global, "fetch");
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+
+    expect(latestRoleState).toMatchObject({
+      role: "pending",
+      availableRoles: [],
+      student: null,
+      studentAccessResolution: "verification_required",
+      loading: false,
+      error: null,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockGetValidAccessToken).not.toHaveBeenCalled();
+    expect(mockReconcileMyStudentAccess).not.toHaveBeenCalled();
   });
 
   it("waits for reconciliation and reloads RLS before publishing the student role", async () => {

@@ -1,6 +1,6 @@
 # Diretrizes de Marca e Estilo Visual (UI & PDF)
 
-Este documento estabelece as diretrizes visuais, de design e de exportação de relatórios para o GoAtleta. Ele unifica as regras de aplicação de marca no app e a direção visual para exportações em PDF.
+Este documento estabelece as diretrizes visuais, de design e de exportação de relatórios para o Go Atleta. Ele unifica as regras de aplicação de marca no app e a direção visual para exportações em PDF.
 
 ---
 
@@ -36,7 +36,7 @@ As decisões visuais devem sempre obedecer aos tokens definidos em `src/theme/to
 ## 📄 3. Direção Visual para Relatórios e PDFs
 
 A geração de relatórios e exportações de PDFs deve seguir uma estética limpa, focada em legibilidade para impressão física:
-- **Cabeçalho Principal**: Navy profundo com a identificação clara de turma, unidade, data e o logotipo/identificação GoAtleta.
+- **Cabeçalho Principal**: Navy profundo com a identificação clara de turma, unidade, data e o logotipo/identificação Go Atleta.
 - **Fundo de Página**: Branco sólido ou areia muito sutil.
 - **Tabelas e Quadros**: Grades estruturadas com bordas simples e discretas. Sem sombras projetadas ou fundos de vidro (glassmorphism).
 - **Tipografia**: Fontes de corpo simples, limpas e de fácil leitura rápida.

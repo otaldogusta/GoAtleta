@@ -6,7 +6,7 @@ Mostrar exemplos compactos de como o catalogo local deve ser lido e expandido.
 
 ## Familias iniciais
 
-O catalogo local ja trabalha com familias originais do GoAtleta, como:
+O catalogo local ja trabalha com familias originais do Go Atleta, como:
 
 - continuidade com tres contatos;
 - troca continua com tarefa dupla;

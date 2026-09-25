@@ -28,7 +28,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import type { AthletePosition, ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
-import { getConfirmedPhone } from "../src/auth/phone-verification";
+import {
+  getConfirmedPhone,
+  getPhoneVerificationRetrySeconds,
+  PHONE_VERIFICATION_RESEND_DELAY_MS,
+} from "../src/auth/phone-verification";
 import { canSafelyUnlinkProvider } from "../src/auth/identity-linking";
 import { saveSession } from "../src/auth/session";
 import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
@@ -651,6 +655,8 @@ export default function ProfileScreen() {
   const [phoneVerificationCode, setPhoneVerificationCode] = useState("");
   const [phoneVerificationError, setPhoneVerificationError] = useState<string | null>(null);
   const [requestingPhoneVerification, setRequestingPhoneVerification] = useState(false);
+  const [phoneVerificationRetryUntil, setPhoneVerificationRetryUntil] = useState(0);
+  const [phoneVerificationNow, setPhoneVerificationNow] = useState(() => Date.now());
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [removingPhone, setRemovingPhone] = useState(false);
   const athleteModalities = useAthleteModalities(session?.user?.id);
@@ -1917,6 +1923,16 @@ export default function ProfileScreen() {
   const phoneVerificationRequested = Boolean(
     pendingPhoneVerification && pendingPhoneVerification === mobilePhoneE164,
   );
+  const phoneRequestError = phoneVerificationRequested ? null : phoneVerificationError;
+  const phoneVerificationRetrySeconds = getPhoneVerificationRetrySeconds(
+    phoneVerificationRetryUntil,
+    phoneVerificationNow,
+  );
+  useEffect(() => {
+    if (phoneVerificationRetrySeconds <= 0) return;
+    const timer = setInterval(() => setPhoneVerificationNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [phoneVerificationRetrySeconds]);
   const mobileRequiredFieldErrors = {
     name: mobileNameDraft.trim().length < 2 ? "Informe o nome completo." : null,
     birthDate: parseStudentBirthDate(mobileBirthDraft) ? null : "Informe uma data válida.",
@@ -2066,7 +2082,12 @@ export default function ProfileScreen() {
 
   const requestMobilePhoneVerification = async () => {
     const phoneDigits = mobilePhoneDraft.replace(/\D/g, "");
-    if (requestingPhoneVerification || phoneDigits.length < 10 || phoneDigits.length > 11) return;
+    if (
+      requestingPhoneVerification
+      || phoneVerificationRetrySeconds > 0
+      || phoneDigits.length < 10
+      || phoneDigits.length > 11
+    ) return;
 
     setRequestingPhoneVerification(true);
     setPhoneVerificationError(null);
@@ -2074,6 +2095,9 @@ export default function ProfileScreen() {
       await requestPhoneChange(mobilePhoneE164);
       setPendingPhoneVerification(mobilePhoneE164);
       setPhoneVerificationCode("");
+      const requestedAt = Date.now();
+      setPhoneVerificationNow(requestedAt);
+      setPhoneVerificationRetryUntil(requestedAt + PHONE_VERIFICATION_RESEND_DELAY_MS);
       showSaveToast({ message: "Código enviado pelo WhatsApp.", variant: "info" });
     } catch (error) {
       setPhoneVerificationError(getFriendlyErrorMessage(error, "Não foi possível enviar o código."));
@@ -2517,8 +2541,8 @@ export default function ProfileScreen() {
                         <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
                       </Pressable>
                     </View>
-                    <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
-                      <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null} />
+                    <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                      <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
                       <TextInput
                         accessibilityLabel="Celular"
                         keyboardType="phone-pad"
@@ -2531,6 +2555,7 @@ export default function ProfileScreen() {
                           setPendingPhoneVerification("");
                           setPhoneVerificationCode("");
                           setPhoneVerificationError(null);
+                          setPhoneVerificationRetryUntil(0);
                         }}
                         style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
                       />
@@ -2559,7 +2584,7 @@ export default function ProfileScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={phoneVerificationRequested ? "Reenviar código pelo WhatsApp" : "Validar celular pelo WhatsApp"}
                           onPress={() => void requestMobilePhoneVerification()}
-                          disabled={requestingPhoneVerification}
+                          disabled={requestingPhoneVerification || phoneVerificationRetrySeconds > 0}
                           disableWebPressScale
                           style={({ pressed }) => ({
                             minHeight: 38,
@@ -2568,12 +2593,14 @@ export default function ProfileScreen() {
                             alignItems: "center",
                             justifyContent: "center",
                             backgroundColor: colors.primaryBg,
-                            opacity: requestingPhoneVerification ? 0.55 : pressed ? 0.84 : 1,
+                            opacity: requestingPhoneVerification || phoneVerificationRetrySeconds > 0 ? 0.55 : pressed ? 0.84 : 1,
                           })}
                         >
                           <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
                             {requestingPhoneVerification
                               ? "Enviando..."
+                              : phoneVerificationRetrySeconds > 0
+                                ? `Reenviar em ${phoneVerificationRetrySeconds}s`
                               : phoneVerificationRequested
                                 ? "Reenviar"
                                 : "Validar"}

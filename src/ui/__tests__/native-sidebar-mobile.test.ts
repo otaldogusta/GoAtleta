@@ -25,6 +25,10 @@ jest.mock("../../auth/auth", () => ({
   }),
 }));
 
+jest.mock("../../auth/use-platform-admin-access", () => ({
+  usePlatformAdminAccess: () => false,
+}));
+
 jest.mock("../../providers/organization-context", () => ({
   useOptionalOrganization: () => ({
     activeOrganization: { role_level: 50 },

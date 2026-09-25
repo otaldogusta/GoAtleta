@@ -1,6 +1,6 @@
 # Higiene arquitetural
 
-Este é o contrato canônico de fronteiras do GoAtleta. Ele documenta a arquitetura
+Este é o contrato canônico de fronteiras do Go Atleta. Ele documenta a arquitetura
 que existe hoje e orienta sua evolução incremental. Não é autorização para uma
 reorganização em massa nem substitui autenticação, RLS, revisão humana ou os
 checks de segurança existentes.

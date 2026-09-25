@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { safeJsonParse } from "../utils/safe-json";
+import { hasVerifiedEmailAccess } from "./email-verification-state";
 
 export type AuthSession = {
   access_token: string;
@@ -400,7 +401,9 @@ const refreshSession = async (): Promise<RefreshSessionResult> => {
 
 export const forceRefreshAccessToken = async (): Promise<string> => {
   const result = await refreshSession();
-  return result.status === "refreshed" ? result.session.access_token ?? "" : "";
+  return result.status === "refreshed" && hasVerifiedEmailAccess(result.session.user)
+    ? result.session.access_token ?? ""
+    : "";
 };
 
 export const getValidAccessToken = async (): Promise<string> => {
@@ -408,6 +411,7 @@ export const getValidAccessToken = async (): Promise<string> => {
     const stored = await loadSession();
     if (!stored) return "";
   }
+  if (!hasVerifiedEmailAccess(currentSession!.user)) return "";
   if (!currentSession) return "";
   const expiresAt = currentSession.expires_at;
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -418,5 +422,7 @@ export const getValidAccessToken = async (): Promise<string> => {
     return currentSession.access_token ?? "";
   }
   const result = await refreshSession();
-  return result.status === "refreshed" ? result.session.access_token ?? "" : "";
+  return result.status === "refreshed" && hasVerifiedEmailAccess(result.session.user)
+    ? result.session.access_token ?? ""
+    : "";
 };

@@ -1,7 +1,7 @@
 # Produção e operação
 
 Este é o documento canônico para deploy, checklist, prontidão, rollback,
-monitoramento e sign-off do GoAtleta. Os documentos antigos continuam
+monitoramento e sign-off do Go Atleta. Os documentos antigos continuam
 arquivados para consulta histórica, mas não devem receber conteúdo novo.
 
 ## Fluxo operacional
@@ -133,7 +133,7 @@ development build `1.0.2-dev` (`versionCode 3`) conectado por USB:
 - O menu de três pontos exibiu `Baixar PDF` e `Remover plano`; `Baixar PDF`
   gerou o arquivo, abriu o seletor nativo e iniciou o Adobe Acrobat. A integridade
   visual do arquivo foi registrada em captura do Adobe Acrobat fornecida pelo
-  usuário; a alteração de escala ficou restrita ao preview do GoAtleta.
+  usuário; a alteração de escala ficou restrita ao preview do Go Atleta.
 - A Home nativa agora exibe o acionador de menu no canto esquerdo. A gaveta
   lateral expandida abriu no Galaxy, manteve as rotas principais visíveis e
   fechou pelo botão físico Voltar sem mudar de rota.

@@ -30,7 +30,7 @@ Evite juntar expansao massiva de catalogo com mudanca de engine.
 
 - O PR nao cria tabela Supabase sem decisao explicita.
 - O PR nao altera `decisionTrace` persistido sem justificativa de contrato.
-- O catalogo permanece original do GoAtleta.
+- O catalogo permanece original do Go Atleta.
 - Os testes cobrem periodizacao, idade, scouting e anti-repeticao.
 - A documentacao foi atualizada quando o contrato mudou.
 - O plano aplicado continua convergindo para `TrainingPlan.pedagogy.blocks`.

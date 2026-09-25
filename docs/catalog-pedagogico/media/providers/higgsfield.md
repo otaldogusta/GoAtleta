@@ -1,11 +1,11 @@
 # Provider Higgsfield
 
-Higgsfield pode ser usado como ferramenta externa para produzir assets visuais do Catalogo GoAtleta. Ele nao e dependencia do app, do runtime, do build ou do CI.
+Higgsfield pode ser usado como ferramenta externa para produzir assets visuais do Catalogo Go Atleta. Ele nao e dependencia do app, do runtime, do build ou do CI.
 
 ## Regra principal
 
 ```txt
-GoAtleta conhece mediaKey, asset local e fallback local.
+Go Atleta conhece mediaKey, asset local e fallback local.
 Higgsfield produz PNGs que obedecem esse contrato.
 ```
 

@@ -75,7 +75,7 @@ Esses campos existem para manter a atividade aplicavel em quadra, com organizaca
 ## Regras de modelagem
 
 - Nome da familia deve expressar a intencao pedagogica, nao uma marca ou fonte externa.
-- Variante deve ser original do GoAtleta.
+- Variante deve ser original do Go Atleta.
 - Nao usar texto comercial, nomes, descricoes ou links de VolleyballXL no codigo.
 - Preferir familias reutilizaveis como continuidade, sideout, cobertura, recepcao, alvo, decisao ou transicao.
 - Nao criar variante que dependa de fila longa ou professor alimentando todos os alunos.
@@ -103,7 +103,7 @@ Esses campos existem para manter a atividade aplicavel em quadra, com organizaca
 - A variante tem taxonomia completa.
 - A variante usa `recommendedPhase`, nao `requiredPhase`.
 - A compatibilidade de periodizacao esta coerente com o objetivo.
-- O texto e original do GoAtleta.
+- O texto e original do Go Atleta.
 - O exercicio funciona sem fila longa.
 - A linguagem respeita a faixa etaria.
 - O mapeamento para o motor nao exige decisao manual extra.

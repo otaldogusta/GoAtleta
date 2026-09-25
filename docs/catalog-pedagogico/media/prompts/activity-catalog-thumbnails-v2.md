@@ -1,13 +1,13 @@
 # Prompts dos thumbnails do Catalogo v2
 
-Estes prompts registram a origem dos assets locais novos do pacote v2. Eles foram usados para gerar imagens originais GoAtleta, sem texto, logos, marcas, watermark ou rostos reconheciveis.
+Estes prompts registram a origem dos assets locais novos do pacote v2. Eles foram usados para gerar imagens originais Go Atleta, sem texto, logos, marcas, watermark ou rostos reconheciveis.
 
 ## Regras comuns
 
 - Formato final: PNG local em `1280x720`.
 - Cena: quadra ou ginasio de voleibol com rede, bolas e cones.
 - Pessoas: silhuetas ou atletas nao identificaveis.
-- Uso: thumbnail 16:9 para cards video-first do Catalogo GoAtleta.
+- Uso: thumbnail 16:9 para cards video-first do Catalogo Go Atleta.
 - Proibido: texto, logos, marcas, watermark, URLs externas e conteudo copiado de terceiros.
 
 ## block-coverage-v2
@@ -15,7 +15,7 @@ Estes prompts registram a origem dos assets locais novos do pacote v2. Eles fora
 ```txt
 Use case: stylized-concept
 Asset type: 16:9 activity catalog thumbnail for a volleyball coaching app
-Primary request: Create an original GoAtleta-style volleyball training thumbnail for block coverage at the net.
+Primary request: Create an original Go Atleta-style volleyball training thumbnail for block coverage at the net.
 Scene/backdrop: indoor volleyball gym with a clean court, net, a few cones and volleyballs.
 Subject: non-identifiable athlete silhouettes practicing shadow blocking and court coverage near the net.
 Style/medium: polished semi-realistic sports editorial illustration, modern app thumbnail, crisp and professional.
@@ -30,7 +30,7 @@ Constraints: no text, no logos, no brands, no watermarks, no recognizable faces,
 ```txt
 Use case: stylized-concept
 Asset type: 16:9 activity catalog thumbnail for a volleyball coaching app
-Primary request: Create an original GoAtleta-style volleyball training thumbnail for controlled serve pressure and target serving.
+Primary request: Create an original Go Atleta-style volleyball training thumbnail for controlled serve pressure and target serving.
 Scene/backdrop: indoor volleyball court with target zones marked by cones, net in the background, volleyball cart off to the side.
 Subject: non-identifiable athlete silhouettes serving toward target zones while another small group prepares reception.
 Style/medium: polished semi-realistic sports editorial illustration, modern app thumbnail, crisp and professional.
@@ -45,7 +45,7 @@ Constraints: no text, no logos, no brands, no watermarks, no recognizable faces,
 ```txt
 Use case: stylized-concept
 Asset type: 16:9 activity catalog thumbnail for a volleyball coaching app
-Primary request: Create an original GoAtleta-style volleyball training thumbnail for second-contact organization and playable setting.
+Primary request: Create an original Go Atleta-style volleyball training thumbnail for second-contact organization and playable setting.
 Scene/backdrop: indoor volleyball court with half-court training lanes, cones, balls, and a net in soft background.
 Subject: non-identifiable athlete silhouettes in trios organizing a second contact before a simple final ball.
 Style/medium: polished semi-realistic sports editorial illustration, modern app thumbnail, crisp and professional.
@@ -60,7 +60,7 @@ Constraints: no text, no logos, no brands, no watermarks, no recognizable faces,
 ```txt
 Use case: stylized-concept
 Asset type: 16:9 activity catalog thumbnail for a volleyball coaching app
-Primary request: Create an original GoAtleta-style volleyball training thumbnail for attack decision and attacker coverage.
+Primary request: Create an original Go Atleta-style volleyball training thumbnail for attack decision and attacker coverage.
 Scene/backdrop: indoor volleyball court with net, open target spaces, cones, and balls.
 Subject: non-identifiable athlete silhouettes practicing controlled attack to free space while teammates cover behind the attacker.
 Style/medium: polished semi-realistic sports editorial illustration, modern app thumbnail, crisp and professional.
@@ -75,7 +75,7 @@ Constraints: no text, no logos, no brands, no watermarks, no recognizable faces,
 ```txt
 Use case: stylized-concept
 Asset type: 16:9 activity catalog thumbnail for a volleyball coaching app
-Primary request: Create an original GoAtleta-style volleyball training thumbnail for out-of-system defense to transition.
+Primary request: Create an original Go Atleta-style volleyball training thumbnail for out-of-system defense to transition.
 Scene/backdrop: indoor volleyball court with a net, half-court recovery zone, cones, and several volleyballs.
 Subject: non-identifiable athlete silhouettes saving a difficult ball, reorganizing the second action, and preparing a safe transition ball.
 Style/medium: polished semi-realistic sports editorial illustration, modern app thumbnail, crisp and professional.

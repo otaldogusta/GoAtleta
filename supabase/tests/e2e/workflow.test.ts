@@ -9,7 +9,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; /
 // Skip tests if keys are not provided (so CI doesn't crash if unconfigured)
 const describeOrSkip = (SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY) ? describe : describe.skip;
 
-describeOrSkip('GoAtleta E2E LGPD Workflow', () => {
+describeOrSkip('Go Atleta E2E LGPD Workflow', () => {
   let adminClient: any;
   let guardianClient: any;
   let staffClient: any;

@@ -1,4 +1,4 @@
-# GoAtleta — Static Validation Report: `normalizePublicUrl` & `assistant` fetch flow
+# Go Atleta — Static Validation Report: `normalizePublicUrl` & `assistant` fetch flow
 
 Status: focused static analysis requested by reviewer. This document contains precise findings, code references, and safe staging validation steps. Do not run tests in production.
 

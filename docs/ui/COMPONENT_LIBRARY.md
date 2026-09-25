@@ -31,6 +31,13 @@ superfícies automaticamente.
 
 - `ScreenPageHeader`: título, retorno, descrição e ação contextual.
 - `Button` e `Pressable`: ações e estados interativos.
+- Links secundários em texto usam `Pressable` com
+  `suppressWebHoverFeedback`: no hover, apenas o texto clareia e ganha
+  sublinhado. Não aplicar fundo, caixa, padding visual ou alteração de raio ao
+  redor do link.
+- Telas de autenticação usam os tokens de `src/ui/auth-layout.ts`. Largura do
+  bloco, padding e raio do card, altura e raio dos campos e espaçamentos não
+  devem ser redeclarados localmente.
 - Controles web preservam um foco visível por teclado; nunca remova o contorno
   sem oferecer um anel ou mudança de borda equivalente.
 - Ações que não existem para o nível de permissão atual são ocultadas; não são

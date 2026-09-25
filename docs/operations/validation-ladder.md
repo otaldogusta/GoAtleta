@@ -1,4 +1,4 @@
-# Escada de validação do GoAtleta
+# Escada de validação do Go Atleta
 
 Esta é a regra canônica para decidir quanto validar. O objetivo é manter o ciclo
 `localhost:8081 -> ajustar -> conferir` rápido sem reduzir segurança antes de

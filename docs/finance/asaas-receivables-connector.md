@@ -7,7 +7,7 @@ Ele valida a conta Asaas, importa clientes, cobranças e assinaturas existentes 
 mantém um espelho atualizado por webhook. Ele não cria, altera, cancela ou
 reembolsa cobranças no Asaas.
 
-A assinatura que a instituição paga ao GoAtleta continua fora deste fluxo.
+A assinatura que a instituição paga ao Go Atleta continua fora deste fluxo.
 
 ## Proteções
 
@@ -49,7 +49,7 @@ controle não é renderizado em builds de produção.
 
 Na tela **Financeiro > Configurações financeiras**:
 
-1. Colar uma chave exclusiva criada no Asaas para o GoAtleta.
+1. Colar uma chave exclusiva criada no Asaas para o Go Atleta.
 2. Usar **Validar e conectar**. O servidor identifica automaticamente se a
    chave pertence ao ambiente de teste ou à conta real.
 3. Usar **Sincronizar histórico**.

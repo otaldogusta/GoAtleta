@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-A auditoria de uso e cobertura do Catalogo GoAtleta responde duas perguntas operacionais:
+A auditoria de uso e cobertura do Catalogo Go Atleta responde duas perguntas operacionais:
 
 - o catalogo cobre bem os fundamentos, faixas e fases esperadas?
 - quais variantes do catalogo aparecem em planos reais?

@@ -135,6 +135,68 @@ describe("session storage", () => {
     await expect(mod.hasStoredSession()).resolves.toBe(false);
   });
 
+  test("does not expose an API token before server-recorded email verification", async () => {
+    const mod = await loadSessionModuleFor("web");
+    await mod.saveSession({
+      access_token: "unverified-access",
+      refresh_token: "unverified-refresh",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: {
+        id: "unverified-user",
+        email: "unverified@example.com",
+        app_metadata: { provider: "email", providers: ["email"] },
+      },
+    });
+
+    await expect(mod.getValidAccessToken()).resolves.toBe("");
+  });
+
+  test("exposes an API token after trusted email verification", async () => {
+    const mod = await loadSessionModuleFor("web");
+    await mod.saveSession({
+      access_token: "verified-access",
+      refresh_token: "verified-refresh",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: {
+        id: "verified-user",
+        email: "verified@example.com",
+        app_metadata: { provider: "email", email_verified_hybrid_at: "verified" },
+      },
+    });
+
+    await expect(mod.getValidAccessToken()).resolves.toBe("verified-access");
+  });
+
+  test("does not expose a refreshed token when trusted verification proof disappears", async () => {
+    const mod = await loadSessionModuleFor("web");
+    await mod.saveSession({
+      access_token: "expired-verified-access",
+      refresh_token: "refresh-token",
+      expires_at: Math.floor(Date.now() / 1000) - 60,
+      user: {
+        id: "verified-user",
+        email: "verified@example.com",
+        app_metadata: { provider: "email", email_verified_hybrid_at: "verified" },
+      },
+    });
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        access_token: "refreshed-unverified-access",
+        refresh_token: "next-refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user: {
+          id: "verified-user",
+          email: "verified@example.com",
+          app_metadata: { provider: "email", providers: ["email"] },
+        },
+      }),
+    } as Response);
+
+    await expect(mod.getValidAccessToken()).resolves.toBe("");
+  });
+
   test("native starts signed out when a restored SecureStore payload is unreadable", async () => {
     const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     const readError = new Error("Could not decrypt the item in SecureStore");

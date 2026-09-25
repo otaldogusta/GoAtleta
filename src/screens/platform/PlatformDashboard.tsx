@@ -14,6 +14,7 @@ import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { radius, spacing } from "../../theme/tokens";
+import { APP_PRODUCT_LABELS } from "../../config/brand";
 import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
@@ -47,10 +48,7 @@ const labels = {
   paused: "Suspensa",
   cancelled: "Removida",
 } as const;
-const productLabels = {
-  goatleta: "GoAtleta",
-  goatleta_pro: "GoAtleta Pro",
-} as const;
+const productLabels = APP_PRODUCT_LABELS;
 const formatDate = (value: string | null) =>
   value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : null;
 const createIdempotencyKey = () =>

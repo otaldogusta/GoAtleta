@@ -1,6 +1,6 @@
 # Pilares da Inteligência Artificial (Copiloto Pedagógico)
 
-Este documento centraliza a arquitetura conceitual e técnica da Inteligência Artificial do **GoAtleta**. Ele orienta o comportamento das LLMs (como GPT-4o-mini no assistente), a estruturação de prompts e o motor de regras científicas do sistema, servindo como guia canônico para que o sistema de IA mantenha a consistência pedagógica e operacional.
+Este documento centraliza a arquitetura conceitual e técnica da Inteligência Artificial do **Go Atleta**. Ele orienta o comportamento das LLMs (como GPT-4o-mini no assistente), a estruturação de prompts e o motor de regras científicas do sistema, servindo como guia canônico para que o sistema de IA mantenha a consistência pedagógica e operacional.
 
 ---
 
@@ -84,7 +84,7 @@ Para fins de manutenção e futuras evoluções, os principais arquivos relacion
 
 ## Workspace como escopo organizacional
 
-O GoAtleta possui **um único motor de fusão contextual**. Workspace não representa
+O Go Atleta possui **um único motor de fusão contextual**. Workspace não representa
 outra IA: representa a organização ativa por meio de `organization_id`. O usuário é
 global, mas todo contexto pedagógico e operacional é carregado a partir do workspace
 ativo.

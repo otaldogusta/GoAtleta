@@ -1,4 +1,4 @@
-# Correções da auditoria de código — GoAtleta
+# Correções da auditoria de código — Go Atleta
 
 Data: 05/09/2026. Trabalho local sobre `8f8810db`, sem commit, push, deploy ou execução de migrações remotas. O relatório de diagnóstico permanece como fotografia anterior às correções em `2026-09-05-code-architecture-audit.md`.
 

@@ -1,10 +1,24 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getInviteErrorCode } from "../src/api/invite-errors";
-import { familyAccessErrorMessage, requestFamilyAccess, type FamilyAccessIntent } from "../src/api/family-access-request";
+import {
+  familyAccessErrorMessage,
+  requestFamilyAccess,
+  type FamilyAccessIntent,
+} from "../src/api/family-access-request";
 import { FamilyAccessIntentFields } from "../src/screens/family/FamilyAccessIntentFields";
 import {
   listMyOrganizationAccessRequests,
@@ -41,12 +55,19 @@ import { radius, spacing } from "../src/theme/tokens";
 import { AnchoredDropdown } from "../src/ui/AnchoredDropdown";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { APP_PRODUCT_LABELS } from "../src/config/brand";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Button } from "../src/ui/Button";
 
 // perf-check: ignore-inline-row-style - the capped five-item dropdown uses theme-dependent row colors and is not a virtualized list.
 
-function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: boolean }) {
+function PulseRadarBadge({
+  approved,
+  blocked,
+}: {
+  approved?: boolean;
+  blocked?: boolean;
+}) {
   const { colors } = useAppTheme();
   const [pulseAnim] = useState(() => new Animated.Value(0));
   const [successAnim] = useState(() => new Animated.Value(0));
@@ -68,7 +89,7 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
         duration: 2400,
         easing: Easing.out(Easing.ease),
         useNativeDriver: Platform.OS !== "web",
-      })
+      }),
     );
     animation.start();
     return () => animation.stop();
@@ -116,7 +137,14 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
 
   if (approved) {
     return (
-      <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          width: 100,
+          height: 100,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <Animated.View
           style={{
             position: "absolute",
@@ -151,7 +179,14 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
 
   if (blocked) {
     return (
-      <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          width: 100,
+          height: 100,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <View
           style={{
             width: 64,
@@ -164,14 +199,25 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
             justifyContent: "center",
           }}
         >
-          <GoAtletaIcon name="warningCircle" size={30} color={colors.dangerText} />
+          <GoAtletaIcon
+            name="warningCircle"
+            size={30}
+            color={colors.dangerText}
+          />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width: 100,
+        height: 100,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Animated.View
         style={{
           position: "absolute",
@@ -212,55 +258,105 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
   );
 }
 
-  const parseInviteError = (error: unknown) => {
-    const code = getInviteErrorCode(error);
-    if (code === "INVITE_EXPIRED") {
-      return { message: "Solicite um novo convite à organização.", issue: "expired" as const };
-    }
-    if (code === "INVITE_ALREADY_USED" || code === "INVITE_LIMIT_REACHED") {
-      return { message: "Entre com a conta que já aceitou o convite ou solicite outro.", issue: "already_used" as const };
-    }
-    if (code === "INVITE_REVOKED") {
-      return { message: "Solicite um novo convite à organização.", issue: "revoked" as const };
-    }
-    if (code === "INVITE_INVALID") {
-      return { message: "O link informado não é válido.", issue: "failed" as const };
-    }
-    if (code === "STUDENT_ALREADY_LINKED") {
-      return { message: "Seu acesso já está vinculado.", issue: "already_used" as const };
-    }
-    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
-      return { message: "Sessão expirada. Entre novamente.", issue: "failed" as const };
-    }
-    if (code === "EMAIL_NOT_VERIFIED") {
-      return { message: "Confirme seu e-mail para aplicar o convite.", issue: "failed" as const };
-    }
-    if (code === "INVITE_EMAIL_MISMATCH") {
-      return { message: "Entre com o e-mail que recebeu o convite.", issue: "failed" as const };
-    }
-    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") {
-      return { message: "Sem permissão para validar o convite.", issue: "failed" as const };
-    }
-    return { message: "Tente novamente ou solicite outro convite.", issue: "failed" as const };
+const parseInviteError = (error: unknown) => {
+  const code = getInviteErrorCode(error);
+  if (code === "INVITE_EXPIRED") {
+    return {
+      message: "Solicite um novo convite à organização.",
+      issue: "expired" as const,
+    };
+  }
+  if (code === "INVITE_ALREADY_USED" || code === "INVITE_LIMIT_REACHED") {
+    return {
+      message: "Entre com a conta que já aceitou o convite ou solicite outro.",
+      issue: "already_used" as const,
+    };
+  }
+  if (code === "INVITE_REVOKED") {
+    return {
+      message: "Solicite um novo convite à organização.",
+      issue: "revoked" as const,
+    };
+  }
+  if (code === "INVITE_INVALID") {
+    return {
+      message: "O link informado não é válido.",
+      issue: "failed" as const,
+    };
+  }
+  if (code === "STUDENT_ALREADY_LINKED") {
+    return {
+      message: "Seu acesso já está vinculado.",
+      issue: "already_used" as const,
+    };
+  }
+  if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
+    return {
+      message: "Sessão expirada. Entre novamente.",
+      issue: "failed" as const,
+    };
+  }
+  if (code === "EMAIL_NOT_VERIFIED") {
+    return {
+      message: "Confirme seu e-mail para aplicar o convite.",
+      issue: "failed" as const,
+    };
+  }
+  if (code === "INVITE_EMAIL_MISMATCH") {
+    return {
+      message: "Entre com o e-mail que recebeu o convite.",
+      issue: "failed" as const,
+    };
+  }
+  if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") {
+    return {
+      message: "Sem permissão para validar o convite.",
+      issue: "failed" as const,
+    };
+  }
+  return {
+    message: "Tente novamente ou solicite outro convite.",
+    issue: "failed" as const,
   };
+};
 
 export default function PendingScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   // Public self-service is a relationship request, never a staff role inferred from a URL.
-  const [requestIntent, setRequestIntent] = useState<FamilyAccessIntent | null>(null);
+  const [requestIntent, setRequestIntent] = useState<FamilyAccessIntent | null>(
+    null,
+  );
   const [requestMode, setRequestMode] = useState<"family" | "staff">("family");
-  const [requestedProduct, setRequestedProduct] = useState<"goatleta" | "goatleta_pro">("goatleta");
+  const [requestedProduct, setRequestedProduct] = useState<
+    "goatleta" | "goatleta_pro"
+  >("goatleta");
   const [requestedStudentName, setRequestedStudentName] = useState("");
-  const [requestedRelationshipLabel, setRequestedRelationshipLabel] = useState("");
+  const [requestedRelationshipLabel, setRequestedRelationshipLabel] =
+    useState("");
   const [correctingRequest, setCorrectingRequest] = useState(false);
-  const validRelationshipRequest = Boolean(requestIntent && requestedStudentName.trim()
-    && (requestIntent !== "guardian" || requestedRelationshipLabel.trim()));
+  const validRelationshipRequest = Boolean(
+    requestIntent &&
+    requestedStudentName.trim() &&
+    (requestIntent !== "guardian" || requestedRelationshipLabel.trim()),
+  );
   const { width: viewportWidth } = useWindowDimensions();
   markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
-  const { session, signOut, resendSignupCode, loading: authLoading } = useAuth();
-  const { refresh, role, loading: roleLoading, studentAccessResolution, availableRoles, setActiveRole } = useRole();
+  const {
+    session,
+    signOut,
+    resendSignupCode,
+    loading: authLoading,
+  } = useAuth();
+  const {
+    refresh,
+    role,
+    loading: roleLoading,
+    studentAccessResolution,
+    availableRoles,
+    setActiveRole,
+  } = useRole();
   const [inviteBusy, setInviteBusy] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -272,12 +368,22 @@ export default function PendingScreen() {
   const [inviteEntry, setInviteEntry] = useState("");
   const [inviteEntryError, setInviteEntryError] = useState("");
   const [organizationQuery, setOrganizationQuery] = useState("");
-  const [organizations, setOrganizations] = useState<AccessRequestOrganization[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState<AccessRequestOrganization | null>(null);
+  const [organizations, setOrganizations] = useState<
+    AccessRequestOrganization[]
+  >([]);
+  const [selectedOrganization, setSelectedOrganization] =
+    useState<AccessRequestOrganization | null>(null);
   const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
-  const [organizationCatalogLoading, setOrganizationCatalogLoading] = useState(false);
-  const [organizationTriggerLayout, setOrganizationTriggerLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [accessRequest, setAccessRequest] = useState<OrganizationAccessRequest | null>(null);
+  const [organizationCatalogLoading, setOrganizationCatalogLoading] =
+    useState(false);
+  const [organizationTriggerLayout, setOrganizationTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [accessRequest, setAccessRequest] =
+    useState<OrganizationAccessRequest | null>(null);
   const [accessRequestBusy, setAccessRequestBusy] = useState(false);
   const requestLock = useRef(false);
   const observedAthletePending = useRef(false);
@@ -292,10 +398,17 @@ export default function PendingScreen() {
     if (!session) return;
     try {
       const requests = await listMyOrganizationAccessRequests();
-      const relevant = requests.filter((item) => item.requestKind === "athlete" || item.requestKind === "guardian");
-      const next = relevant.find((item) => item.status === "pending")
-        ?? requests.find((item) => item.status === "pending" && item.requestKind === "staff")
-        ?? relevant[0] ?? null;
+      const relevant = requests.filter(
+        (item) =>
+          item.requestKind === "athlete" || item.requestKind === "guardian",
+      );
+      const next =
+        relevant.find((item) => item.status === "pending") ??
+        requests.find(
+          (item) => item.status === "pending" && item.requestKind === "staff",
+        ) ??
+        relevant[0] ??
+        null;
       if (next?.status === "pending") observedAthletePending.current = true;
       setAccessRequest(next);
     } catch {
@@ -310,17 +423,25 @@ export default function PendingScreen() {
   }, [loadAccessRequest]);
 
   useEffect(() => {
-    if (!session || accessRequest?.status === "pending" || !organizationPickerOpen) return;
+    if (
+      !session ||
+      accessRequest?.status === "pending" ||
+      !organizationPickerOpen
+    )
+      return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       if (!cancelled) setOrganizationCatalogLoading(true);
       try {
-        const remoteOrganizations = await searchAccessRequestOrganizations(organizationQuery);
+        const remoteOrganizations =
+          await searchAccessRequestOrganizations(organizationQuery);
         if (!cancelled) setOrganizations(remoteOrganizations);
       } catch {
         if (!cancelled) {
           setOrganizations([]);
-          setMessage("Não foi possível consultar as instituições. Tente novamente.");
+          setMessage(
+            "Não foi possível consultar as instituições. Tente novamente.",
+          );
         }
       } finally {
         if (!cancelled) setOrganizationCatalogLoading(false);
@@ -330,7 +451,12 @@ export default function PendingScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [accessRequest?.status, organizationPickerOpen, organizationQuery, session]);
+  }, [
+    accessRequest?.status,
+    organizationPickerOpen,
+    organizationQuery,
+    session,
+  ]);
 
   const submitAccessRequest = async (organization = selectedOrganization) => {
     if (!organization || requestLock.current) return;
@@ -338,9 +464,14 @@ export default function PendingScreen() {
     setAccessRequestBusy(true);
     setMessage("");
     try {
-      if (!requestIntent || !validRelationshipRequest) throw new Error("Informe seu vínculo e os dados do atleta.");
-      await requestFamilyAccess({ organizationId: organization.id, kind: requestIntent,
-        studentName: requestedStudentName, relationshipLabel: requestedRelationshipLabel });
+      if (!requestIntent || !validRelationshipRequest)
+        throw new Error("Informe seu vínculo e os dados do atleta.");
+      await requestFamilyAccess({
+        organizationId: organization.id,
+        kind: requestIntent,
+        studentName: requestedStudentName,
+        relationshipLabel: requestedRelationshipLabel,
+      });
       setCorrectingRequest(false);
       await loadAccessRequest();
     } catch (error) {
@@ -390,61 +521,75 @@ export default function PendingScreen() {
     }
   }, [accessApproved, resolvedRoleHome, router, textAnim]);
 
-  const handleStoredTrainerInvite = useCallback(async (codeOverride?: string) => {
-    const code = (codeOverride ?? storedTrainerCode).trim();
-    if (!code || inviteBusy) return;
-    setInviteBusy(true);
-    setInviteIssue(null);
-    setMessage("");
-    try {
-      if (session?.user.app_metadata?.staff_invite_setup_required === true) {
-        await resumeStaffSignup(code, session);
-        router.replace({ pathname: "/staff-invite", params: { code } });
-        return;
-      }
-      await claimTrainerInvite(code);
-      setAccessApproved(true);
-      await clearPendingTrainerInvite();
-      await refresh();
-      router.replace("/");
-    } catch (error) {
-      const errorCode = getInviteErrorCode(error);
-      if (errorCode === "STAFF_SETUP_REQUIRED") {
-        router.replace({ pathname: "/staff-invite", params: { code } });
-        return;
-      }
-      const parsed = parseInviteError(error);
-      setInviteIssue(parsed.issue);
-      setMessage(parsed.message);
-      if (["INVITE_INVALID", "INVITE_EXPIRED", "INVITE_REVOKED", "INVITE_ALREADY_USED", "INVITE_LIMIT_REACHED"].includes(errorCode)) {
+  const handleStoredTrainerInvite = useCallback(
+    async (codeOverride?: string) => {
+      const code = (codeOverride ?? storedTrainerCode).trim();
+      if (!code || inviteBusy) return;
+      setInviteBusy(true);
+      setInviteIssue(null);
+      setMessage("");
+      try {
+        if (session?.user.app_metadata?.staff_invite_setup_required === true) {
+          await resumeStaffSignup(code, session);
+          router.replace({ pathname: "/staff-invite", params: { code } });
+          return;
+        }
+        await claimTrainerInvite(code);
+        setAccessApproved(true);
         await clearPendingTrainerInvite();
-        setStoredTrainerCode("");
+        await refresh();
+        router.replace("/");
+      } catch (error) {
+        const errorCode = getInviteErrorCode(error);
+        if (errorCode === "STAFF_SETUP_REQUIRED") {
+          router.replace({ pathname: "/staff-invite", params: { code } });
+          return;
+        }
+        const parsed = parseInviteError(error);
+        setInviteIssue(parsed.issue);
+        setMessage(parsed.message);
+        if (
+          [
+            "INVITE_INVALID",
+            "INVITE_EXPIRED",
+            "INVITE_REVOKED",
+            "INVITE_ALREADY_USED",
+            "INVITE_LIMIT_REACHED",
+          ].includes(errorCode)
+        ) {
+          await clearPendingTrainerInvite();
+          setStoredTrainerCode("");
+        }
+      } finally {
+        setInviteBusy(false);
       }
-    } finally {
-      setInviteBusy(false);
-    }
-  }, [storedTrainerCode, inviteBusy, session, router, refresh]);
+    },
+    [storedTrainerCode, inviteBusy, session, router, refresh],
+  );
 
-  const handleStoredInvite = useCallback(async (tokenOverride?: string) => {
-    const tokenValue = (tokenOverride ?? storedToken).trim();
-    if (!tokenValue || inviteBusy) return;
-    setInviteBusy(true);
-    setInviteIssue(null);
-    setMessage("");
-    try {
-      await claimStudentInvite(tokenValue);
-      setAccessApproved(true);
-      await clearPendingInvite();
-      await refresh();
-      router.replace("/student/home");
-    } catch (error) {
-      const parsed = parseInviteError(error);
-      setInviteIssue(parsed.issue);
-      setMessage(parsed.message);
-    } finally {
-      setInviteBusy(false);
-    }
-  }, [storedToken, inviteBusy, refresh, router]);
+  const handleStoredInvite = useCallback(
+    async (tokenOverride?: string) => {
+      const tokenValue = (tokenOverride ?? storedToken).trim();
+      if (!tokenValue || inviteBusy) return;
+      setInviteBusy(true);
+      setInviteIssue(null);
+      setMessage("");
+      try {
+        await claimStudentInvite(tokenValue);
+        setAccessApproved(true);
+        await clearPendingInvite();
+        await refresh();
+        router.replace("/student/home");
+      } catch (error) {
+        const parsed = parseInviteError(error);
+        setInviteIssue(parsed.issue);
+        setMessage(parsed.message);
+      } finally {
+        setInviteBusy(false);
+      }
+    },
+    [storedToken, inviteBusy, refresh, router],
+  );
 
   const clearStoredInvite = async () => {
     await Promise.all([clearPendingInvite(), clearPendingTrainerInvite()]);
@@ -466,11 +611,31 @@ export default function PendingScreen() {
       setInviteEntryError("Link ou código inválido.");
       inviteShakeAnim.setValue(0);
       Animated.sequence([
-        Animated.timing(inviteShakeAnim, { toValue: -7, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: 7, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: -5, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: 5, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: 0, duration: 45, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: -7,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: 7,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: -5,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: 5,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: 0,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
       ]).start();
       return;
     }
@@ -485,7 +650,10 @@ export default function PendingScreen() {
         await resumeStaffSignup(resolved.code, session);
         await savePendingTrainerInvite(resolved.code);
         setStoredTrainerCode(resolved.code);
-        router.replace({ pathname: "/staff-invite", params: { code: resolved.code } });
+        router.replace({
+          pathname: "/staff-invite",
+          params: { code: resolved.code },
+        });
         return;
       }
       await claimTrainerInvite(resolved.code);
@@ -497,18 +665,41 @@ export default function PendingScreen() {
       if (getInviteErrorCode(error) === "STAFF_SETUP_REQUIRED") {
         await savePendingTrainerInvite(resolved.code);
         setStoredTrainerCode(resolved.code);
-        router.replace({ pathname: "/staff-invite", params: { code: resolved.code } });
+        router.replace({
+          pathname: "/staff-invite",
+          params: { code: resolved.code },
+        });
         return;
       }
       const parsed = parseInviteError(error);
       setInviteEntryError(parsed.message);
       inviteShakeAnim.setValue(0);
       Animated.sequence([
-        Animated.timing(inviteShakeAnim, { toValue: -7, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: 7, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: -5, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: 5, duration: 45, useNativeDriver: Platform.OS !== "web" }),
-        Animated.timing(inviteShakeAnim, { toValue: 0, duration: 45, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: -7,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: 7,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: -5,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: 5,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(inviteShakeAnim, {
+          toValue: 0,
+          duration: 45,
+          useNativeDriver: Platform.OS !== "web",
+        }),
       ]).start();
     } finally {
       setInviteBusy(false);
@@ -546,13 +737,22 @@ export default function PendingScreen() {
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        if (Platform.OS !== "web" || typeof document === "undefined" || document.visibilityState === "visible") {
+        if (
+          Platform.OS !== "web" ||
+          typeof document === "undefined" ||
+          document.visibilityState === "visible"
+        ) {
           await Promise.all([refresh({ silent: true }), loadAccessRequest()]);
         }
-      } finally { if (!cancelled) timer = setTimeout(() => void poll(), 12000); }
+      } finally {
+        if (!cancelled) timer = setTimeout(() => void poll(), 12000);
+      }
     };
     timer = setTimeout(() => void poll(), 12000);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [refresh, session, loadAccessRequest]);
 
   useEffect(() => {
@@ -560,7 +760,7 @@ export default function PendingScreen() {
     (async () => {
       const [token, trainerCode] = await measureAsync(
         "screen.pending.load.storedInvites",
-        () => Promise.all([getPendingInvite(), getPendingTrainerInvite()])
+        () => Promise.all([getPendingInvite(), getPendingTrainerInvite()]),
       );
       if (!alive) return;
       setStoredToken(token);
@@ -581,11 +781,18 @@ export default function PendingScreen() {
       }
       if (authLoading) return;
       if (!token && !trainerCode) {
-        if (resolvedRoleHome && observedAthletePending.current && accessRequest?.status === "approved") {
-          const nextRole = accessRequest.requestKind === "guardian" ? "family" : "student";
+        if (
+          resolvedRoleHome &&
+          observedAthletePending.current &&
+          accessRequest?.status === "approved"
+        ) {
+          const nextRole =
+            accessRequest.requestKind === "guardian" ? "family" : "student";
           if (!availableRoles.includes(nextRole)) return;
-          if (role === nextRole || await setActiveRole(nextRole)) {
-            router.replace(nextRole === "family" ? "/family/home" : "/student/home");
+          if (role === nextRole || (await setActiveRole(nextRole))) {
+            router.replace(
+              nextRole === "family" ? "/family/home" : "/student/home",
+            );
           }
         }
         return;
@@ -605,7 +812,19 @@ export default function PendingScreen() {
     return () => {
       alive = false;
     };
-  }, [authLoading, handleStoredInvite, handleStoredTrainerInvite, resolvedRoleHome, router, session, accessRequest?.status, accessRequest?.requestKind, availableRoles, role, setActiveRole]);
+  }, [
+    authLoading,
+    handleStoredInvite,
+    handleStoredTrainerInvite,
+    resolvedRoleHome,
+    router,
+    session,
+    accessRequest?.status,
+    accessRequest?.requestKind,
+    availableRoles,
+    role,
+    setActiveRole,
+  ]);
 
   const pendingViewState = resolvePendingInviteViewState({
     accessApproved,
@@ -613,29 +832,53 @@ export default function PendingScreen() {
     issue: inviteIssue,
     hasStoredInvite: Boolean(storedToken || storedTrainerCode),
   });
-  const studentAccessCopy = pendingViewState === "waiting"
-    ? getStudentAccessPendingCopy(studentAccessResolution) : null;
-  const pendingCopy = accessRequest?.status === "pending"
-    ? {
-        title: "Solicitação enviada",
-        subtitle: `A ${accessRequest.organizationName ?? "instituição"} revisará seu acesso.`,
-      }
-    : accessRequest?.status === "rejected"
-    ? { title: "Solicitação recusada", subtitle: "Fale com a coordenação ou solicite um novo vínculo." }
-    : studentAccessCopy
-    ? { ...studentAccessCopy, subtitle: message || studentAccessCopy.subtitle }
-    : {
-        ...getPendingInviteCopy(pendingViewState),
-        title: "Encontre sua instituição",
-        subtitle: "Solicite seu vínculo com a instituição.",
-      };
+  const studentAccessCopy =
+    pendingViewState === "waiting"
+      ? getStudentAccessPendingCopy(studentAccessResolution)
+      : null;
+  const pendingCopy =
+    accessRequest?.status === "pending"
+      ? {
+          title: "Solicitação enviada",
+          subtitle: `A ${accessRequest.organizationName ?? "instituição"} revisará seu acesso.`,
+        }
+      : accessRequest?.status === "rejected"
+        ? {
+            title: "Solicitação recusada",
+            subtitle: "Fale com a coordenação ou solicite um novo vínculo.",
+          }
+        : studentAccessCopy
+          ? {
+              ...studentAccessCopy,
+              subtitle: message || studentAccessCopy.subtitle,
+            }
+          : {
+              ...getPendingInviteCopy(pendingViewState),
+              title: "Encontre sua instituição",
+              subtitle: "Solicite seu vínculo com a instituição.",
+            };
   const hasTerminalInviteIssue = isTerminalPendingInviteIssue(pendingViewState);
-  const compactContentWidth = Math.min(Math.max(viewportWidth - spacing.lg * 2, 0), 440);
+  const compactContentWidth = Math.min(
+    Math.max(viewportWidth - spacing.lg * 2, 0),
+    440,
+  );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }}>
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
       <KeyboardAvoidingView
-        style={{ flex: 1, width: "100%", justifyContent: "center", alignItems: "center" }}
+        style={{
+          flex: 1,
+          width: "100%",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
@@ -662,9 +905,11 @@ export default function PendingScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Ir para início"
                 onPress={() => {
-                  const safeReturnTo = typeof returnTo === "string" && returnTo.startsWith("/student/")
-                    ? returnTo
-                    : "/student/home";
+                  const safeReturnTo =
+                    typeof returnTo === "string" &&
+                    returnTo.startsWith("/student/")
+                      ? returnTo
+                      : "/student/home";
                   router.replace(safeReturnTo);
                 }}
                 style={({ pressed }) => ({
@@ -680,31 +925,51 @@ export default function PendingScreen() {
                   opacity: pressed ? 0.78 : 1,
                 })}
               >
-                <GoAtletaIcon name="chevronBack" size={19} color={colors.text} />
+                <GoAtletaIcon
+                  name="chevronBack"
+                  size={19}
+                  color={colors.text}
+                />
               </Pressable>
-              <PulseRadarBadge approved={accessApproved} blocked={hasTerminalInviteIssue} />
+              <PulseRadarBadge
+                approved={accessApproved}
+                blocked={hasTerminalInviteIssue}
+              />
 
-              <Animated.View style={{ alignItems: "center", gap: spacing.xs, transform: [{ translateY: textAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, -8, 0] }) }] }}>
-              <Text
+              <Animated.View
                 style={{
-                  color: colors.text,
-                  fontSize: 24,
-                  fontWeight: "800",
-                  textAlign: "center",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  transform: [
+                    {
+                      translateY: textAnim.interpolate({
+                        inputRange: [0, 0.4, 1],
+                        outputRange: [0, -8, 0],
+                      }),
+                    },
+                  ],
                 }}
               >
-                {pendingCopy.title}
-              </Text>
-              <Text
-                style={{
-                  color: colors.muted,
-                  fontSize: 14,
-                  lineHeight: 21,
-                  textAlign: "center",
-                }}
-              >
-                {pendingCopy.subtitle}
-              </Text>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: 24,
+                    fontWeight: "800",
+                    textAlign: "center",
+                  }}
+                >
+                  {pendingCopy.title}
+                </Text>
+                <Text
+                  style={{
+                    color: colors.muted,
+                    fontSize: 14,
+                    lineHeight: 21,
+                    textAlign: "center",
+                  }}
+                >
+                  {pendingCopy.subtitle}
+                </Text>
               </Animated.View>
             </>
 
@@ -721,28 +986,65 @@ export default function PendingScreen() {
                   alignItems: "center",
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                  <GoAtletaIcon name="link" size={16} color={colors.primaryBg} />
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.xs,
+                  }}
+                >
+                  <GoAtletaIcon
+                    name="link"
+                    size={16}
+                    color={colors.primaryBg}
+                  />
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 14,
+                      fontWeight: "700",
+                    }}
+                  >
                     Convite encontrado
                   </Text>
                 </View>
                 {Boolean(message) && (
-                  <Text style={{ color: colors.dangerSolidBg, fontSize: 13, textAlign: "center" }}>
+                  <Text
+                    style={{
+                      color: colors.dangerSolidBg,
+                      fontSize: 13,
+                      textAlign: "center",
+                    }}
+                  >
                     {message}
                   </Text>
                 )}
                 {!hasTerminalInviteIssue ? (
                   <Button
-                    label={inviteBusy ? "Validando convite..." : "Validar convite agora"}
+                    label={
+                      inviteBusy
+                        ? "Validando convite..."
+                        : "Validar convite agora"
+                    }
                     onPress={() =>
-                      storedToken ? handleStoredInvite() : handleStoredTrainerInvite()
+                      storedToken
+                        ? handleStoredInvite()
+                        : handleStoredTrainerInvite()
                     }
                     disabled={inviteBusy}
                   />
                 ) : null}
-                <Pressable onPress={clearStoredInvite} style={{ padding: spacing.xs }}>
-                  <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
+                <Pressable
+                  onPress={clearStoredInvite}
+                  style={{ padding: spacing.xs }}
+                >
+                  <Text
+                    style={{
+                      color: colors.muted,
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
                     Descartar convite
                   </Text>
                 </Pressable>
@@ -751,7 +1053,13 @@ export default function PendingScreen() {
 
             {studentAccessCopy ? (
               <Button
-                label={verificationBusy ? "Enviando..." : roleLoading ? "Verificando..." : studentAccessCopy.action}
+                label={
+                  verificationBusy
+                    ? "Enviando..."
+                    : roleLoading
+                      ? "Verificando..."
+                      : studentAccessCopy.action
+                }
                 disabled={roleLoading || verificationBusy}
                 onPress={async () => {
                   if (studentAccessResolution === "verification_required") {
@@ -760,9 +1068,13 @@ export default function PendingScreen() {
                     try {
                       const email = session?.user.email ?? "";
                       await resendSignupCode(email, "verify-email");
-                      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+                      router.push(
+                        `/verify-email?email=${encodeURIComponent(email)}`,
+                      );
                     } catch {
-                      setMessage("Não foi possível enviar o código. Tente novamente.");
+                      setMessage(
+                        "Não foi possível enviar o código. Tente novamente.",
+                      );
                     } finally {
                       setVerificationBusy(false);
                     }
@@ -788,32 +1100,104 @@ export default function PendingScreen() {
               >
                 {accessRequest?.status === "pending" ? (
                   <View style={{ gap: spacing.sm }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                      <GoAtletaIcon name="checkmarkCircle" size={22} color={colors.primaryBg} />
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: spacing.sm,
+                      }}
+                    >
+                      <GoAtletaIcon
+                        name="checkmarkCircle"
+                        size={22}
+                        color={colors.primaryBg}
+                      />
                       <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 15,
+                            fontWeight: "800",
+                          }}
+                        >
                           {accessRequest.organizationName}
                         </Text>
                         <Text style={{ color: colors.muted, fontSize: 13 }}>
-                          {accessRequest.requestKind === "athlete" ? "Atleta" : accessRequest.requestKind === "guardian" ? "Responsável" : "Equipe"} · Aguardando aprovação
+                          {accessRequest.requestKind === "athlete"
+                            ? "Atleta"
+                            : accessRequest.requestKind === "guardian"
+                              ? "Responsável"
+                              : "Equipe"}{" "}
+                          · Aguardando aprovação
                         </Text>
                       </View>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+                    <Text
+                      style={{
+                        color: colors.muted,
+                        fontSize: 13,
+                        lineHeight: 19,
+                      }}
+                    >
                       {accessRequest.requestKind === "staff"
                         ? "Esta solicitação foi enviada como acesso da equipe. Você pode corrigir o vínculo solicitado."
                         : "Você será avisado assim que a coordenação revisar a solicitação."}
                     </Text>
-                    {accessRequest.requestKind === "staff" && !correctingRequest ? <Button label="Corrigir vínculo solicitado" variant="outline" onPress={() => setCorrectingRequest(true)} /> : null}
-                    {correctingRequest ? <>
-                      <FamilyAccessIntentFields kind={requestIntent} studentName={requestedStudentName} relationshipLabel={requestedRelationshipLabel}
-                        onKind={setRequestIntent} onStudentName={setRequestedStudentName} onRelationshipLabel={setRequestedRelationshipLabel} disabled={accessRequestBusy} />
-                      <Button label="Enviar correção" disabled={!validRelationshipRequest} loading={accessRequestBusy}
-                        onPress={() => void submitAccessRequest({ id: accessRequest.organizationId, name: accessRequest.organizationName ?? "Instituição" })} />
-                    </> : null}
-                    {message ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{message}</Text> : null}
-                    <Pressable onPress={() => void Promise.all([loadAccessRequest(), refresh()])} style={{ alignSelf: "flex-start", paddingVertical: 6 }} suppressWebHoverFeedback>
-                      <Text style={{ color: colors.primaryBg, fontSize: 13, fontWeight: "700" }}>
+                    {accessRequest.requestKind === "staff" &&
+                    !correctingRequest ? (
+                      <Button
+                        label="Corrigir vínculo solicitado"
+                        variant="outline"
+                        onPress={() => setCorrectingRequest(true)}
+                      />
+                    ) : null}
+                    {correctingRequest ? (
+                      <>
+                        <FamilyAccessIntentFields
+                          kind={requestIntent}
+                          studentName={requestedStudentName}
+                          relationshipLabel={requestedRelationshipLabel}
+                          onKind={setRequestIntent}
+                          onStudentName={setRequestedStudentName}
+                          onRelationshipLabel={setRequestedRelationshipLabel}
+                          disabled={accessRequestBusy}
+                        />
+                        <Button
+                          label="Enviar correção"
+                          disabled={!validRelationshipRequest}
+                          loading={accessRequestBusy}
+                          onPress={() =>
+                            void submitAccessRequest({
+                              id: accessRequest.organizationId,
+                              name:
+                                accessRequest.organizationName ?? "Instituição",
+                            })
+                          }
+                        />
+                      </>
+                    ) : null}
+                    {message ? (
+                      <Text
+                        accessibilityRole="alert"
+                        style={{ color: colors.dangerText }}
+                      >
+                        {message}
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      onPress={() =>
+                        void Promise.all([loadAccessRequest(), refresh()])
+                      }
+                      style={{ alignSelf: "flex-start", paddingVertical: 6 }}
+                      suppressWebHoverFeedback
+                    >
+                      <Text
+                        style={{
+                          color: colors.primaryBg,
+                          fontSize: 13,
+                          fontWeight: "700",
+                        }}
+                      >
                         Atualizar status
                       </Text>
                     </Pressable>
@@ -821,14 +1205,18 @@ export default function PendingScreen() {
                 ) : (
                   <View style={{ gap: spacing.sm }}>
                     <View style={{ flexDirection: "row", gap: spacing.xs }}>
-                      {([
-                        ["family", "Atleta ou responsável"],
-                        ["staff", "Equipe da instituição"],
-                      ] as const).map(([value, label]) => (
+                      {(
+                        [
+                          ["family", "Atleta ou responsável"],
+                          ["staff", "Equipe da instituição"],
+                        ] as const
+                      ).map(([value, label]) => (
                         <Pressable
                           key={value}
                           accessibilityRole="button"
-                          accessibilityState={{ selected: requestMode === value }}
+                          accessibilityState={{
+                            selected: requestMode === value,
+                          }}
                           onPress={() => {
                             setRequestMode(value);
                             setMessage("");
@@ -865,62 +1253,127 @@ export default function PendingScreen() {
                       ))}
                     </View>
                     {requestMode === "family" ? (
-                      <FamilyAccessIntentFields kind={requestIntent} studentName={requestedStudentName} relationshipLabel={requestedRelationshipLabel}
-                        onKind={setRequestIntent} onStudentName={setRequestedStudentName} onRelationshipLabel={setRequestedRelationshipLabel} disabled={accessRequestBusy} />
+                      <FamilyAccessIntentFields
+                        kind={requestIntent}
+                        studentName={requestedStudentName}
+                        relationshipLabel={requestedRelationshipLabel}
+                        onKind={setRequestIntent}
+                        onStudentName={setRequestedStudentName}
+                        onRelationshipLabel={setRequestedRelationshipLabel}
+                        disabled={accessRequestBusy}
+                      />
                     ) : (
                       <View style={{ gap: spacing.xs }}>
                         <Text style={{ color: colors.muted, fontSize: 13 }}>
                           Plano de interesse
                         </Text>
                         <View style={{ flexDirection: "row", gap: spacing.xs }}>
-                          {(["goatleta", "goatleta_pro"] as const).map((product) => (
-                            <Pressable
-                              key={product}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: requestedProduct === product }}
-                              onPress={() => setRequestedProduct(product)}
-                              style={{
-                                flex: 1,
-                                minHeight: 42,
-                                borderRadius: radius.internal,
-                                borderWidth: 1,
-                                borderColor: requestedProduct === product ? colors.primaryBg : colors.border,
-                                backgroundColor: requestedProduct === product ? colors.successBg : colors.secondaryBg,
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                                {product === "goatleta_pro" ? "GoAtleta Pro" : "GoAtleta"}
-                              </Text>
-                            </Pressable>
-                          ))}
+                          {(["goatleta", "goatleta_pro"] as const).map(
+                            (product) => (
+                              <Pressable
+                                key={product}
+                                accessibilityRole="button"
+                                accessibilityState={{
+                                  selected: requestedProduct === product,
+                                }}
+                                onPress={() => setRequestedProduct(product)}
+                                style={{
+                                  flex: 1,
+                                  minHeight: 42,
+                                  borderRadius: radius.internal,
+                                  borderWidth: 1,
+                                  borderColor:
+                                    requestedProduct === product
+                                      ? colors.primaryBg
+                                      : colors.border,
+                                  backgroundColor:
+                                    requestedProduct === product
+                                      ? colors.successBg
+                                      : colors.secondaryBg,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: colors.text,
+                                    fontSize: 12,
+                                    fontWeight: "800",
+                                  }}
+                                >
+                                  {APP_PRODUCT_LABELS[product]}
+                                </Text>
+                              </Pressable>
+                            ),
+                          )}
                         </View>
                       </View>
                     )}
                     <View ref={organizationTriggerRef} collapsable={false}>
-                      <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: organizationPickerOpen ? colors.primaryBg : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <GoAtletaIcon name="search" size={18} color={colors.muted} />
+                      <View
+                        style={{
+                          minHeight: 50,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: organizationPickerOpen
+                            ? colors.primaryBg
+                            : colors.border,
+                          backgroundColor: colors.inputBg,
+                          paddingHorizontal: 14,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name="search"
+                          size={18}
+                          color={colors.muted}
+                        />
                         <TextInput
-                        accessibilityLabel="Buscar instituição"
-                        placeholder="Buscar instituição"
-                        placeholderTextColor={colors.placeholder}
+                          accessibilityLabel="Buscar instituição"
+                          placeholder="Buscar instituição"
+                          placeholderTextColor={colors.placeholder}
                           value={organizationQuery}
                           onFocus={() => {
                             setOrganizationPickerOpen(true);
-                            organizationTriggerRef.current?.measureInWindow((x, y, width, height) => {
-                              setOrganizationTriggerLayout({ x, y, width, height });
-                            });
+                            organizationTriggerRef.current?.measureInWindow(
+                              (x, y, width, height) => {
+                                setOrganizationTriggerLayout({
+                                  x,
+                                  y,
+                                  width,
+                                  height,
+                                });
+                              },
+                            );
                           }}
-                        onChangeText={(value) => {
-                          setOrganizationQuery(value);
-                          setSelectedOrganization(null);
-                          setOrganizationPickerOpen(true);
-                          setMessage("");
-                        }}
-                        style={[{ flex: 1, minHeight: 50, color: colors.inputText, borderRadius: 0, paddingVertical: 0 }, Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null]}
+                          onChangeText={(value) => {
+                            setOrganizationQuery(value);
+                            setSelectedOrganization(null);
+                            setOrganizationPickerOpen(true);
+                            setMessage("");
+                          }}
+                          style={[
+                            {
+                              flex: 1,
+                              minHeight: 50,
+                              color: colors.inputText,
+                              borderRadius: 0,
+                              paddingVertical: 0,
+                            },
+                            Platform.OS === "web"
+                              ? ({ outlineStyle: "none" } as never)
+                              : null,
+                          ]}
                         />
-                        <GoAtletaIcon name={organizationPickerOpen ? "chevronUp" : "chevronDown"} size={17} color={colors.muted} />
+                        <GoAtletaIcon
+                          name={
+                            organizationPickerOpen ? "chevronUp" : "chevronDown"
+                          }
+                          size={17}
+                          color={colors.muted}
+                        />
                       </View>
                     </View>
                     <AnchoredDropdown
@@ -936,34 +1389,87 @@ export default function PendingScreen() {
                       interactiveRefs={[organizationTriggerRef]}
                       onRequestClose={() => setOrganizationPickerOpen(false)}
                     >
-                      {organizationCatalogLoading ? <Text style={{ color: colors.muted, fontSize: 13, padding: spacing.sm }}>Carregando instituições...</Text> : null}
-                      {!organizationCatalogLoading && organizations.length === 0 ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19, padding: spacing.sm }}>Nenhuma instituição encontrada.</Text> : null}
-                      {!organizationCatalogLoading ? organizations.slice(0, 5).map((organization) => {
-                        return (
-                          <Pressable
-                            key={organization.id}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Selecionar ${organization.name}`}
-                            onPress={() => {
-                              setSelectedOrganization(organization);
-                              setOrganizationQuery(organization.name);
-                              setOrganizationPickerOpen(false);
-                            }}
-                            style={{ minHeight: 54, borderRadius: radius.internal, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 }}
-                          >
-                            <GoAtletaIcon name="organization" size={18} color={colors.muted} />
-                            <View style={{ flex: 1, gap: 2 }}>
-                              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{organization.name}</Text>
-                            </View>
-                            <GoAtletaIcon name="chevronForward" size={17} color={colors.muted} />
-                          </Pressable>
-                        );
-                      }) : null}
+                      {organizationCatalogLoading ? (
+                        <Text
+                          style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            padding: spacing.sm,
+                          }}
+                        >
+                          Carregando instituições...
+                        </Text>
+                      ) : null}
+                      {!organizationCatalogLoading &&
+                      organizations.length === 0 ? (
+                        <Text
+                          style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            lineHeight: 19,
+                            padding: spacing.sm,
+                          }}
+                        >
+                          Nenhuma instituição encontrada.
+                        </Text>
+                      ) : null}
+                      {!organizationCatalogLoading
+                        ? organizations.slice(0, 5).map((organization) => {
+                            return (
+                              <Pressable
+                                key={organization.id}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Selecionar ${organization.name}`}
+                                onPress={() => {
+                                  setSelectedOrganization(organization);
+                                  setOrganizationQuery(organization.name);
+                                  setOrganizationPickerOpen(false);
+                                }}
+                                style={{
+                                  minHeight: 54,
+                                  borderRadius: radius.internal,
+                                  paddingHorizontal: 12,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 10,
+                                }}
+                              >
+                                <GoAtletaIcon
+                                  name="organization"
+                                  size={18}
+                                  color={colors.muted}
+                                />
+                                <View style={{ flex: 1, gap: 2 }}>
+                                  <Text
+                                    style={{
+                                      color: colors.text,
+                                      fontSize: 14,
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    {organization.name}
+                                  </Text>
+                                </View>
+                                <GoAtletaIcon
+                                  name="chevronForward"
+                                  size={17}
+                                  color={colors.muted}
+                                />
+                              </Pressable>
+                            );
+                          })
+                        : null}
                     </AnchoredDropdown>
                     {selectedOrganization ? (
                       <Button
-                        label={requestMode === "staff" ? "Solicitar acesso profissional" : "Solicitar vínculo"}
-                        disabled={requestMode === "family" && !validRelationshipRequest}
+                        label={
+                          requestMode === "staff"
+                            ? "Solicitar acesso profissional"
+                            : "Solicitar vínculo"
+                        }
+                        disabled={
+                          requestMode === "family" && !validRelationshipRequest
+                        }
                         loading={accessRequestBusy}
                         onPress={() =>
                           requestMode === "staff"
@@ -972,114 +1478,249 @@ export default function PendingScreen() {
                         }
                       />
                     ) : null}
-                    {message ? <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: 13 }}>{message}</Text> : null}
+                    {message ? (
+                      <Text
+                        accessibilityRole="alert"
+                        style={{ color: colors.dangerText, fontSize: 13 }}
+                      >
+                        {message}
+                      </Text>
+                    ) : null}
                   </View>
                 )}
 
                 <>
                   <View style={{ height: 1, backgroundColor: colors.border }} />
                   {!inviteEntryOpen ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Inserir link ou código do convite"
-                    onPress={openInviteEntry}
-                    style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}
-                    suppressWebHoverFeedback
-                  >
-                    <GoAtletaIcon name="link" size={18} color={colors.primaryBg} />
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Recebeu um convite?</Text>
-                      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>Toque para colar o link ou informar o código recebido.</Text>
-                    </View>
-                    <GoAtletaIcon name="chevronForward" size={18} color={colors.muted} />
-                  </Pressable>
-                ) : (
-                  <Animated.View style={{ gap: spacing.sm, opacity: inviteEntryAnim, transform: [{ translateY: inviteEntryAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { translateX: inviteShakeAnim }] }}>
-                    <View style={{ minHeight: 38, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                      <GoAtletaIcon name="link" size={18} color={colors.primaryBg} />
-                      <Text style={{ flex: 1, color: colors.text, fontSize: 14, fontWeight: "800" }}>Inserir convite</Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Fechar convite"
-                        onPress={closeInviteEntry}
-                        style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}
-                        suppressWebHoverFeedback
-                      >
-                        <GoAtletaIcon name="close" size={18} color={colors.muted} />
-                      </Pressable>
-                    </View>
-                    <View style={{ position: "relative", overflow: "visible" }}>
-                      {inviteEntryError ? (
-                        <View
-                          accessibilityRole="alert"
-                          pointerEvents="none"
-                          style={{ position: "absolute", top: -38, left: 0, zIndex: 20, minHeight: 32, borderRadius: 10, backgroundColor: colors.dangerSolidBg, paddingHorizontal: 12, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 7 }}
-                        >
-                          <GoAtletaIcon name="warningCircle" size={16} color={colors.dangerSolidText} />
-                          <Text style={{ color: colors.dangerSolidText, fontSize: 13, fontWeight: "700" }}>{inviteEntryError}</Text>
-                          <View style={{ position: "absolute", bottom: -7, left: 18, width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 7, borderLeftColor: "transparent", borderRightColor: "transparent", borderTopColor: colors.dangerSolidBg }} />
-                        </View>
-                      ) : null}
-                      <View
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Inserir link ou código do convite"
+                      onPress={openInviteEntry}
                       style={{
-                        minHeight: 50,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: inviteEntryError ? colors.dangerBorder : colors.border,
-                        backgroundColor: colors.inputBg,
-                        paddingHorizontal: 14,
-                        justifyContent: "center",
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        gap: spacing.sm,
                       }}
-                      >
-                        <TextInput
-                        autoFocus
-                        accessibilityLabel="Link ou código do convite"
-                        placeholder="Cole o link ou código"
-                        placeholderTextColor={colors.placeholder}
-                        value={inviteEntry}
-                        onChangeText={(value) => {
-                          setInviteEntry(value);
-                          setInviteEntryError("");
-                        }}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        onSubmitEditing={() => void handleInviteEntry()}
-                        style={[
-                          {
-                            minHeight: 50,
-                            color: colors.inputText,
-                            backgroundColor: "transparent",
-                            borderWidth: 0,
-                            borderRadius: 0,
-                            paddingVertical: 0,
-                          },
-                          Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
-                        ]}
-                        />
+                      suppressWebHoverFeedback
+                    >
+                      <GoAtletaIcon
+                        name="link"
+                        size={18}
+                        color={colors.primaryBg}
+                      />
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "800",
+                          }}
+                        >
+                          Recebeu um convite?
+                        </Text>
+                        <Text
+                          style={{
+                            color: colors.muted,
+                            fontSize: 13,
+                            lineHeight: 19,
+                          }}
+                        >
+                          Toque para colar o link ou informar o código recebido.
+                        </Text>
                       </View>
-                    </View>
-                    <Button
-                      label={inviteBusy ? "Validando convite..." : "Continuar com convite"}
-                      disabled={!inviteEntry.trim() || inviteBusy}
-                      onPress={() => void handleInviteEntry()}
-                    />
-                  </Animated.View>
+                      <GoAtletaIcon
+                        name="chevronForward"
+                        size={18}
+                        color={colors.muted}
+                      />
+                    </Pressable>
+                  ) : (
+                    <Animated.View
+                      style={{
+                        gap: spacing.sm,
+                        opacity: inviteEntryAnim,
+                        transform: [
+                          {
+                            translateY: inviteEntryAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [8, 0],
+                            }),
+                          },
+                          { translateX: inviteShakeAnim },
+                        ],
+                      }}
+                    >
+                      <View
+                        style={{
+                          minHeight: 38,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: spacing.sm,
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name="link"
+                          size={18}
+                          color={colors.primaryBg}
+                        />
+                        <Text
+                          style={{
+                            flex: 1,
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "800",
+                          }}
+                        >
+                          Inserir convite
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Fechar convite"
+                          onPress={closeInviteEntry}
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 19,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          suppressWebHoverFeedback
+                        >
+                          <GoAtletaIcon
+                            name="close"
+                            size={18}
+                            color={colors.muted}
+                          />
+                        </Pressable>
+                      </View>
+                      <View
+                        style={{ position: "relative", overflow: "visible" }}
+                      >
+                        {inviteEntryError ? (
+                          <View
+                            accessibilityRole="alert"
+                            pointerEvents="none"
+                            style={{
+                              position: "absolute",
+                              top: -38,
+                              left: 0,
+                              zIndex: 20,
+                              minHeight: 32,
+                              borderRadius: 10,
+                              backgroundColor: colors.dangerSolidBg,
+                              paddingHorizontal: 12,
+                              paddingVertical: 7,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 7,
+                            }}
+                          >
+                            <GoAtletaIcon
+                              name="warningCircle"
+                              size={16}
+                              color={colors.dangerSolidText}
+                            />
+                            <Text
+                              style={{
+                                color: colors.dangerSolidText,
+                                fontSize: 13,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {inviteEntryError}
+                            </Text>
+                            <View
+                              style={{
+                                position: "absolute",
+                                bottom: -7,
+                                left: 18,
+                                width: 0,
+                                height: 0,
+                                borderLeftWidth: 7,
+                                borderRightWidth: 7,
+                                borderTopWidth: 7,
+                                borderLeftColor: "transparent",
+                                borderRightColor: "transparent",
+                                borderTopColor: colors.dangerSolidBg,
+                              }}
+                            />
+                          </View>
+                        ) : null}
+                        <View
+                          style={{
+                            minHeight: 50,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: inviteEntryError
+                              ? colors.dangerBorder
+                              : colors.border,
+                            backgroundColor: colors.inputBg,
+                            paddingHorizontal: 14,
+                            justifyContent: "center",
+                          }}
+                        >
+                          <TextInput
+                            autoFocus
+                            accessibilityLabel="Link ou código do convite"
+                            placeholder="Cole o link ou código"
+                            placeholderTextColor={colors.placeholder}
+                            value={inviteEntry}
+                            onChangeText={(value) => {
+                              setInviteEntry(value);
+                              setInviteEntryError("");
+                            }}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            onSubmitEditing={() => void handleInviteEntry()}
+                            style={[
+                              {
+                                minHeight: 50,
+                                color: colors.inputText,
+                                backgroundColor: "transparent",
+                                borderWidth: 0,
+                                borderRadius: 0,
+                                paddingVertical: 0,
+                              },
+                              Platform.OS === "web"
+                                ? ({ outlineStyle: "none" } as never)
+                                : null,
+                            ]}
+                          />
+                        </View>
+                      </View>
+                      <Button
+                        label={
+                          inviteBusy
+                            ? "Validando convite..."
+                            : "Continuar com convite"
+                        }
+                        disabled={!inviteEntry.trim() || inviteBusy}
+                        onPress={() => void handleInviteEntry()}
+                      />
+                    </Animated.View>
                   )}
                 </>
               </View>
             ) : null}
 
-            <View style={{ width: "100%", gap: spacing.sm, marginTop: spacing.xs }}>
+            <View
+              style={{ width: "100%", gap: spacing.sm, marginTop: spacing.xs }}
+            >
               <Pressable
                 onPress={() => void handleBackToLogin()}
                 style={{ alignSelf: "center", paddingVertical: spacing.xs }}
                 suppressWebHoverFeedback
               >
-                <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>
+                <Text
+                  style={{
+                    color: colors.muted,
+                    fontSize: 14,
+                    fontWeight: "600",
+                  }}
+                >
                   Entrar com outra conta
                 </Text>
               </Pressable>
-
             </View>
           </View>
         </ScrollView>

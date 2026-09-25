@@ -12,11 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  Animated,
-  Platform,
-  useWindowDimensions,
-} from "react-native";
+import { Animated, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 
@@ -26,12 +22,18 @@ import {
 } from "../api/regulation-updates";
 import { useAuth } from "../auth/auth";
 import { getClasses } from "../db/seed";
-import { getScopedAssistantPath, isAssistantRoutePath } from "../navigation/profile-routes";
+import {
+  getScopedAssistantPath,
+  isAssistantRoutePath,
+} from "../navigation/profile-routes";
 import { markRender, measureAsync } from "../observability/perf";
 import { useOptionalOrganization } from "../providers/organization-context";
 import { useAppTheme } from "../ui/app-theme";
 import { CopilotFab, resolveCopilotFabBottom } from "./components/CopilotFab";
-import { CopilotLessonContext, type RegisteredCopilotLesson } from "./lesson-context";
+import {
+  CopilotLessonContext,
+  type RegisteredCopilotLesson,
+} from "./lesson-context";
 import {
   buildDefaultContextReply,
   buildNfcQuickActionReply,
@@ -64,18 +66,19 @@ import type {
   InsightsView,
   SignalInsightsCategory,
 } from "./types";
-import {
-  buildCentralSnapshot,
-  type CentralSnapshot,
-} from "./updates-utils";
+import { buildCentralSnapshot, type CentralSnapshot } from "./updates-utils";
 
-let modalModule: Promise<{ default: typeof import("./components/CopilotModal").CopilotModal }> | null = null;
+let modalModule: Promise<{
+  default: typeof import("./components/CopilotModal").CopilotModal;
+}> | null = null;
 const loadCopilotModal = () => {
   if (!modalModule) {
-    modalModule = import("./components/CopilotModal").then(module => ({ default: module.CopilotModal })).catch(error => {
-      modalModule = null;
-      throw error;
-    });
+    modalModule = import("./components/CopilotModal")
+      .then((module) => ({ default: module.CopilotModal }))
+      .catch((error) => {
+        modalModule = null;
+        throw error;
+      });
   }
   return modalModule;
 };
@@ -100,12 +103,12 @@ type CopilotActionsContextValue = {
 };
 
 const CopilotDataContext = createContext<CopilotDataContextValue | null>(null);
-const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(null);
+const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(
+  null,
+);
 
 const MAX_HISTORY_ITEMS = 12;
 const CONTEXT_COMPOSER_MIN_HEIGHT = 40;
-
-
 
 const publicRoutes = new Set([
   "/welcome",
@@ -127,7 +130,9 @@ const categoryLabelById: Record<InsightsCategory, string> = {
   regulation: "Regulamento atualizado",
 };
 
-const signalToCategory = (signalType: CopilotSignal["type"]): SignalInsightsCategory => {
+const signalToCategory = (
+  signalType: CopilotSignal["type"],
+): SignalInsightsCategory => {
   switch (signalType) {
     case "report_delay":
       return "reports";
@@ -142,11 +147,9 @@ const signalToCategory = (signalType: CopilotSignal["type"]): SignalInsightsCate
   }
 };
 
-
-
-
-
-const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
+const toActionResult = (
+  value: CopilotActionResult | string | void,
+): CopilotActionResult => {
   if (!value) return { message: "Ação concluída." };
   if (typeof value === "string") return { message: value };
   return value;
@@ -156,7 +159,10 @@ const extractEmbeddedErrorMessage = (value: string) => {
   const normalized = String(value ?? "").trim();
   if (!normalized.startsWith("{") || !normalized.endsWith("}")) return "";
   try {
-    const payload = JSON.parse(normalized) as { error?: string; message?: string };
+    const payload = JSON.parse(normalized) as {
+      error?: string;
+      message?: string;
+    };
     const message =
       (typeof payload.error === "string" && payload.error.trim()) ||
       (typeof payload.message === "string" && payload.message.trim()) ||
@@ -171,13 +177,19 @@ const toFriendlyContextError = (value: string | null | undefined) => {
   const raw = String(value ?? "").trim();
   if (!raw) return "Falha ao executar a ação.";
   const normalized = raw.toLowerCase();
-  if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
+  if (
+    normalized.includes("entrada invalida") ||
+    normalized.includes("invalid input")
+  ) {
     return "Não consegui interpretar essa solicitação no contexto atual.";
   }
   if (normalized.includes("timeout")) {
     return "A resposta demorou mais que o esperado. Tente novamente.";
   }
-  if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("network request failed")
+  ) {
     return "Falha de conexão. Verifique sua internet e tente novamente.";
   }
   if (normalized.includes("token") || normalized.includes("auth")) {
@@ -243,7 +255,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const { activeOrganizationId } = useOptionalOrganization() ?? {};
   const insets = useSafeAreaInsets();
-  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
+  const { height: viewportHeight, width: viewportWidth } =
+    useWindowDimensions();
 
   const [pulseAnim] = useState(() => new Animated.Value(0));
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
@@ -264,18 +277,27 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     hasUnreadUpdates: false,
     unreadCount: 0,
   });
-  const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
+  const [insightsView, setInsightsView] = useState<InsightsView>({
+    mode: "root",
+  });
   const [lesson, setLesson] = useState<RegisteredCopilotLesson | null>(null);
   const [composerValue, setComposerValue] = useState("");
-  const [composerInputHeight, setComposerInputHeight] = useState(CONTEXT_COMPOSER_MIN_HEIGHT);
+  const [composerInputHeight, setComposerInputHeight] = useState(
+    CONTEXT_COMPOSER_MIN_HEIGHT,
+  );
   const [showAllRootActions, setShowAllRootActions] = useState(false);
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [assistantTyping, setAssistantTyping] = useState(false);
-  const [contextPreview, setContextPreview] = useState<{ actionTitle: string; message: string } | null>(null);
+  const [contextPreview, setContextPreview] = useState<{
+    actionTitle: string;
+    message: string;
+  } | null>(null);
   const stateRef = useRef(state);
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useRenderDiagnostic("CopilotProvider", {
     "state.open": state.open,
@@ -310,10 +332,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!session || !activeOrganizationId) return;
     // Warm the code after boot, without fetching chat data or making AI calls.
-    const timer = setTimeout(() => { void loadCopilotModal().catch(() => undefined); }, 700);
+    const timer = setTimeout(() => {
+      void loadCopilotModal().catch(() => undefined);
+    }, 700);
     return () => clearTimeout(timer);
   }, [session, activeOrganizationId]);
-
 
   useEffect(() => {
     if (!state.open) return;
@@ -348,7 +371,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         const classes = await measureAsync(
           "screen.copilot.load.scheduleWindows",
           () => getClasses({ organizationId }),
-          { screen: "copilot", organizationId }
+          { screen: "copilot", organizationId },
         );
         if (cancelled) return;
         setScheduleWindows(
@@ -358,7 +381,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             durationMinutes: Number.isFinite(item.durationMinutes)
               ? Number(item.durationMinutes)
               : null,
-          }))
+          })),
         );
       } catch {
         if (!cancelled) setScheduleWindows([]);
@@ -368,7 +391,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [activeOrganizationId, state.context, state.open]);
-
 
   const clearPendingReplyTimer = useCallback(() => {
     if (!pendingReplyTimerRef.current) return;
@@ -386,7 +408,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     (
       actionTitle: string,
       result: CopilotActionResult,
-      status: "success" | "error"
+      status: "success" | "error",
     ) => {
       clearPendingReplyTimer();
       setAssistantTyping(true);
@@ -398,15 +420,15 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         });
         setState((prev) => ({
           ...prev,
-          history: [buildHistoryItem({ actionTitle, result, status }), ...prev.history].slice(
-            0,
-            MAX_HISTORY_ITEMS
-          ),
+          history: [
+            buildHistoryItem({ actionTitle, result, status }),
+            ...prev.history,
+          ].slice(0, MAX_HISTORY_ITEMS),
         }));
         setAssistantTyping(false);
       }, 620);
     },
-    [clearPendingReplyTimer]
+    [clearPendingReplyTimer],
   );
 
   const selectedSignal =
@@ -442,7 +464,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state.regulationUpdates,
       state.selectedSignalId,
       state.signals,
-    ]
+    ],
   );
   useEffect(() => {
     operationalContextRef.current = operationalContext;
@@ -529,7 +551,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     setState((prev) => {
       if (
-        prev.hasUnreadUpdates === unreadResolution.statePatch?.hasUnreadUpdates &&
+        prev.hasUnreadUpdates ===
+          unreadResolution.statePatch?.hasUnreadUpdates &&
         prev.unreadCount === unreadResolution.statePatch?.unreadCount
       ) {
         return prev;
@@ -541,57 +564,72 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     });
   }, [currentSnapshot, state.hasUnreadUpdates, state.open, state.unreadCount]);
 
-  const runAction = useCallback(async (action: CopilotAction) => {
-    const currentState = stateRef.current;
-    const selectedSignal =
-      currentState.signals.find((item) => item.id === currentState.selectedSignalId) ?? null;
-    const actionContext: CopilotContextData | null = selectedSignal
-      ? {
-          ...(currentState.context ?? { screen: "assistant" }),
-          activeSignal: selectedSignal,
-        }
-      : currentState.context ?? null;
+  const runAction = useCallback(
+    async (action: CopilotAction) => {
+      const currentState = stateRef.current;
+      const selectedSignal =
+        currentState.signals.find(
+          (item) => item.id === currentState.selectedSignalId,
+        ) ?? null;
+      const actionContext: CopilotContextData | null = selectedSignal
+        ? {
+            ...(currentState.context ?? { screen: "assistant" }),
+            activeSignal: selectedSignal,
+          }
+        : (currentState.context ?? null);
 
-    const requirementError = action.requires?.(actionContext);
-    if (requirementError) {
-      enqueueContextReply(action.title, { message: requirementError }, "error");
-      return;
-    }
+      const requirementError = action.requires?.(actionContext);
+      if (requirementError) {
+        enqueueContextReply(
+          action.title,
+          { message: requirementError },
+          "error",
+        );
+        return;
+      }
 
-    const nfcQuickReply = buildNfcQuickActionReply({
-      actionId: action.id,
-      screen: currentState.context?.screen ?? null,
-      signals: currentState.signals,
-    });
-    if (nfcQuickReply) {
-      enqueueContextReply(action.title, { message: nfcQuickReply }, "success");
-      return;
-    }
+      const nfcQuickReply = buildNfcQuickActionReply({
+        actionId: action.id,
+        screen: currentState.context?.screen ?? null,
+        signals: currentState.signals,
+      });
+      if (nfcQuickReply) {
+        enqueueContextReply(
+          action.title,
+          { message: nfcQuickReply },
+          "success",
+        );
+        return;
+      }
 
-    setAssistantTyping(true);
-    setState((prev) => ({ ...prev, runningActionId: action.id }));
-    try {
-      const output = await action.run(actionContext);
-      const normalized = toActionResult(output);
-      setState((prev) => ({ ...prev, runningActionId: null }));
-      enqueueContextReply(action.title, normalized, "success");
-    } catch (error) {
-      const rawMessage = error instanceof Error ? error.message : "";
-      const embeddedMessage = extractEmbeddedErrorMessage(rawMessage);
-      const result: CopilotActionResult = {
-        message: toFriendlyContextError(embeddedMessage || rawMessage || "Falha ao executar a ação."),
-      };
-      setState((prev) => ({ ...prev, runningActionId: null }));
-      enqueueContextReply(action.title, result, "error");
-    }
-  }, [enqueueContextReply]);
+      setAssistantTyping(true);
+      setState((prev) => ({ ...prev, runningActionId: action.id }));
+      try {
+        const output = await action.run(actionContext);
+        const normalized = toActionResult(output);
+        setState((prev) => ({ ...prev, runningActionId: null }));
+        enqueueContextReply(action.title, normalized, "success");
+      } catch (error) {
+        const rawMessage = error instanceof Error ? error.message : "";
+        const embeddedMessage = extractEmbeddedErrorMessage(rawMessage);
+        const result: CopilotActionResult = {
+          message: toFriendlyContextError(
+            embeddedMessage || rawMessage || "Falha ao executar a ação.",
+          ),
+        };
+        setState((prev) => ({ ...prev, runningActionId: null }));
+        enqueueContextReply(action.title, result, "error");
+      }
+    },
+    [enqueueContextReply],
+  );
 
   const dataValue = useMemo<CopilotDataContextValue>(
     () => ({
       state,
       operationalContext,
     }),
-    [state, operationalContext]
+    [state, operationalContext],
   );
 
   const actionsValue = useMemo<CopilotActionsContextValue>(
@@ -618,40 +656,42 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       setActiveSignal,
       setContext,
       setSignals,
-    ]
+    ],
   );
 
-  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const normalizedPath =
+    pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const scopedAssistantPath = useMemo(
     () => getScopedAssistantPath(normalizedPath),
-    [normalizedPath]
+    [normalizedPath],
   );
-  const signalsByCategory = useMemo<Record<SignalInsightsCategory, CopilotSignal[]>>(
-    () => {
-      const grouped: Record<SignalInsightsCategory, CopilotSignal[]> = {
-        reports: [],
-        absences: [],
-        nfc: [],
-        attendance: [],
-        engagement: [],
-      };
-      state.signals.forEach((item) => {
-        grouped[signalToCategory(item.type)].push(item);
-      });
-      return grouped;
-    },
-    [state.signals]
-  );
+  const signalsByCategory = useMemo<
+    Record<SignalInsightsCategory, CopilotSignal[]>
+  >(() => {
+    const grouped: Record<SignalInsightsCategory, CopilotSignal[]> = {
+      reports: [],
+      absences: [],
+      nfc: [],
+      attendance: [],
+      engagement: [],
+    };
+    state.signals.forEach((item) => {
+      grouped[signalToCategory(item.type)].push(item);
+    });
+    return grouped;
+  }, [state.signals]);
   const unreadRegulationCount = useMemo(
     () => state.regulationUpdates.filter((item) => !item.isRead).length,
-    [state.regulationUpdates]
+    [state.regulationUpdates],
   );
   const hasRuleSetContext = Boolean(
     operationalContext.snapshot.regulationContext.activeRuleSetId ||
-      operationalContext.snapshot.regulationContext.pendingRuleSetId
+    operationalContext.snapshot.regulationContext.pendingRuleSetId,
   );
   const showRegulationSection =
-    normalizedPath.startsWith("/events") || unreadRegulationCount > 0 || hasRuleSetContext;
+    normalizedPath.startsWith("/events") ||
+    unreadRegulationCount > 0 ||
+    hasRuleSetContext;
   const latestRegulationUpdate = useMemo<RegulationUpdate | null>(() => {
     let latest: RegulationUpdate | null = null;
     let latestAt = "";
@@ -667,17 +707,22 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const detailSignal = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
     if (insightsView.category === "regulation") return null;
-    return state.signals.find((item) => item.id === insightsView.itemId) ?? null;
+    return (
+      state.signals.find((item) => item.id === insightsView.itemId) ?? null
+    );
   }, [insightsView, state.signals]);
   const detailRegulationUpdate = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
     if (insightsView.category !== "regulation") return null;
-    return state.regulationUpdates.find((item) => item.id === insightsView.itemId) ?? null;
+    return (
+      state.regulationUpdates.find((item) => item.id === insightsView.itemId) ??
+      null
+    );
   }, [insightsView, state.regulationUpdates]);
   const activeDrawerSignal =
     insightsView.mode === "detail" && insightsView.category === "regulation"
       ? null
-      : detailSignal ?? selectedSignal;
+      : (detailSignal ?? selectedSignal);
   const activeCategoryForActions =
     insightsView.mode === "category" || insightsView.mode === "detail"
       ? insightsView.category === "regulation"
@@ -693,7 +738,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       if (insightsView.category === "regulation") {
         if (!unreadRegulationCount) {
           Promise.resolve().then(() => {
-            setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+            setInsightsView((prev) =>
+              prev.mode === "root" ? prev : { mode: "root" },
+            );
           });
         }
         return;
@@ -701,7 +748,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       const signalCategory = insightsView.category as SignalInsightsCategory;
       if (!signalsByCategory[signalCategory].length) {
         Promise.resolve().then(() => {
-          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+          setInsightsView((prev) =>
+            prev.mode === "root" ? prev : { mode: "root" },
+          );
         });
       }
       return;
@@ -711,14 +760,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       if (unreadRegulationCount) {
         Promise.resolve().then(() => {
           setInsightsView((prev) =>
-                    prev.mode === "category" && prev.category === "regulation"
-                      ? prev
-                      : { mode: "category", category: "regulation" }
-                  );
+            prev.mode === "category" && prev.category === "regulation"
+              ? prev
+              : { mode: "category", category: "regulation" },
+          );
         });
       } else {
         Promise.resolve().then(() => {
-          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+          setInsightsView((prev) =>
+            prev.mode === "root" ? prev : { mode: "root" },
+          );
         });
       }
       return;
@@ -728,21 +779,33 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       if (signalsByCategory[signalCategory].length) {
         Promise.resolve().then(() => {
           setInsightsView((prev) =>
-                    prev.mode === "category" && prev.category === insightsView.category
-                      ? prev
-                      : { mode: "category", category: insightsView.category }
-                  );
+            prev.mode === "category" && prev.category === insightsView.category
+              ? prev
+              : { mode: "category", category: insightsView.category },
+          );
         });
       } else {
         Promise.resolve().then(() => {
-          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+          setInsightsView((prev) =>
+            prev.mode === "root" ? prev : { mode: "root" },
+          );
         });
       }
     }
-  }, [detailRegulationUpdate, detailSignal, insightsView, signalsByCategory, unreadRegulationCount]);
+  }, [
+    detailRegulationUpdate,
+    detailSignal,
+    insightsView,
+    signalsByCategory,
+    unreadRegulationCount,
+  ]);
 
   useEffect(() => {
-    if (insightsView.mode !== "detail" || insightsView.category !== "regulation") return;
+    if (
+      insightsView.mode !== "detail" ||
+      insightsView.category !== "regulation"
+    )
+      return;
     if (!detailRegulationUpdate || detailRegulationUpdate.isRead) return;
     if (!activeOrganizationId) return;
 
@@ -759,7 +822,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           regulationUpdates: prev.regulationUpdates.map((item) =>
             item.id === detailRegulationUpdate.id
               ? { ...item, isRead: true, readAt: new Date().toISOString() }
-              : item
+              : item,
           ),
         }));
       } catch {
@@ -780,12 +843,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [recommendedActions]);
   const orderedActions = useMemo(() => {
     if (!recommendedActions.length) return state.actions;
-    const remainingActions = state.actions.filter((item) => !recommendedActionIds.has(item.id));
+    const remainingActions = state.actions.filter(
+      (item) => !recommendedActionIds.has(item.id),
+    );
     return [...recommendedActions, ...remainingActions];
   }, [recommendedActionIds, recommendedActions, state.actions]);
   const rootQuickActions = useMemo(
     () => (showAllRootActions ? state.actions : state.actions.slice(0, 4)),
-    [showAllRootActions, state.actions]
+    [showAllRootActions, state.actions],
   );
   const canExpandRootActions = state.actions.length > 4 && !showAllRootActions;
   const hasRegulationDetails =
@@ -837,7 +902,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         hasUnreadUpdates: state.hasUnreadUpdates,
         isOpen: state.open,
       }),
-    [fabHint, state.hasUnreadUpdates, state.open]
+    [fabHint, state.hasUnreadUpdates, state.open],
   );
 
   useEffect(() => {
@@ -853,17 +918,26 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const fabBottomOffset = resolveCopilotFabBottom(insets.bottom);
   const sheetContentBottomPadding = Math.max(
     insets.bottom + 10,
-    Platform.OS === "web" ? 16 : 14
+    Platform.OS === "web" ? 16 : 14,
   );
   const sheetMaxHeight = Math.max(
     420,
-    Math.min(viewportHeight * (Platform.OS === "web" ? 0.9 : 0.88), viewportHeight - 8)
+    Math.min(
+      viewportHeight * (Platform.OS === "web" ? 0.9 : 0.88),
+      viewportHeight - 8,
+    ),
   );
-  const sheetMinHeight = Math.min(sheetMaxHeight, Math.max(360, viewportHeight * 0.6));
-  const sheetMaxWidth = Platform.OS === "web" ? Math.max(420, Math.min(viewportWidth - 28, 1100)) : undefined;
+  const sheetMinHeight = Math.min(
+    sheetMaxHeight,
+    Math.max(360, viewportHeight * 0.6),
+  );
+  const sheetMaxWidth =
+    Platform.OS === "web"
+      ? Math.max(420, Math.min(viewportWidth - 28, 1100))
+      : undefined;
   const isWebModal = Platform.OS === "web";
 
-  const pulseKey = shouldPulseFab ? fabHint?.message ?? "hint" : null;
+  const pulseKey = shouldPulseFab ? (fabHint?.message ?? "hint") : null;
   const [finishedPulseKey, setFinishedPulseKey] = useState<string | null>(null);
   const [previousPulseKey, setPreviousPulseKey] = useState(pulseKey);
   if (previousPulseKey !== pulseKey) {
@@ -887,7 +961,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
+    const isNativeAnimation =
+      Platform.OS === "ios" || Platform.OS === "android";
     pulseAnim.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
@@ -901,7 +976,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           duration: 0,
           useNativeDriver: isNativeAnimation,
         }),
-      ])
+      ]),
     );
     pulseLoopRef.current = loop;
     loop.start();
@@ -934,7 +1009,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       enqueueContextReply(
         "",
         { message: composerResolution.message },
-        "success"
+        "success",
       );
       return;
     }
@@ -947,7 +1022,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         source: state.context?.screen ?? "insights",
       },
     });
-  }, [close, composerValue, enqueueContextReply, operationalContext.panel, router, scopedAssistantPath, state.actions, state.context?.screen]);
+  }, [
+    close,
+    composerValue,
+    enqueueContextReply,
+    operationalContext.panel,
+    router,
+    scopedAssistantPath,
+    state.actions,
+    state.context?.screen,
+  ]);
 
   const handleComposerKeyPress = useCallback(
     (event: any) => {
@@ -959,78 +1043,90 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       event?.stopPropagation?.();
       submitComposer();
     },
-    [submitComposer]
+    [submitComposer],
   );
 
   return (
     <CopilotActionsContext.Provider value={actionsValue}>
       <CopilotDataContext.Provider value={dataValue}>
-      <CopilotLessonContext.Provider value={setLesson}>
-      {children}
-      {showFab && !state.open ? (
-        <CopilotFab
-          showPulse={isPulsing}
-          hasBadge={shouldPulseFab}
-          pulseAnim={pulseAnim}
-          primaryBgColor={colors.primaryBg}
-          fabBottomOffset={fabBottomOffset}
-          hintMessage={fabHint?.message ?? null}
-          onPress={open}
-        />
-      ) : null}
+        <CopilotLessonContext.Provider value={setLesson}>
+          {children}
+          {showFab && !state.open ? (
+            <CopilotFab
+              showPulse={isPulsing}
+              hasBadge={shouldPulseFab}
+              pulseAnim={pulseAnim}
+              primaryBgColor={colors.primaryBg}
+              fabBottomOffset={fabBottomOffset}
+              hintMessage={fabHint?.message ?? null}
+              onPress={open}
+            />
+          ) : null}
 
-      {state.open ? (
-        <Suspense fallback={<CopilotLoadingModal onClose={close} />}>
-          <LazyCopilotModal
-            visible
-            isWebModal={isWebModal}
-            viewportWidth={viewportWidth}
-            viewportHeight={viewportHeight}
-            sheetMaxWidth={sheetMaxWidth}
-            sheetMaxHeight={sheetMaxHeight}
-            sheetMinHeight={sheetMinHeight}
-            sheetContentBottomPadding={sheetContentBottomPadding}
-            colors={colors}
-            insightsView={insightsView}
-            setInsightsView={setInsightsView}
-            operationalContext={operationalContext}
-            state={state}
-            signalsByCategory={signalsByCategory}
-            hasRegulationDetails={hasRegulationDetails}
-            latestRegulationSourceUrl={latestRegulationSourceUrl}
-            detailRegulationUpdate={detailRegulationUpdate}
-            activeDrawerSignal={activeDrawerSignal}
-            activeCategoryLabel={activeCategoryLabel}
-            selectedSeverityColor={selectedSeverityColor}
-            selectedSeverityLabel={selectedSeverityLabel}
-            recommendedActionIds={recommendedActionIds}
-            orderedActions={orderedActions}
-            recommendedActions={recommendedActions}
-            rootQuickActions={rootQuickActions}
-            canExpandRootActions={canExpandRootActions}
-            showAllRootActions={showAllRootActions}
-            setShowAllRootActions={setShowAllRootActions}
-            assistantTyping={assistantTyping}
-            contextPreview={contextPreview}
-            composerValue={composerValue}
-            lesson={lesson?.scope ?? null}
-            setComposerValue={setComposerValue}
-            composerInputHeight={composerInputHeight}
-            setComposerInputHeight={setComposerInputHeight}
-            nowMs={nowMs}
-            setActiveSignal={setActiveSignal}
-            runAction={runAction}
-            close={close}
-            onNavigateToHistory={() => { close(); router.push(scopedAssistantPath); }}
-            onNavigateToAssistant={() => { close(); router.push(scopedAssistantPath); }}
-            onNavigateToRegulationHistory={() => { close(); router.push("/regulation-history"); }}
-            onNavigateToImpactAction={(route) => { close(); router.push(route as never); }}
-            submitComposer={submitComposer}
-            handleComposerKeyPress={handleComposerKeyPress}
-          />
-        </Suspense>
-      ) : null}
-      </CopilotLessonContext.Provider>
+          {state.open ? (
+            <Suspense fallback={<CopilotLoadingModal onClose={close} />}>
+              <LazyCopilotModal
+                visible
+                isWebModal={isWebModal}
+                viewportWidth={viewportWidth}
+                viewportHeight={viewportHeight}
+                sheetMaxWidth={sheetMaxWidth}
+                sheetMaxHeight={sheetMaxHeight}
+                sheetMinHeight={sheetMinHeight}
+                sheetContentBottomPadding={sheetContentBottomPadding}
+                colors={colors}
+                insightsView={insightsView}
+                setInsightsView={setInsightsView}
+                operationalContext={operationalContext}
+                state={state}
+                signalsByCategory={signalsByCategory}
+                hasRegulationDetails={hasRegulationDetails}
+                latestRegulationSourceUrl={latestRegulationSourceUrl}
+                detailRegulationUpdate={detailRegulationUpdate}
+                activeDrawerSignal={activeDrawerSignal}
+                activeCategoryLabel={activeCategoryLabel}
+                selectedSeverityColor={selectedSeverityColor}
+                selectedSeverityLabel={selectedSeverityLabel}
+                recommendedActionIds={recommendedActionIds}
+                orderedActions={orderedActions}
+                recommendedActions={recommendedActions}
+                rootQuickActions={rootQuickActions}
+                canExpandRootActions={canExpandRootActions}
+                showAllRootActions={showAllRootActions}
+                setShowAllRootActions={setShowAllRootActions}
+                assistantTyping={assistantTyping}
+                contextPreview={contextPreview}
+                composerValue={composerValue}
+                lesson={lesson?.scope ?? null}
+                setComposerValue={setComposerValue}
+                composerInputHeight={composerInputHeight}
+                setComposerInputHeight={setComposerInputHeight}
+                nowMs={nowMs}
+                setActiveSignal={setActiveSignal}
+                runAction={runAction}
+                close={close}
+                onNavigateToHistory={() => {
+                  close();
+                  router.push(scopedAssistantPath);
+                }}
+                onNavigateToAssistant={() => {
+                  close();
+                  router.push(scopedAssistantPath);
+                }}
+                onNavigateToRegulationHistory={() => {
+                  close();
+                  router.push("/regulation-history");
+                }}
+                onNavigateToImpactAction={(route) => {
+                  close();
+                  router.push(route as never);
+                }}
+                submitComposer={submitComposer}
+                handleComposerKeyPress={handleComposerKeyPress}
+              />
+            </Suspense>
+          ) : null}
+        </CopilotLessonContext.Provider>
       </CopilotDataContext.Provider>
     </CopilotActionsContext.Provider>
   );
@@ -1119,7 +1215,7 @@ export function useCopilotContext(input: CopilotContextData | null) {
       if (!clearContext) return;
       clearContext(ownerId);
     },
-    [clearContext, ownerId]
+    [clearContext, ownerId],
   );
 }
 
@@ -1147,7 +1243,7 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
     () => sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal)),
-    [signals]
+    [signals],
   );
 
   useEffect(() => {
@@ -1159,6 +1255,11 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   }, [clearSignals, ownerId, setSignals, stableSignals]);
 }
 
-
-
-export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal, InsightsCategory, InsightsView } from "./types";
+export type {
+  CopilotAction,
+  CopilotActionResult,
+  CopilotContextData,
+  CopilotSignal,
+  InsightsCategory,
+  InsightsView,
+} from "./types";

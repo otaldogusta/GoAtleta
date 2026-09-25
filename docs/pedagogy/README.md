@@ -1,6 +1,6 @@
 # Pedagogia Esportiva e Dimensões Científicas
 
-Este documento reúne a fundamentação científica, o mapeamento de dimensões, a verificação de código e as diretrizes de expansão estratégica para o catálogo pedagógico de voleibol do GoAtleta.
+Este documento reúne a fundamentação científica, o mapeamento de dimensões, a verificação de código e as diretrizes de expansão estratégica para o catálogo pedagógico de voleibol do Go Atleta.
 
 ---
 

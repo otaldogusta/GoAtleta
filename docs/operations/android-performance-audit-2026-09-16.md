@@ -81,7 +81,7 @@ Referências: [React Native — debugging e limitações de desenvolvimento](htt
 - Evidência histórica do primeiro APK: `com.otaldogusta.goatleta.perf`, `1.0.2-perf`, assinatura válida, ausência de flag DEBUGGABLE, profileable por shell, OTA desativado e bundle embarcado de 14.700.500 bytes. A configuração posterior habilita OTA no canal `perf`; registrar o update ID ao comparar medições.
 - Instalação ADB no usuário 0: `Success`. Início da Activity: `Status: ok`. Pacotes de desenvolvimento e produção preservados.
 - O aparelho estava em Dozing durante o primeiro lançamento. Essa abertura não é benchmark válido de startup. Login com conta fictícia e aparelho desbloqueado ainda pendentes; não foi feita medição autenticada de Home em release.
-- O nome no launcher é **GoAtleta Perf**. O pacote separado não altera o backend configurado; usar dados fictícios. Não houve push, deploy ou publicação.
+- O nome no launcher é **Go Atleta Perf**. O pacote separado não altera o backend configurado; usar dados fictícios. Não houve push, deploy ou publicação.
 
 ## Atualização automática posterior
 
@@ -97,7 +97,7 @@ A variante segue o mecanismo de [build types/applicationIdSuffix do Android](htt
 O primeiro manifesto isolado removeu também o esquema usado pelo OAuth,
 impedindo o Perf de aparecer no seletor de retorno. Adicionado `goatleta://`
 ao alias do Perf, mantendo os links HTTPS fora da variante e sem alterar
-configuração remota. O esquema é compartilhado: escolher **GoAtleta Perf →
+configuração remota. O esquema é compartilhado: escolher **Go Atleta Perf →
 Só uma vez**, nunca definir como padrão durante o teste.
 
 Build incremental aprovado (38 tarefas executadas, 1.112 reaproveitadas),

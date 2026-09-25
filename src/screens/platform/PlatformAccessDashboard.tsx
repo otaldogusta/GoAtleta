@@ -16,6 +16,7 @@ import {
   type OrganizationAccessRequest,
 } from "../../api/organization-access-requests";
 import { radius, spacing } from "../../theme/tokens";
+import { APP_PRODUCT_LABELS } from "../../config/brand";
 import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
@@ -214,10 +215,7 @@ const statusLabel = {
   approved: "Ativo",
   rejected: "Recusado",
 } as const;
-const productLabel = {
-  goatleta: "GoAtleta",
-  goatleta_pro: "GoAtleta Pro",
-} as const;
+const productLabel = APP_PRODUCT_LABELS;
 
 const initials = (name: string) =>
   name

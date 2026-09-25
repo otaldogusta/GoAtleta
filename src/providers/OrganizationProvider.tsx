@@ -11,6 +11,7 @@ import {
     type MemberPermissionKey,
 } from "../api/members";
 import { useAuth } from "../auth/auth";
+import { hasVerifiedEmailAccess } from "../auth/email-verification-state";
 import { assertSessionIdentity, forceRefreshAccessToken, getSessionIdentity, isSessionIdentityCurrent } from "../auth/session";
 import { smartSync } from "../core/smart-sync";
 import { clearLocalReadCaches } from "../db/client";
@@ -142,6 +143,7 @@ const postSupabaseRpc = async ({
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
+  const hasAuthorizedSession = hasVerifiedEmailAccess(session?.user);
   const canPreview = canUseProfilePreview(session?.user?.email);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganizationId, setActiveOrgId] = useState<string | null>(null);
@@ -202,7 +204,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const refreshMemberPermissions = useCallback(async () => {
     const userId = session?.user?.id ?? "";
     const organizationId = activeOrganizationId ?? "";
-    if (!userId || !organizationId) {
+    if (!hasAuthorizedSession || !userId || !organizationId) {
       permissionsRequestKeyRef.current = "";
       setMemberPermissions({});
       setResolvedPermissionsRequestKey("");
@@ -251,10 +253,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     permissionsInFlightRef.current = requestPromise;
     await requestPromise;
-  }, [activeOrganizationId, session]);
+  }, [activeOrganizationId, hasAuthorizedSession, session]);
 
   useEffect(() => {
-    if (!session || !activeOrganizationId) {
+    if (!hasAuthorizedSession || !session || !activeOrganizationId) {
       Promise.resolve().then(() => {
         setMemberPermissions({});
       });
@@ -271,10 +273,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     Promise.resolve().then(() => {
       setPermissionsFetchLoading(true);
     });
-  }, [activeOrganizationId, session]);
+  }, [activeOrganizationId, hasAuthorizedSession, session]);
 
   const fetchOrganizations = useCallback(async () => {
-    const accessToken = session?.access_token ?? "";
+    const accessToken = hasAuthorizedSession ? session?.access_token ?? "" : "";
     const identity = getSessionIdentity();
     if (identity.userId !== (session?.user.id ?? "")) return;
     const userChanged = organizationsUserIdRef.current !== identity.userId;
@@ -408,7 +410,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setIsLoading(false);
       }
     }
-  }, [session?.access_token, session?.user]);
+  }, [hasAuthorizedSession, session?.access_token, session?.user]);
 
   const setActiveOrganizationId = useCallback(async (orgId: string | null) => {
     if (orgId === activeOrganizationId) return;
@@ -428,7 +430,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [activeOrganizationId]);
 
   const createOrganization = useCallback(async (name: string): Promise<string> => {
-      if (!session?.access_token) throw new Error("Not authenticated");
+      if (!hasAuthorizedSession || !session?.access_token) throw new Error("Not authenticated");
 
       const res = await postSupabaseRpc({
         path: "create_organization_with_admin",
@@ -442,7 +444,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       await fetchOrganizations();
       await setActiveOrganizationId(orgId);
       return orgId;
-    }, [fetchOrganizations, session, setActiveOrganizationId]);
+    }, [fetchOrganizations, hasAuthorizedSession, session, setActiveOrganizationId]);
 
   useEffect(() => {
     Promise.resolve().then(() => {

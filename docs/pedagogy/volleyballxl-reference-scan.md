@@ -1,17 +1,17 @@
-# Varredura VolleyballXL para GoAtleta
+# Varredura VolleyballXL para Go Atleta
 
 Data da varredura: 2026-06-11
 Fonte: https://volleyballxl.com/pt/exercicios/
 
 ## Escopo e limite de uso
 
-Esta varredura usa o VolleyballXL como referencia de taxonomia, progressao e familias de exercicios. O conteudo proprietario do site pago nao deve ser copiado literalmente para o GoAtleta. Para o produto, use a estrutura observada para criar atividades originais, alinhadas a linguagem pedagogica, faixa etaria e modelo de periodizacao do GoAtleta.
+Esta varredura usa o VolleyballXL como referencia de taxonomia, progressao e familias de exercicios. O conteudo proprietario do site pago nao deve ser copiado literalmente para o Go Atleta. Para o produto, use a estrutura observada para criar atividades originais, alinhadas a linguagem pedagogica, faixa etaria e modelo de periodizacao do Go Atleta.
 
 Na sessao autenticada do navegador, a pagina reportou 848 exercicios em 71 paginas de 12 itens. A renderizacao publica sem sessao retornou 62 exercicios em 6 paginas, o que confirma que o acesso pago altera o catalogo disponivel.
 
 ## Filtros observados
 
-| Filtro VolleyballXL | Opcoes observadas | Uso no GoAtleta |
+| Filtro VolleyballXL | Opcoes observadas | Uso no Go Atleta |
 | --- | --- | --- |
 | Nivel | u6, u12, u18, seniors | Mapear para estagio etario e `mvLevel` |
 | Habilidade | Attack, Block, Defense, Passing, Service, Setting | Mapear para `VolleyballSkill` e foco da aula |
@@ -25,7 +25,7 @@ Na sessao autenticada do navegador, a pagina reportou 848 exercicios em 71 pagin
 
 ## Mapeamento recomendado por faixa
 
-| VolleyballXL | GoAtleta | Dificuldade inicial | Forma preferida |
+| VolleyballXL | Go Atleta | Dificuldade inicial | Forma preferida |
 | --- | --- | --- | --- |
 | u6 | 06-08 / early / MV1 | baixa | brincadeira, bola leve, balao, parede, alvo grande |
 | u12 | 08-10 e 11-12 / base-transition / MV1-MV2 | baixa a moderada | dupla, trio, mini 1x1, 2x2, 3x3 |
@@ -56,47 +56,47 @@ Alta:
 
 Exemplos de titulos visiveis na primeira grade paga: Pepper junior com recetor; Tesoura lateral; Circuito de manchete; Inicio do pepper; Tesoura linear; Amigos da Bola Parte 2/3; Duelo de bola com abdominal; Diversao freestyle; Cobra; Deslocamento lateral.
 
-Um detalhe aberto confirmou que o modal traz titulo, objetivo, execucao, tags e video. No exemplo aberto, as tags eram relacionadas a levantamento e pepper, com foco em controle de bola, timing e alternancia de acoes. Para GoAtleta, isso deve virar uma atividade original de "pepper adaptado com dupla tarefa", sem copiar o texto do site.
+Um detalhe aberto confirmou que o modal traz titulo, objetivo, execucao, tags e video. No exemplo aberto, as tags eram relacionadas a levantamento e pepper, com foco em controle de bola, timing e alternancia de acoes. Para Go Atleta, isso deve virar uma atividade original de "pepper adaptado com dupla tarefa", sem copiar o texto do site.
 
 ## Amostra publica indexada
 
 Exemplos publicos renderizados sem sessao: Passe Volei; Voleio de colocacao; Bounce Volley; Figura 8 - passagem; Ataque diagonal; Visao Dupla para Levantadores; Caos Facil; Voleibol com balao para passes baixos; Ultimate Volley; Melhoria da tecnica de levantamento; Carrossel; Treino de passes do libero; Ataque e controle; Defesa e levantamentos fora do sistema; Jogo da velha na parede; Longo e Curto; Tic-Tac-Toe; Defesa Rapida e Leitura do Ataque; Bloqueio, transicao e definicao; Fora do sistema parte 1.
 
-## Familias originais para inserir no GoAtleta
+## Familias originais para inserir no Go Atleta
 
 1. Controle ludico e trajetoria:
    - Faixas: 06-08, 08-10.
    - Inspiracao estrutural: balao, parede, alvos grandes, desafios de controle.
-   - Saida GoAtleta: atividades de reconhecimento da trajetoria, chamada da bola e controle sem fila.
+   - Saida Go Atleta: atividades de reconhecimento da trajetoria, chamada da bola e controle sem fila.
 
 2. Pepper adaptado:
    - Faixas: 11-12, 13-14.
    - Inspiracao estrutural: continuidade curta, alternancia de acoes, recepcao e levantamento jogaveis.
-   - Saida GoAtleta: trios com tarefa secundaria simples, rotacao de funcoes e criterio de sucesso por continuidade.
+   - Saida Go Atleta: trios com tarefa secundaria simples, rotacao de funcoes e criterio de sucesso por continuidade.
 
 3. Sideout e saque-recepcao:
    - Faixas: 13-14, 15-17.
    - Inspiracao estrutural: service game, sideout game, zona bonus.
-   - Saida GoAtleta: mini 3x3/4x4 com ponto extra quando a recepcao permite segundo contato jogavel.
+   - Saida Go Atleta: mini 3x3/4x4 com ponto extra quando a recepcao permite segundo contato jogavel.
 
 4. Defesa, cobertura e out-of-system:
    - Faixas: 13-14, 15-17, aplicado.
    - Inspiracao estrutural: defesa contra ataque, cobertura curta, levantamento fora do sistema.
-   - Saida GoAtleta: rally reduzido em que a equipe precisa defender, cobrir e devolver bola jogavel.
+   - Saida Go Atleta: rally reduzido em que a equipe precisa defender, cobrir e devolver bola jogavel.
 
 5. Ataque e transicao:
    - Faixas: 13-14, 15-17, aplicado.
    - Inspiracao estrutural: ataque direcional, transicao, ataque apos recepcao.
-   - Saida GoAtleta: finalizacao para zona livre com cobertura obrigatoria e troca de funcao.
+   - Saida Go Atleta: finalizacao para zona livre com cobertura obrigatoria e troca de funcao.
 
 6. Forca preventiva integrada:
    - Faixas: 11-12 em diante, com linguagem adequada.
    - Inspiracao estrutural: core stability, plyometrics, mobility, injury prevention.
-   - Saida GoAtleta: blocos curtos de estabilidade, aterrissagem, deslocamento e controle corporal, evitando linguagem clinica para fundamental.
+   - Saida Go Atleta: blocos curtos de estabilidade, aterrissagem, deslocamento e controle corporal, evitando linguagem clinica para fundamental.
 
 ## Proximos pontos de implementacao
 
 - Enriquecer `src/core/volleyball/activity-knowledge-patterns.ts` com novas familias originais: controle ludico, pepper adaptado, sideout, out-of-system e forca preventiva integrada.
-- Adicionar metadados de ambiente e formato quando o modelo do GoAtleta permitir: casa, praia, quadra; 1x1 a 6x6.
+- Adicionar metadados de ambiente e formato quando o modelo do Go Atleta permitir: casa, praia, quadra; 1x1 a 6x6.
 - Manter as atividades renderizadas por idade via `ageText`, aproveitando o mecanismo atual de variacao por estagio.
 - Evitar importar descricoes, videos, nomes comerciais ou sequencias proprietarias do VolleyballXL.

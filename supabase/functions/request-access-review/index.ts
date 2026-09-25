@@ -14,8 +14,12 @@ const makeHeaders = (request: Request) => ({
 const response = (
   request: Request,
   status: number,
-  payload: Record<string, unknown>
-) => new Response(JSON.stringify(payload), { status, headers: makeHeaders(request) });
+  payload: Record<string, unknown>,
+) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: makeHeaders(request),
+  });
 
 const createAnonClient = () => {
   const url = Deno.env.get("SUPABASE_URL") ?? "";
@@ -67,7 +71,7 @@ const sendPlatformAccessAlert = async ({
     (Deno.env.get("INVITE_EMAIL_FROM") ?? "").trim() ||
     "Go Atleta <nao-responda@auth.goatleta.com>";
   const productLabel =
-    requestedProduct === "goatleta_pro" ? "GoAtleta Pro" : "GoAtleta";
+    requestedProduct === "goatleta_pro" ? "Go Atleta Pro" : "Go Atleta";
 
   try {
     const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -115,7 +119,8 @@ Deno.serve(async (request) => {
     return response(request, 401, { error: "Unauthorized" });
   }
 
-  const { data: authData, error: authError } = await anon.auth.getUser(accessToken);
+  const { data: authData, error: authError } =
+    await anon.auth.getUser(accessToken);
   if (authError || !authData.user) {
     return response(request, 401, { error: "Unauthorized" });
   }
@@ -126,15 +131,14 @@ Deno.serve(async (request) => {
     });
   }
 
-  const body = await request.json().catch(() => null) as {
+  const body = (await request.json().catch(() => null)) as {
     coordinatorEmail?: string;
     organizationId?: string;
     requestedProduct?: "goatleta" | "goatleta_pro";
   } | null;
   const organizationId = String(body?.organizationId ?? "").trim();
-  const requestedProduct = body?.requestedProduct === "goatleta_pro"
-    ? "goatleta_pro"
-    : "goatleta";
+  const requestedProduct =
+    body?.requestedProduct === "goatleta_pro" ? "goatleta_pro" : "goatleta";
   let coordinatorMemberships: Array<{
     organization_id: string;
     coordinator_user_id: string;
@@ -155,7 +159,9 @@ Deno.serve(async (request) => {
       .eq("organization_id", organizationId)
       .gte("role_level", 50);
     if (coordinatorsError) {
-      return response(request, 500, { error: "Falha ao localizar a coordenação." });
+      return response(request, 500, {
+        error: "Falha ao localizar a coordenação.",
+      });
     }
     coordinatorMemberships = (coordinators ?? []).map((membership) => ({
       organization_id: String(membership.organization_id),
@@ -164,10 +170,12 @@ Deno.serve(async (request) => {
     if (!coordinatorMemberships.length) {
       // The platform queue must still receive the request while an institution
       // is waiting for its first coordinator to be provisioned.
-      coordinatorMemberships = [{
-        organization_id: organizationId,
-        coordinator_user_id: "",
-      }];
+      coordinatorMemberships = [
+        {
+          organization_id: organizationId,
+          coordinator_user_id: "",
+        },
+      ];
     }
   } else {
     const emailValidation = validateStringField(body?.coordinatorEmail, {
@@ -179,12 +187,16 @@ Deno.serve(async (request) => {
       return response(request, 400, { error: "Escolha uma instituição." });
     }
     const coordinatorEmail = emailValidation.data.trim().toLowerCase();
-    const { data, error: coordinatorError } =
-      await service.rpc("resolve_access_request_coordinator", {
+    const { data, error: coordinatorError } = await service.rpc(
+      "resolve_access_request_coordinator",
+      {
         p_email: coordinatorEmail,
-      });
+      },
+    );
     if (coordinatorError) {
-      return response(request, 500, { error: "Falha ao localizar a coordenação." });
+      return response(request, 500, {
+        error: "Falha ao localizar a coordenação.",
+      });
     }
     coordinatorMemberships = data ?? [];
   }
@@ -194,7 +206,8 @@ Deno.serve(async (request) => {
     return response(request, 200, { accepted: true });
   }
 
-  const requesterEmail = authData.user.email?.trim().toLowerCase() || "E-mail não informado";
+  const requesterEmail =
+    authData.user.email?.trim().toLowerCase() || "E-mail não informado";
   const requesterName =
     String(authData.user.user_metadata?.full_name ?? "").trim() ||
     requesterEmail.split("@")[0] ||
@@ -284,7 +297,7 @@ Deno.serve(async (request) => {
     if (existing) continue;
 
     const actionUrl = `/coord/management?accessRequestId=${encodeURIComponent(
-      accessRequestId
+      accessRequestId,
     )}`;
     const { error: insertError } = await service.from("notifications").insert({
       organization_id: organizationId,

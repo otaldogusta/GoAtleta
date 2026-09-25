@@ -1,4 +1,8 @@
-import { getConfirmedPhone, hasConfirmedPhone } from "../phone-verification";
+import {
+  getConfirmedPhone,
+  getPhoneVerificationRetrySeconds,
+  hasConfirmedPhone,
+} from "../phone-verification";
 
 describe("phone verification", () => {
   it("accepts the phone promoted by Supabase after the phone-change OTP", () => {
@@ -18,5 +22,11 @@ describe("phone verification", () => {
       phone: "+5541999999999",
       phone_confirmed_at: "2026-09-24T16:03:51Z",
     }, "+5541933008130")).toBe(false);
+  });
+
+  it("counts down the resend window without returning negative seconds", () => {
+    expect(getPhoneVerificationRetrySeconds(61_000, 1_500)).toBe(60);
+    expect(getPhoneVerificationRetrySeconds(61_000, 61_000)).toBe(0);
+    expect(getPhoneVerificationRetrySeconds(61_000, 70_000)).toBe(0);
   });
 });

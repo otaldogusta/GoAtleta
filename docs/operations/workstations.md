@@ -19,7 +19,7 @@ npm run dev:doctor
 npm run dev:web
 ```
 
-Abra `http://localhost:8081`, entre com sua conta do GoAtleta e confira uma turma. Cada computador tem seu próprio localhost; o computador antigo pode ficar desligado. Ambos devem apontar para o mesmo backend pretendido. Operações feitas pelo app podem modificar dados reais desse backend.
+Abra `http://localhost:8081`, entre com sua conta do Go Atleta e confira uma turma. Cada computador tem seu próprio localhost; o computador antigo pode ficar desligado. Ambos devem apontar para o mesmo backend pretendido. Operações feitas pelo app podem modificar dados reais desse backend.
 
 No Codex, abra a pasta clonada. Autentique novamente os conectores que precisar. Leia `AGENTS.md` e `docs/operations/handoff.md` na primeira tarefa.
 

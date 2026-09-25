@@ -14,7 +14,8 @@ const response = (data: unknown, status = 200) => ({
   ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(data),
 }) as Response;
 const sessionFor = (userId: string) => ({ access_token: `token-${userId}`, refresh_token: `refresh-${userId}`,
-  expires_at: 9999999999, user: { id: userId, email: `${userId}@example.test` } });
+  expires_at: 9999999999, user: { id: userId, email: `${userId}@example.test`,
+    app_metadata: { email_verified_hybrid_at: "2026-09-24T12:00:00.000Z" } } });
 const log = (id: string): ScoutingLog => ({ id, classId: `class-${id}`, date: "2026-09-05", mode: "treino",
   serve0: 0, serve1: 0, serve2: 0, receive0: 0, receive1: 0, receive2: 0, set0: 0, set1: 0, set2: 0,
   attackSend0: 0, attackSend1: 0, attackSend2: 0, createdAt: "2026-09-05T12:00:00Z", unit: "" });

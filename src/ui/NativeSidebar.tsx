@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
+import { usePlatformAdminAccess } from "../auth/use-platform-admin-access";
 import {
   ROLE_RADIAL_ACTIONS,
   ROLE_TABS,
@@ -93,6 +94,9 @@ export function NativeSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { session, signOut } = useAuth();
+  const canAccessPlatform = usePlatformAdminAccess();
+  const isPlatformOnlyAccount =
+    canAccessPlatform && session?.user?.app_metadata?.platform_only === true;
   const organization = useOptionalOrganization();
   const activeOrganization = organization?.activeOrganization ?? null;
   const memberPermissions = useMemo(
@@ -359,43 +363,118 @@ export function NativeSidebar({
                 gap: 4,
               }}
             >
-              <Pressable
-                accessibilityLabel="Perfil e configurações"
-                onPress={() => closeAndNavigate(profilePath)}
-                style={{
-                  minHeight: 44,
-                  borderRadius: radius.card,
-                  paddingHorizontal: 10,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 11,
-                }}
-              >
-                <GoAtletaIcon
-                  name="management"
-                  size={19}
-                  color="rgba(255,255,255,0.78)"
-                />
-                <Text
+              {canAccessPlatform &&
+              !isPlatformOnlyAccount &&
+              (!isPlatformWorkspace || activeOrganization) ? (
+                <>
+                  <Pressable
+                    accessibilityLabel={
+                      isPlatformWorkspace
+                        ? "Voltar à administração da instituição"
+                        : "Abrir administração SaaS"
+                    }
+                    onPress={() =>
+                      closeAndNavigate(
+                        isPlatformWorkspace ? "/coord/dashboard" : "/platform",
+                      )
+                    }
+                    style={{
+                      minHeight: 52,
+                      borderRadius: radius.card,
+                      paddingHorizontal: 10,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 11,
+                    }}
+                  >
+                    <GoAtletaIcon
+                      name={isPlatformWorkspace ? "coordination" : "lock"}
+                      size={19}
+                      color={brandPalette.quadra}
+                    />
+                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <Text
+                        style={{
+                          color: brandPalette.white,
+                          fontSize: 13,
+                          fontWeight: "800",
+                        }}
+                      >
+                        {isPlatformWorkspace
+                          ? "Administração da instituição"
+                          : "Administração SaaS"}
+                      </Text>
+                      <Text
+                        style={{
+                          color: "rgba(255,255,255,0.56)",
+                          fontSize: 11,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {isPlatformWorkspace
+                          ? "Voltar ao workspace operacional"
+                          : "Gestão global do Go Atleta"}
+                      </Text>
+                    </View>
+                    <GoAtletaIcon
+                      name="chevronForward"
+                      size={17}
+                      color="rgba(255,255,255,0.62)"
+                    />
+                  </Pressable>
+
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: "rgba(255,255,255,0.10)",
+                      marginHorizontal: 8,
+                      marginVertical: 4,
+                    }}
+                  />
+                </>
+              ) : null}
+
+              {!isPlatformOnlyAccount ? (
+                <Pressable
+                  accessibilityLabel="Perfil e configurações"
+                  onPress={() => closeAndNavigate(profilePath)}
                   style={{
-                    flex: 1,
-                    color: brandPalette.white,
-                    fontSize: 13,
-                    fontWeight: "700",
+                    minHeight: 44,
+                    borderRadius: radius.card,
+                    paddingHorizontal: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 11,
                   }}
                 >
-                  Perfil e configurações
-                </Text>
-              </Pressable>
+                  <GoAtletaIcon
+                    name="management"
+                    size={19}
+                    color="rgba(255,255,255,0.78)"
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: brandPalette.white,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Perfil e configurações
+                  </Text>
+                </Pressable>
+              ) : null}
 
-              <View
-                style={{
-                  height: 1,
-                  backgroundColor: "rgba(255,255,255,0.10)",
-                  marginHorizontal: 8,
-                  marginVertical: 4,
-                }}
-              />
+              {!isPlatformOnlyAccount ? (
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: "rgba(255,255,255,0.10)",
+                    marginHorizontal: 8,
+                    marginVertical: 4,
+                  }}
+                />
+              ) : null}
 
               <Pressable
                 accessibilityLabel="Sair da conta"

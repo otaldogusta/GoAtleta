@@ -50,7 +50,7 @@ O modo `--browser` do harness prepara conta e convite fictícios e mantém os se
 
 O script `family-access-local-api.cjs` agora também executa os dois entrypoints reais no Edge Runtime local, contra Auth/PostgREST e a cópia isolada. Passaram criação, destinatário incorreto, emissor sem autorização, expiração, revogação, aceitação e replay. O teste não equivale à aceitação pelo navegador nem valida o runtime remoto. Serviços temporários são parados ao finalizar. Corrigida a geração da credencial exclusivamente local de teste para o formato JWKS do PostgREST; nenhum segredo remoto é utilizado.
 
-- Publicação completa autorizada pelo usuário. Não executada: a chamada autenticada de saúde de Auth respondeu HTTP 402 (`exceed_egress_quota`) no projeto GoAtleta. O status de gerenciamento `ACTIVE_HEALTHY` não representa disponibilidade da API.
+- Publicação completa autorizada pelo usuário. Não executada: a chamada autenticada de saúde de Auth respondeu HTTP 402 (`exceed_egress_quota`) no projeto Go Atleta. O status de gerenciamento `ACTIVE_HEALTHY` não representa disponibilidade da API.
 - Build web e regressão SQL isolada passaram. A inspeção read-only do schema remoto revelou `classes.days` como JSONB; a projeção de horários e a fixture SQL foram corrigidas para esse tipo real.
 - Nenhum commit, push, migração ou Edge Function foi publicado nesta tentativa. Retomar após restauração da API, cumprir os gates autenticados e revisar os arquivos do pacote no worktree misto antes do deploy.
 

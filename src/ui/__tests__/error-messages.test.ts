@@ -14,6 +14,16 @@ describe("error-messages", () => {
     );
   });
 
+  it.each([
+    ["Token has expired or is invalid", "O código expirou. Solicite um novo."],
+    ['{"error_code":"otp_expired","msg":"OTP expired"}', "O código expirou. Solicite um novo."],
+    ['{"error_code":"otp_disabled","msg":"Invalid OTP"}', "Código inválido. Confira e tente novamente."],
+    ['{"error_code":"over_sms_send_rate_limit","msg":"Too many requests"}', "Aguarde um minuto antes de solicitar outro código."],
+    ["A user with this phone number has already been registered", "Este celular já está vinculado a outra conta."],
+  ])("traduz erro de confirmação %s", (message, expected) => {
+    expect(getFriendlyErrorMessage(new Error(message))).toBe(expected);
+  });
+
   it.each(["Forbidden", "ORG_FORBIDDEN", "NOT_AUTHORIZED"])("translates permission failure %s", (message) => {
     expect(getFriendlyErrorMessage(new Error(message))).toBe("Você não tem permissão para essa ação.");
   });

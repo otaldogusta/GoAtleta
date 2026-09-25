@@ -1,6 +1,6 @@
 # Consultoria Online - Treino Individualizado
 
-Este documento unifica e centraliza todo o histórico de polimentos, arquitetura, persistência no Supabase, regras de progresso, sistema de notificações e suporte a mídias do fluxo de consultoria esportiva individualizada do GoAtleta.
+Este documento unifica e centraliza todo o histórico de polimentos, arquitetura, persistência no Supabase, regras de progresso, sistema de notificações e suporte a mídias do fluxo de consultoria esportiva individualizada do Go Atleta.
 
 ---
 

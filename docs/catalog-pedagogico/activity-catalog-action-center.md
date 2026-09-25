@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-O Action Center transforma a auditoria interna do Catalogo GoAtleta em uma area pratica para decisao pedagogica.
+O Action Center transforma a auditoria interna do Catalogo Go Atleta em uma area pratica para decisao pedagogica.
 
 Ele ajuda a responder:
 

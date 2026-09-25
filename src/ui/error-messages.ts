@@ -132,6 +132,40 @@ export const getFriendlyErrorMessage = (
     return "Envio de SMS ainda não configurado.";
   }
 
+  if (
+    comparable.includes("otp_expired")
+    || comparable.includes("token has expired")
+    || comparable.includes("token is expired")
+  ) {
+    return "O código expirou. Solicite um novo.";
+  }
+
+  if (
+    comparable.includes("otp_disabled")
+    || comparable.includes("invalid otp")
+    || comparable.includes("token is invalid")
+    || comparable.includes("invalid token")
+  ) {
+    return "Código inválido. Confira e tente novamente.";
+  }
+
+  if (
+    comparable.includes("over_sms_send_rate_limit")
+    || comparable.includes("sms_send_rate_limit")
+    || comparable.includes("rate limit")
+    || comparable.includes("too many requests")
+  ) {
+    return "Aguarde um minuto antes de solicitar outro código.";
+  }
+
+  if (
+    comparable.includes("user with this phone number has already been registered")
+    || comparable.includes("phone_exists")
+    || comparable.includes("phone already registered")
+  ) {
+    return "Este celular já está vinculado a outra conta.";
+  }
+
   if (comparable.includes("same_password") || lower.includes("same password")) {
     return "A nova senha precisa ser diferente da anterior.";
   }

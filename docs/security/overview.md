@@ -1,7 +1,7 @@
 # Segurança
 
 Este é o documento canônico para postura de segurança, auditorias históricas e
-comandos de verificação do GoAtleta. As auditorias completas foram preservadas
+comandos de verificação do Go Atleta. As auditorias completas foram preservadas
 em `docs/archive/security/`.
 
 ## Verificações bloqueadoras
