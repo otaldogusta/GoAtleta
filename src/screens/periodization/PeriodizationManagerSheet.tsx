@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ScrollView,
   type StyleProp,
@@ -183,12 +183,12 @@ const RECOVERY_OPTIONS = [3, 4, 5] as const;
 
 function formatBrazilianDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  return match ? `${match[3]}-${match[2]}-${match[1]}` : value;
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
 function parseBrazilianDate(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 8);
-  const formatted = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("-");
+  const formatted = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("/");
   if (digits.length !== 8) return { display: formatted, iso: "" };
   return { display: formatted, iso: `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}` };
 }
@@ -256,6 +256,91 @@ function FieldShell({
   );
 }
 
+function PseStepper({
+  colors,
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  colors: ThemeColors;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  const decreaseDisabled = value <= min;
+  const increaseDisabled = value >= max;
+  return (
+    <View style={{ flex: 1, gap: 6 }}>
+      <InputLabel colors={colors}>{label}</InputLabel>
+      <View
+        style={{
+          minHeight: 44,
+          flexDirection: "row",
+          alignItems: "stretch",
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.inputBg,
+          overflow: "hidden",
+        }}
+      >
+        <Text
+          accessibilityLabel={`${label}: ${value}`}
+          style={{
+            flex: 1,
+            alignSelf: "center",
+            color: colors.text,
+            paddingHorizontal: 12,
+            fontSize: 14,
+            fontWeight: "800",
+          }}
+        >
+          {value}
+        </Text>
+        <View style={{ width: 38, borderLeftWidth: 1, borderLeftColor: colors.border }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Aumentar ${label.toLocaleLowerCase("pt-BR")}`}
+            accessibilityState={{ disabled: increaseDisabled }}
+            disabled={increaseDisabled}
+            onPress={() => onChange(Math.min(max, value + 1))}
+            style={({ hovered, pressed }) => ({
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent",
+              opacity: increaseDisabled ? 0.35 : 1,
+            })}
+          >
+            <GoAtletaIcon name="chevronUp" size={14} color={colors.text} />
+          </Pressable>
+          <View style={{ height: 1, backgroundColor: colors.border }} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Diminuir ${label.toLocaleLowerCase("pt-BR")}`}
+            accessibilityState={{ disabled: decreaseDisabled }}
+            disabled={decreaseDisabled}
+            onPress={() => onChange(Math.max(min, value - 1))}
+            style={({ hovered, pressed }) => ({
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent",
+              opacity: decreaseDisabled ? 0.35 : 1,
+            })}
+          >
+            <GoAtletaIcon name="chevronDown" size={14} color={colors.text} />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function ImpactRow({
   colors,
   icon,
@@ -263,7 +348,7 @@ function ImpactRow({
   value,
 }: {
   colors: ThemeColors;
-  icon: "calendar" | "trend" | "refresh" | "students" | "checkmarkCircle";
+  icon: "calendar" | "trend" | "refresh" | "students" | "checkmarkCircle" | "periodization";
   label: string;
   value: string;
 }) {
@@ -351,6 +436,7 @@ export function PeriodizationManagerSheet({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cycleDateInput, setCycleDateInput] = useState(() => formatBrazilianDate(initialDraft.cycleStartDate));
+  const wasVisibleRef = useRef(false);
   const creatingNextCycle = mode === "create-next";
   const dirty = !draftsEqual(draft, savedDraft);
   const saveDisabled = saving || (!creatingNextCycle && !dirty);
@@ -367,6 +453,18 @@ export function PeriodizationManagerSheet({
     ? `${String(Math.floor((timeEndMinutes % 1440) / 60)).padStart(2, "0")}:${String(timeEndMinutes % 60).padStart(2, "0")}`
     : "";
   const recommendedRecoveryWeeks = draft.intensityMax >= 8 ? 3 : draft.intensityMax >= 6 ? 4 : 5;
+
+  useEffect(() => {
+    const opening = visible && !wasVisibleRef.current;
+    wasVisibleRef.current = visible;
+    if (!opening) return;
+
+    setDraft(initialDraft);
+    setSavedDraft(initialDraft);
+    setCycleDateInput(formatBrazilianDate(initialDraft.cycleStartDate));
+    setAdvancedOpen(false);
+    setMenuOpen(false);
+  }, [initialDraft, mode, visible]);
 
   const closeMenuThenRun = useCallback((action: () => void) => {
     setMenuOpen(false);
@@ -820,7 +918,7 @@ export function PeriodizationManagerSheet({
                       setCycleDateInput(parsed.display);
                       if (parsed.iso) setDraft((current) => ({ ...current, cycleStartDate: parsed.iso }));
                     }}
-                    placeholder="DD-MM-AAAA"
+                    placeholder="DD/MM/AAAA"
                     placeholderTextColor={colors.placeholder}
                     style={{
                       minHeight: 44,
@@ -865,12 +963,26 @@ export function PeriodizationManagerSheet({
                   <View style={{ borderWidth: 1, borderColor: colors.successBorder, backgroundColor: colors.successBg, borderRadius: 10, padding: 10, gap: 3 }}><Text style={{ color: colors.successText, fontSize: 10, fontWeight: "800" }}>Recuperação sugerida: a cada {recommendedRecoveryWeeks} semanas</Text><Text style={{ color: colors.muted, fontSize: 10 }}>Com PSE máximo {draft.intensityMax}, a prévia recomenda este intervalo. Se a carga registrada subir, antecipe a semana de recuperação.</Text></View>
                 </View>
                 <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
-                  {(["intensityMin", "intensityMax"] as const).map((field) => (
-                    <View key={field} style={{ flex: 1, gap: 6 }}>
-                      <InputLabel colors={colors}>{field === "intensityMin" ? "PSE mínimo" : "PSE máximo"}</InputLabel>
-                      <TextInput accessibilityLabel={field === "intensityMin" ? "PSE mínimo" : "PSE máximo"} keyboardType="numeric" value={String(draft[field])} onChangeText={(value) => setDraft((current) => { const next = Math.max(0, Math.min(10, Number(value.replace(/[^0-9]/g, "")) || 0)); return { ...current, [field]: next, ...(field === "intensityMax" ? { recoveryWeeks: next >= 8 ? 3 : next >= 6 ? 4 : 5 } : {}) }; })} style={{ minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text, paddingHorizontal: 12, fontSize: 12, fontWeight: "700" }} />
-                    </View>
-                  ))}
+                  <PseStepper
+                    colors={colors}
+                    label="PSE mínimo"
+                    value={draft.intensityMin}
+                    min={1}
+                    max={Math.max(1, draft.intensityMax - 1)}
+                    onChange={(intensityMin) => setDraft((current) => ({ ...current, intensityMin }))}
+                  />
+                  <PseStepper
+                    colors={colors}
+                    label="PSE máximo"
+                    value={draft.intensityMax}
+                    min={Math.min(10, draft.intensityMin + 1)}
+                    max={10}
+                    onChange={(intensityMax) => setDraft((current) => ({
+                      ...current,
+                      intensityMax,
+                      recoveryWeeks: intensityMax >= 8 ? 3 : intensityMax >= 6 ? 4 : 5,
+                    }))}
+                  />
                 </View>
               </View>
             </View>
@@ -969,7 +1081,7 @@ export function PeriodizationManagerSheet({
 
             <View style={{ gap: 10 }}>
               <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                {creatingNextCycle ? "O que será criado" : "O que mudará ao salvar"}
+                {creatingNextCycle ? "Configuração do próximo ciclo" : "Configuração atual"}
               </Text>
               <View
                 style={{
@@ -981,21 +1093,27 @@ export function PeriodizationManagerSheet({
               >
                 <ImpactRow
                   colors={colors}
+                  icon="students"
+                  label="Turma"
+                  value={`${LEVEL_OPTIONS.find((option) => option.value === draft.mvLevel)?.label ?? draft.mvLevel} · ${draft.goal.trim() || "Objetivo não definido"}`}
+                />
+                <ImpactRow
+                  colors={colors}
                   icon="calendar"
                   label="Agenda"
-                  value={
-                    creatingNextCycle
-                      ? `${dayLabel || "Dias não definidos"} · início ${formatBrazilianDate(draft.cycleStartDate)}`
-                      : dirty
-                        ? "Parâmetros serão atualizados"
-                        : "Sem alteração"
-                  }
+                  value={`${dayLabel || "Dias não definidos"} · ${draft.startTime || "--:--"}${timeEnd ? `–${timeEnd}` : ""} · ${draft.durationMinutes} min`}
+                />
+                <ImpactRow
+                  colors={colors}
+                  icon="periodization"
+                  label="Ciclo"
+                  value={`${formatBrazilianDate(draft.cycleStartDate)} · ${draft.cycleLengthWeeks} semanas`}
                 />
                 <ImpactRow
                   colors={colors}
                   icon="trend"
                   label="Carga"
-                  value={`${LOAD_MODEL_OPTIONS.find((option) => option.value === draft.loadModel)?.label} · PSE ${draft.intensityMin}–${draft.intensityMax}`}
+                  value={`${LOAD_MODEL_OPTIONS.find((option) => option.value === draft.loadModel)?.label} · PSE ${draft.intensityMin}–${draft.intensityMax} · recuperação a cada ${draft.recoveryWeeks}`}
                 />
                 <ImpactRow
                   colors={colors}
@@ -1004,7 +1122,7 @@ export function PeriodizationManagerSheet({
                   value={
                     creatingNextCycle
                       ? "Serão geradas após a criação"
-                      : `${autoPlanCount} disponíveis para regerar`
+                      : `${autoPlanCount} gerenciadas automaticamente`
                   }
                 />
                 <ImpactRow
@@ -1101,7 +1219,7 @@ export function PeriodizationManagerSheet({
               >
                 {creatingNextCycle
                   ? "Criar ativa uma nova janela anual. O ciclo encerrado, os planos e as aulas realizadas permanecem no histórico."
-                  : "Salvar altera a configuração base. Regerar e redefinir atuam somente nas semanas automáticas; edições manuais são preservadas."}
+                  : "Salvar atualiza a configuração e recalcula a semana atual e as próximas semanas automáticas. Edições manuais e aulas já realizadas são preservadas."}
               </Text>
             </View>
           </ManagerPane>
@@ -1159,6 +1277,8 @@ export function PeriodizationManagerSheet({
             </Text>
           </View> : null}
           {dirty ? <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={creatingNextCycle ? "Restaurar sugestão" : "Descartar rascunho"}
             disabled={!dirty || saving}
             onPress={() => { setDraft(savedDraft); setCycleDateInput(formatBrazilianDate(savedDraft.cycleStartDate)); }}
             style={{

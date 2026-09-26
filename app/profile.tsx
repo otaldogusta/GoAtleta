@@ -1178,17 +1178,6 @@ export default function ProfileScreen() {
     if (!student || !student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
   }, [classes, student]);
-  const professionalClasses = useMemo(() => {
-    const organizationId = activeOrganization?.id;
-    return organizationId
-      ? classes.filter((item) => !item.organizationId || item.organizationId === organizationId)
-      : classes;
-  }, [activeOrganization?.id, classes]);
-  const professionalUnits = useMemo(
-    () => Array.from(new Set(professionalClasses.map((item) => item.unit?.trim()).filter(Boolean) as string[]))
-      .sort((left, right) => left.localeCompare(right, "pt-BR")),
-    [professionalClasses],
-  );
   const profileInstitution = resolveProfileInstitution(student, familyContexts, activeOrganization);
   const institutionClasses = useInstitutionClasses(student?.id, profileInstitution?.id, classes);
 
@@ -1376,7 +1365,7 @@ export default function ProfileScreen() {
       return {
         icon: "school-outline",
         label: "Professor",
-        subtitle: "Treinador",
+        subtitle: null,
       };
     }
     if (selectedProfilePreview === "admin") {
@@ -1516,11 +1505,6 @@ export default function ProfileScreen() {
     setShowNewPassword(false);
     setShowPasswordConfirmation(false);
   }, [setSecurityContactError]);
-
-  const openAccountEditor = useCallback(() => {
-    resetAccountEditorState();
-    setShowAccountEditor(true);
-  }, [resetAccountEditorState]);
 
   const closeAccountEditor = useCallback(() => {
     setShowAccountEditor(false);
@@ -2014,7 +1998,7 @@ export default function ProfileScreen() {
       || mobileHealthObservationsDraft.trim() !== mobileSportsBaseline.healthObservations.trim(),
   );
   const mobileSecurityHasChanges = Boolean(
-    mobileExpandedSection === "security"
+    (mobileExpandedSection === "security" || professionalExpandedSection === "account")
       && (securityContactDraft.trim() !== accountSecurity.securityContactEmail.trim()
         || newPassword
         || passwordConfirmation),
@@ -2408,6 +2392,73 @@ export default function ProfileScreen() {
       },
     });
   };
+
+  const accountSecuritySectionContent = (
+    <>
+      <View style={{ gap: 4 }}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail da conta</Text>
+        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>
+          {accountSecurity.loginLabel}
+        </Text>
+      </View>
+      <SecurityContactFields
+        model={securityContact}
+        Field={AccountTextField}
+        ErrorBalloon={FloatingFieldError}
+      />
+      <View style={{ height: 1, backgroundColor: colors.border }} />
+      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+        Alterar senha
+      </Text>
+      <AccountTextField
+        label="Nova senha"
+        value={newPassword}
+        onChangeText={(value) => {
+          setNewPassword(value);
+          setNewPasswordError(null);
+          setPasswordChanged(false);
+        }}
+        placeholder="Mínimo de 8 caracteres"
+        error={newPasswordError}
+        secureTextEntry
+        passwordVisible={showNewPassword}
+        onTogglePassword={() => setShowNewPassword((current) => !current)}
+        autoComplete="new-password"
+      />
+      <AccountTextField
+        label="Confirmar nova senha"
+        value={passwordConfirmation}
+        onChangeText={(value) => {
+          setPasswordConfirmation(value);
+          setPasswordConfirmationError(
+            value && newPassword && value !== newPassword
+              ? "As senhas não conferem."
+              : null,
+          );
+        }}
+        placeholder="Repita a nova senha"
+        error={passwordConfirmationError}
+        secureTextEntry
+        passwordVisible={showPasswordConfirmation}
+        onTogglePassword={() => setShowPasswordConfirmation((current) => !current)}
+        autoComplete="new-password"
+        returnKeyType="done"
+        onSubmitEditing={() => {
+          if (canChangePassword) void savePassword();
+        }}
+      />
+      <Button
+        label={savingPassword ? "Alterando..." : "Alterar senha"}
+        onPress={() => void savePassword()}
+        disabled={!canChangePassword}
+      />
+      {passwordChanged ? (
+        <Text style={{ color: colors.primaryBg, fontSize: 12 }}>
+          Senha alterada com sucesso.
+        </Text>
+      ) : null}
+    </>
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -3105,17 +3156,7 @@ export default function ProfileScreen() {
                 }}
                 grouped
               >
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail da conta</Text>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>{accountSecurity.loginLabel}</Text>
-                </View>
-                <SecurityContactFields model={securityContact} Field={AccountTextField} ErrorBalloon={FloatingFieldError} />
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Alterar senha</Text>
-                <AccountTextField label="Nova senha" value={newPassword} onChangeText={(value) => { setNewPassword(value); setNewPasswordError(null); setPasswordChanged(false); }} placeholder="Mínimo de 8 caracteres" error={newPasswordError} secureTextEntry passwordVisible={showNewPassword} onTogglePassword={() => setShowNewPassword((current) => !current)} autoComplete="new-password" />
-                <AccountTextField label="Confirmar nova senha" value={passwordConfirmation} onChangeText={(value) => { setPasswordConfirmation(value); setPasswordConfirmationError(value && newPassword && value !== newPassword ? "As senhas não conferem." : null); }} placeholder="Repita a nova senha" error={passwordConfirmationError} secureTextEntry passwordVisible={showPasswordConfirmation} onTogglePassword={() => setShowPasswordConfirmation((current) => !current)} autoComplete="new-password" returnKeyType="done" onSubmitEditing={() => { if (canChangePassword) void savePassword(); }} />
-                <Button label={savingPassword ? "Alterando..." : "Alterar senha"} onPress={() => void savePassword()} disabled={!canChangePassword} />
-                {passwordChanged ? <Text style={{ color: colors.primaryBg, fontSize: 12 }}>Senha alterada com sucesso.</Text> : null}
+                {accountSecuritySectionContent}
               </MobileProfileSection>
               </View>
 
@@ -3449,10 +3490,14 @@ export default function ProfileScreen() {
                         ) : null}
                       </Pressable>
                     </View>
-                    <View style={{ width: 1, height: 22, backgroundColor: colors.border }} />
-                    <Text style={{ color: colors.muted, fontSize: 14 }}>
-                      {profileDisplay.subtitle}
-                    </Text>
+                    {profileDisplay.subtitle ? (
+                      <>
+                        <View style={{ width: 1, height: 22, backgroundColor: colors.border }} />
+                        <Text style={{ color: colors.muted, fontSize: 14 }}>
+                          {profileDisplay.subtitle}
+                        </Text>
+                      </>
+                    ) : null}
                   </View>
 
                 </View>
@@ -3572,8 +3617,27 @@ export default function ProfileScreen() {
               <View style={{ gap: 7 }}>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>Celular (obrigatório)</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <View style={{ width: 92, minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, justifyContent: "center" }}>
-                    <TextInput accessibilityLabel="Código do país" keyboardType="phone-pad" value={mobileCountryCode} onChangeText={(value) => setMobileCountryCode(`+${value.replace(/\D/g, "").slice(0, 3)}`)} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0 }} />
+                  <View ref={mobileCountryTriggerRef} collapsable={false}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Selecionar código do país"
+                      accessibilityState={{ expanded: mobileCountryMenuOpen }}
+                      onPress={() => {
+                        if (mobileCountryMenuOpen) {
+                          setMobileCountryMenuOpen(false);
+                          return;
+                        }
+                        mobileCountryTriggerRef.current?.measureInWindow((x, y, width, height) => {
+                          setMobileCountryMenuLayout({ x, y, width, height });
+                          setMobileCountryMenuOpen(true);
+                        });
+                      }}
+                      style={({ pressed }) => ({ minHeight: 50, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
+                    >
+                      <CountryFlagIcon isoCode={mobileCountryIso} />
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{mobileCountryCode}</Text>
+                      <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
+                    </Pressable>
                   </View>
                   <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: 6, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                     <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
@@ -3585,6 +3649,59 @@ export default function ProfileScreen() {
                     ) : null}
                   </View>
                 </View>
+                <AnchoredDropdown
+                  visible={mobileCountryMenuOpen}
+                  layout={mobileCountryMenuLayout}
+                  container={null}
+                  animationStyle={{ opacity: 1 }}
+                  zIndex={6000}
+                  maxHeight={344}
+                  nestedScrollEnabled
+                  density="menu"
+                  fitContent
+                  preferredWidth={320}
+                  interactiveRefs={[mobileCountryTriggerRef]}
+                  onRequestClose={() => setMobileCountryMenuOpen(false)}
+                >
+                  <View style={{ paddingHorizontal: 6, paddingTop: 6, paddingBottom: 4 }}>
+                    <View style={{ minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <GoAtletaIcon name="search" size={16} color={colors.muted} />
+                      <TextInput
+                        accessibilityLabel="Buscar país ou código"
+                        placeholder="Buscar país ou código"
+                        placeholderTextColor={colors.muted}
+                        value={mobileCountrySearch}
+                        onChangeText={setMobileCountrySearch}
+                        style={{ flex: 1, color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
+                      />
+                    </View>
+                  </View>
+                  {visibleMobileCountries.map((country) => {
+                    const countryName = country.localName || country.name;
+                    return (
+                    <AnchoredDropdownOption
+                      key={`${country.code}-${country.dialCode}`}
+                      active={mobileCountryIso === country.code}
+                      density="compact"
+                      onPress={() => {
+                        setMobileCountryIso(country.code);
+                        setMobileCountryCode(country.dialCode);
+                        setMobileCountrySearch("");
+                        setMobileCountryMenuOpen(false);
+                        setPendingPhoneVerification("");
+                        setPhoneVerificationCode("");
+                        setPhoneVerificationError(null);
+                      }}
+                    >
+                      <View style={{ minHeight: 34, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <CountryFlagIcon isoCode={country.code} />
+                        <Text style={{ flex: 1, color: mobileCountryIso === country.code ? colors.primaryText : colors.text, fontSize: 14 }}>{countryName}</Text>
+                        <Text style={{ color: mobileCountryIso === country.code ? colors.primaryText : colors.muted, fontSize: 13, fontWeight: "700" }}>{country.dialCode}</Text>
+                      </View>
+                    </AnchoredDropdownOption>
+                    );
+                  })}
+                </AnchoredDropdown>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>{isDisplayedPhoneVerified ? "Número verificado" : "Confirme o número pelo WhatsApp"}</Text>
               </View>
               {phoneVerificationRequested ? (
@@ -3608,40 +3725,6 @@ export default function ProfileScreen() {
               <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
               <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
             </MobileProfileSection>
-            <MobileProfileSection
-              icon="coordination"
-              title="Perfil profissional"
-              subtitle={`${profileDisplay.label} · ${activeOrganization?.name || "Sem instituição ativa"}`}
-              expanded={professionalExpandedSection === "professional"}
-              onPress={() => setProfessionalExpandedSection((current) => current === "professional" ? null : "professional")}
-            >
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {[
-                  { label: "Função", value: profileDisplay.label },
-                  { label: "Instituição", value: activeOrganization?.name || "Não vinculada" },
-                  { label: "Turmas acessíveis", value: String(professionalClasses.length) },
-                  { label: "Unidades", value: String(professionalUnits.length) },
-                ].map((item) => (
-                  <View key={item.label} style={{ flexGrow: 1, flexBasis: responsiveLayout.isMobile ? "100%" : 210, minWidth: 0, minHeight: 70, paddingHorizontal: 14, paddingVertical: 11, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, gap: 4 }}>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
-                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }} numberOfLines={2}>{item.value}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Unidades disponíveis</Text>
-                {professionalUnits.length ? (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {professionalUnits.map((unit) => (
-                      <View key={unit} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{unit}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Nenhuma unidade disponível neste perfil.</Text>}
-              </View>
-            </MobileProfileSection>
-
             <MobileProfileSection
               icon="management"
               title="Preferências"
@@ -3693,15 +3776,7 @@ export default function ProfileScreen() {
               expanded={professionalExpandedSection === "account"}
               onPress={() => setProfessionalExpandedSection((current) => current === "account" ? null : "account")}
             >
-              <SettingsRow
-                icon="shield"
-                iconBg="transparent"
-                label={accountSecurity.loginLabel}
-                subtitle="E-mail, contato de segurança e senha"
-                onPress={openAccountEditor}
-                rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
-              />
-
+              {accountSecuritySectionContent}
             </MobileProfileSection>
 
             <MobileProfileSection

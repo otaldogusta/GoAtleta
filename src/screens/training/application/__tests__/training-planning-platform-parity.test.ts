@@ -35,6 +35,18 @@ describe("training planning platform parity", () => {
     expect(trainingRoute).toContain('message: "Não foi possível salvar o rascunho."');
   });
 
+  it("waits for planning data and does not open an arbitrary saved plan", () => {
+    expect(trainingRoute).toContain(
+      "const [isPlanningBootstrapLoading, setIsPlanningBootstrapLoading] = useState(true)"
+    );
+    expect(trainingRoute).toContain("{isPlanningBootstrapLoading ? (");
+    expect(trainingRoute).toContain("(!targetClassId && !targetDate)");
+    expect(trainingRoute).toContain("if (!routePlan) return;");
+    expect(trainingRoute).not.toContain(
+      "routePlan ?? items[0] ?? createPlanningWorkspaceDraft()"
+    );
+  });
+
   it("branches leave and replacement confirmation copy from the explicit draft flush result", () => {
     expect(trainingRoute).toContain("buildTrainingPlanWorkspaceExitConfirmation");
     expect(trainingRoute.match(/const flushResult = await flushWorkspaceDraft\(\);/g)).toHaveLength(2);

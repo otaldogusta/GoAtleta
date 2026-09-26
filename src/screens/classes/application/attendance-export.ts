@@ -197,6 +197,29 @@ export function canAccessAttendanceExport(params: {
   return !params.permissionsLoading && params.reportsAllowed === true;
 }
 
+const sanitizeDocumentFilePart = (value: string) =>
+  value
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .trim();
+
+export function buildClassRosterPdfFileName(params: {
+  className: string;
+  monthLabel: string;
+  includeAttendance: boolean;
+  startTime?: string | null;
+}) {
+  const className = sanitizeDocumentFilePart(params.className) || "Turma";
+  const monthLabel = sanitizeDocumentFilePart(params.monthLabel) || "Período";
+  const timeMatch = params.startTime?.trim().match(/^(\d{1,2}):?(\d{2})?/);
+  const startTime = timeMatch
+    ? `${Number(timeMatch[1])}h${timeMatch[2] && timeMatch[2] !== "00" ? timeMatch[2] : ""}`
+    : "";
+  const documentLabel = params.includeAttendance ? "Chamada" : "Lista de chamada";
+  return [documentLabel, className, startTime, monthLabel].filter(Boolean).join(" - ") + ".pdf";
+}
+
 export function buildAttendanceExportFileParts(params: {
   scope: string;
   startDate: string;

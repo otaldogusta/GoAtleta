@@ -1,8 +1,5 @@
 import { useCallback } from "react";
 
-import {
-    toCompetitiveClassPlans,
-} from "../../../core/competitive-periodization";
 import type {
     ClassCalendarException,
     ClassCompetitiveProfile,
@@ -11,13 +8,6 @@ import type {
     PlanningCycle,
 } from "../../../core/models";
 import type { PeriodizationModel, SportProfile } from "../../../core/periodization-basics";
-import {
-    isAnnualCycle,
-} from "../../../core/periodization-basics";
-import {
-    toAnnualClassPlans,
-    toClassPlans,
-} from "../../../core/periodization-generator";
 import {
     deleteClassPlansByClass,
     getClassPlansByClass,
@@ -44,7 +34,11 @@ export type UseGeneratePlansModeParams = {
   sportProfile: SportProfile;
   calendarExceptions: ClassCalendarException[];
   competitiveProfile: ClassCompetitiveProfile | null;
-  buildAutoPlanForWeek: (weekNumber: number, existing?: ClassPlan | null) => ClassPlan | null;
+  buildAutoPlanForWeek: (
+    weekNumber: number,
+    existing?: ClassPlan | null,
+    cycleOverride?: GenerationCycleIdentity,
+  ) => ClassPlan | null;
   refreshPlans: () => Promise<void>;
   setClassPlans: (plans: ClassPlan[]) => void;
   setIsSavingPlans: (value: boolean) => void;
@@ -54,6 +48,29 @@ export type GenerationCycleIdentity = Pick<
   PlanningCycle,
   "id" | "year" | "startDate"
 >;
+
+export type GeneratePlansOptions = {
+  futureOnly?: boolean;
+  forceAutomaticUpdate?: boolean;
+};
+
+function isCurrentOrFutureWeek(startDate: string) {
+  const start = new Date(`${startDate}T12:00:00`);
+  if (Number.isNaN(start.getTime())) return false;
+  start.setDate(start.getDate() + 6);
+  return start.toISOString().slice(0, 10) >= new Date().toISOString().slice(0, 10);
+}
+
+function getLatestSessionDate(snapshotJson: string | null | undefined) {
+  try {
+    const parsed = JSON.parse(snapshotJson ?? "{}") as {
+      executedHistory?: { latestSessionDate?: string | null };
+    };
+    return parsed.executedHistory?.latestSessionDate ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -81,6 +98,7 @@ export function useGeneratePlansMode({
     async (
       mode: "fill" | "auto" | "all",
       cycleOverride?: GenerationCycleIdentity,
+      options?: GeneratePlansOptions,
     ) => {
       if (!selectedClass) return;
 
@@ -111,37 +129,19 @@ export function useGeneratePlansMode({
         const byWeek = new Map(existing.map((plan) => [plan.weekNumber, plan]));
 
         if (mode === "all") {
-          const plans = isCompetitiveMode
-            ? toCompetitiveClassPlans({
-                classId: selectedClass.id,
-                cycleLength,
-                cycleStartDate: resolvedCycleStartDate,
-                daysOfWeek: selectedClass.daysOfWeek ?? [],
-                exceptions: calendarExceptions,
-
-                profile: competitiveProfile!,
-              })
-            : isAnnualCycle(cycleLength)
-              ? toAnnualClassPlans({
-                  classId: selectedClass.id,
-                  ageBand,
-                  cycleLength,
-                  startDate: resolvedCycleStartDate,
-                  mvLevel: selectedClass.mvLevel,
-                  model: periodizationModel,
-                  sessionsPerWeek: weeklySessions,
-                  sport: sportProfile,
-                })
-            : toClassPlans({
-                classId: selectedClass.id,
-                ageBand,
-                cycleLength,
-                startDate: resolvedCycleStartDate,
-                mvLevel: selectedClass.mvLevel,
-                model: periodizationModel,
-                sessionsPerWeek: weeklySessions,
-                sport: sportProfile,
-              });
+          const generationCycle = {
+            id: resolvedCycleId,
+            year: resolvedCycleYear,
+            startDate: resolvedCycleStartDate,
+          };
+          const plans = Array.from({ length: cycleLength }, (_, index) =>
+            buildAutoPlanForWeek(index + 1, null, generationCycle),
+          ).filter((plan): plan is ClassPlan => Boolean(plan));
+          if (plans.length !== cycleLength) {
+            throw new Error(
+              "Não foi possível gerar todas as semanas. O ciclo atual foi preservado.",
+            );
+          }
 
           await measure("deleteClassPlansByClass", () =>
             deleteClassPlansByClass(selectedClass.id, {
@@ -174,6 +174,11 @@ export function useGeneratePlansMode({
         for (let week = 1; week <= cycleLength; week += 1) {
           const existingPlan = byWeek.get(week) ?? null;
 
+          if (options?.futureOnly) {
+            const candidate = existingPlan ?? buildAutoPlanForWeek(week);
+            if (!candidate?.startDate || !isCurrentOrFutureWeek(candidate.startDate)) continue;
+          }
+
           if (!existingPlan) {
             const plan = buildAutoPlanForWeek(week);
 
@@ -186,6 +191,14 @@ export function useGeneratePlansMode({
             const plan = buildAutoPlanForWeek(week, existingPlan);
 
             if (plan) {
+              if (
+                options?.futureOnly &&
+                !options.forceAutomaticUpdate &&
+                getLatestSessionDate(plan.generationContextSnapshotJson) ===
+                  getLatestSessionDate(existingPlan.generationContextSnapshotJson)
+              ) {
+                continue;
+              }
               plan.cycleId = resolvedCycleId;
               plan.updatedAt = new Date().toISOString();
 
@@ -213,17 +226,10 @@ export function useGeneratePlansMode({
       activeCycleStartDate,
       activeCycleId,
       activeCycleYear,
-      ageBand,
       buildAutoPlanForWeek,
-      calendarExceptions,
-      competitiveProfile,
       cycleLength,
-      isCompetitiveMode,
-      periodizationModel,
-      sportProfile,
       refreshPlans,
       selectedClass,
-      weeklySessions,
       setClassPlans,
       setIsSavingPlans,
     ]

@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Line, Path, Stop } from "react-native-svg";
 
 import type { VolumeLevel } from "../../../core/periodization-basics";
@@ -9,6 +9,12 @@ import {
   type PeriodizationLoadCurveModel,
 } from "../../../core/periodization-policy";
 import type { ThemeColors } from "../../../ui/app-theme";
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+function canMorphPath(previous: string, next: string) {
+  return previous.split(/[A-Za-z]/).length === next.split(/[A-Za-z]/).length;
+}
 
 export type PeriodizationGraphWeek = {
   week: number;
@@ -148,6 +154,42 @@ export const PeriodizationLoadCurve = memo(function PeriodizationLoadCurve({
     };
   }, [maxLoad, maxWeek, plotBottom, plotTop, policy, source, xForWeek]);
 
+  const previousPathsRef = useRef({ techniquePath, intensityPath, recoveryPath });
+  const morphProgress = useRef(new Animated.Value(1)).current;
+  const previousPaths = previousPathsRef.current;
+  const morphable =
+    canMorphPath(previousPaths.techniquePath, techniquePath) &&
+    canMorphPath(previousPaths.intensityPath, intensityPath) &&
+    canMorphPath(previousPaths.recoveryPath, recoveryPath);
+
+  useEffect(() => {
+    if (!morphable) {
+      previousPathsRef.current = { techniquePath, intensityPath, recoveryPath };
+      morphProgress.setValue(1);
+      return;
+    }
+    morphProgress.stopAnimation();
+    morphProgress.setValue(0);
+    Animated.timing(morphProgress, {
+      toValue: 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(() => {
+      previousPathsRef.current = { techniquePath, intensityPath, recoveryPath };
+    });
+  }, [intensityPath, morphProgress, morphable, recoveryPath, techniquePath]);
+
+  const animatedTechniquePath = morphable
+    ? morphProgress.interpolate({ inputRange: [0, 1], outputRange: [previousPaths.techniquePath, techniquePath] })
+    : techniquePath;
+  const animatedIntensityPath = morphable
+    ? morphProgress.interpolate({ inputRange: [0, 1], outputRange: [previousPaths.intensityPath, intensityPath] })
+    : intensityPath;
+  const animatedRecoveryPath = morphable
+    ? morphProgress.interpolate({ inputRange: [0, 1], outputRange: [previousPaths.recoveryPath, recoveryPath] })
+    : recoveryPath;
+
   const toAreaPath = (path: string) => points.length
     ? `${path} L ${points.at(-1)?.x ?? plotRight} ${plotBottom} L ${points[0].x} ${plotBottom} Z`
     : "";
@@ -192,9 +234,9 @@ export const PeriodizationLoadCurve = memo(function PeriodizationLoadCurve({
         <Path d={toAreaPath(techniquePath)} fill="url(#techniqueArea)" stroke="none" />
         <Path d={toAreaPath(intensityPath)} fill="url(#intensityArea)" stroke="none" />
         <Path d={toAreaPath(recoveryPath)} fill="url(#recoveryArea)" stroke="none" />
-        <Path d={techniquePath} fill="none" stroke="#43D889" strokeWidth={compact ? 2 : 2.5} />
-        <Path d={intensityPath} fill="none" stroke="#F3B84B" strokeWidth={compact ? 2 : 2.5} />
-        <Path d={recoveryPath} fill="none" stroke="#62A9FF" strokeWidth={compact ? 2 : 2.5} />
+        <AnimatedPath d={animatedTechniquePath as never} fill="none" stroke="#43D889" strokeWidth={compact ? 2 : 2.5} />
+        <AnimatedPath d={animatedIntensityPath as never} fill="none" stroke="#F3B84B" strokeWidth={compact ? 2 : 2.5} />
+        <AnimatedPath d={animatedRecoveryPath as never} fill="none" stroke="#62A9FF" strokeWidth={compact ? 2 : 2.5} />
       </Svg>
       <View style={{ marginTop: compact ? -30 : -43, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: plotLeft }}>
         {axisWeeks.map((week) => <Text key={week} style={{ color: colors.muted, fontSize: compact ? 8 : 10 }}>{week}</Text>)}

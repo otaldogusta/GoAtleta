@@ -35,11 +35,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
   const primaryItem = slot?.items[0] ?? null;
   const canNavigate = totalSlots > 1;
   const statusLabel = isToday ? "AULA ATUAL" : "PRÓXIMA AÇÃO";
-  const title = primaryItem
-    ? slot && slot.items.length > 1
-      ? `${slot.items.length} turmas em paralelo`
-      : primaryItem.className
-    : "Sem aulas programadas";
+  const title = primaryItem?.className ?? "Sem aulas programadas";
 
   return (
     <View

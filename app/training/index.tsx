@@ -256,6 +256,7 @@ function TrainingWorkspace() {
   const [hiddenTemplates, setHiddenTemplates] = useState<HiddenTemplate[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classCatalogKey, setClassCatalogKey] = useState<string | null>(null);
+  const [isPlanningBootstrapLoading, setIsPlanningBootstrapLoading] = useState(true);
   const [classId, setClassId] = useState("");
   const [planningActivities, setPlanningActivities] =
     useState<PlanningBlockActivities>(() => createEmptyPlanningBlockActivities());
@@ -890,6 +891,8 @@ function TrainingWorkspace() {
           return;
         }
         console.warn("Training bootstrap load skipped.", error);
+      } finally {
+        if (alive) setIsPlanningBootstrapLoading(false);
       }
     })();
     return () => {
@@ -900,11 +903,13 @@ function TrainingWorkspace() {
   useEffect(() => {
     if (
       Platform.OS !== "web" ||
+      isPlanningBootstrapLoading ||
       Boolean(incomingWorkspaceEntry) ||
       !workspaceDraftHydrated ||
       restoredWorkspaceDraft ||
       selectedPlan ||
-      !classes.length
+      !classes.length ||
+      (!targetClassId && !targetDate)
     ) {
       return;
     }
@@ -913,13 +918,14 @@ function TrainingWorkspace() {
         (!targetClassId || plan.classId === targetClassId) &&
         (!targetDate || plan.applyDate === targetDate)
     );
-    const initialPlan = routePlan ?? items[0] ?? createPlanningWorkspaceDraft();
+    if (!routePlan) return;
     Promise.resolve().then(() => {
-      setSelectedPlan(initialPlan);
-      setClassId(initialPlan.classId);
+      setSelectedPlan(routePlan);
+      setClassId(routePlan.classId);
     });
   }, [
     classes,
+    isPlanningBootstrapLoading,
     items,
     restoredWorkspaceDraft,
     selectedPlan,
@@ -2455,7 +2461,9 @@ function TrainingWorkspace() {
                     minHeight: 0,
                   }}
                 >
-                  {selectedPlan && workspaceClass ? (
+                  {isPlanningBootstrapLoading ? (
+                    <SectionLoadingState />
+                  ) : selectedPlan && workspaceClass ? (
                     <Suspense fallback={<SectionLoadingState />}>
                       <ClassPlanPreviewModal
                         visible

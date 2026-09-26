@@ -3,6 +3,7 @@ import type {
   ClassGroup,
   ClassPlan,
   DailyLessonPlan,
+  DecisionReason,
   LessonBlock,
   WeekSessionRole,
 } from "../../../core/models";
@@ -22,6 +23,8 @@ export type ProfessorCoachGuidance = {
   setupHint?: string;
   closingCue?: string;
 };
+
+export type ProfessorDecisionReason = Pick<DecisionReason, "message" | "evidence">;
 
 export type ProfessorAgendaEvent = {
   id: string;
@@ -47,6 +50,7 @@ export type ProfessorAgendaEvent = {
   session: WeekSessionPreview;
   dailyPlan: DailyLessonPlan | null;
   guidance: ProfessorCoachGuidance;
+  decisionReasons: ProfessorDecisionReason[];
   blocks: LessonBlock[];
 };
 
@@ -113,6 +117,38 @@ const compactText = (value: string, fallback: string, limit = 72) => {
 const uniqueItems = (items: string[], fallback: string[]) => {
   const result = [...new Set(items.map((item) => sanitizePublicText(item, "")).filter(Boolean))];
   return result.length ? result : fallback;
+};
+
+const parsePublicDecisionReasons = (
+  dailyPlan: DailyLessonPlan | null,
+  plan: ClassPlan,
+): ProfessorDecisionReason[] => {
+  const snapshots = [dailyPlan?.generationContextSnapshotJson, plan.generationContextSnapshotJson];
+  for (const snapshot of snapshots) {
+    try {
+      const parsed = JSON.parse(snapshot ?? "{}") as { decisionReasons?: DecisionReason[] };
+      if (!Array.isArray(parsed.decisionReasons)) continue;
+      const reasons = parsed.decisionReasons
+        .map((reason) => ({
+          message: sanitizePublicText(reason?.message ?? "", ""),
+          evidence: sanitizePublicText(reason?.evidence ?? "", ""),
+        }))
+        .filter((reason) => reason.message)
+        .filter((reason, index, list) =>
+          list.findIndex((candidate) => candidate.message === reason.message) === index,
+        )
+        .slice(0, 2);
+      if (reasons.length) return reasons;
+    } catch {
+      // Legacy snapshots fall back to the persisted weekly focus and load below.
+    }
+  }
+  const focus = sanitizePublicText(plan.theme || plan.technicalFocus || "", "");
+  const load = sanitizePublicText(plan.rpeTarget || plan.phase || "", "").replace(/^PSE\s*/i, "");
+  const fallbackReasons: ProfessorDecisionReason[] = [];
+  if (focus) fallbackReasons.push({ message: "Aula alinhada ao foco da semana.", evidence: focus });
+  if (load) fallbackReasons.push({ message: "Carga definida para esta etapa do ciclo.", evidence: `PSE ${load}` });
+  return fallbackReasons;
 };
 
 const buildGuidance = (params: {
@@ -275,6 +311,7 @@ const buildEvent = (
       )
     : [];
   const guidance = buildGuidance({ plan: item.plan, dailyPlan, blocks });
+  const decisionReasons = parsePublicDecisionReasons(dailyPlan, item.plan);
   const status = resolveStatus(dailyPlan);
   const snapshotPresentation = parsePlanningPresentation({
     plan: item.plan,
@@ -319,6 +356,7 @@ const buildEvent = (
     session,
     dailyPlan,
     guidance,
+    decisionReasons,
     blocks,
   };
 };

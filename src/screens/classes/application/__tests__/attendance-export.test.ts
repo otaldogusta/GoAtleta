@@ -2,6 +2,7 @@ import type { AttendanceRecord, ClassGroup, Student } from "../../../../core/mod
 import {
   buildAttendanceExportData,
   buildAttendanceExportFileParts,
+  buildClassRosterPdfFileName,
   canAccessAttendanceExport,
 } from "../attendance-export";
 
@@ -228,5 +229,21 @@ describe("attendance operational export", () => {
       "2026-08-01",
       "2026-08-31",
     ]);
+  });
+
+  test("names the roster PDF with its class and selected month", () => {
+    expect(buildClassRosterPdfFileName({
+      className: "Hipopótamos Qua e Sex",
+      monthLabel: "Setembro 2026",
+      includeAttendance: true,
+      startTime: "18:00",
+    })).toBe("Chamada - Hipopótamos Qua e Sex - 18h - Setembro 2026.pdf");
+
+    expect(buildClassRosterPdfFileName({
+      className: "Turma / Iniciação",
+      monthLabel: "Outubro 2026",
+      includeAttendance: false,
+      startTime: "18:30",
+    })).toBe("Lista de chamada - Turma Iniciação - 18h30 - Outubro 2026.pdf");
   });
 });

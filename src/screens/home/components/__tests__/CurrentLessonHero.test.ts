@@ -69,4 +69,26 @@ describe("CurrentLessonHero", () => {
     expect(screen.queryByLabelText("Aula anterior")).toBeNull();
     expect(screen.queryByLabelText("Próxima aula")).toBeNull();
   });
+
+  it("always identifies the specific class used by the lesson actions", () => {
+    const groupedSlot = {
+      ...slot,
+      items: [
+        ...slot.items,
+        { ...slot.items[0], classId: "class-2", className: "Turma 13-15" },
+      ],
+    };
+    const screen = render(
+      React.createElement(CurrentLessonHero, {
+        slot: groupedSlot,
+        selectedDateLabel: "Sábado, 15 de agosto",
+        isToday: false,
+        onOpenLesson: jest.fn(),
+        onOpenAttendance: jest.fn(),
+      }),
+    );
+
+    expect(screen.getByText("Estrelas do Saque")).toBeTruthy();
+    expect(screen.queryByText("2 turmas em paralelo")).toBeNull();
+  });
 });

@@ -772,6 +772,16 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
         </View>
         <Text style={{ color: colors.text, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{title}</Text>
         <Text style={{ color: colors.muted, fontSize: 10 }}>Semana {event.weekNumber} · {phaseLabel} · {event.loadLabel || "Sem PSE"}</Text>
+        {event.decisionReasons.length ? (
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Por que este plano</Text>
+            {event.decisionReasons.map((reason, index) => (
+              <Text key={`${reason.message}-${index}`} style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
+                {reason.message}{reason.evidence ? ` · ${reason.evidence}` : ""}
+              </Text>
+            ))}
+          </View>
+        ) : null}
       </View>
       <View style={{ height: 1, backgroundColor: colors.border }} />
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, overflow: "visible" }}>

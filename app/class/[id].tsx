@@ -29,7 +29,7 @@ import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-sco
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
-import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
+import { exportPdf } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import { ClassEditModalPickers, ModernClassEditModalBody } from "../../src/screens/classes/components/ClassEditModalBody";
 import { ClassStaffHistoryPanel } from "../../src/screens/classes/components/ClassStaffHistoryPanel";
@@ -81,6 +81,7 @@ import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
 import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
 import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
+import { buildClassRosterPdfFileName } from "../../src/screens/classes/application/attendance-export";
 import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import { retrieveDocumentSupportForPlan } from "../../src/screens/session/application/retrieve-document-support-for-plan";
 import { resolveClassPlanForSessionDate } from "../../src/screens/session/application/resolve-class-plan-for-session-date";
@@ -591,11 +592,6 @@ export default function ClassDetails() {
     const date = parseIsoDate(value) ?? new Date();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     return `${date.getFullYear()}-${month}`;
-  };
-  const getGenderCode = (value?: ClassGroup["gender"] | null) => {
-    if (value === "feminino") return "fem";
-    if (value === "masculino") return "masc";
-    return "misto";
   };
   const formatPhoneDisplay = (digits: string) => {
     if (!digits) return "-";
@@ -2267,9 +2263,12 @@ export default function ClassDetails() {
         rows,
       };
 
-      const fileDate = exportDate.replaceAll("/", "-");
-      const genderCode = getGenderCode(cls.gender);
-      const fileName = options.includeAttendance ? `lista_chamada_presencas_${safeFileName(className)}_${genderCode}_${fileDate}.pdf` : `lista_chamada_${safeFileName(className)}_${genderCode}_${fileDate}.pdf`;
+      const fileName = buildClassRosterPdfFileName({
+        className,
+        monthLabel,
+        includeAttendance: options.includeAttendance,
+        startTime: classStartTime,
+      });
 
       await exportPdf({
         html: classRosterHtml(data),

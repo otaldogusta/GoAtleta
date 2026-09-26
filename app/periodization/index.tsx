@@ -72,7 +72,10 @@ import { buildPeriodizationWeekSchedule } from "../../src/screens/periodization/
 import { buildNextCycleDraft } from "../../src/screens/periodization/application/next-cycle-draft";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
-import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
+import {
+  useGeneratePlansMode,
+  type GenerationCycleIdentity,
+} from "../../src/screens/periodization/hooks/useGeneratePlansMode";
 import { useImportPlansFile } from "../../src/screens/periodization/hooks/useImportPlansFile";
 import { usePeriodizationCopilotActions } from "../../src/screens/periodization/hooks/usePeriodizationCopilotActions";
 import { usePickerLayout } from "../../src/screens/periodization/hooks/usePickerLayout";
@@ -1751,18 +1754,13 @@ export default function PeriodizationScreen() {
     selectedClass,
   ]);
 
-  useEffect(() => {
+  const refreshRecentSessionSummaries = useCallback(async () => {
     if (!selectedClass) {
-      Promise.resolve().then(() => {
-        setRecentSessionSummaries([]);
-      });
-      return;
+      setRecentSessionSummaries([]);
+      return null;
     }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const [plans, sessionEvidence, sessionLogs] = await Promise.all([
+    try {
+      const [plans, sessionEvidence, sessionLogs] = await Promise.all([
           getTrainingPlans({
             organizationId:
               selectedClass.organizationId ?? activeOrganization?.id ?? null,
@@ -1780,36 +1778,34 @@ export default function PeriodizationScreen() {
               selectedClass.organizationId ?? activeOrganization?.id ?? null,
             limit: 24,
           }),
-        ]);
-
-        if (cancelled) return;
-
-        setRecentSessionSummaries(
-          buildRecentSessionSummary({
+      ]);
+      const summaries = buildRecentSessionSummary({
             classId: selectedClass.id,
             plans,
             sessions: sessionEvidence.sessions,
             attendance: sessionEvidence.attendance,
             sessionLogs,
             limit: 6,
-          }),
-        );
-      } catch (error) {
-        if (cancelled) return;
-        setRecentSessionSummaries([]);
-        logAction("periodization_recent_history_load_failed", {
+      });
+      setRecentSessionSummaries(summaries);
+      return summaries;
+    } catch (error) {
+      setRecentSessionSummaries([]);
+      logAction("periodization_recent_history_load_failed", {
           classId: selectedClass.id,
           organizationId:
             selectedClass.organizationId ?? activeOrganization?.id ?? null,
           error: String(error),
-        });
-      }
-    })();
+      });
+      return null;
+    }
+  }, [activeOrganization, selectedClass]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeOrganization?.id, selectedClass]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshRecentSessionSummaries();
+    }, [refreshRecentSessionSummaries]),
+  );
 
   useEffect(() => {
     if (hasInitialClass) return;
@@ -2765,13 +2761,17 @@ export default function PeriodizationScreen() {
   );
 
   const buildAutoPlanForWeek = useCallback(
-    (weekNumber: number, existing: ClassPlan | null = null) => {
+    (
+      weekNumber: number,
+      existing: ClassPlan | null = null,
+      cycleOverride?: GenerationCycleIdentity,
+    ) => {
       return buildAutoWeekPlan({
         selectedClass,
         weekNumber,
         existing,
         cycleLength: effectiveCycleLength,
-        activeCycleStartDate,
+        activeCycleStartDate: cycleOverride?.startDate ?? activeCycleStartDate,
         isCompetitiveMode,
         calendarExceptions,
         competitiveProfile,
@@ -2782,7 +2782,7 @@ export default function PeriodizationScreen() {
         recentDailyLessonPlans,
         recentSessionSummaries,
         periodizationPolicy: activePeriodizationPolicy,
-        activeCycleId: activeCycle?.id,
+        activeCycleId: cycleOverride?.id ?? activeCycle?.id,
         policyVersion: activeCycle?.policyVersion,
       });
     },
@@ -3354,6 +3354,49 @@ export default function PeriodizationScreen() {
     setIsSavingPlans,
   });
 
+  const appliedReportRefreshRef = useRef("");
+  useEffect(() => {
+    const latestSessionDate = recentSessionSummaries[0]?.sessionDate;
+    if (!selectedClass || !activeCycle || !latestSessionDate) return;
+
+    const refreshKey = `${selectedClass.id}:${activeCycle.id}:${latestSessionDate}`;
+    if (appliedReportRefreshRef.current === refreshKey) return;
+    appliedReportRefreshRef.current = refreshKey;
+
+    void handleGenerateMode("auto", activeCycle, { futureOnly: true })
+      .then(() => {
+        setPlanningWorkspaceRefreshSignal((current) => current + 1);
+      })
+      .catch((error) => {
+        appliedReportRefreshRef.current = "";
+        logAction("periodization_report_adjustment_failed", {
+          classId: selectedClass.id,
+          cycleId: activeCycle.id,
+          latestSessionDate,
+          error: String(error),
+        });
+      });
+  }, [activeCycle, handleGenerateMode, recentSessionSummaries, selectedClass]);
+
+  const pendingSetupApplicationRef = useRef<PlanningCycle | null>(null);
+  useEffect(() => {
+    const cycle = pendingSetupApplicationRef.current;
+    if (!cycle || activeCycle?.id !== cycle.id) return;
+    pendingSetupApplicationRef.current = null;
+    void handleGenerateMode("auto", cycle, {
+      futureOnly: true,
+      forceAutomaticUpdate: true,
+    }).then(() => {
+      setPlanningWorkspaceRefreshSignal((current) => current + 1);
+    }).catch((error) => {
+      setPeriodizationSetupError(
+        error instanceof Error
+          ? error.message
+          : "A configuração foi salva, mas as semanas futuras não puderam ser atualizadas.",
+      );
+    });
+  }, [activeCycle, handleGenerateMode]);
+
   const handleGenerateAction = useCallback(
     (mode: "fill" | "auto" | "all") => {
       if (mode === "all") {
@@ -3510,6 +3553,7 @@ export default function PeriodizationScreen() {
           updatedCycle,
           ...current.filter((cycle) => cycle.id !== updatedCycle.id),
         ]);
+        pendingSetupApplicationRef.current = updatedCycle;
         setPlanningWorkspaceRefreshSignal((current) => current + 1);
         setPeriodizationGoal(goal);
         setPeriodizationMvLevel(mvLevel);

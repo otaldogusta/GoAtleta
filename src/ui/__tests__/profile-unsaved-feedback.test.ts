@@ -72,15 +72,27 @@ describe("profile unsaved feedback", () => {
     expect(source).not.toContain("Código enviado por SMS.");
   });
 
+  it("keeps the country flag selector in student and professional phone fields", () => {
+    expect(source.match(/accessibilityLabel="Selecionar código do país"/g)).toHaveLength(2);
+    expect(source.match(/<CountryFlagIcon isoCode=\{mobileCountryIso\}/g)).toHaveLength(2);
+    expect(source).not.toContain('accessibilityLabel="Código do país"');
+  });
+
   it("uses the shared responsive profile sections for the professional profile", () => {
-    expect(source).toContain('title="Perfil profissional"');
     expect(source).toContain('title="Preferências"');
     expect(source).toContain('title="Conta e segurança"');
     expect(source).toContain('title="Integrações"');
-    expect(source).toContain('label: "Turmas acessíveis"');
-    expect(source).toContain("professionalUnits.map");
     expect(source).toContain('<ProfileToggle enabled={notificationsEnabled} />');
     expect(source).toContain('<ProfileToggle enabled={mode === "dark"} />');
+  });
+
+  it("reuses the complete account and security card across profile types", () => {
+    expect(source).toContain("const accountSecuritySectionContent = (");
+    expect(source.match(/\{accountSecuritySectionContent\}/g)).toHaveLength(2);
+    expect(source).toContain("<SecurityContactFields");
+    expect(source).toContain('label="Nova senha"');
+    expect(source).toContain('label="Confirmar nova senha"');
+    expect(source).not.toContain('subtitle="E-mail, contato de segurança e senha"');
   });
 
   it("uses the professional responsive grid for the student profile", () => {

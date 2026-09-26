@@ -111,6 +111,7 @@ import {
 import { TodayScheduleRail } from "./components/TodayScheduleRail";
 import { WeekDaySelector } from "./components/WeekDaySelector";
 import type { HomeScheduleItem } from "./components/homeScheduleTypes";
+import { buildHomeScheduleSlots } from "./components/build-home-schedule-slots";
 import { buildClassAttendanceWorkspaceHref } from "../classes/class-workspace-route";
 import { resolveHomeFloatingNoticeBottom } from "./home-floating-notice-layout";
 const HomeProfessorBelowFold = lazy(() =>
@@ -124,42 +125,6 @@ function HomeProfessorBelowFoldFallback() {
     <SectionLoadingState />
   );
 }
-
-function buildScheduleSlots(items: HomeScheduleItem[]) {
-  const slotMap = new Map<
-    string,
-    {
-      key: string;
-      timeLabel: string;
-      startTime: number;
-      endTime: number;
-      items: HomeScheduleItem[];
-    }
-  >();
-
-  items.forEach((item) => {
-    const key = `${item.dateKey}-${item.startTime}-${item.endTime}`;
-    if (!slotMap.has(key)) {
-      slotMap.set(key, {
-        key,
-        timeLabel: item.timeLabel,
-        startTime: item.startTime,
-        endTime: item.endTime,
-        items: [],
-      });
-    }
-    slotMap.get(key)?.items.push(item);
-  });
-
-  return Array.from(slotMap.values())
-    .map((slot) => ({
-      ...slot,
-      items: [...slot.items].sort((a, b) => a.className.localeCompare(b.className)),
-    }))
-    .sort((a, b) => a.startTime - b.startTime);
-}
-
-
 
 export function HomeProfessorScreen({
   adminHeader,
@@ -1513,7 +1478,7 @@ export function HomeProfessorScreen({
     const lastDateKey = weekDaySummaries[weekDaySummaries.length - 1]?.dateKey;
     if (!firstDateKey || !lastDateKey) return [];
 
-    return buildScheduleSlots(
+    return buildHomeScheduleSlots(
       scheduleWindow.filter(
         (item) => item.dateKey >= firstDateKey && item.dateKey <= lastDateKey
       )
@@ -1588,8 +1553,8 @@ export function HomeProfessorScreen({
     [heroScheduleSlots]
   );
 
-  const todayScheduleSlots = useMemo(() => buildScheduleSlots(todayAgendaItems), [todayAgendaItems]);
-  const selectedDaySlots = useMemo(() => buildScheduleSlots(selectedDayItems), [selectedDayItems]);
+  const todayScheduleSlots = useMemo(() => buildHomeScheduleSlots(todayAgendaItems), [todayAgendaItems]);
+  const selectedDaySlots = useMemo(() => buildHomeScheduleSlots(selectedDayItems), [selectedDayItems]);
 
   const todayScheduleSlotPreview = useMemo(() => todayScheduleSlots.slice(0, 4), [todayScheduleSlots]);
   const todayRemainingSlots = Math.max(0, todayScheduleSlots.length - todayScheduleSlotPreview.length);

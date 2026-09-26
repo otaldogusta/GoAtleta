@@ -152,6 +152,52 @@ describe("professor agenda events", () => {
     expect(event.isMonthlyGameSession).toBe(true);
   });
 
+  it("exposes concise public reasons for the selected lesson", () => {
+    const plan = makePlan({
+      generationContextSnapshotJson: JSON.stringify({
+        decisionReasons: [
+          {
+            kind: "load",
+            source: "periodization",
+            confidence: "high",
+            message: "Carga semanal calculada pela política do ciclo.",
+            evidence: "PSE 5-6",
+          },
+        ],
+      }),
+    });
+
+    const [event] = buildProfessorAgendaEvents({
+      weeklyItems: [{ plan, label: "Semana 23", sessions: [makeSession("2026-06-04", 1)] }],
+      dailyPlansByKey: {},
+    });
+
+    expect(event.decisionReasons).toEqual([
+      {
+        message: "Carga semanal calculada pela política do ciclo.",
+        evidence: "PSE 5-6",
+      },
+    ]);
+  });
+
+  it("explains legacy plans from their persisted focus and load", () => {
+    const plan = makePlan({
+      theme: "Continuidade do passe",
+      rpeTarget: "PSE 4-5",
+      generationContextSnapshotJson: "{}",
+    });
+
+    const [event] = buildProfessorAgendaEvents({
+      weeklyItems: [{ plan, label: "Semana 23", sessions: [makeSession("2026-06-04", 1)] }],
+      dailyPlansByKey: {},
+    });
+
+    expect(event.decisionReasons).toEqual([
+      { message: "Aula alinhada ao foco da semana.", evidence: "Continuidade do passe" },
+      { message: "Carga definida para esta etapa do ciclo.", evidence: "PSE 4-5" },
+    ]);
+  });
+
   it("uses the explicit weekly theme before a conflicting technical complement", () => {
     const plan = makePlan({
       theme: "Passe e levantamento em tarefa cooperativa",
