@@ -194,6 +194,19 @@ describe("academic Edge runtime contract", () => {
     );
   });
 
+  test("sincroniza uma seleção limitada somente quando os arquivos pertencem à raiz autorizada", () => {
+    expect(syncSource).toContain("const MAX_SELECTED_FILES = 24");
+    expect(syncSource).toContain(
+      "selectedFileIds = normalizeSelectedFileIds(body?.fileIds)",
+    );
+    expect(syncSource).toContain("resolveSelectedDriveItems(");
+    expect(syncSource).toContain('"SELECTED_FILE_OUTSIDE_ROOT"');
+    expect(syncSource).toContain('"SELECTED_FILE_NOT_SUPPORTED"');
+    expect(syncSource).toContain(
+      "Um arquivo selecionado não pertence à pasta autorizada.",
+    );
+  });
+
   test("persiste papel, mês e binding confirmado no runtime documental existente", () => {
     expect(syncSource).toContain("classifyDriveFolderRole");
     expect(syncSource).toContain("resolveDriveMonth");
