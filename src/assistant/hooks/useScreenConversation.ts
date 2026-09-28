@@ -2,13 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { requestAssistantConversation } from "../../api/ai";
 import type { AssistantModelChoice } from "../model-choice";
 import type { OperationalSnapshot } from "../../copilot/operational-context";
+import { parseAssistantTrainingDraft, parseAssistantTrainingDraftReply, type AssistantTrainingDraft } from "../training-draft";
 
 const conversations = new Map<string, { messages: Message[]; input: string; savedAt: number; historyId?: string }>();
 
 type Message = { role: "user" | "assistant"; content: string };
 
+type ConversationOptions = {
+  classId?: string;
+  sport?: string;
+  lessonAction?: "discuss" | "draft" | "auto";
+};
+
 /** Mount under a user/organization/screen key so pending replies cannot cross scopes. */
-export function useScreenConversation(organizationId: string, snapshot: OperationalSnapshot, modelPreference: AssistantModelChoice, conversationKey?: string) {
+export function useScreenConversation(organizationId: string, snapshot: OperationalSnapshot, modelPreference: AssistantModelChoice, conversationKey?: string, options: ConversationOptions = {}) {
   const [restored] = useState(() => {
     const cached = conversationKey ? conversations.get(conversationKey) : undefined;
     return cached && Date.now() - cached.savedAt < 30 * 60_000 ? cached : undefined;
@@ -18,6 +25,7 @@ export function useScreenConversation(organizationId: string, snapshot: Operatio
   const [partialReply, setPartialReply] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draftTraining, setDraftTraining] = useState<AssistantTrainingDraft | null>(null);
   const alive = useRef(true);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -36,12 +44,18 @@ export function useScreenConversation(organizationId: string, snapshot: Operatio
     try {
       const result = await requestAssistantConversation({
         organizationId, messages: next.slice(-16), modelPreference,
+        classId: options.classId || undefined,
+        sport: options.sport || undefined,
+        lessonAction: options.lessonAction,
         appSnapshot: snapshot, signal: controller.signal,
         onReply: text => { if (alive.current) setPartialReply(text); },
       });
       if (!alive.current) return;
       if (!result || typeof result !== "object" || !("reply" in result) || typeof result.reply !== "string" || !result.reply.trim()) throw new Error("Resposta incompleta. Tente novamente.");
-      setMessages([...next, { role: "assistant", content: result.reply }]);
+      const response = result as { reply: string; draftTraining?: unknown };
+      const nextDraft = parseAssistantTrainingDraft(response.draftTraining) ?? parseAssistantTrainingDraftReply(response.reply);
+      setDraftTraining(nextDraft);
+      setMessages([...next, { role: "assistant", content: nextDraft ? "Montei um planejamento para você. Revise os blocos abaixo e ajuste se necessário." : response.reply }]);
     } catch (cause) {
       if (!alive.current) return;
       setMessages(messages);
@@ -59,5 +73,5 @@ export function useScreenConversation(organizationId: string, snapshot: Operatio
     conversations.set(conversationKey, { messages, input, savedAt: Date.now(), historyId });
     if (conversations.size > 10) conversations.delete(conversations.keys().next().value!);
   }
-  return { historyId: restored?.historyId, restore: (saved: { messages: Message[]; input: string }) => { setMessages(saved.messages); setInput(saved.input); setError(""); setPartialReply(""); }, remember, messages, input, setInput, partialReply, error, busy, send };
+  return { historyId: restored?.historyId, restore: (saved: { messages: Message[]; input: string }) => { setMessages(saved.messages); setInput(saved.input); setDraftTraining(null); setError(""); setPartialReply(""); }, remember, messages, input, setInput, partialReply, error, busy, draftTraining, clearDraftTraining: () => setDraftTraining(null), send };
 }

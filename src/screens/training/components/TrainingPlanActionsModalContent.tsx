@@ -11,7 +11,6 @@ type Props = {
   getClassName: (classId: string) => string;
   onClose: () => void;
   onEdit: (plan: TrainingPlan) => void;
-  onSaveAsTemplate: (plan: TrainingPlan) => void | Promise<void>;
   onDuplicate: (plan: TrainingPlan) => void;
   onDelete: (plan: TrainingPlan) => void;
 };
@@ -21,7 +20,6 @@ function TrainingPlanActionsModalContentBase({
   getClassName,
   onClose,
   onEdit,
-  onSaveAsTemplate,
   onDuplicate,
   onDelete,
 }: Props) {
@@ -67,25 +65,6 @@ function TrainingPlanActionsModalContentBase({
       >
         <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
           Editar planejamento
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={async () => {
-          await onSaveAsTemplate(plan);
-          onClose();
-        }}
-        style={{
-          paddingVertical: 10,
-          borderRadius: 12,
-          backgroundColor: colors.secondaryBg,
-          borderWidth: 1,
-          borderColor: colors.border,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: colors.text, fontWeight: "700" }}>
-          Salvar como modelo
         </Text>
       </Pressable>
 

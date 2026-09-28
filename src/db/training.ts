@@ -3,8 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import * as Sentry from "@sentry/react-native";
-import { normalizeAgeBand } from "../core/age-band";
-import type { Exercise, HiddenTemplate, TrainingPlan, TrainingTemplate } from "../core/models";
+import type { Exercise, TrainingPlan } from "../core/models";
 import {
   CACHE_KEYS,
   getActiveOrganizationId,
@@ -16,7 +15,7 @@ import {
   supabasePost,
   writeCache,
 } from "./client";
-import type { ExerciseRow, HiddenTemplateRow, TrainingPlanRow, TrainingTemplateRow } from "./row-types";
+import type { ExerciseRow, TrainingPlanRow } from "./row-types";
 
 const mapTrainingPlanRow = (row: TrainingPlanRow): TrainingPlan => ({
   id: row.id,
@@ -372,102 +371,6 @@ export async function getLatestTrainingPlanByClass(
     limit: 1,
   });
   return plans[0] ?? pickLatestFinalTrainingPlan(plans);
-}
-
-// ---------------------------------------------------------------------------
-// Training templates
-// ---------------------------------------------------------------------------
-
-export async function getTrainingTemplates(): Promise<TrainingTemplate[]> {
-  try {
-    const rows = await supabaseGet<TrainingTemplateRow[]>(
-      "/training_templates?select=*&order=createdat.desc"
-    );
-    const mapped = rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      ageBand: normalizeAgeBand(row.ageband),
-      tags: row.tags ?? [],
-      warmup: row.warmup ?? [],
-      main: row.main ?? [],
-      cooldown: row.cooldown ?? [],
-      warmupTime: row.warmuptime ?? "",
-      mainTime: row.maintime ?? "",
-      cooldownTime: row.cooldowntime ?? "",
-      createdAt: row.createdat,
-    }));
-    await writeCache(CACHE_KEYS.trainingTemplates, mapped);
-    return mapped;
-  } catch (error) {
-    if (isNetworkError(error)) {
-      const cached = await readCache<TrainingTemplate[]>(CACHE_KEYS.trainingTemplates);
-      if (cached) return cached;
-    }
-    throw error;
-  }
-}
-
-export async function saveTrainingTemplate(template: TrainingTemplate) {
-  await supabasePost("/training_templates", [
-    {
-      id: template.id,
-      title: template.title,
-      ageband: normalizeAgeBand(template.ageBand),
-      tags: template.tags ?? [],
-      warmup: template.warmup,
-      main: template.main,
-      cooldown: template.cooldown,
-      warmuptime: template.warmupTime,
-      maintime: template.mainTime,
-      cooldowntime: template.cooldownTime,
-      createdat: template.createdAt,
-    },
-  ]);
-}
-
-export async function updateTrainingTemplate(template: TrainingTemplate) {
-  await supabasePatch(
-    "/training_templates?id=eq." + encodeURIComponent(template.id),
-    {
-      title: template.title,
-      ageband: normalizeAgeBand(template.ageBand),
-      tags: template.tags ?? [],
-      warmup: template.warmup,
-      main: template.main,
-      cooldown: template.cooldown,
-      warmuptime: template.warmupTime,
-      maintime: template.mainTime,
-      cooldowntime: template.cooldownTime,
-      createdat: template.createdAt,
-    }
-  );
-}
-
-export async function deleteTrainingTemplate(id: string) {
-  await supabaseDelete(
-    "/training_templates?id=eq." + encodeURIComponent(id)
-  );
-}
-
-export async function getHiddenTemplates(): Promise<HiddenTemplate[]> {
-  const rows = await supabaseGet<HiddenTemplateRow[]>(
-    "/training_template_hides?select=*"
-  );
-  return rows.map((row) => ({
-    id: row.id,
-    templateId: row.templateid,
-    createdAt: row.createdat,
-  }));
-}
-
-export async function hideTrainingTemplate(templateId: string) {
-  await supabasePost("/training_template_hides", [
-    {
-      id: "hide_" + Date.now(),
-      templateid: templateId,
-      createdat: new Date().toISOString(),
-    },
-  ]);
 }
 
 // ---------------------------------------------------------------------------

@@ -99,6 +99,39 @@ const EVENT_ROW = {
   event_classes: [{ class_id: "class1" }],
 };
 
+const CLASS_ROW = {
+  id: "class1",
+  name: "Raposas",
+  modality: "volei",
+  ageband: "10-12",
+  gender: "misto",
+  goal: "Fundamentos",
+  mv_level: "MV1",
+  equipment: "bolas, cones",
+  days: [1, 3],
+  starttime: "14:00",
+  endtime: "15:00",
+  duration: 60,
+  cycle_start_date: "2026-01-06",
+  cycle_length_weeks: 52,
+};
+
+const COMPETITIVE_ROW = {
+  planning_mode: "adulto-competitivo",
+  cycle_start_date: "2026-01-06",
+  target_competition: "Festival Regional",
+  target_date: "2026-10-10",
+  tactical_system: "5x1",
+  current_phase: "Pré-competitiva",
+  notes: "Reduzir carga na semana anterior.",
+};
+
+const EXCEPTION_ROW = {
+  date: "2026-07-15",
+  reason: "Viagem da equipe",
+  kind: "no_training",
+};
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("resolveAIPeriodizationContext", () => {
@@ -132,11 +165,66 @@ describe("resolveAIPeriodizationContext", () => {
     expect(result!.cycle?.policyVersion).toBe(4);
     expect(result!.cycle?.loadModel).toBe("blocos");
     expect(result!.currentWeek?.focus).toBe("Recepção em deslocamento");
+    expect(result!.currentWeek?.weekNumber).toBe(27);
+    expect(result!.currentWeek?.phase).toBe("Desenvolvimento");
     expect(result!.currentWeek?.technicalPriority).toBe("Controle de plataforma");
+    expect(result!.currentWeek?.physicalPriority).toBe("Resistência aeróbica");
+    expect(result!.currentWeek?.tacticalPriority).toBe("3x3");
     expect(result!.currentWeek?.loadTarget).toBe("moderate"); // rpe_target = 6
     expect(result!.decisionHints.length).toBeGreaterThan(0);
     expect(result!.decisionHints).toContain(
       "Parâmetros confirmados (v4): modelo blocos, PSE 3–8, recuperação a cada 5 semanas.",
+    );
+  });
+
+  test("includes the complete saved periodization configuration", async () => {
+    const supabase = makeSupabaseMock({
+      classes: { data: CLASS_ROW, error: null },
+      planning_cycles: { data: CYCLE_ROW, error: null },
+      class_plans: { data: WEEK_ROW, error: null },
+      class_competitive_profiles: { data: COMPETITIVE_ROW, error: null },
+      class_calendar_exceptions: { data: [EXCEPTION_ROW], error: null },
+      events: { data: [], error: null },
+    }) as any;
+
+    const result = await resolveAIPeriodizationContext(
+      supabase,
+      "class1",
+      "2026-07-09",
+    );
+
+    expect(result?.classContext).toMatchObject({
+      name: "Raposas",
+      objective: "Fundamentos",
+      developmentLevel: "MV1",
+      daysOfWeek: [1, 3],
+      startTime: "14:00",
+      durationMinutes: 60,
+    });
+    expect(result?.cycle).toMatchObject({
+      startDate: "2026-01-06",
+      endDate: "2026-12-15",
+      loadModel: "blocos",
+    });
+    expect(result?.competitiveProfile).toMatchObject({
+      targetCompetition: "Festival Regional",
+      targetDate: "2026-10-10",
+      tacticalSystem: "5x1",
+      currentPhase: "Pré-competitiva",
+    });
+    expect(result?.calendarExceptions).toEqual([
+      {
+        date: "2026-07-15",
+        reason: "Viagem da equipe",
+        kind: "no_training",
+      },
+    ]);
+    expect(result?.decisionHints).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Agenda confirmada"),
+        expect.stringContaining("Contexto competitivo confirmado"),
+        expect.stringContaining("Sem treino em 2026-07-15"),
+      ]),
     );
   });
 

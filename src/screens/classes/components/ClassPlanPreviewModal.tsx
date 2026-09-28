@@ -216,7 +216,14 @@ export function ClassPlanPreviewModal({
   const menuTriggerRef = useRef<View | null>(null);
   const [menuAnimation] = useState(() => new Animated.Value(1));
   const workingPlanRef = useRef(plan);
-  const { canUndo, push: pushUndo, pop: popUndo, clear: clearUndo } = useUndoHistory<PlanUndoEntry>();
+  const {
+    canUndo,
+    canRedo,
+    push: pushUndo,
+    undo: undoChange,
+    redo: redoChange,
+    clear: clearUndo,
+  } = useUndoHistory<PlanUndoEntry>();
   const directEditSnapshotCapturedRef = useRef(false);
   const workspaceRootRef = useRef<View | null>(null);
 
@@ -675,17 +682,31 @@ export function ClassPlanPreviewModal({
     if (planToApply) await onApplyPlan(planToApply);
   }, [isDirty, isSaving, onApplyPlan, persistWorkingPlan]);
 
-  const handleWorkspaceUndo = useCallback(() => {
-    const previous = popUndo();
-    if (!previous) return;
-    workingPlanRef.current = previous.plan;
-    setWorkingPlan(previous.plan);
-    setPdfPlan(previous.plan);
+  const applyHistoryEntry = useCallback((entry: PlanUndoEntry) => {
+    workingPlanRef.current = entry.plan;
+    setWorkingPlan(entry.plan);
+    setPdfPlan(entry.plan);
     setPreviewRevision((current) => current + 1);
-    setIsDirty(previous.isDirty);
-    setPdfStatusLabel(previous.pdfStatusLabel);
+    setIsDirty(entry.isDirty);
+    setPdfStatusLabel(entry.pdfStatusLabel);
     directEditSnapshotCapturedRef.current = false;
-  }, [popUndo]);
+  }, []);
+
+  const currentHistoryEntry = useCallback((): PlanUndoEntry => ({
+    plan: workingPlanRef.current,
+    isDirty,
+    pdfStatusLabel,
+  }), [isDirty, pdfStatusLabel]);
+
+  const handleWorkspaceUndo = useCallback(() => {
+    const previous = undoChange(currentHistoryEntry());
+    if (previous) applyHistoryEntry(previous);
+  }, [applyHistoryEntry, currentHistoryEntry, undoChange]);
+
+  const handleWorkspaceRedo = useCallback(() => {
+    const next = redoChange(currentHistoryEntry());
+    if (next) applyHistoryEntry(next);
+  }, [applyHistoryEntry, currentHistoryEntry, redoChange]);
 
   useEffect(() => {
     if (!workspaceMode || !onWorkspaceControlsChange) return undefined;
@@ -773,13 +794,9 @@ export function ClassPlanPreviewModal({
         message: "Atividade removida.",
         actionLabel: "Desfazer",
         onAction: () => {
-          const previous = popUndo();
+          const previous = undoChange(currentHistoryEntry());
           if (!previous) return;
-
-          workingPlanRef.current = previous.plan;
-          setWorkingPlan(previous.plan);
-          setIsDirty(previous.isDirty);
-          setPdfStatusLabel(previous.pdfStatusLabel);
+          applyHistoryEntry(previous);
           showSaveToast({
             message: "Atividade restaurada.",
             variant: "success",
@@ -795,7 +812,9 @@ export function ClassPlanPreviewModal({
       selectedBlockKey,
       showSaveToast,
       updateSelectedBlock,
-      popUndo,
+      applyHistoryEntry,
+      currentHistoryEntry,
+      undoChange,
       pushUndo,
     ]
   );
@@ -803,8 +822,8 @@ export function ClassPlanPreviewModal({
   useEffect(() => {
     if (!visible || Platform.OS !== "web") return undefined;
 
-    const handleUndoShortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== "z") {
+    const handleHistoryShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") {
         return;
       }
 
@@ -812,20 +831,25 @@ export function ClassPlanPreviewModal({
       const tagName = target?.tagName?.toLowerCase();
       if (tagName === "input" || tagName === "textarea" || target?.isContentEditable) return;
 
-      const previous = popUndo();
-      if (!previous) return;
+      if (event.shiftKey) {
+        const next = redoChange(currentHistoryEntry());
+        if (!next) return;
+        event.preventDefault();
+        applyHistoryEntry(next);
+        showSaveToast({ message: "Alteração refeita.", variant: "success" });
+        return;
+      }
 
+      const previous = undoChange(currentHistoryEntry());
+      if (!previous) return;
       event.preventDefault();
-      workingPlanRef.current = previous.plan;
-      setWorkingPlan(previous.plan);
-      setIsDirty(previous.isDirty);
-      setPdfStatusLabel(previous.pdfStatusLabel);
-      showSaveToast({ message: "Remoção desfeita.", variant: "success" });
+      applyHistoryEntry(previous);
+      showSaveToast({ message: "Alteração desfeita.", variant: "success" });
     };
 
-    window.addEventListener("keydown", handleUndoShortcut);
-    return () => window.removeEventListener("keydown", handleUndoShortcut);
-  }, [showSaveToast, visible, popUndo]);
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  }, [applyHistoryEntry, currentHistoryEntry, redoChange, showSaveToast, undoChange, visible]);
 
   const handleRemove = useCallback(() => {
     if (!onRemovePlan) return;
@@ -1507,30 +1531,41 @@ export function ClassPlanPreviewModal({
 
     return (
       <View ref={workspaceRootRef} style={[styles.workspaceRoot, { backgroundColor: colors.backgroundSubtle, borderColor: colors.border }]}>
+        {onToggleWorkspaceLibrary ? (
+          <View
+            style={[
+              styles.workspaceFloatingCard,
+              styles.workspaceLibraryFloatingControl,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Pressable
+              onPress={onToggleWorkspaceLibrary}
+              accessibilityRole="button"
+              accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}
+              accessibilityState={{ expanded: workspaceLibraryExpanded }}
+              style={({ pressed }) => [
+                styles.workspaceIconButton,
+                { borderColor: colors.border, opacity: pressed ? 0.68 : 1 },
+              ]}
+            >
+              <GoAtletaIcon
+                name={workspaceLibraryExpanded ? "chevronBack" : "chevronForward"}
+                size={17}
+                color={colors.text}
+              />
+            </Pressable>
+          </View>
+        ) : null}
+
         <View
           style={[
-            styles.workspaceFloatingControls,
+            styles.workspaceFloatingCard,
+            styles.workspaceHistoryFloatingControls,
+            !onToggleWorkspaceLibrary && styles.workspaceHistoryFloatingControlsWithoutLibrary,
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-            {onToggleWorkspaceLibrary ? (
-              <Pressable
-                onPress={onToggleWorkspaceLibrary}
-                accessibilityRole="button"
-                accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}
-                accessibilityState={{ expanded: workspaceLibraryExpanded }}
-                style={({ pressed }) => [
-                  styles.workspaceIconButton,
-                  { borderColor: colors.border, opacity: pressed ? 0.68 : 1 },
-                ]}
-              >
-                <GoAtletaIcon
-                  name={workspaceLibraryExpanded ? "chevronBack" : "chevronForward"}
-                  size={17}
-                  color={colors.text}
-                />
-              </Pressable>
-            ) : null}
             <Pressable
               onPress={handleWorkspaceUndo}
               disabled={!canUndo}
@@ -1546,7 +1581,34 @@ export function ClassPlanPreviewModal({
             >
               <GoAtletaIcon name="restore" size={17} color={colors.text} />
             </Pressable>
-            <View style={[styles.workspaceZoomControl, { borderColor: colors.border }]}>
+            <Pressable
+              onPress={handleWorkspaceRedo}
+              disabled={!canRedo}
+              accessibilityRole="button"
+              accessibilityLabel="Refazer alteração"
+              accessibilityHint="Atalho Ctrl Shift Z"
+              style={({ pressed }) => [
+                styles.workspaceIconButton,
+                {
+                  borderColor: colors.border,
+                  opacity: !canRedo ? 0.4 : pressed ? 0.68 : 1,
+                },
+              ]}
+            >
+              <GoAtletaIcon name="redo" size={17} color={colors.text} />
+            </Pressable>
+        </View>
+
+        <View
+          style={styles.workspaceViewFloatingControls}
+        >
+            <View
+              style={[
+                styles.workspaceFloatingGroup,
+                styles.workspaceZoomControl,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
               <Pressable
                 onPress={() => setPreviewZoom((current) => Math.max(70, current - 10))}
                 accessibilityRole="button"
@@ -1565,7 +1627,13 @@ export function ClassPlanPreviewModal({
                 <GoAtletaIcon name="add" size={16} color={colors.text} />
               </Pressable>
             </View>
-            <View style={[styles.workspacePageChip, { borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.workspaceFloatingGroup,
+                styles.workspacePageChip,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
               <Text style={[styles.workspacePageChipLabel, { color: colors.muted }]}>{previewPage} / {previewPageCount}</Text>
             </View>
             <Pressable
@@ -1573,8 +1641,13 @@ export function ClassPlanPreviewModal({
               accessibilityRole="button"
               accessibilityLabel="Ajustar documento à largura"
               style={({ pressed }) => [
+                styles.workspaceFloatingGroup,
                 styles.workspaceFitButton,
-                { opacity: pressed ? 0.68 : 1 },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.68 : 1,
+                },
               ]}
             >
               <GoAtletaIcon name="expand" size={16} color={colors.text} />
@@ -1814,18 +1887,38 @@ const styles = StyleSheet.create({
   workspaceRootNative: {
     borderRadius: 12,
   },
-  workspaceFloatingControls: {
+  workspaceFloatingCard: {
     position: "absolute",
-    left: 14,
-    top: 14,
     zIndex: 20,
-    minHeight: 42,
-    padding: 4,
     borderWidth: 1,
     borderRadius: 11,
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
+    boxShadow: "0 8px 20px rgba(10, 19, 34, 0.22)",
+  },
+  workspaceLibraryFloatingControl: {
+    left: 14,
+    top: 14,
+  },
+  workspaceHistoryFloatingControls: {
+    left: 66,
+    top: 14,
+  },
+  workspaceHistoryFloatingControlsWithoutLibrary: {
+    left: 14,
+  },
+  workspaceViewFloatingControls: {
+    position: "absolute",
+    right: 14,
+    bottom: 14,
+    zIndex: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  workspaceFloatingGroup: {
+    borderWidth: 1,
     boxShadow: "0 8px 20px rgba(10, 19, 34, 0.22)",
   },
   workspaceIconButton: {
@@ -1915,7 +2008,7 @@ const styles = StyleSheet.create({
     outlineStyle: "none",
   } as any,
   workspaceDurationSuffix: { fontSize: 11, fontWeight: "700" },
-  workspacePreview: { flex: 1, minHeight: 0, paddingTop: 68 },
+  workspacePreview: { flex: 1, minHeight: 0 },
   headerButton: {
     minHeight: 40,
     borderWidth: 1,

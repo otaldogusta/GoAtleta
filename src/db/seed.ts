@@ -61,7 +61,7 @@ export {
 
 export {
     deleteExercise, deleteTrainingPlan,
-    deleteTrainingPlansByClassAndDate, deleteTrainingTemplate, getExercises, getHiddenTemplates, getLatestTrainingPlanByClass, getTrainingPlans, getTrainingTemplates, hideTrainingTemplate, saveExercise, saveTrainingPlan, saveTrainingPlans, saveTrainingTemplate, updateExercise, updateTrainingPlan, updateTrainingTemplate
+    deleteTrainingPlansByClassAndDate, getExercises, getLatestTrainingPlanByClass, getTrainingPlans, saveExercise, saveTrainingPlan, saveTrainingPlans, updateExercise, updateTrainingPlan
 } from "./training";
 
 export {

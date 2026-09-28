@@ -51,8 +51,10 @@ superfícies automaticamente.
 - `AnchoredDropdown`: camada canônica para listas de seleção, autocomplete e menus
   ligados a um campo. No web, a lista é renderizada no portal do `body`, sempre
   acima de modais e campos, sem participar do layout, aumentar o modal ou mover o
-  formulário. Não implementar listas flutuantes com `position: absolute` dentro
-  do conteúdo rolável de um modal.
+  formulário. Por padrão, listas curtas ajustam a altura ao conteúdo; `maxHeight`
+  limita listas longas e a rolagem aparece somente quando há overflow real. Não
+  implementar listas flutuantes com `position: absolute` dentro do conteúdo
+  rolável de um modal.
 
 ## Validação de formulários
 

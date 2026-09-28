@@ -3,19 +3,17 @@ import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { buildPlanningCopilotContext } from "../../src/screens/training/application/planning-copilot-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 
 import { Pressable } from "../../src/ui/Pressable";
 import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
-import { normalizeAgeBand } from "../../src/core/age-band";
 import { translateMethodology } from "../../src/core/methodology/methodology-translator";
-import type { ClassGroup, Exercise, HiddenTemplate, TrainingPlan, TrainingPlanActivity, TrainingTemplate } from "../../src/core/models";
+import type { ClassGroup, Exercise, TrainingPlan, TrainingPlanActivity } from "../../src/core/models";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import type { TrainingPlanBlockKey } from "../../src/core/training-plan-blocks";
-import { trainingTemplates } from "../../src/core/trainingTemplates";
-import { deleteTrainingPlan, deleteTrainingTemplate, getClasses, getHiddenTemplates, getLatestTrainingPlanByClass, getTrainingPlans, getTrainingTemplates, hideTrainingTemplate, saveTrainingPlan, saveTrainingTemplate, updateTrainingTemplate, upsertTrainingSession } from "../../src/db/seed";
+import { deleteTrainingPlan, getClasses, getLatestTrainingPlanByClass, getTrainingPlans, saveTrainingPlan, upsertTrainingSession } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useAuth } from "../../src/auth/auth";
@@ -26,7 +24,7 @@ import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 
 import { PlanningLibraryBridgeSheet } from "../../src/screens/training/components/PlanningLibraryBridgeSheet";
-import { TrainingPlanningWorkspaceLibrary, type TrainingPlanningWorkspaceTemplate } from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
+import { TrainingPlanningWorkspaceLibrary } from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
 import type { ClassPlanWorkspaceHeaderControls } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { normalizeClassTrainingPlan } from "../../src/screens/classes/application/edit-class-training-plan";
 import { addPlanningActivityToBlock, buildPlanningActivitiesFromLegacyLines, buildTrainingPlanActivityFromCatalogItem, buildTrainingPlanActivityFromExerciseLink, createPlanningWorkspaceDraft, createEmptyPlanningBlockActivities, hydratePlanningActivitiesFromPlan, type PlanningBlockActivities } from "../../src/screens/training/application/planning-library-bridge";
@@ -35,7 +33,6 @@ import { buildTrainingPlanWorkspaceExitConfirmation } from "../../src/screens/tr
 import { buildTrainingPlanWorkspaceDraftKey, loadTrainingPlanWorkspaceLibrary, removeTrainingPlanWorkspaceLibraryItem, upsertTrainingPlanWorkspaceLibrary } from "../../src/screens/training/application/training-plan-workspace-draft";
 import { createTrainingPlanApplication } from "../../src/screens/training/application/apply-training-plan";
 import { createAssistantWorkspacePlan, resolveWorkspaceEntryRequest, resolveWorkspaceDraftRestoration } from "../../src/screens/training/application/workspace-entry";
-import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
 import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
 import { useTrainingPlanWorkspaceDraft } from "../../src/screens/training/hooks/useTrainingPlanWorkspaceDraft";
 import type { ActivityCatalogListItem } from "../../src/screens/library/activity-catalog-view-model";
@@ -58,21 +55,12 @@ import { useOptionalOrganization } from "../../src/providers/organization-contex
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
-const TemplateEditorModalContent = lazy(() =>
-  import("../../src/screens/training/components/TemplateEditorModalContent").then((module) => ({
-    default: module.TemplateEditorModalContent,
-  }))
-);
 
 const TrainingApplyModalContent = lazy(() =>
   import("../../src/screens/training/components/TrainingApplyModalContent").then((module) => ({
     default: module.TrainingApplyModalContent,
   }))
 );
-
-function createTrainingTemplateId() {
-  return `tpl_${Date.now()}`;
-}
 
 const TrainingPlanActionsModalContent = lazy(() =>
   import("../../src/screens/training/components/TrainingPlanActionsModalContent").then(
@@ -197,7 +185,6 @@ function TrainingWorkspace() {
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
-  const templateEditorCardStyle = useModalCardStyle({ maxHeight: "100%" });
 
   const applyModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const planActionsCardStyle = useModalCardStyle({ maxHeight: "100%" });
@@ -232,8 +219,7 @@ function TrainingWorkspace() {
       : "";
   const initialTab =
     initialTabRaw === "formulario" ||
-    initialTabRaw === "salvos" ||
-    initialTabRaw === "modelos"
+    initialTabRaw === "salvos"
       ? initialTabRaw
       : "";
   const {
@@ -252,8 +238,6 @@ function TrainingWorkspace() {
   } = useTrainingPlanForm();
   const { title, tagsText, warmup, main, cooldown, editingId, formUnit } = planForm;
   const [items, setItems] = useState<TrainingPlan[]>([]);
-  const [templateItems, setTemplateItems] = useState<TrainingTemplate[]>([]);
-  const [hiddenTemplates, setHiddenTemplates] = useState<HiddenTemplate[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classCatalogKey, setClassCatalogKey] = useState<string | null>(null);
   const [isPlanningBootstrapLoading, setIsPlanningBootstrapLoading] = useState(true);
@@ -372,27 +356,12 @@ function TrainingWorkspace() {
   const formClassTriggerRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [scrollRequested, setScrollRequested] = useState(false);
-  const [templateAgeBand, ] = useState("");
-  const [, setFormMode] = useState<"plan" | "template">("plan");
   const [planningTab, setPlanningTab] = useState<
-    "formulario" | "salvos" | "modelos"
+    "formulario" | "salvos"
   >("formulario");
-  const { templateForm, setTemplateTitle, setTemplateAge, setTemplateTags, setTemplateWarmup, setTemplateMain, setTemplateCooldown, setTemplateWarmupTime, setTemplateMainTime, setTemplateCooldownTime, setTemplateEditorId, setTemplateEditorCreatedAt, setTemplateEditorSource, setTemplateEditorTemplateId, setTemplateEditorComposerHeight, setTemplateEditorKeyboardHeight, setShowTemplateEditor, setShowTemplateCloseConfirm } = useTemplateEditorForm();
-  const { templateTitle, templateAge, templateTags, templateWarmup, templateMain, templateCooldown, templateWarmupTime, templateMainTime, templateCooldownTime, templateEditorId, templateEditorCreatedAt, templateEditorSource, templateEditorTemplateId, templateEditorComposerHeight, templateEditorKeyboardHeight, showTemplateEditor, showTemplateCloseConfirm } = templateForm;
   markRender("screen.training.render.root");
   const [lastCreatedPlanId, ] = useState<string | null>(null);
   const [lastCreatedClassId, ] = useState("");
-  const [templateEditorSnapshot, setTemplateEditorSnapshot] = useState<{
-    title: string;
-    age: string;
-    tags: string;
-    warmup: string;
-    main: string;
-    cooldown: string;
-    warmupTime: string;
-    mainTime: string;
-    cooldownTime: string;
-  } | null>(null);
   const [pendingPlanCreate, setPendingPlanCreate] = usePersistedState<{
     classId: string;
     date: string;
@@ -459,6 +428,14 @@ function TrainingWorkspace() {
     animatedStyle: applyClassPickerAnimStyle,
     isVisible: showApplyClassPickerContent,
   } = useCollapsibleAnimation(showApplyClassPicker, { translateY: -6 });
+  const {
+    animatedStyle: workspaceLibraryPanelAnimStyle,
+    isVisible: showWorkspaceLibraryPanel,
+  } = useCollapsibleAnimation(!workspaceLibraryCollapsed, {
+    durationIn: 180,
+    durationOut: 150,
+    translateY: -4,
+  });
   const [handledApplyPlanId, setHandledApplyPlanId] = useState<string | null>(
     null
   );
@@ -738,32 +715,6 @@ function TrainingWorkspace() {
     }
   }, [classOptionsForUnit, applyClassId]);
 
-  const isTemplateEditorDirty = useMemo(() => {
-    if (!templateEditorSnapshot) return false;
-    return (
-      templateEditorSnapshot.title !== templateTitle ||
-      templateEditorSnapshot.age !== templateAge ||
-      templateEditorSnapshot.tags !== templateTags ||
-      templateEditorSnapshot.warmup !== templateWarmup ||
-      templateEditorSnapshot.main !== templateMain ||
-      templateEditorSnapshot.cooldown !== templateCooldown ||
-      templateEditorSnapshot.warmupTime !== templateWarmupTime ||
-      templateEditorSnapshot.mainTime !== templateMainTime ||
-      templateEditorSnapshot.cooldownTime !== templateCooldownTime
-    );
-  }, [
-    templateAge,
-    templateCooldown,
-    templateCooldownTime,
-    templateEditorSnapshot,
-    templateMain,
-    templateMainTime,
-    templateTags,
-    templateTitle,
-    templateWarmup,
-    templateWarmupTime,
-  ]);
-
   const isApplyDirty = useMemo(() => {
     if (!applySnapshot) return false;
     const nextDays = applyDays.slice().sort((a, b) => a - b);
@@ -794,61 +745,6 @@ function TrainingWorkspace() {
     return currentDays.every((value, index) => value === nextDays[index]);
   }, [applyPlan, applyClassId, applyDate, applyDays]);
 
-  const templates = useMemo(() => {
-    const combined = [
-      ...trainingTemplates.map((template) => ({
-        id: "built_" + template.id,
-        title: template.title,
-        tags: template.tags,
-        warmup: template.warmup,
-        main: template.main,
-        cooldown: template.cooldown,
-        warmupTime: template.warmupTime,
-        mainTime: template.mainTime,
-        cooldownTime: template.cooldownTime,
-        ageBands: template.ageBands
-          .map((band) => normalizeAgeBand(band))
-          .filter(Boolean),
-        createdAt: "",
-        source: "built" as const,
-      })),
-      ...templateItems.map((template) => ({
-        id: template.id,
-        title: template.title,
-        tags: template.tags,
-        warmup: template.warmup,
-        main: template.main,
-        cooldown: template.cooldown,
-        warmupTime: template.warmupTime,
-        mainTime: template.mainTime,
-        cooldownTime: template.cooldownTime,
-        ageBands: [normalizeAgeBand(template.ageBand)].filter(Boolean),
-        createdAt: template.createdAt,
-        source: "custom" as const,
-      })),
-    ];
-    const hiddenSet = new Set(
-      hiddenTemplates.map((item) => item.templateId)
-    );
-    const visible = combined.filter(
-      (template) => !hiddenSet.has(template.id)
-    );
-    if (!templateAgeBand) return visible;
-    const normalizedBand = normalizeAgeBand(templateAgeBand);
-    return visible.filter((template) =>
-      template.ageBands.includes(normalizedBand)
-    );
-  }, [templateAgeBand, templateItems, hiddenTemplates]);
-
-  const refreshTemplateCatalog = useCallback(async () => {
-    const [templatesDb, hidden] = await Promise.all([
-      getTrainingTemplates(),
-      getHiddenTemplates(),
-    ]);
-    setTemplateItems(templatesDb);
-    setHiddenTemplates(hidden);
-  }, []);
-
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -867,26 +763,11 @@ function TrainingWorkspace() {
         setClasses(classList);
         setClassCatalogKey(workspaceDraftKey);
         setItems([...localPlans, ...plans.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
-        void measureAsync(
-          "screen.training.load.templates",
-          async () => {
-            const [templatesDb, hidden] = await Promise.all([
-              getTrainingTemplates(),
-              getHiddenTemplates(),
-            ]);
-            if (!alive) return;
-            setTemplateItems(templatesDb);
-            setHiddenTemplates(hidden);
-          },
-          { screen: "training" }
-        );
       } catch (error) {
         if (!alive) return;
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes("Missing auth token")) {
           setClasses([]);
-          setTemplateItems([]);
-          setHiddenTemplates([]);
           setItems([]);
           return;
         }
@@ -935,22 +816,6 @@ function TrainingWorkspace() {
     incomingWorkspaceEntry,
   ]);
 
-  useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const onShow = (event: any) => {
-      const height = event.endCoordinates?.height ?? 0;
-      setTemplateEditorKeyboardHeight(height);
-    };
-    const onHide = () => setTemplateEditorKeyboardHeight(0);
-    const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [setTemplateEditorKeyboardHeight]);
-
   const tagCounts = useMemo(() => {
     const source = items;
     const map: Record<string, number> = {};
@@ -976,28 +841,20 @@ function TrainingWorkspace() {
       .map((t) => t.toLowerCase());
   }, [tagsText]);
 
-  const templateCurrentTags = useMemo(() => {
-    return templateTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .map((t) => t.toLowerCase());
-  }, [templateTags]);
-
   const selectedClassForMethodology = useMemo(
     () => classes.find((item) => item.id === classId) ?? null,
     [classId, classes]
   );
 
   const methodologyTranslation = useMemo(() => {
-    const selectedAgeBand = selectedClassForMethodology?.ageBand || templateAgeBand;
+    const selectedAgeBand = selectedClassForMethodology?.ageBand;
     if (!selectedAgeBand) return null;
     return translateMethodology({
       ageBand: selectedAgeBand,
       sessionDurationMinutes: selectedClassForMethodology?.durationMinutes ?? 60,
-      objectiveHint: title || templateTitle,
+      objectiveHint: title,
     });
-  }, [selectedClassForMethodology, templateAgeBand, templateTitle, title]);
+  }, [selectedClassForMethodology, title]);
 
   useMemo(() => {
     const planText = [
@@ -1054,73 +911,6 @@ function TrainingWorkspace() {
     }
     return result.slice(0, 8);
   }, [cooldown, currentTags, main, methodologyTranslation, tagCounts, title, warmup]);
-
-  const templateSuggestions = useMemo(() => {
-    const templateText = [
-      templateTitle,
-      templateWarmup,
-      templateMain,
-      templateCooldown,
-    ].join(" ");
-    const keywords = extractKeywords(templateText);
-    const keywordSet = new Set(keywords);
-    const translatorTags =
-      templateAge.trim() || templateAgeBand
-        ? translateMethodology({
-            ageBand: templateAge.trim() || templateAgeBand,
-            objectiveHint: templateTitle,
-          }).tags
-        : [];
-
-    const fromExistingTags = tagCounts
-      .map(([tag]) => tag)
-      .filter((tag) => {
-        const normalized = tag.toLowerCase();
-        return (
-          !templateCurrentTags.includes(normalized) &&
-          (keywordSet.has(normalized) || keywords.some((word) => normalized.includes(word)))
-        );
-      });
-
-    const keywordCounts = keywords.reduce<Record<string, number>>((acc, token) => {
-      acc[token] = (acc[token] ?? 0) + 1;
-      return acc;
-    }, {});
-    const fromTemplateText = Object.entries(keywordCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([token]) => token)
-      .filter((token) => !templateCurrentTags.includes(token));
-
-    const combined = [...translatorTags, ...fromExistingTags, ...fromTemplateText];
-    const seen = new Set<string>();
-    const result: string[] = [];
-    combined.forEach((tag) => {
-      const normalized = tag.toLowerCase();
-      if (seen.has(normalized)) return;
-      seen.add(normalized);
-      result.push(tag);
-    });
-    if (result.length < 6) {
-      tagCounts
-        .map(([tag]) => tag)
-        .forEach((tag) => {
-          const normalized = tag.toLowerCase();
-          if (seen.has(normalized) || templateCurrentTags.includes(normalized)) return;
-          seen.add(normalized);
-          result.push(tag);
-        });
-    }
-    return result.slice(0, 6);
-  }, [
-    tagCounts,
-    templateAge,
-    templateAgeBand,
-    templateCooldown,
-    templateCurrentTags,
-    templateMain,
-    templateTitle,
-    templateWarmup,
-  ]);
 
   const reload = useCallback(async () => {
     const [data, localPlans] = await Promise.all([
@@ -1384,7 +1174,6 @@ function TrainingWorkspace() {
     setCooldownTime(plan.cooldownTime);
     setClassId(plan.classId);
     setFormUnit(unitLabel(classes.find((item) => item.id === plan.classId)?.unit ?? ""));
-    setFormMode("plan");
     setScrollRequested(true);
   };
 
@@ -1411,18 +1200,6 @@ function TrainingWorkspace() {
       },
     });
   };
-
-  const pickClassIdForAgeBand = useCallback(
-    (band: string) => {
-      if (!band) return "";
-      const normalized = normalizeAgeBand(band);
-      const match = classes.find(
-        (item) => normalizeAgeBand(item.ageBand) === normalized
-      );
-      return match ? match.id : "";
-    },
-    [classes]
-  );
 
   const applyTemplate = useCallback((template: {
     id: string;
@@ -1456,29 +1233,9 @@ function TrainingWorkspace() {
     setScrollRequested(true);
   }, [applyLegacyActivitiesToPlanningForm, setCooldown, setCooldownTime, setEditingCreatedAt, setEditingId, setMain, setMainTime, setTagsText, setTitle, setWarmup, setWarmupTime]);
 
-  const applyTemplateAsPlan = useCallback((template: {
-    id: string;
-    title: string;
-    tags: string[];
-    warmup: string[];
-    main: string[];
-    cooldown: string[];
-    warmupTime: string;
-    mainTime: string;
-    cooldownTime: string;
-    ageBands: string[];
-    source: "built" | "custom";
-    createdAt: string;
-  }) => {
-    setFormMode("plan");
-    setClassId(
-      templateAgeBand ? pickClassIdForAgeBand(templateAgeBand) : ""
-    );
-    applyTemplate(template);
-  }, [applyTemplate, pickClassIdForAgeBand, templateAgeBand]);
-
   const duplicatePlan = (plan: TrainingPlan) => {
-    applyTemplateAsPlan({
+    setClassId(plan.classId);
+    applyTemplate({
       id: "dup_" + Date.now(),
       title: plan.title + " (copia)",
       tags: plan.tags ?? [],
@@ -1646,84 +1403,6 @@ function TrainingWorkspace() {
     }
   };
 
-  const deleteTemplateItem = (id: string, source: "built" | "custom") => {
-    confirm({
-      title: "Excluir modelo?",
-      message: "Essa ação pode ser desfeita por alguns segundos.",
-      confirmLabel: "Excluir",
-      undoMessage: "Modelo excluído. Deseja desfazer?",
-      onOptimistic: () => {
-        if (source === "custom") {
-          setTemplateItems((prev) => prev.filter((item) => item.id !== id));
-        } else {
-          setHiddenTemplates((prev) => [
-            ...prev,
-            { id: "hide_" + Date.now(), templateId: id, createdAt: new Date().toISOString() },
-          ]);
-        }
-      },
-      onConfirm: async () => {
-        if (source === "custom") {
-          await measure("deleteTrainingTemplate", () => deleteTrainingTemplate(id));
-          setTemplateItems((current) => current.filter((item) => item.id !== id));
-          logAction("Excluir modelo", { templateId: id, source });
-        } else {
-          await measure("hideTrainingTemplate", () => hideTrainingTemplate(id));
-          setHiddenTemplates((current) => [
-            ...current,
-            { id: "hide_" + Date.now(), templateId: id, createdAt: new Date().toISOString() },
-          ]);
-          logAction("Ocultar modelo", { templateId: id, source });
-        }
-      },
-      onUndo: async () => {
-        await refreshTemplateCatalog();
-      },
-    });
-  };
-
-  const duplicateTemplateFromEditor = async () => {
-    const band = templateAge.trim() || templateAgeBand;
-    if (!band) {
-      Alert.alert("Defina a faixa etária", "Informe a faixa etária do modelo.");
-      return;
-    }
-    const copy: TrainingTemplate = {
-      id: createTrainingTemplateId(),
-      title: (templateTitle.trim() || "Modelo sem título") + " (cópia)",
-      ageBand: band,
-      tags: templateTags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      warmup: toLines(templateWarmup),
-      main: toLines(templateMain),
-      cooldown: toLines(templateCooldown),
-      warmupTime: templateWarmupTime.trim(),
-      mainTime: templateMainTime.trim(),
-      cooldownTime: templateCooldownTime.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    await measure("saveTrainingTemplate", () => saveTrainingTemplate(copy));
-    setTemplateItems((current) => [copy, ...current.filter((item) => item.id !== copy.id)]);
-    logAction("Duplicar modelo", { templateId: copy.id, ageBand: copy.ageBand });
-    showSaveToast({ message: "Modelo duplicado com sucesso.", variant: "success" });
-  };
-
-  const closeTemplateEditor = () => {
-    setShowTemplateEditor(false);
-    setShowTemplateCloseConfirm(false);
-    setTemplateEditorSnapshot(null);
-  };
-
-  const requestCloseTemplateEditor = () => {
-    if (isTemplateEditorDirty) {
-      setShowTemplateCloseConfirm(true);
-      return;
-    }
-    closeTemplateEditor();
-  };
-
   const toggleApplyPicker = (target: "unit" | "class") => {
     setShowApplyUnitPicker((prev) => (target === "unit" ? !prev : false));
     setShowApplyClassPicker((prev) => (target === "class" ? !prev : false));
@@ -1798,107 +1477,6 @@ function TrainingWorkspace() {
   useEffect(() => {
     syncFormPickerLayouts();
   }, [showFormUnitPicker, showFormClassPicker, syncFormPickerLayouts]);
-
-  const saveTemplateEditor = async () => {
-    const ageBand = templateAge.trim() || templateAgeBand;
-    if (!ageBand) {
-      Alert.alert("Defina a faixa etária", "Informe a faixa etária do modelo.");
-      return;
-    }
-    const nowIso = new Date().toISOString();
-    const template: TrainingTemplate = {
-      id: templateEditorId ?? createTrainingTemplateId(),
-      title: templateTitle.trim() || "Modelo sem título",
-      ageBand,
-      tags: templateTags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      warmup: toLines(templateWarmup),
-      main: toLines(templateMain),
-      cooldown: toLines(templateCooldown),
-      warmupTime: templateWarmupTime.trim(),
-      mainTime: templateMainTime.trim(),
-      cooldownTime: templateCooldownTime.trim(),
-      createdAt: templateEditorCreatedAt ?? nowIso,
-    };
-    if (templateEditorId) {
-      await measure("updateTrainingTemplate", () =>
-        updateTrainingTemplate(template)
-      );
-    } else {
-      await measure("saveTrainingTemplate", () => saveTrainingTemplate(template));
-    }
-    if (templateEditorId) {
-      setTemplateItems((current) =>
-        current.map((item) =>
-          item.id === template.id
-            ? {
-                ...item,
-                title: template.title,
-                ageBand: template.ageBand,
-                tags: template.tags,
-                warmup: template.warmup,
-                main: template.main,
-                cooldown: template.cooldown,
-                warmupTime: template.warmupTime,
-                mainTime: template.mainTime,
-                cooldownTime: template.cooldownTime,
-              }
-            : item
-        )
-      );
-    } else {
-      setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
-    }
-    logAction(templateEditorId ? "Editar modelo" : "Salvar modelo", {
-      templateId: template.id,
-      ageBand: template.ageBand,
-    });
-    closeTemplateEditor();
-    setTemplateEditorId(null);
-    setTemplateEditorCreatedAt(null);
-    setTemplateEditorTemplateId(null);
-    setTemplateEditorSource("custom");
-  };
-
-  const savePlanAsTemplate = async (plan: TrainingPlan) => {
-    const band =
-      classes.find((item) => item.id === plan.classId)?.ageBand ||
-      templateAgeBand ||
-      (classes[0] ? classes[0].ageBand : "");
-    if (!band) {
-      Alert.alert("Selecione uma turma", "Defina a faixa etária primeiro.");
-      return;
-    }
-    const template: TrainingTemplate = {
-      id: createTrainingTemplateId(),
-      title: plan.title,
-      ageBand: band,
-      tags: plan.tags ?? [],
-      warmup: plan.warmup ?? [],
-      main: plan.main ?? [],
-      cooldown: plan.cooldown ?? [],
-      warmupTime: plan.warmupTime ?? "",
-      mainTime: plan.mainTime ?? "",
-      cooldownTime: plan.cooldownTime ?? "",
-      createdAt: new Date().toISOString(),
-    };
-    await saveTrainingTemplate(template);
-    setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
-    Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
-  };
-
-  const hasTemplateContent = Boolean(
-    templateTitle.trim() ||
-      templateTags.trim() ||
-      templateWarmup.trim() ||
-      templateMain.trim() ||
-      templateCooldown.trim() ||
-      templateWarmupTime.trim() ||
-      templateMainTime.trim() ||
-      templateCooldownTime.trim()
-  );
 
   const scrollToForm = useCallback(() => {
     setTimeout(() => {
@@ -2012,19 +1590,6 @@ function TrainingWorkspace() {
     }
     setShowPlanningPdfImport(true);
   };
-
-  const handleUseWorkspaceTemplate = useCallback(
-    (template: TrainingPlanningWorkspaceTemplate) => {
-      const draft = createPlanningWorkspaceDraft(null, template);
-      setSelectedPlan(draft);
-      setClassId("");
-      setWorkspaceDraftRestored(false);
-      setWorkspaceDraftLessonDate("");
-      setWorkspaceHasUnsavedChanges(false);
-      showSaveToast({ message: "Modelo aberto no documento.", variant: "success" });
-    },
-    [showSaveToast]
-  );
 
   const handleSaveWorkspacePlan = useCallback(
     async (draft: TrainingPlan) => {
@@ -2204,19 +1769,12 @@ function TrainingWorkspace() {
       presentation={presentation}
       collapsed={collapsed}
       plans={items}
-      templates={templates}
       classes={classes}
       selectedPlanId={selectedPlan?.id}
       onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
       onSelectPlan={(plan) => {
         void confirmWorkspaceReplacement(() => {
           handleViewPlan(plan);
-          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
-        });
-      }}
-      onUseTemplate={(template) => {
-        void confirmWorkspaceReplacement(() => {
-          handleUseWorkspaceTemplate(template);
           if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
         });
       }}
@@ -2241,14 +1799,15 @@ function TrainingWorkspace() {
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "flex-end",
-                    gap: responsiveLayout.isMobile ? 5 : 8,
+                    gap: responsiveLayout.isMobile ? 6 : 10,
                     flexWrap: "nowrap",
                     maxWidth: responsiveLayout.isMobile ? 178 : undefined,
                   }}
                 >
-                  {selectedPlan && workspaceHeaderControls ? (
-                    <>
-                      {!responsiveLayout.isMobile ? <View style={{ minHeight: 40, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View style={workspaceHeaderStyles.actionGroup}>
+                    {selectedPlan && workspaceHeaderControls ? (
+                      <>
+                      {!responsiveLayout.isMobile ? <View style={[workspaceHeaderStyles.status, { backgroundColor: colors.secondaryBg }]}>
                         {workspaceHeaderControls.status === "saving" ? (
                           <ActivityIndicator size="small" color={colors.warningText} />
                         ) : (
@@ -2258,43 +1817,45 @@ function TrainingWorkspace() {
                             color={workspaceHeaderControls.status === "error" ? colors.dangerText : colors.successText}
                           />
                         )}
-                        {!responsiveLayout.isMobile ? (
-                          <Text
-                            style={{
+                        <Text
+                          style={[
+                            workspaceHeaderStyles.statusText,
+                            {
                               color:
                                 workspaceHeaderControls.status === "error"
                                   ? colors.dangerText
                                   : workspaceHeaderControls.status === "saving"
                                     ? colors.warningText
                                     : colors.text,
-                              fontSize: 12,
-                              fontWeight: "700",
-                            }}
-                          >
-                            {workspaceHeaderControls.status === "error"
-                              ? "Falha ao salvar"
-                              : workspaceHeaderControls.status === "saving"
-                                ? "Salvando"
-                                : "Salvo"}
-                          </Text>
-                        ) : null}
+                            },
+                          ]}
+                        >
+                          {workspaceHeaderControls.status === "error"
+                            ? "Falha ao salvar"
+                            : workspaceHeaderControls.status === "saving"
+                              ? "Salvando"
+                              : "Salvo"}
+                        </Text>
                       </View> : null}
                       <Pressable
                         onPress={workspaceHeaderControls.onDownload}
                         disabled={workspaceHeaderControls.downloadDisabled}
                         accessibilityRole="button"
                         accessibilityLabel="Baixar PDF"
-                        style={({ pressed }) => ({
-                          width: 40,
-                          height: 40,
-                          borderRadius: 9,
-                          backgroundColor: colors.secondaryBg,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          opacity: workspaceHeaderControls.downloadDisabled ? 0.46 : pressed ? 0.72 : 1,
-                        })}
+                        style={({ pressed }) => [
+                          workspaceHeaderStyles.action,
+                          responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                            opacity: workspaceHeaderControls.downloadDisabled ? 0.46 : pressed ? 0.72 : 1,
+                          },
+                        ]}
                       >
                         <GoAtletaIcon name="download" size={18} color={colors.text} />
+                        {!responsiveLayout.isMobile ? (
+                          <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>Baixar PDF</Text>
+                        ) : null}
                       </Pressable>
                       {workspaceHeaderControls.onApply ? (
                         <Pressable
@@ -2302,77 +1863,64 @@ function TrainingWorkspace() {
                           disabled={workspaceHeaderControls.applyDisabled}
                           accessibilityRole="button"
                           accessibilityLabel={workspaceHeaderControls.applyLabel}
-                          style={({ pressed }) => ({
-                            width: responsiveLayout.isMobile ? 40 : undefined,
-                            minHeight: 40,
-                            paddingHorizontal: responsiveLayout.isMobile ? 0 : 13,
-                            borderWidth: 1,
-                            borderColor: colors.primaryBg,
-                            borderRadius: 9,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 7,
-                            opacity: workspaceHeaderControls.applyDisabled ? 0.46 : pressed ? 0.72 : 1,
-                          })}
+                          style={({ pressed }) => [
+                            workspaceHeaderStyles.action,
+                            responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
+                            {
+                              borderColor: colors.border,
+                              backgroundColor: colors.card,
+                              opacity: workspaceHeaderControls.applyDisabled ? 0.46 : pressed ? 0.72 : 1,
+                            },
+                          ]}
                         >
-                          <GoAtletaIcon name="success" size={17} color={colors.primaryBg} />
+                          <GoAtletaIcon name="success" size={17} color={colors.text} />
                           {!responsiveLayout.isMobile ? (
-                            <Text style={{ color: colors.primaryBg, fontSize: 12, fontWeight: "900" }}>
+                            <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>
                               {workspaceHeaderControls.applyLabel}
                             </Text>
                           ) : null}
                         </Pressable>
                       ) : null}
-                    </>
+                      </>
+                    ) : null}
+                  </View>
+                  {!responsiveLayout.isMobile && selectedPlan && workspaceHeaderControls ? (
+                    <View style={[workspaceHeaderStyles.divider, { backgroundColor: colors.border }]} />
                   ) : null}
+                  <View style={workspaceHeaderStyles.actionGroup}>
+                  <Pressable
+                    onPress={handleOpenPlanningPdfImport}
+                    accessibilityRole="button"
+                    accessibilityLabel="Importar PDF"
+                    style={({ pressed }) => [
+                      workspaceHeaderStyles.action,
+                      responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
+                      { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.72 : 1 },
+                    ]}
+                  >
+                    <GoAtletaIcon name="document" size={17} color={colors.text} />
+                    {!responsiveLayout.isMobile ? (
+                      <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>Importar PDF</Text>
+                    ) : null}
+                  </Pressable>
                   <Pressable
                     onPress={() => {
                       void confirmWorkspaceReplacement(handleCreateWorkspacePlan);
                     }}
                     accessibilityRole="button"
                     accessibilityLabel="Criar novo plano"
-                    style={({ pressed }) => ({
-                      width: responsiveLayout.isMobile ? 40 : undefined,
-                      minHeight: 40,
-                      paddingHorizontal: responsiveLayout.isMobile ? 0 : 14,
-                      borderWidth: 1,
-                      borderColor: colors.primaryBg,
-                      borderRadius: 9,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 7,
-                      opacity: pressed ? 0.72 : 1,
-                    })}
+                    style={({ pressed }) => [
+                      workspaceHeaderStyles.action,
+                      responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
+                      { borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, opacity: pressed ? 0.72 : 1 },
+                    ]}
                   >
-                    <GoAtletaIcon name="add" size={18} color={colors.primaryBg} />
+                    <GoAtletaIcon name="add" size={18} color={colors.primaryText} />
                     {!responsiveLayout.isMobile ? (
-                      <Text style={{ color: colors.primaryBg, fontSize: 12, fontWeight: "900" }}>Novo plano</Text>
+                      <Text style={[workspaceHeaderStyles.actionText, { color: colors.primaryText }]}>Novo plano</Text>
                     ) : null}
                   </Pressable>
-                  <Pressable
-                    onPress={handleOpenPlanningPdfImport}
-                    accessibilityRole="button"
-                    accessibilityLabel="Importar PDF"
-                    style={({ pressed }) => ({
-                      width: responsiveLayout.isMobile ? 40 : undefined,
-                      minHeight: 40,
-                      paddingHorizontal: responsiveLayout.isMobile ? 0 : 14,
-                      borderRadius: 9,
-                      backgroundColor: colors.secondaryBg,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 7,
-                      opacity: pressed ? 0.72 : 1,
-                    })}
-                  >
-                    <GoAtletaIcon name="document" size={17} color={colors.text} />
-                    {!responsiveLayout.isMobile ? (
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Importar PDF</Text>
-                    ) : null}
-                  </Pressable>
+                  </View>
                 </View>
               }
               contentStyle={{
@@ -2438,19 +1986,26 @@ function TrainingWorkspace() {
                   <View
                     style={{
                       position: "absolute",
-                      left: 0,
+                      left: showWorkspaceLibraryPanel ? 0 : 10,
                       top: 0,
                       bottom: 0,
                       zIndex: 40,
                       minHeight: 0,
-                      overflow: "hidden",
-                      boxShadow: "10px 0 28px rgba(10, 19, 34, 0.26)",
+                      justifyContent: "center",
+                      overflow: showWorkspaceLibraryPanel ? "hidden" : "visible",
+                      boxShadow: showWorkspaceLibraryPanel
+                        ? "10px 0 28px rgba(10, 19, 34, 0.26)"
+                        : "none",
                     }}
                   >
-                    {renderWorkspaceLibrary(
-                      "rail",
-                      !selectedPlan ? workspaceLibraryCollapsed : false,
-                    )}
+                    {showWorkspaceLibraryPanel ? (
+                      <Animated.View
+                        pointerEvents={workspaceLibraryCollapsed ? "none" : "auto"}
+                        style={[{ flex: 1 }, workspaceLibraryPanelAnimStyle]}
+                      >
+                        {renderWorkspaceLibrary("rail", false)}
+                      </Animated.View>
+                    ) : renderWorkspaceLibrary("rail", true)}
                   </View>
                 ) : null}
 
@@ -2565,87 +2120,6 @@ function TrainingWorkspace() {
         </Suspense>
       ) : null}
       <ModalSheet
-        visible={showTemplateEditor}
-        onClose={requestCloseTemplateEditor}
-        cardStyle={[templateEditorCardStyle, { maxHeight: "92%", paddingBottom: 12 }]}
-        position="center"
-      >
-        <ConfirmCloseOverlay
-          visible={showTemplateCloseConfirm}
-          onCancel={() => setShowTemplateCloseConfirm(false)}
-          onConfirm={() => {
-            setShowTemplateCloseConfirm(false);
-            closeTemplateEditor();
-          }}
-        />
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Editar modelo
-          </Text>
-          <Pressable
-            onPress={requestCloseTemplateEditor}
-            style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text
-              style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-            >
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
-        <Suspense
-          fallback={<SectionLoadingState />}
-        >
-          <TemplateEditorModalContent
-            templateTitle={templateTitle}
-            setTemplateTitle={setTemplateTitle}
-            templateAge={templateAge}
-            setTemplateAge={setTemplateAge}
-            templateTags={templateTags}
-            setTemplateTags={setTemplateTags}
-            templateWarmup={templateWarmup}
-            setTemplateWarmup={setTemplateWarmup}
-            templateMain={templateMain}
-            setTemplateMain={setTemplateMain}
-            templateCooldown={templateCooldown}
-            setTemplateCooldown={setTemplateCooldown}
-            templateWarmupTime={templateWarmupTime}
-            setTemplateWarmupTime={setTemplateWarmupTime}
-            templateMainTime={templateMainTime}
-            setTemplateMainTime={setTemplateMainTime}
-            templateCooldownTime={templateCooldownTime}
-            setTemplateCooldownTime={setTemplateCooldownTime}
-            templateSuggestions={templateSuggestions}
-            hasTemplateContent={hasTemplateContent}
-            templateEditorComposerHeight={templateEditorComposerHeight}
-            templateEditorKeyboardHeight={templateEditorKeyboardHeight}
-            setTemplateEditorComposerHeight={setTemplateEditorComposerHeight}
-            isTemplateEditorDirty={isTemplateEditorDirty}
-            canDeleteTemplate={Boolean(templateEditorTemplateId)}
-            onSave={saveTemplateEditor}
-            onDuplicate={duplicateTemplateFromEditor}
-            onDelete={() => {
-              if (!templateEditorTemplateId) return;
-              const targetId = templateEditorTemplateId;
-              const targetSource = templateEditorSource;
-              closeTemplateEditor();
-              setTemplateEditorTemplateId(null);
-              setTemplateEditorSource("custom");
-              setTimeout(() => {
-                void deleteTemplateItem(targetId, targetSource);
-              }, 10);
-            }}
-          />
-        </Suspense>
-      </ModalSheet>
-      <ModalSheet
         visible={showApplyModal}
         onClose={requestCloseApplyModal}
         cardStyle={[applyModalCardStyle, { paddingBottom: 12 }]}
@@ -2754,7 +2228,6 @@ function TrainingWorkspace() {
               onEdit={(plan) => {
                 onEdit(plan);
               }}
-              onSaveAsTemplate={savePlanAsTemplate}
               onDuplicate={(plan) => {
                 duplicatePlan(plan);
               }}
@@ -2856,3 +2329,45 @@ function TrainingWorkspace() {
     </View>
   );
 }
+
+const workspaceHeaderStyles = StyleSheet.create({
+  actionGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  divider: {
+    width: 1,
+    height: 28,
+  },
+  status: {
+    minHeight: 40,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  action: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  iconOnlyAction: {
+    width: 40,
+    paddingHorizontal: 0,
+  },
+  actionText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+});

@@ -327,6 +327,7 @@ export const StudentsListTab = memo(function StudentsListTab({
     useContainerResponsiveLayout("dashboard");
   const { showTable } = resolveStudentsListLayout(width);
   const compactFilters = !showTable;
+  const showContactColumn = showTable;
   const filtersModalHeight = resolveStudentsFilterModalHeight(
     viewportHeight,
     compactFilters,
@@ -363,7 +364,7 @@ export const StudentsListTab = memo(function StudentsListTab({
     useState<StudentFilterExclusions>(createEmptyStudentFilterExclusions);
   const [page, setPage] = useState(1);
   const [membershipScope, setMembershipScope] =
-    useState<StudentMembershipScope>(canManageFamilyAccess ? "all" : "active");
+    useState<StudentMembershipScope>("all");
   const [coordClassFilter, setCoordClassFilter] = useState("all");
   const [familyAccessFilter, setFamilyAccessFilter] =
     useState<StudentFamilyAccessFilter>("all");
@@ -686,7 +687,7 @@ export const StudentsListTab = memo(function StudentsListTab({
         <View
           style={{
             gap: 8,
-            paddingHorizontal: 18,
+            paddingHorizontal: compactFilters ? 0 : 18,
             paddingVertical: 10,
             borderBottomWidth: StyleSheet.hairlineWidth,
             borderBottomColor: colors.borderSubtle ?? colors.border,
@@ -896,72 +897,6 @@ export const StudentsListTab = memo(function StudentsListTab({
             </View>
           </View>
 
-          <View
-            accessibilityRole="tablist"
-            style={{
-              display: canManageFamilyAccess ? "none" : "flex",
-              flexDirection: "row",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            {(
-              [
-                { value: "active", label: "Ativos" },
-                { value: "inactive", label: "Inativos" },
-                { value: "all", label: "Todos" },
-              ] as const
-            ).map((option) => {
-              const active = membershipScope === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setMembershipScope(option.value)}
-                  style={(state) => ({
-                    minHeight: 44,
-                    paddingHorizontal: 12,
-                    borderRadius: radius.internal,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: active
-                      ? colors.primaryBg
-                      : (colors.borderSubtle ?? colors.border),
-                    backgroundColor:
-                      active || state.hovered
-                        ? colors.secondaryBg
-                        : colors.background,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                  })}
-                >
-                  <Text
-                    style={{
-                      color: active
-                        ? colors.primaryBg
-                        : (colors.textMuted ?? colors.muted),
-                      fontSize: 12,
-                      fontWeight: "800",
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                  <Text
-                    style={{
-                      color: colors.textMuted ?? colors.muted,
-                      fontSize: 10,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {membershipCounts[option.value]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
         </View>
 
         {loading && students.length === 0 ? (
@@ -1046,18 +981,20 @@ export const StudentsListTab = memo(function StudentsListTab({
                   >
                     STATUS
                   </Text>
-                  <Text
-                    style={{
-                      flex: canManageFamilyAccess ? 2.1 : 1.5,
-                      minWidth: canManageFamilyAccess ? 0 : 170,
-                      paddingHorizontal: 10,
-                      color: colors.textMuted ?? colors.muted,
-                      fontSize: 10,
-                      fontWeight: "800",
-                    }}
-                  >
-                    RESPONSÁVEL / CONTATO
-                  </Text>
+                  {showContactColumn ? (
+                    <Text
+                      style={{
+                        flex: canManageFamilyAccess ? 2.1 : 1.5,
+                        minWidth: canManageFamilyAccess ? 0 : 170,
+                        paddingHorizontal: 10,
+                        color: colors.textMuted ?? colors.muted,
+                        fontSize: 10,
+                        fontWeight: "800",
+                      }}
+                    >
+                      RESPONSÁVEL / CONTATO
+                    </Text>
+                  ) : null}
                   <View style={{ width: 42 }} />
                 </View>
               ) : null}
@@ -1118,25 +1055,6 @@ export const StudentsListTab = memo(function StudentsListTab({
                           gap: canManageFamilyAccess && !showTable ? 6 : 10,
                         }}
                       >
-                        {canManageFamilyAccess ? (
-                          <View
-                            style={{
-                              width: 18,
-                              height: 18,
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {selectedForFamilyAccess ? (
-                              <GoAtletaIcon
-                                name="checkbox"
-                                size={17}
-                                color={colors.primaryBg}
-                              />
-                            ) : null}
-                          </View>
-                        ) : null}
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={`Ver foto de ${student.name}`}
@@ -1281,14 +1199,14 @@ export const StudentsListTab = memo(function StudentsListTab({
                             </View>}
                             {canManageFamilyAccess ? <StudentLoginAccessStatus student={student} compact={!showTable} /> : null}
                           </View>
-                          <View
-                            style={{
-                              flex: canManageFamilyAccess ? 2.1 : 1.5,
-                              minWidth: canManageFamilyAccess ? 0 : 170,
-                              paddingHorizontal:
-                                canManageFamilyAccess && !showTable ? 5 : 10,
-                            }}
-                          >
+                          {showContactColumn ? (
+                            <View
+                              style={{
+                                flex: canManageFamilyAccess ? 2.1 : 1.5,
+                                minWidth: canManageFamilyAccess ? 0 : 170,
+                                paddingHorizontal: 10,
+                              }}
+                            >
                             <Text
                               numberOfLines={1}
                               style={{
@@ -1368,7 +1286,8 @@ export const StudentsListTab = memo(function StudentsListTab({
                                 </Pressable>
                               </View>
                             ) : null}
-                          </View>
+                            </View>
+                          ) : null}
                         </>
                       ) : null}
                       <Pressable
@@ -1631,6 +1550,16 @@ export const StudentsListTab = memo(function StudentsListTab({
             </>
           ) : (
             <>
+              <StudentFilterGroup
+                title="Status"
+                options={[
+                  { value: "active", label: `Ativos (${membershipCounts.active})` },
+                  { value: "inactive", label: `Inativos (${membershipCounts.inactive})` },
+                ]}
+                excludedValues={draftFilterExclusions.memberships}
+                onToggle={(value) => toggleDraftFilter("memberships", value)}
+                compact={compactFilters}
+              />
               {canViewFinancialStatus ? (
                 <StudentFilterGroup
                   title="Financeiro"

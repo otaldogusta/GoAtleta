@@ -1,18 +1,11 @@
-import { Animated, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
 
 import { Pressable } from "../../../src/ui/Pressable";
 import { radius } from "../../../src/theme/tokens";
 import type { ThemeColors } from "../../../src/ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../src/ui/confirm-dialog";
-import { getSectionCardStyle } from "../../../src/ui/section-styles";
 
 import type { ClassCalendarException, ClassCompetitiveProfile } from "../../../src/core/models";
-import { GoAtletaIcon } from "../../ui/icon-registry";
-
-type AnimatedStyle = {
-  opacity: Animated.Value;
-  transform: { translateY: Animated.AnimatedInterpolation<number> }[];
-};
 
 type Props = {
   colors: ThemeColors;
@@ -20,17 +13,8 @@ type Props = {
   isCompetitiveMode: boolean;
   handleDisableCompetitiveMode: () => Promise<void>;
   isSavingCompetitiveProfile: boolean;
-  competitiveScrollRef: React.RefObject<ScrollView | null>;
-  competitiveContentHeight: number;
+  isCompetitiveProfileDirty: boolean;
   competitiveBlockPadding: number;
-  toggleCompetitiveBlock: (key: "profile" | "calendar" | "exceptions") => void;
-  competitiveBlocksOpen: Record<"profile" | "calendar" | "exceptions", boolean>;
-  competitiveProfileAnimStyle: AnimatedStyle;
-  showCompetitiveProfileContent: boolean;
-  competitiveCalendarAnimStyle: AnimatedStyle;
-  showCompetitiveCalendarContent: boolean;
-  competitiveExceptionsAnimStyle: AnimatedStyle;
-  showCompetitiveExceptionsContent: boolean;
   competitiveExceptionsMaxHeight: number;
   competitiveProfile: ClassCompetitiveProfile | null;
   updateCompetitiveProfileDraft: (patch: Partial<ClassCompetitiveProfile>) => void;
@@ -58,17 +42,8 @@ export function CompetitiveAgendaCard({
   isCompetitiveMode,
   handleDisableCompetitiveMode,
   isSavingCompetitiveProfile,
-  competitiveScrollRef,
-  competitiveContentHeight,
+  isCompetitiveProfileDirty,
   competitiveBlockPadding,
-  toggleCompetitiveBlock,
-  competitiveBlocksOpen,
-  competitiveProfileAnimStyle,
-  showCompetitiveProfileContent,
-  competitiveCalendarAnimStyle,
-  showCompetitiveCalendarContent,
-  competitiveExceptionsAnimStyle,
-  showCompetitiveExceptionsContent,
   competitiveExceptionsMaxHeight,
   competitiveProfile,
   updateCompetitiveProfileDraft,
@@ -90,18 +65,13 @@ export function CompetitiveAgendaCard({
   confirmDialog,
 }: Props) {
   return (
-    <View
-      style={[
-        getSectionCardStyle(colors, "neutral", { padding: 20, radius: radius.container, shadow: false }),
-        { gap: 14, borderWidth: 1, borderColor: colors.borderSubtle },
-      ]}
-    >
+    <View style={{ gap: 12 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: "900" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>
             {normalizeText("Modo competitivo da turma")}
           </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
             {normalizeText(
               isCompetitiveMode
                 ? "Perfil competitivo ativo para gerar semanas com datas reais."
@@ -134,50 +104,20 @@ export function CompetitiveAgendaCard({
         ) : null}
       </View>
 
-      <ScrollView
-        ref={competitiveScrollRef}
-        style={{ height: competitiveContentHeight }}
-        contentContainerStyle={{ gap: 14, paddingRight: 2 }}
-        showsVerticalScrollIndicator
-        nestedScrollEnabled
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={{ gap: 18 }}>
 
       <View
         style={{
           gap: 10,
-          padding: competitiveBlockPadding,
-          borderRadius: radius.card,
-          backgroundColor: colors.backgroundSubtle,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
+          padding: 0,
+          backgroundColor: "transparent",
         }}
       >
-        <Pressable
-          onPress={() => toggleCompetitiveBlock("profile")}
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            borderRadius: radius.internal,
-            paddingHorizontal: 8,
-            paddingVertical: 6,
-            marginHorizontal: -8,
-            marginVertical: -6,
-          }}
-        >
-          <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
-            {normalizeText("Dados da competição")}
-          </Text>
-          <GoAtletaIcon
-            name={competitiveBlocksOpen.profile ? "chevronUp" : "chevronDown"}
-            size={16}
-            color={colors.muted}
-          />
-        </Pressable>
+        <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
+          {normalizeText("Dados da competição")}
+        </Text>
 
-        {showCompetitiveProfileContent ? (
-        <Animated.View style={[{ gap: 10 }, competitiveProfileAnimStyle]}>
+        <View style={{ gap: 10 }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           <View style={{ flex: 1, minWidth: 160, flexBasis: 0, gap: 4 }}>
             <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>{normalizeText("Competição-alvo")}</Text>
@@ -231,7 +171,7 @@ export function CompetitiveAgendaCard({
                 padding: 10,
                 fontSize: 13,
                 borderRadius: 12,
-                backgroundColor: colors.background,
+                backgroundColor: colors.inputBg,
                 color: colors.inputText,
               }}
             />
@@ -249,7 +189,7 @@ export function CompetitiveAgendaCard({
                 padding: 10,
                 fontSize: 13,
                 borderRadius: 12,
-                backgroundColor: colors.background,
+                backgroundColor: colors.inputBg,
                 color: colors.inputText,
               }}
             />
@@ -270,7 +210,7 @@ export function CompetitiveAgendaCard({
                 padding: 10,
                 fontSize: 13,
                 borderRadius: 12,
-                backgroundColor: colors.background,
+                backgroundColor: colors.inputBg,
                 color: colors.inputText,
               }}
             />
@@ -290,7 +230,7 @@ export function CompetitiveAgendaCard({
               borderColor: colors.border,
               padding: 10,
               borderRadius: 12,
-              backgroundColor: colors.background,
+              backgroundColor: colors.inputBg,
               minHeight: 80,
               color: colors.inputText,
               fontSize: 13,
@@ -299,94 +239,91 @@ export function CompetitiveAgendaCard({
           />
         </View>
 
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ gap: 8 }}>
           <Pressable
             onPress={() => {
               void handleSaveCompetitiveProfile();
             }}
-            disabled={isSavingCompetitiveProfile}
+            disabled={isSavingCompetitiveProfile || !isCompetitiveProfileDirty}
             style={{
-              flex: 1,
-              paddingVertical: 10,
+              minHeight: 42,
               borderRadius: 12,
-              backgroundColor: isSavingCompetitiveProfile ? colors.primaryDisabledBg : colors.primaryBg,
+              backgroundColor:
+                isSavingCompetitiveProfile || !isCompetitiveProfileDirty
+                  ? colors.primaryDisabledBg
+                  : colors.primaryBg,
+              opacity: isCompetitiveProfileDirty ? 1 : 0.55,
               alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <Text style={{ color: isSavingCompetitiveProfile ? colors.secondaryText : colors.primaryText, fontWeight: "700" }}>
+            <Text style={{ color: isSavingCompetitiveProfile || !isCompetitiveProfileDirty ? colors.secondaryText : colors.primaryText, fontWeight: "700" }}>
               {normalizeText(isSavingCompetitiveProfile ? "Salvando..." : "Salvar alterações")}
             </Text>
           </Pressable>
-          <Pressable
-            onPress={() => updateCompetitiveProfileDraft({
-              targetCompetition: "",
-              tacticalSystem: "",
-              currentPhase: "Base",
-              notes: "",
-            })}
-            style={{
-              flex: 1,
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.background,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              {normalizeText("Limpar campos")}
-            </Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => updateCompetitiveProfileDraft({
+                targetCompetition: "",
+                tacticalSystem: "",
+                currentPhase: "Base",
+                notes: "",
+              })}
+              style={{
+                minHeight: 40,
+                flex: 1,
+                borderRadius: 10,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                {normalizeText("Limpar campos")}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setCompetitiveTargetDateInput("");
+                setCompetitiveCycleStartDateInput("");
+              }}
+              style={{
+                minHeight: 40,
+                flex: 1,
+                borderRadius: 10,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                {normalizeText("Limpar datas")}
+              </Text>
+            </Pressable>
+          </View>
         </View>
-        <Pressable
-          onPress={() => {
-            setCompetitiveTargetDateInput("");
-            setCompetitiveCycleStartDateInput("");
-          }}
-          style={{
-            paddingVertical: 8,
-            borderRadius: 10,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-            {normalizeText("Limpar datas")}
-          </Text>
-        </Pressable>
-        </Animated.View>
-        ) : null}
+        </View>
       </View>
 
       <View
         style={{
           gap: 10,
-          padding: competitiveBlockPadding,
-          borderRadius: 12,
-          backgroundColor: colors.secondaryBg,
-          borderWidth: 1,
-          borderColor: colors.border,
+          padding: 0,
+          paddingTop: competitiveBlockPadding,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          backgroundColor: "transparent",
         }}
       >
-        <Pressable
-          onPress={() => toggleCompetitiveBlock("calendar")}
-          style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-            {normalizeText("Calendário da turma")}
-          </Text>
-          <GoAtletaIcon
-            name={competitiveBlocksOpen.calendar ? "chevronUp" : "chevronDown"}
-            size={16}
-            color={colors.muted}
-          />
-        </Pressable>
+        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+          {normalizeText("Calendário da turma")}
+        </Text>
 
-        {showCompetitiveCalendarContent ? (
-        <Animated.View style={[{ gap: 10 }, competitiveCalendarAnimStyle]}>
+        <View style={{ gap: 10 }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
             <Text style={{ color: colors.muted, fontSize: 11 }}>{normalizeText("Data sem treino")}</Text>
@@ -401,7 +338,7 @@ export function CompetitiveAgendaCard({
                 padding: 10,
                 fontSize: 13,
                 borderRadius: 12,
-                backgroundColor: colors.background,
+                backgroundColor: colors.inputBg,
                 color: colors.inputText,
               }}
             />
@@ -419,7 +356,7 @@ export function CompetitiveAgendaCard({
                 padding: 10,
                 fontSize: 13,
                 borderRadius: 12,
-                backgroundColor: colors.background,
+                backgroundColor: colors.inputBg,
                 color: colors.inputText,
               }}
             />
@@ -432,10 +369,11 @@ export function CompetitiveAgendaCard({
           }}
           disabled={isSavingCalendarException}
           style={{
-            paddingVertical: 10,
+            minHeight: 42,
             borderRadius: 12,
             backgroundColor: isSavingCalendarException ? colors.primaryDisabledBg : colors.primaryBg,
             alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <Text style={{ color: isSavingCalendarException ? colors.secondaryText : colors.primaryText, fontWeight: "700" }}>
@@ -443,36 +381,24 @@ export function CompetitiveAgendaCard({
           </Text>
         </Pressable>
 
-        </Animated.View>
-        ) : null}
+        </View>
       </View>
 
       <View
         style={{
           gap: 10,
-          padding: competitiveBlockPadding,
-          borderRadius: 12,
-          backgroundColor: colors.secondaryBg,
-          borderWidth: 1,
-          borderColor: colors.border,
+          padding: 0,
+          paddingTop: competitiveBlockPadding,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          backgroundColor: "transparent",
         }}
       >
-        <Pressable
-          onPress={() => toggleCompetitiveBlock("exceptions")}
-          style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-            {normalizeText(`Exceções cadastradas (${calendarExceptions.length})`)}
-          </Text>
-          <GoAtletaIcon
-            name={competitiveBlocksOpen.exceptions ? "chevronUp" : "chevronDown"}
-            size={16}
-            color={colors.muted}
-          />
-        </Pressable>
+        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+          {normalizeText(`Exceções cadastradas (${calendarExceptions.length})`)}
+        </Text>
 
-        {showCompetitiveExceptionsContent ? (
-        <Animated.View style={[{ gap: 8 }, competitiveExceptionsAnimStyle]}>
+        <View style={{ gap: 8 }}>
         {calendarExceptions.length ? (
           <ScrollView
             style={{ maxHeight: competitiveExceptionsMaxHeight, minHeight: 120 }}
@@ -540,11 +466,10 @@ export function CompetitiveAgendaCard({
             {normalizeText("Nenhuma exceção cadastrada para esta turma.")}
           </Text>
         )}
-        </Animated.View>
-        ) : null}
+        </View>
       </View>
 
-      </ScrollView>
+      </View>
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Text, TextInput, View } from "react-native";
 
 import type {
   ClassStaffSubstitution,
@@ -7,9 +7,11 @@ import type {
   ClassTransitionSummary,
 } from "../../../api/class-staff-history";
 import type { OrgMember } from "../../../api/members";
+import { radius } from "../../../theme/tokens";
 import { useAppTheme } from "../../../ui/app-theme";
 import { DateInput } from "../../../ui/DateInput";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { Pressable } from "../../../ui/Pressable";
 
 type Props = {
   loading: boolean;
@@ -107,7 +109,17 @@ export function ClassStaffHistoryPanel({
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={() => setExpanded((value) => !value)}
-        style={{ minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+        style={({ pressed }) => ({
+          minHeight: 44,
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          borderRadius: radius.internal,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          opacity: pressed ? 0.72 : 1,
+        })}
       >
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Histórico da equipe</Text>

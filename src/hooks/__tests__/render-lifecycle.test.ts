@@ -57,6 +57,20 @@ describe("render lifecycle", () => {
     });
   });
 
+  it("moves backward and forward through undo history", () => {
+    const { result } = renderHook(() => useUndoHistory<string>(3));
+    act(() => { result.current.push("first"); result.current.push("second"); });
+
+    act(() => { expect(result.current.undo("current")).toBe("second"); });
+    expect(result.current.canRedo).toBe(true);
+    act(() => { expect(result.current.redo("second")).toBe("current"); });
+    expect(result.current.canUndo).toBe(true);
+    expect(result.current.canRedo).toBe(false);
+
+    act(() => { result.current.undo("current"); result.current.push("replacement"); });
+    expect(result.current.canRedo).toBe(false);
+  });
+
   it("opens an action once per request, even as callbacks and busy state change", () => {
     jest.useFakeTimers();
     const action = jest.fn();

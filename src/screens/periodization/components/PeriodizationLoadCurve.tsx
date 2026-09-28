@@ -1,4 +1,14 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ComponentRef,
+} from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Line, Path, Stop } from "react-native-svg";
 
@@ -10,7 +20,14 @@ import {
 } from "../../../core/periodization-policy";
 import type { ThemeColors } from "../../../ui/app-theme";
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatablePath = forwardRef<
+  ComponentRef<typeof Path>,
+  ComponentProps<typeof Path> & { collapsable?: boolean }
+>(function AnimatablePath({ collapsable: _collapsable, ...props }, ref) {
+  return <Path ref={ref} {...props} />;
+});
+
+const AnimatedPath = Animated.createAnimatedComponent(AnimatablePath);
 
 function canMorphPath(previous: string, next: string) {
   return previous.split(/[A-Za-z]/).length === next.split(/[A-Za-z]/).length;

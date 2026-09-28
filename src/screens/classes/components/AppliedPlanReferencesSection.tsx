@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { radius } from "../../../theme/tokens";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -295,7 +296,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   referenceHeader: {
+    minHeight: 44,
+    marginVertical: 2,
+    paddingHorizontal: 8,
     paddingVertical: 10,
+    borderRadius: radius.internal,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,

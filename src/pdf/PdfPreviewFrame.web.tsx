@@ -1,4 +1,4 @@
-import { createElement, useEffect, useMemo, useRef, memo, type CSSProperties } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, memo, type CSSProperties } from "react";
 
 type PdfPreviewFrameProps = {
   url: string;
@@ -81,6 +81,7 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         background: #fff;
         box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
         zoom: var(--goatleta-page-scale, 1);
+        transition: zoom 160ms ease-out;
         transform-origin: top left;
       }
       .page:last-child { margin-bottom: 0; }
@@ -104,6 +105,7 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         ? `
     <script>
       var viewportZoom = 1;
+      var requestedZoom = ${normalizedZoom / 100};
       var spaceHeld = false;
       var pan = null;
       var suppressPanClick = false;
@@ -350,7 +352,6 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         var horizontalPadding = window.innerWidth <= 640 ? 20 : 36;
         var a4WidthPx = 210 * 96 / 25.4;
         var fitScale = Math.min(1, Math.max(0.2, (window.innerWidth - horizontalPadding) / a4WidthPx));
-        var requestedZoom = ${normalizedZoom / 100};
         var minimumScale = ${normalizedMinimumPageWidth} > 0 ? ${normalizedMinimumPageWidth} / a4WidthPx : 0;
         var effectiveScale = Math.min(4, Math.max(minimumScale, fitScale * requestedZoom) * viewportZoom);
         document.documentElement.style.setProperty('--goatleta-page-scale', String(effectiveScale));
@@ -360,6 +361,15 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         document.body.style.paddingLeft = (horizontalPadding / 2 + inset) + 'px';
         document.body.style.paddingRight = (horizontalPadding / 2 + inset) + 'px';
       }
+
+      window.addEventListener('message', function(event) {
+        var data = event.data;
+        if (!data || data.type !== 'GOATLETA_PDF_SET_ZOOM') return;
+        var nextZoom = Number(data.zoom);
+        if (!Number.isFinite(nextZoom)) return;
+        requestedZoom = Math.max(0.7, Math.min(1.4, nextZoom / 100));
+        updatePageScale();
+      });
 
       window.requestAnimationFrame(function() {
         window.requestAnimationFrame(function() {
@@ -395,10 +405,16 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
     background: "#ffffff",
   };
   const previewHtml = useMemo(
-    () => (html ? buildPreviewHtml(html, editable, zoom, minimumPageWidth) : undefined),
-    [editable, html, minimumPageWidth, zoom]
+    () => (html ? buildPreviewHtml(html, editable, 100, minimumPageWidth) : undefined),
+    [editable, html, minimumPageWidth]
   );
   const lastHtmlRef = useRef<string | undefined>(undefined);
+  const postZoom = useCallback(() => {
+    iframeRef.current?.contentWindow?.postMessage({
+      type: "GOATLETA_PDF_SET_ZOOM",
+      zoom,
+    }, "*");
+  }, [zoom]);
 
   useEffect(() => {
     if (!html || !editable) return;
@@ -430,12 +446,17 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
     }
   }, [previewHtml]);
 
+  useEffect(() => {
+    postZoom();
+  }, [postZoom]);
+
   return createElement("iframe", {
     ref: iframeRef,
     src: previewHtml ? undefined : `${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`,
     sandbox: editable ? "allow-scripts allow-same-origin" : undefined,
     title,
     style,
+    onLoad: postZoom,
     onError,
   });
 });

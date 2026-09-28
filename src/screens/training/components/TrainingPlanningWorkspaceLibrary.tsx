@@ -8,31 +8,14 @@ import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
 import { getClassIdentityLabel } from "../application/class-identity";
 
-export type TrainingPlanningWorkspaceTemplate = {
-  id: string;
-  title: string;
-  tags: string[];
-  warmup: string[];
-  main: string[];
-  cooldown: string[];
-  warmupTime: string;
-  mainTime: string;
-  cooldownTime: string;
-  ageBands: string[];
-  source: "built" | "custom";
-  createdAt: string;
-};
-
 type Props = {
   collapsed: boolean;
   presentation?: "rail" | "sheet";
   plans: TrainingPlan[];
-  templates: TrainingPlanningWorkspaceTemplate[];
   classes: ClassGroup[];
   selectedPlanId?: string;
   onToggleCollapsed: () => void;
   onSelectPlan: (plan: TrainingPlan) => void;
-  onUseTemplate: (template: TrainingPlanningWorkspaceTemplate) => void;
 };
 
 type LibraryMode = "classes" | "drafts";
@@ -120,12 +103,10 @@ export function TrainingPlanningWorkspaceLibrary({
   collapsed,
   presentation = "rail",
   plans,
-  templates,
   classes,
   selectedPlanId,
   onToggleCollapsed,
   onSelectPlan,
-  onUseTemplate,
 }: Props) {
   const { colors } = useAppTheme();
   const sheetMode = presentation === "sheet";
@@ -137,14 +118,15 @@ export function TrainingPlanningWorkspaceLibrary({
     () => classes.filter((item) => assignedPlans.some((plan) => plan.classId === item.id)),
     [assignedPlans, classes]
   );
-  const [mode, setMode] = useState<LibraryMode>(classById.has(selectedPlan?.classId ?? "") ? "classes" : "drafts");
+  const [mode, setMode] = useState<LibraryMode>(
+    selectedPlan && !classById.has(selectedPlan.classId) ? "drafts" : "classes"
+  );
   const [search, setSearch] = useState("");
-  const [activeClassId, setActiveClassId] = useState(selectedPlan?.classId || assignedClasses[0]?.id || "");
+  const [activeClassId, setActiveClassId] = useState(selectedPlan?.classId || "");
   const [activeMonth, setActiveMonth] = useState(
     monthKeyForPlan(selectedPlan ?? assignedPlans[0] ?? draftPlans[0] ?? null)
   );
   const [expandedWeek, setExpandedWeek] = useState(() => selectedPlan ? weekForPlan(selectedPlan).key : "");
-  const [showTemplates, setShowTemplates] = useState(false);
 
   const selectionKey = `${selectedPlan?.id ?? ""}:${selectedPlan?.classId ?? ""}:${selectedPlan ? monthKeyForPlan(selectedPlan) : ""}:${selectedPlan ? dateKeyForPlan(selectedPlan) : ""}:${classById.has(selectedPlan?.classId ?? "")}`;
   const [syncedSelection, setSyncedSelection] = useState(selectionKey);
@@ -201,10 +183,6 @@ export function TrainingPlanningWorkspaceLibrary({
         return normalize(`${plan.title} ${classItem ? getClassIdentityLabel(classItem, classes) : ""} ${classItem?.unit ?? ""} ${(plan.tags ?? []).join(" ")}`).includes(searchToken);
       }),
     [classById, classes, plans, searchToken]
-  );
-  const filteredTemplates = useMemo(
-    () => templates.filter((item) => !searchToken || normalize(`${item.title} ${item.tags.join(" ")}`).includes(searchToken)),
-    [searchToken, templates]
   );
 
   if (collapsed) {
@@ -430,31 +408,6 @@ export function TrainingPlanningWorkspaceLibrary({
           </View>
         )}
 
-        <View style={[styles.templatesSection, { borderTopColor: colors.border }]}>
-          <Pressable
-            onPress={() => setShowTemplates((current) => !current)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showTemplates }}
-            style={({ pressed }) => [styles.templatesHeading, { opacity: pressed ? 0.72 : 1 }]}
-          >
-            <Text style={[styles.templatesTitle, { color: colors.text }]}>Modelos prontos</Text>
-            <Text style={[styles.sectionCount, { color: colors.muted }]}>{filteredTemplates.length}</Text>
-            <GoAtletaIcon name={showTemplates ? "chevronDown" : "chevronForward"} size={16} color={colors.muted} />
-          </Pressable>
-          {showTemplates
-            ? filteredTemplates.slice(0, 8).map((template) => (
-                <Pressable
-                  key={template.id}
-                  onPress={() => onUseTemplate(template)}
-                  style={({ pressed }) => [styles.templateRow, { opacity: pressed ? 0.72 : 1 }]}
-                >
-                  <GoAtletaIcon name="document" size={16} color={colors.muted} />
-                  <Text numberOfLines={1} style={[styles.classLabel, { color: colors.text }]}>{template.title}</Text>
-                  <GoAtletaIcon name="chevronForward" size={15} color={colors.muted} />
-                </Pressable>
-              ))
-            : null}
-        </View>
       </ScrollView>
     </View>
   );
@@ -479,7 +432,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: 0,
   },
-  collapsedRail: { width: 56, minWidth: 56, borderWidth: 1, borderRadius: radius.card, padding: 8, alignItems: "center" },
+  collapsedRail: { width: 36, minWidth: 36, borderWidth: 0, borderRadius: 9, padding: 0, alignItems: "center" },
   header: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flex: 1, fontSize: 17, fontWeight: "900" },
   iconButton: { width: 36, height: 36, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
@@ -517,8 +470,4 @@ const styles = StyleSheet.create({
   unitLabel: { paddingHorizontal: 4, paddingVertical: 5, fontSize: 10.5, fontWeight: "900", textTransform: "uppercase" },
   classRow: { minHeight: 48, paddingHorizontal: 10, borderWidth: 1, borderRadius: 9, flexDirection: "row", alignItems: "center", gap: 8 },
   classLabel: { flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: "800" },
-  templatesSection: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
-  templatesHeading: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8 },
-  templatesTitle: { flex: 1, fontSize: 12.5, fontWeight: "900" },
-  templateRow: { minHeight: 46, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 8 },
 });

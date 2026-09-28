@@ -17,6 +17,36 @@ test("passes the current organization, screen and selected model without inventi
   expect(result.current.messages).toHaveLength(2);
   expect(result.current.input).toBe("");
 });
+test("keeps a generated planning draft for explicit review and apply", async () => {
+  const planning = { screen: "planning", contextTitle: "Planejamento" } as OperationalSnapshot;
+  (requestAssistantConversation as jest.Mock).mockResolvedValue({
+    reply: "Plano pronto",
+    draftTraining: {
+      title: "Fundamentos de saque",
+      tags: ["saque"],
+      warmup: ["Mobilidade"],
+      main: ["Saque por zonas"],
+      cooldown: ["Alongamento"],
+      warmupTime: "10 minutos",
+      mainTime: "40 minutos",
+      cooldownTime: "10 minutos",
+    },
+  });
+  const { result } = renderHook(() => useScreenConversation("org-a", planning, "auto", undefined, {
+    classId: "class-a",
+    sport: "volleyball",
+    lessonAction: "auto",
+  }));
+  act(() => result.current.setInput("Monte o plano"));
+  await act(async () => { await result.current.send(); });
+  expect(requestAssistantConversation).toHaveBeenCalledWith(expect.objectContaining({
+    classId: "class-a",
+    sport: "volleyball",
+    lessonAction: "auto",
+  }));
+  expect(result.current.draftTraining?.title).toBe("Fundamentos de saque");
+  expect(result.current.messages.at(-1)?.content).toContain("Revise os blocos");
+});
 test("failed streams roll back the pending turn and retry it only once", async () => {
   (requestAssistantConversation as jest.Mock).mockImplementationOnce(async ({ onReply }) => {
     onReply("Parcial"); throw new Error("Sem conexão");

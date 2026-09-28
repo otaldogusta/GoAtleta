@@ -1102,26 +1102,6 @@ export type WeeklyIntegratedTrainingContext = {
   notes: string;
 };
 
-export type TrainingTemplate = {
-  id: string;
-  title: string;
-  ageBand: string;
-  tags: string[];
-  warmup: string[];
-  main: string[];
-  cooldown: string[];
-  warmupTime: string;
-  mainTime: string;
-  cooldownTime: string;
-  createdAt: string;
-};
-
-export type HiddenTemplate = {
-  id: string;
-  templateId: string;
-  createdAt: string;
-};
-
 export type StudentMembershipStatus = "active" | "inactive";
 
 export type StudentFinancialStatus =

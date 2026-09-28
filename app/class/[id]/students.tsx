@@ -4,20 +4,23 @@ import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    BackHandler,
-    FlatList,
-    LayoutAnimation,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
-    useWindowDimensions,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  BackHandler,
+  FlatList,
+  LayoutAnimation,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
   getStudentPhotoAccessUrl,
@@ -31,25 +34,36 @@ import {
   useCopilotContext,
   type CopilotAction,
 } from "../../../src/copilot/CopilotProvider";
-import { getClassModalityLabel, matchesClassModalityText } from "../../../src/core/class-modality";
-import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/core/athlete-intake";
-import { useEffectiveProfile } from "../../../src/hooks/use-effective-profile";
-import type { ClassGroup, Student } from "../../../src/core/models";
 import {
-    getAthleteIntakesByClass,
-    getClassById,
-    getClasses,
-    getStudentClassIds,
-    getStudents,
-    getStudentsByClass,
-    inactivateStudents,
-    linkExistingStudentByIdentity,
-    moveStudentsToClass,
-    revealStudentCpf,
-    saveStudent,
-    setStudentClassIds,
-    updateStudent,
-    updateStudentPhoto,
+  getClassModalityLabel,
+  matchesClassModalityText,
+} from "../../../src/core/class-modality";
+import {
+  matchAthleteIntakeToStudents,
+  type AthleteIntake,
+} from "../../../src/core/athlete-intake";
+import { useEffectiveProfile } from "../../../src/hooks/use-effective-profile";
+import type {
+  AttendanceRecord,
+  ClassGroup,
+  Student,
+} from "../../../src/core/models";
+import {
+  getAthleteIntakesByClass,
+  getAttendanceByClass,
+  getClassById,
+  getClasses,
+  getStudentClassIds,
+  getStudents,
+  getStudentsByClass,
+  inactivateStudents,
+  linkExistingStudentByIdentity,
+  moveStudentsToClass,
+  revealStudentCpf,
+  saveStudent,
+  setStudentClassIds,
+  updateStudent,
+  updateStudentPhoto,
 } from "../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
@@ -57,13 +71,11 @@ import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
-import { AnimatedSegmentedTabs } from "../../../src/ui/AnimatedSegmentedTabs";
 import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useConfirmUndo } from "../../../src/ui/confirm-undo";
-import { getSectionCardStyle } from "../../../src/ui/section-styles";
 import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import {
   FormFieldValidationFeedback,
@@ -78,11 +90,21 @@ import { WebCameraCaptureModal } from "../../../src/ui/WebCameraCaptureModal";
 import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
-import { normalizeRaDigits, validateStudentRa } from "../../../src/utils/student-ra";
-import { buildWaMeLink, getContactPhone, openWhatsApp } from "../../../src/utils/whatsapp";
+import {
+  normalizeRaDigits,
+  validateStudentRa,
+} from "../../../src/utils/student-ra";
+import {
+  buildWaMeLink,
+  getContactPhone,
+  openWhatsApp,
+} from "../../../src/utils/whatsapp";
 import { StudentAcademicFields } from "../../../src/screens/students/components/StudentAcademicFields";
 import { StudentDocumentsFields } from "../../../src/screens/students/components/StudentDocumentsFields";
-import { StudentMultiSelectOption, StudentSelectOption } from "../../../src/screens/students/components/StudentDropdownOptions";
+import {
+  StudentMultiSelectOption,
+  StudentSelectOption,
+} from "../../../src/screens/students/components/StudentDropdownOptions";
 import {
   StudentExistingAutocomplete,
   type ExistingStudentOption,
@@ -110,15 +132,51 @@ import {
   buildStudentInviteLink,
   getStudentInviteActionErrorMessage,
 } from "../../../src/screens/students/application/student-invite-sharing";
+import { deriveStudentInactivitySuggestions } from "../../../src/screens/students/application/student-inactivity-suggestion";
 
-const guardianRelationOptions = ["Mãe", "Pai", "Avó", "Avô", "Irmão", "Irmã", "Tio", "Tia", "Outro"] as const;
-const positionOptions = ["indefinido", "levantador", "oposto", "ponteiro", "central", "libero"] as const;
+const guardianRelationOptions = [
+  "Mãe",
+  "Pai",
+  "Avó",
+  "Avô",
+  "Irmão",
+  "Irmã",
+  "Tio",
+  "Tia",
+  "Outro",
+] as const;
+const positionOptions = [
+  "indefinido",
+  "levantador",
+  "oposto",
+  "ponteiro",
+  "central",
+  "libero",
+] as const;
 type DropKey = "guardian" | "primary" | "secondary" | null;
-type CreateDropKey = "createGuardian" | "createPrimary" | "createSecondary" | null;
+type CreateDropKey =
+  "createGuardian" | "createPrimary" | "createSecondary" | null;
 type Layout = { x: number; y: number; width: number; height: number };
-type StudentSectionKey = "studentData" | "academic" | "sportProfile" | "documents" | "health" | "guardian" | "links" | null;
-type CreateSectionKey = "studentData" | "academic" | "sportProfile" | "health" | "documents" | "guardian" | "links" | null;
+type StudentSectionKey =
+  | "studentData"
+  | "academic"
+  | "sportProfile"
+  | "documents"
+  | "health"
+  | "guardian"
+  | "links"
+  | null;
+type CreateSectionKey =
+  | "studentData"
+  | "academic"
+  | "sportProfile"
+  | "health"
+  | "documents"
+  | "guardian"
+  | "links"
+  | null;
 type ScreenTab = "alunos" | "cadastro";
+type MembershipFilter = "active" | "inactive";
 type DuplicateReviewTarget = {
   group: PossibleDuplicateStudentGroup;
   student: Student;
@@ -169,7 +227,9 @@ const brToIso = (value: string) => {
 
 const formatPhoneBrWithCountry = (value: string) => {
   const rawDigits = value.replace(/\D/g, "");
-  const digits = rawDigits.startsWith("55") ? rawDigits.slice(2, 15) : rawDigits.slice(0, 13);
+  const digits = rawDigits.startsWith("55")
+    ? rawDigits.slice(2, 15)
+    : rawDigits.slice(0, 13);
   const ddd = digits.slice(0, 2);
   const number = digits.slice(2, 11);
 
@@ -213,7 +273,7 @@ const labelByValue: Record<string, string> = {
 const isUnsetValue = (value: string) =>
   !value || value === "indefinido" || value === "base" || value === "misto";
 const getSelectDisplayValue = (value: string) =>
-  isUnsetValue(value) ? "Selecione" : labelByValue[value] ?? value;
+  isUnsetValue(value) ? "Selecione" : (labelByValue[value] ?? value);
 const getOptionLabel = (value: string) => labelByValue[value] ?? value;
 const normalizeTextKey = (value: string) =>
   String(value ?? "")
@@ -231,7 +291,10 @@ const classGenderLabel: Record<ClassGroup["gender"], string> = {
 const formatMoveClassLabel = (cls: ClassGroup) =>
   `${cls.name} • ${cls.unit} • ${classGenderLabel[cls.gender] ?? cls.gender}`;
 
-const matchesClassModality = (modalityLabel: string, classModality: ClassGroup["modality"] | undefined) => {
+const matchesClassModality = (
+  modalityLabel: string,
+  classModality: ClassGroup["modality"] | undefined,
+) => {
   return matchesClassModalityText(modalityLabel, classModality);
 };
 
@@ -246,7 +309,8 @@ export default function ClassStudentsScreen() {
   const { showSaveToast } = useSaveToast();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
-  const canRevealCpf = scopedRoutes.scope === "coord" && effectiveProfile === "admin";
+  const canRevealCpf =
+    scopedRoutes.scope === "coord" && effectiveProfile === "admin";
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;
@@ -279,34 +343,65 @@ export default function ClassStudentsScreen() {
 
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<Record<string, string>>({});
-  const [photoPreview, setPhotoPreview] = useState<{ uri: string; name: string } | null>(null);
-  const [organizationStudents, setOrganizationStudents] = useState<Student[]>([]);
-  const [organizationClasses, setOrganizationClasses] = useState<ClassGroup[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    AttendanceRecord[]
+  >([]);
+  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<
+    Record<string, string>
+  >({});
+  const [photoPreview, setPhotoPreview] = useState<{
+    uri: string;
+    name: string;
+  } | null>(null);
+  const [organizationStudents, setOrganizationStudents] = useState<Student[]>(
+    [],
+  );
+  const [organizationClasses, setOrganizationClasses] = useState<ClassGroup[]>(
+    [],
+  );
   const [athleteIntakes, setAthleteIntakes] = useState<AthleteIntake[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [screenTab, setScreenTab] = useState<ScreenTab>("alunos");
-  const [createExitTarget, setCreateExitTarget] = useState<"back" | "alunos" | null>(null);
+  const [membershipFilters, setMembershipFilters] = useState<MembershipFilter[]>([
+    "active",
+    "inactive",
+  ]);
+  const [draftMembershipFilters, setDraftMembershipFilters] = useState<
+    MembershipFilter[]
+  >(["active", "inactive"]);
+  const [studentsFilterModalOpen, setStudentsFilterModalOpen] = useState(false);
+  const [createExitTarget, setCreateExitTarget] = useState<
+    "back" | "alunos" | null
+  >(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [saving, setSaving] = useState(false);
-  const [studentInviteBusyId, setStudentInviteBusyId] = useState<string | null>(null);
+  const [studentInviteBusyId, setStudentInviteBusyId] = useState<string | null>(
+    null,
+  );
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-  const [reviewedDuplicateSignatures, setReviewedDuplicateSignatures] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [showSelectionActionsMenu, setShowSelectionActionsMenu] =
+    useState(false);
+  const [selectionActionsLayout, setSelectionActionsLayout] =
+    useState<Layout | null>(null);
+  const [reviewedDuplicateSignatures, setReviewedDuplicateSignatures] =
+    useState<Set<string>>(() => new Set());
   const [duplicateReviewsLoaded, setDuplicateReviewsLoaded] = useState(false);
-  const [duplicateReviewTarget, setDuplicateReviewTarget] = useState<DuplicateReviewTarget | null>(null);
+  const [duplicateReviewTarget, setDuplicateReviewTarget] =
+    useState<DuplicateReviewTarget | null>(null);
   const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
   const [showPositionPicker, setShowPositionPicker] = useState(false);
-  const [showGuardianRelationPicker, setShowGuardianRelationPicker] = useState(false);
+  const [showGuardianRelationPicker, setShowGuardianRelationPicker] =
+    useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showCreateCloseConfirm, setShowCreateCloseConfirm] = useState(false);
-  const [openSection, setOpenSection] = useState<StudentSectionKey>("studentData");
-  const [openCreateSection, setOpenCreateSection] = useState<CreateSectionKey>("studentData");
+  const [openSection, setOpenSection] =
+    useState<StudentSectionKey>("studentData");
+  const [openCreateSection, setOpenCreateSection] =
+    useState<CreateSectionKey>("studentData");
   const [createDropKey, setCreateDropKey] = useState<CreateDropKey>(null);
   const [showMoveClassModal, setShowMoveClassModal] = useState(false);
   const [moveClasses, setMoveClasses] = useState<ClassGroup[]>([]);
@@ -337,7 +432,8 @@ export default function ClassStudentsScreen() {
   const [primaryPos, setPrimaryPos] = useState("");
   const [secondaryPos, setSecondaryPos] = useState("");
   const [objective, setObjective] = useState("");
-  const [learningStyle, setLearningStyle] = useState<Student["learningStyle"]>("misto");
+  const [learningStyle, setLearningStyle] =
+    useState<Student["learningStyle"]>("misto");
   const [healthIssue, setHealthIssue] = useState(false);
   const [healthIssueNotes, setHealthIssueNotes] = useState("");
   const [medicationUse, setMedicationUse] = useState(false);
@@ -351,7 +447,11 @@ export default function ClassStudentsScreen() {
   const [cpfWasEdited, setCpfWasEdited] = useState(false);
   const [rgDocument, setRgDocument] = useState("");
   const [ra, setRa] = useState("");
-  const [documentsError, setDocumentsError] = useState<{ ra?: string; cpf?: string; rg?: string }>({});
+  const [documentsError, setDocumentsError] = useState<{
+    ra?: string;
+    cpf?: string;
+    rg?: string;
+  }>({});
   const [revealCpfBusy, setRevealCpfBusy] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoMimeType, setPhotoMimeType] = useState<string | null>(null);
@@ -365,8 +465,10 @@ export default function ClassStudentsScreen() {
   const [createGuardianPhone, setCreateGuardianPhone] = useState("");
   const [createGuardianRelation, setCreateGuardianRelation] = useState("");
   const [createRa, setCreateRa] = useState("");
-  const [createPositionPrimary, setCreatePositionPrimary] = useState<Student["positionPrimary"]>("indefinido");
-  const [createPositionSecondary, setCreatePositionSecondary] = useState<Student["positionSecondary"]>("indefinido");
+  const [createPositionPrimary, setCreatePositionPrimary] =
+    useState<Student["positionPrimary"]>("indefinido");
+  const [createPositionSecondary, setCreatePositionSecondary] =
+    useState<Student["positionSecondary"]>("indefinido");
   const [createCollegeCourse, setCreateCollegeCourse] = useState("");
   const [createHealthIssue, setCreateHealthIssue] = useState(false);
   const [createHealthIssueNotes, setCreateHealthIssueNotes] = useState("");
@@ -376,8 +478,12 @@ export default function ClassStudentsScreen() {
   const [createCpf, setCreateCpf] = useState("");
   const [createRg, setCreateRg] = useState("");
   const [createPhotoUrl, setCreatePhotoUrl] = useState<string | null>(null);
-  const [createPhotoMimeType, setCreatePhotoMimeType] = useState<string | null>(null);
-  const [cameraCaptureTarget, setCameraCaptureTarget] = useState<"create" | "edit" | null>(null);
+  const [createPhotoMimeType, setCreatePhotoMimeType] = useState<string | null>(
+    null,
+  );
+  const [cameraCaptureTarget, setCameraCaptureTarget] = useState<
+    "create" | "edit" | null
+  >(null);
   const [createError, setCreateError] = useState("");
   const {
     issue: createValidationIssue,
@@ -391,7 +497,8 @@ export default function ClassStudentsScreen() {
   } = useFormValidationFeedback<EditStudentValidationField>();
   const [creatingStudent, setCreatingStudent] = useState(false);
   const [duplicateNameConfirmed, setDuplicateNameConfirmed] = useState(false);
-  const [selectedExistingStudent, setSelectedExistingStudent] = useState<ExistingStudentOption | null>(null);
+  const [selectedExistingStudent, setSelectedExistingStudent] =
+    useState<ExistingStudentOption | null>(null);
   const [editSnapshot, setEditSnapshot] = useState<{
     name: string;
     phone: string;
@@ -419,6 +526,7 @@ export default function ClassStudentsScreen() {
   } | null>(null);
 
   const containerRef = useRef<View>(null);
+  const selectionActionsAnchorRef = useRef<View>(null);
   const createNameInputRef = useRef<TextInput | null>(null);
   const createBirthDateInputRef = useRef<TextInput | null>(null);
   const createRaInputRef = useRef<TextInput | null>(null);
@@ -428,38 +536,95 @@ export default function ClassStudentsScreen() {
   const guardianRef = useRef<View>(null);
   const primaryRef = useRef<View>(null);
   const secondaryRef = useRef<View>(null);
-  const [container, setContainer] = useState<{ x: number; y: number } | null>(null);
-  const [layouts, setLayouts] = useState<Record<Exclude<DropKey, null>, Layout | null>>({
+  const [container, setContainer] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [layouts, setLayouts] = useState<
+    Record<Exclude<DropKey, null>, Layout | null>
+  >({
     guardian: null,
     primary: null,
     secondary: null,
   });
 
-  const { animatedStyle: dropdownAnimatedStyle, isVisible: dropdownVisible } = useCollapsibleAnimation(
-    dropKey !== null
-  );
+  const { animatedStyle: dropdownAnimatedStyle, isVisible: dropdownVisible } =
+    useCollapsibleAnimation(dropKey !== null);
   const accordionAnimOptions = useMemo(
     () => ({ durationIn: 160, durationOut: 120, translateY: -3 }),
-    []
+    [],
   );
-  const positionPickerAnim = useCollapsibleAnimation(showPositionPicker, accordionAnimOptions);
-  const guardianRelationPickerAnim = useCollapsibleAnimation(showGuardianRelationPicker, accordionAnimOptions);
-  const editUnitPickerAnim = useCollapsibleAnimation(showEditUnitPicker, accordionAnimOptions);
-  const editClassPickerAnim = useCollapsibleAnimation(showEditClassPicker, accordionAnimOptions);
-  const studentDataAnim = useCollapsibleAnimation(openSection === "studentData", accordionAnimOptions);
-  const academicAnim = useCollapsibleAnimation(openSection === "academic", accordionAnimOptions);
-  const sportAnim = useCollapsibleAnimation(openSection === "sportProfile", accordionAnimOptions);
-  const documentsAnim = useCollapsibleAnimation(openSection === "documents", accordionAnimOptions);
-  const healthAnim = useCollapsibleAnimation(openSection === "health", accordionAnimOptions);
-  const guardianAnim = useCollapsibleAnimation(openSection === "guardian", accordionAnimOptions);
-  const linksAnim = useCollapsibleAnimation(openSection === "links", accordionAnimOptions);
-  const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
-  const createAcademicAnim = useCollapsibleAnimation(openCreateSection === "academic", accordionAnimOptions);
-  const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", accordionAnimOptions);
-  const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", accordionAnimOptions);
-  const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
-  const createGuardianAnim = useCollapsibleAnimation(openCreateSection === "guardian", accordionAnimOptions);
-  const createLinksAnim = useCollapsibleAnimation(openCreateSection === "links", accordionAnimOptions);
+  const positionPickerAnim = useCollapsibleAnimation(
+    showPositionPicker,
+    accordionAnimOptions,
+  );
+  const guardianRelationPickerAnim = useCollapsibleAnimation(
+    showGuardianRelationPicker,
+    accordionAnimOptions,
+  );
+  const editUnitPickerAnim = useCollapsibleAnimation(
+    showEditUnitPicker,
+    accordionAnimOptions,
+  );
+  const editClassPickerAnim = useCollapsibleAnimation(
+    showEditClassPicker,
+    accordionAnimOptions,
+  );
+  const studentDataAnim = useCollapsibleAnimation(
+    openSection === "studentData",
+    accordionAnimOptions,
+  );
+  const academicAnim = useCollapsibleAnimation(
+    openSection === "academic",
+    accordionAnimOptions,
+  );
+  const sportAnim = useCollapsibleAnimation(
+    openSection === "sportProfile",
+    accordionAnimOptions,
+  );
+  const documentsAnim = useCollapsibleAnimation(
+    openSection === "documents",
+    accordionAnimOptions,
+  );
+  const healthAnim = useCollapsibleAnimation(
+    openSection === "health",
+    accordionAnimOptions,
+  );
+  const guardianAnim = useCollapsibleAnimation(
+    openSection === "guardian",
+    accordionAnimOptions,
+  );
+  const linksAnim = useCollapsibleAnimation(
+    openSection === "links",
+    accordionAnimOptions,
+  );
+  const createStudentDataAnim = useCollapsibleAnimation(
+    openCreateSection === "studentData",
+    accordionAnimOptions,
+  );
+  const createAcademicAnim = useCollapsibleAnimation(
+    openCreateSection === "academic",
+    accordionAnimOptions,
+  );
+  const createSportAnim = useCollapsibleAnimation(
+    openCreateSection === "sportProfile",
+    accordionAnimOptions,
+  );
+  const createHealthAnim = useCollapsibleAnimation(
+    openCreateSection === "health",
+    accordionAnimOptions,
+  );
+  const createDocumentsAnim = useCollapsibleAnimation(
+    openCreateSection === "documents",
+    accordionAnimOptions,
+  );
+  const createGuardianAnim = useCollapsibleAnimation(
+    openCreateSection === "guardian",
+    accordionAnimOptions,
+  );
+  const createLinksAnim = useCollapsibleAnimation(
+    openCreateSection === "links",
+    accordionAnimOptions,
+  );
 
   const rowStyle = useMemo(
     () => ({
@@ -467,7 +632,7 @@ export default function ClassStudentsScreen() {
       alignItems: "flex-start" as const,
       gap: 12,
     }),
-    [isCompactForm]
+    [isCompactForm],
   );
 
   const runSectionLayoutAnimation = useCallback(() => {
@@ -480,14 +645,20 @@ export default function ClassStudentsScreen() {
     }
   }, []);
 
-  const toggleSection = useCallback((section: Exclude<StudentSectionKey, null>) => {
-    runSectionLayoutAnimation();
-    setOpenSection((prev) => (prev === section ? null : section));
-  }, [runSectionLayoutAnimation]);
-  const toggleCreateSection = useCallback((section: Exclude<CreateSectionKey, null>) => {
-    runSectionLayoutAnimation();
-    setOpenCreateSection((prev) => (prev === section ? null : section));
-  }, [runSectionLayoutAnimation]);
+  const toggleSection = useCallback(
+    (section: Exclude<StudentSectionKey, null>) => {
+      runSectionLayoutAnimation();
+      setOpenSection((prev) => (prev === section ? null : section));
+    },
+    [runSectionLayoutAnimation],
+  );
+  const toggleCreateSection = useCallback(
+    (section: Exclude<CreateSectionKey, null>) => {
+      runSectionLayoutAnimation();
+      setOpenCreateSection((prev) => (prev === section ? null : section));
+    },
+    [runSectionLayoutAnimation],
+  );
 
   const colStyle = useMemo(
     () => ({
@@ -495,7 +666,7 @@ export default function ClassStudentsScreen() {
       minWidth: 0,
       gap: 4,
     }),
-    []
+    [],
   );
 
   const selectFieldStyle = useMemo(
@@ -510,92 +681,136 @@ export default function ClassStudentsScreen() {
       alignItems: "center" as const,
       justifyContent: "space-between" as const,
     }),
-    [colors.border, colors.inputBg]
+    [colors.border, colors.inputBg],
   );
 
   const linksContentStyle = useMemo(() => ({ gap: 10, padding: 12 }), []);
-  const linksLabelStyle = useMemo(() => ({ color: colors.muted, fontSize: 11 }), [colors.muted]);
-  const linksValueStyle = useMemo(() => ({ color: colors.text, fontSize: 13, fontWeight: "700" as const }), [colors.text]);
-  const linksTagsStyle = useMemo(() => ({ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 }), []);
-  const linksTagStyle = useMemo(
-    () => ({ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }),
-    [colors.border, colors.secondaryBg]
+  const linksLabelStyle = useMemo(
+    () => ({ color: colors.muted, fontSize: 11 }),
+    [colors.muted],
   );
-  const linksTagTextStyle = useMemo(() => ({ color: colors.text, fontSize: 11, fontWeight: "600" as const }), [colors.text]);
-  const editUnitChevronStyle = useMemo(() => ({ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }), [showEditUnitPicker]);
+  const linksValueStyle = useMemo(
+    () => ({ color: colors.text, fontSize: 13, fontWeight: "700" as const }),
+    [colors.text],
+  );
+  const linksTagsStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      flexWrap: "wrap" as const,
+      gap: 8,
+    }),
+    [],
+  );
+  const linksTagStyle = useMemo(
+    () => ({
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      backgroundColor: colors.secondaryBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    }),
+    [colors.border, colors.secondaryBg],
+  );
+  const linksTagTextStyle = useMemo(
+    () => ({ color: colors.text, fontSize: 11, fontWeight: "600" as const }),
+    [colors.text],
+  );
+  const editUnitChevronStyle = useMemo(
+    () => ({ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }),
+    [showEditUnitPicker],
+  );
 
-  const load = useCallback(async (alive?: { current: boolean }) => {
-    if (!id) return;
-    const isAlive = () => !alive || alive.current;
-    setLoading(true);
-    setLoadError("");
-    try {
-      const [classData, list] = await Promise.all([
-        getClassById(id),
-        getStudentsByClass(id),
-      ]);
-      if (!isAlive()) return;
-      setCls(classData);
-      setStudents(list.slice().sort((a, b) => a.name.localeCompare(b.name)));
-      setOrganizationStudents(list);
-      setOrganizationClasses(classData ? [classData] : []);
-      if (classData?.organizationId) {
-        void Promise.all([
-          getStudents({ organizationId: classData.organizationId }),
-          getClasses({ organizationId: classData.organizationId }),
-        ])
-          .then(([organizationStudentRows, organizationClassRows]) => {
-            if (!isAlive()) return;
-            setOrganizationStudents(
-              organizationStudentRows.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-            );
-            setOrganizationClasses(organizationClassRows);
-          })
-          .catch((error) => {
-            if (!isAlive()) return;
-            console.warn("Existing students autocomplete load failed", error);
-          });
-      }
-      void (async () => {
-        try {
-          const intakes = await measureAsync(
-            "screen.classStudents.load.intakes",
-            () => getAthleteIntakesByClass(id),
-            { screen: "classStudents", classId: id }
-          );
-          if (!isAlive()) return;
-          setAthleteIntakes(intakes);
-        } catch {
-          if (!isAlive()) return;
-          setAthleteIntakes([]);
+  const load = useCallback(
+    async (alive?: { current: boolean }) => {
+      if (!id) return;
+      const isAlive = () => !alive || alive.current;
+      setLoading(true);
+      setLoadError("");
+      try {
+        const [classData, list, attendance] = await Promise.all([
+          getClassById(id),
+          getStudentsByClass(id, { includeInactive: true }),
+          getAttendanceByClass(id),
+        ]);
+        if (!isAlive()) return;
+        setCls(classData);
+        setStudents(list.slice().sort((a, b) => a.name.localeCompare(b.name)));
+        setAttendanceRecords(attendance);
+        setOrganizationStudents(list);
+        setOrganizationClasses(classData ? [classData] : []);
+        if (classData?.organizationId) {
+          void Promise.all([
+            getStudents({ organizationId: classData.organizationId }),
+            getClasses({ organizationId: classData.organizationId }),
+          ])
+            .then(([organizationStudentRows, organizationClassRows]) => {
+              if (!isAlive()) return;
+              setOrganizationStudents(
+                organizationStudentRows
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+              );
+              setOrganizationClasses(organizationClassRows);
+            })
+            .catch((error) => {
+              if (!isAlive()) return;
+              console.warn("Existing students autocomplete load failed", error);
+            });
         }
-      })();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao carregar alunos da turma.";
-      if (message.toLowerCase().includes("missing auth token")) {
-        setLoadError("Sessão expirada. Faça login novamente para acessar os alunos da turma.");
-        return;
+        void (async () => {
+          try {
+            const intakes = await measureAsync(
+              "screen.classStudents.load.intakes",
+              () => getAthleteIntakesByClass(id),
+              { screen: "classStudents", classId: id },
+            );
+            if (!isAlive()) return;
+            setAthleteIntakes(intakes);
+          } catch {
+            if (!isAlive()) return;
+            setAthleteIntakes([]);
+          }
+        })();
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Falha ao carregar alunos da turma.";
+        if (message.toLowerCase().includes("missing auth token")) {
+          setLoadError(
+            "Sessão expirada. Faça login novamente para acessar os alunos da turma.",
+          );
+          return;
+        }
+        setLoadError(message);
+      } finally {
+        setLoading(false);
       }
-      setLoadError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+    },
+    [id],
+  );
 
   useEffect(() => {
-    if ((!showMoveClassModal && !editingStudent) || !cls?.organizationId) return;
+    if ((!showMoveClassModal && !editingStudent) || !cls?.organizationId)
+      return;
     let cancelled = false;
 
     const loadMoveClasses = async () => {
       setMoveClassesLoading(true);
       setMoveClassError("");
       try {
-        const classRows = await getClasses({ organizationId: cls.organizationId });
+        const classRows = await getClasses({
+          organizationId: cls.organizationId,
+        });
         if (cancelled) return;
         setMoveClasses(classRows);
       } catch (error) {
         if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Não foi possível carregar as turmas.";
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar as turmas.";
         setMoveClassError(message);
       } finally {
         if (!cancelled) {
@@ -614,7 +829,9 @@ export default function ClassStudentsScreen() {
   useEffect(() => {
     if (!editingStudent || !cls?.organizationId) return;
     let cancelled = false;
-    void getStudentClassIds(editingStudent.id, { organizationId: cls.organizationId })
+    void getStudentClassIds(editingStudent.id, {
+      organizationId: cls.organizationId,
+    })
       .then((classIds) => {
         if (cancelled) return;
         const resolved = classIds.length ? classIds : [cls.id];
@@ -674,7 +891,14 @@ export default function ClassStudentsScreen() {
         label: "Revisar",
       },
     }),
-    [colors.dangerBg, colors.dangerText, colors.successBg, colors.successText, colors.warningBg, colors.warningText]
+    [
+      colors.dangerBg,
+      colors.dangerText,
+      colors.successBg,
+      colors.successText,
+      colors.warningBg,
+      colors.warningText,
+    ],
   );
 
   useEffect(() => {
@@ -689,8 +913,10 @@ export default function ClassStudentsScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    const studentsWithPhoto = students.filter((student) => Boolean(student.photoUrl));
-void Promise.all(
+    const studentsWithPhoto = students.filter((student) =>
+      Boolean(student.photoUrl),
+    );
+    void Promise.all(
       studentsWithPhoto.map(async (student) => {
         try {
           const url = await getStudentPhotoAccessUrl(student.photoUrl);
@@ -699,11 +925,15 @@ void Promise.all(
           console.warn("Student photo authorization failed", error);
           return null;
         }
-      })
+      }),
     ).then((entries) => {
       if (cancelled) return;
       setStudentPhotoAccessUrls(
-        Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry)))
+        Object.fromEntries(
+          entries.filter((entry): entry is readonly [string, string] =>
+            Boolean(entry),
+          ),
+        ),
       );
     });
 
@@ -715,9 +945,15 @@ void Promise.all(
   const closeDropdown = useCallback(() => setDropKey(null), []);
 
   const syncLayouts = useCallback(() => {
-    const apply = (key: Exclude<DropKey, null>, ref: React.RefObject<View | null>) => {
+    const apply = (
+      key: Exclude<DropKey, null>,
+      ref: React.RefObject<View | null>,
+    ) => {
       ref.current?.measureInWindow((x, y, width0, height0) => {
-        setLayouts((prev) => ({ ...prev, [key]: { x, y, width: width0, height: height0 } }));
+        setLayouts((prev) => ({
+          ...prev,
+          [key]: { x, y, width: width0, height: height0 },
+        }));
       });
     };
     containerRef.current?.measureInWindow((x, y) => setContainer({ x, y }));
@@ -739,22 +975,29 @@ void Promise.all(
 
   const detectedDuplicateGroups = useMemo(
     () => findPossibleDuplicateStudentGroups(students),
-    [students]
+    [students],
   );
   const possibleDuplicateGroups = useMemo(
     () =>
       duplicateReviewsLoaded
         ? detectedDuplicateGroups.filter(
             (group) =>
-              !reviewedDuplicateSignatures.has(buildPossibleDuplicateReviewSignature(group))
+              !reviewedDuplicateSignatures.has(
+                buildPossibleDuplicateReviewSignature(group),
+              ),
           )
         : [],
-    [detectedDuplicateGroups, duplicateReviewsLoaded, reviewedDuplicateSignatures]
+    [
+      detectedDuplicateGroups,
+      duplicateReviewsLoaded,
+      reviewedDuplicateSignatures,
+    ],
   );
   const duplicateGroupByStudentId = useMemo(() => {
     const byStudentId = new Map<string, PossibleDuplicateStudentGroup>();
     for (const group of possibleDuplicateGroups) {
-      for (const studentId of group.studentIds) byStudentId.set(studentId, group);
+      for (const studentId of group.studentIds)
+        byStudentId.set(studentId, group);
     }
     return byStudentId;
   }, [possibleDuplicateGroups]);
@@ -792,14 +1035,14 @@ void Promise.all(
           ? `${possibleDuplicateGroups.length} nome${possibleDuplicateGroups.length === 1 ? "" : "s"} repetido${possibleDuplicateGroups.length === 1 ? "" : "s"} para revisar`
           : cls?.unit?.trim() || "Alunos",
       }),
-      [cls?.name, cls?.unit, possibleDuplicateGroups.length]
-    )
+      [cls?.name, cls?.unit, possibleDuplicateGroups.length],
+    ),
   );
 
   const duplicateCopilotActions = useMemo<CopilotAction[]>(() => {
     const group = possibleDuplicateGroups[0];
     const student = group
-      ? students.find((item) => item.id === group.studentIds[0]) ?? null
+      ? (students.find((item) => item.id === group.studentIds[0]) ?? null)
       : null;
     if (!group || !student) return [];
     return [
@@ -817,20 +1060,33 @@ void Promise.all(
   }, [possibleDuplicateGroups, students]);
   useCopilotActions(duplicateCopilotActions);
 
+  const inactivitySuggestions = useMemo(
+    () => deriveStudentInactivitySuggestions(attendanceRecords),
+    [attendanceRecords],
+  );
+
   const filtered = useMemo(() => {
     const t = debouncedSearch.trim().toLowerCase();
     return students.filter((s) => {
+      const appearsInactive =
+        s.membershipStatus === "inactive" || inactivitySuggestions.has(s.id);
+      const membershipFilter: MembershipFilter = appearsInactive
+        ? "inactive"
+        : "active";
+      if (!membershipFilters.includes(membershipFilter)) return false;
       if (!t) return true;
       const p = String(s.phone ?? "").replace(/\D/g, "");
       const raDigits = String(s.ra ?? "").replace(/\D/g, "");
       return (
         s.name.toLowerCase().includes(t) ||
-        String(s.guardianName ?? "").toLowerCase().includes(t) ||
+        String(s.guardianName ?? "")
+          .toLowerCase()
+          .includes(t) ||
         p.includes(t.replace(/\D/g, "")) ||
         raDigits.includes(t.replace(/\D/g, ""))
       );
     });
-  }, [debouncedSearch, students]);
+  }, [debouncedSearch, inactivitySuggestions, membershipFilters, students]);
 
   const pickStudentPhoto = useCallback(async (source: "camera" | "library") => {
     try {
@@ -839,9 +1095,13 @@ void Promise.all(
         return;
       }
 
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
-        Alert.alert("Permissão necessária", "Ative a galeria para escolher uma foto.");
+        Alert.alert(
+          "Permissão necessária",
+          "Ative a galeria para escolher uma foto.",
+        );
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -870,9 +1130,13 @@ void Promise.all(
         return;
       }
 
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
-        Alert.alert("Permissão necessária", "Ative a galeria para escolher uma foto.");
+        Alert.alert(
+          "Permissão necessária",
+          "Ative a galeria para escolher uma foto.",
+        );
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -916,9 +1180,21 @@ void Promise.all(
     setGuardianPhone(formatPhoneBrWithCountry(s.guardianPhone ?? ""));
     setGuardianRelation(s.guardianRelation ?? "");
     setCollegeCourse(s.collegeCourse ?? "");
-    setPrimaryPos(s.positionPrimary && s.positionPrimary !== "indefinido" ? s.positionPrimary : "");
-    setSecondaryPos(s.positionSecondary && s.positionSecondary !== "indefinido" ? s.positionSecondary : "");
-    setObjective(s.athleteObjective && s.athleteObjective !== "base" ? s.athleteObjective : "");
+    setPrimaryPos(
+      s.positionPrimary && s.positionPrimary !== "indefinido"
+        ? s.positionPrimary
+        : "",
+    );
+    setSecondaryPos(
+      s.positionSecondary && s.positionSecondary !== "indefinido"
+        ? s.positionSecondary
+        : "",
+    );
+    setObjective(
+      s.athleteObjective && s.athleteObjective !== "base"
+        ? s.athleteObjective
+        : "",
+    );
     setLearningStyle(s.learningStyle ?? "misto");
     setHealthIssue(Boolean(s.healthIssue));
     setHealthIssueNotes(s.healthIssueNotes ?? "");
@@ -948,10 +1224,18 @@ void Promise.all(
       guardianPhone: formatPhoneBrWithCountry(s.guardianPhone ?? ""),
       guardianRelation: s.guardianRelation ?? "",
       collegeCourse: s.collegeCourse ?? "",
-      primaryPos: s.positionPrimary && s.positionPrimary !== "indefinido" ? s.positionPrimary : "",
+      primaryPos:
+        s.positionPrimary && s.positionPrimary !== "indefinido"
+          ? s.positionPrimary
+          : "",
       secondaryPos:
-        s.positionSecondary && s.positionSecondary !== "indefinido" ? s.positionSecondary : "",
-      objective: s.athleteObjective && s.athleteObjective !== "base" ? s.athleteObjective : "",
+        s.positionSecondary && s.positionSecondary !== "indefinido"
+          ? s.positionSecondary
+          : "",
+      objective:
+        s.athleteObjective && s.athleteObjective !== "base"
+          ? s.athleteObjective
+          : "",
       learningStyle: s.learningStyle ?? "misto",
       healthIssue: Boolean(s.healthIssue),
       healthIssueNotes: s.healthIssueNotes ?? "",
@@ -988,7 +1272,7 @@ void Promise.all(
         } catch {
           Alert.alert(
             "Convite criado",
-            `Não foi possível copiar automaticamente. Compartilhe este link:\n${inviteLink}`
+            `Não foi possível copiar automaticamente. Compartilhe este link:\n${inviteLink}`,
           );
         }
       } catch (error) {
@@ -997,7 +1281,7 @@ void Promise.all(
         setStudentInviteBusyId(null);
       }
     },
-    [showSaveToast, studentInviteBusyId]
+    [showSaveToast, studentInviteBusyId],
   );
 
   const reviewDuplicateStudent = () => {
@@ -1012,7 +1296,9 @@ void Promise.all(
     if (!target || !id || !cls?.organizationId) return;
     const signature = buildPossibleDuplicateReviewSignature(target.group);
     setDuplicateReviewTarget(null);
-    setReviewedDuplicateSignatures((current) => new Set([...current, signature]));
+    setReviewedDuplicateSignatures(
+      (current) => new Set([...current, signature]),
+    );
     try {
       await saveReviewedDuplicateSignature({
         organizationId: cls.organizationId,
@@ -1057,10 +1343,40 @@ void Promise.all(
       (cpfWasEdited && editSnapshot.cpfDisplay !== cpfDisplay) ||
       editSnapshot.rgDocument !== rgDocument ||
       editSnapshot.ra !== ra ||
-      [...editClassIds].sort().join("|") !== [...initialEditClassIds].sort().join("|") ||
+      [...editClassIds].sort().join("|") !==
+        [...initialEditClassIds].sort().join("|") ||
       photoChanged
     );
-  }, [age, birthIso, birthText, cpfDisplay, cpfWasEdited, editSnapshot, editClassIds, initialEditClassIds, editingStudent, email, guardianName, guardianPhone, guardianRelation, collegeCourse, healthIssue, healthIssueNotes, healthObs, learningStyle, medicationNotes, medicationUse, name, objective, phone, primaryPos, photoChanged, rgDocument, ra, secondaryPos]);
+  }, [
+    age,
+    birthIso,
+    birthText,
+    cpfDisplay,
+    cpfWasEdited,
+    editSnapshot,
+    editClassIds,
+    initialEditClassIds,
+    editingStudent,
+    email,
+    guardianName,
+    guardianPhone,
+    guardianRelation,
+    collegeCourse,
+    healthIssue,
+    healthIssueNotes,
+    healthObs,
+    learningStyle,
+    medicationNotes,
+    medicationUse,
+    name,
+    objective,
+    phone,
+    primaryPos,
+    photoChanged,
+    rgDocument,
+    ra,
+    secondaryPos,
+  ]);
 
   const closeEditModal = useCallback(() => {
     setDropKey(null);
@@ -1128,12 +1444,14 @@ void Promise.all(
       createRg,
     ].some((value) => value.trim().length > 0);
 
-    return hasTextChanges ||
+    return (
+      hasTextChanges ||
       createPositionPrimary !== "indefinido" ||
       createPositionSecondary !== "indefinido" ||
       createHealthIssue ||
       createMedicationUse ||
-      Boolean(createPhotoUrl);
+      Boolean(createPhotoUrl)
+    );
   }, [
     createBirthText,
     createCollegeCourse,
@@ -1173,7 +1491,7 @@ void Promise.all(
       setCreateExitTarget(target);
       setShowCreateCloseConfirm(true);
     },
-    [createFormDirty, id, resetCreateForm, router]
+    [createFormDirty, id, resetCreateForm, router],
   );
 
   const closeCreateDiscardConfirm = useCallback(() => {
@@ -1211,7 +1529,7 @@ void Promise.all(
       }
       setScreenTab(nextTab);
     },
-    [requestDiscardCreateForm, screenTab]
+    [requestDiscardCreateForm, screenTab],
   );
 
   const handleBackPress = useCallback(() => {
@@ -1235,7 +1553,7 @@ void Promise.all(
 
   const currentClassStudentIds = useMemo(
     () => students.map((student) => student.id),
-    [students]
+    [students],
   );
 
   const handleCreateNameChange = useCallback((nextValue: string) => {
@@ -1246,11 +1564,14 @@ void Promise.all(
   }, []);
 
   useEffect(() => {
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (screenTab !== "cadastro") return false;
-      handleBackPress();
-      return true;
-    });
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (screenTab !== "cadastro") return false;
+        handleBackPress();
+        return true;
+      },
+    );
     return () => subscription.remove();
   }, [handleBackPress, screenTab]);
 
@@ -1267,13 +1588,19 @@ void Promise.all(
             : createRaInputRef;
       setTimeout(() => targetRef.current?.focus(), 180);
     },
-    [showCreateValidationError]
+    [showCreateValidationError],
   );
 
   const reportEditValidation = useCallback(
     (field: EditStudentValidationField, message: string) => {
       showEditValidationError(field, message);
-      setOpenSection(field === "ra" ? "academic" : field === "classes" ? "links" : "studentData");
+      setOpenSection(
+        field === "ra"
+          ? "academic"
+          : field === "classes"
+            ? "links"
+            : "studentData",
+      );
       const targetRef =
         field === "name"
           ? editNameInputRef
@@ -1284,7 +1611,7 @@ void Promise.all(
               : null;
       if (targetRef) setTimeout(() => targetRef.current?.focus(), 180);
     },
-    [showEditValidationError]
+    [showEditValidationError],
   );
 
   const createStudent = useCallback(async () => {
@@ -1295,7 +1622,10 @@ void Promise.all(
       return;
     }
     clearCreateValidationError("name");
-    const sameNameStudents = findStudentsWithSameNormalizedName(students, cleanName);
+    const sameNameStudents = findStudentsWithSameNormalizedName(
+      students,
+      cleanName,
+    );
     if (sameNameStudents.length && !duplicateNameConfirmed) {
       setDuplicateNameConfirmed(true);
       setCreateError("Já existe aluno com esse nome. Manter mesmo assim?");
@@ -1304,10 +1634,7 @@ void Promise.all(
     const birthTextValue = createBirthText.trim();
     const parsedBirthIso = birthTextValue ? brToIso(birthTextValue) : null;
     if (birthTextValue && !parsedBirthIso) {
-      reportCreateValidation(
-        "birthDate",
-        "Confira a data de nascimento."
-      );
+      reportCreateValidation("birthDate", "Confira a data de nascimento.");
       return;
     }
     const birthIso = parsedBirthIso ?? "";
@@ -1333,7 +1660,9 @@ void Promise.all(
     if (missingImportantFields.length) {
       const confirmed = await confirmDialog({
         title: "Salvar cadastro incompleto?",
-        message: buildIncompleteStudentConfirmationMessage(missingImportantFields),
+        message: buildIncompleteStudentConfirmationMessage(
+          missingImportantFields,
+        ),
         confirmLabel: "Salvar mesmo assim",
         cancelLabel: "Revisar cadastro",
         tone: "default",
@@ -1359,9 +1688,14 @@ void Promise.all(
         email: createEmail,
       });
 
-      if (existingLink.status === "linked" || existingLink.status === "already-linked") {
+      if (
+        existingLink.status === "linked" ||
+        existingLink.status === "already-linked"
+      ) {
         const actionLabel =
-          existingLink.status === "linked" ? "vinculado" : "já estava vinculado";
+          existingLink.status === "linked"
+            ? "vinculado"
+            : "já estava vinculado";
         Alert.alert(
           "Aluno existente encontrado",
           `${existingLink.student?.name ?? "Aluno"} ${actionLabel} a esta turma.`,
@@ -1370,7 +1704,7 @@ void Promise.all(
               text: "OK",
               onPress: () => setScreenTab("alunos"),
             },
-          ]
+          ],
         );
         resetCreateForm();
         await load();
@@ -1396,9 +1730,13 @@ void Promise.all(
         rg: createRg.trim() || null,
         collegeCourse: createCollegeCourse.trim() || null,
         healthIssue: createHealthIssue,
-        healthIssueNotes: createHealthIssue ? createHealthIssueNotes.trim() : "",
+        healthIssueNotes: createHealthIssue
+          ? createHealthIssueNotes.trim()
+          : "",
         medicationUse: createMedicationUse,
-        medicationNotes: createMedicationUse ? createMedicationNotes.trim() : "",
+        medicationNotes: createMedicationUse
+          ? createMedicationNotes.trim()
+          : "",
         healthObservations: createHealthObs.trim(),
         positionPrimary: createPositionPrimary,
         positionSecondary: createPositionSecondary,
@@ -1429,7 +1767,10 @@ void Promise.all(
         onAction: () => setScreenTab("alunos"),
       });
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Não foi possível cadastrar o aluno.";
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível cadastrar o aluno.";
       setCreateError(detail);
     } finally {
       setCreatingStudent(false);
@@ -1481,7 +1822,7 @@ void Promise.all(
         "birthDate",
         birthText.trim()
           ? "Confira a data de nascimento."
-          : "Informe a data de nascimento."
+          : "Informe a data de nascimento.",
       );
       return;
     }
@@ -1514,13 +1855,18 @@ void Promise.all(
         phone: phone.trim(),
         loginEmail: email.trim(),
         birthDate: parsed,
-        age: Number.isFinite(Number(age)) && Number(age) > 0 ? Number(age) : editingStudent.age,
+        age:
+          Number.isFinite(Number(age)) && Number(age) > 0
+            ? Number(age)
+            : editingStudent.age,
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
         guardianRelation: guardianRelation.trim(),
         collegeCourse: collegeCourse.trim() || null,
-        positionPrimary: (primaryPos || "indefinido") as Student["positionPrimary"],
-        positionSecondary: (secondaryPos || "indefinido") as Student["positionSecondary"],
+        positionPrimary: (primaryPos ||
+          "indefinido") as Student["positionPrimary"],
+        positionSecondary: (secondaryPos ||
+          "indefinido") as Student["positionSecondary"],
         athleteObjective: (objective || "base") as Student["athleteObjective"],
         learningStyle,
         healthIssue,
@@ -1558,8 +1904,12 @@ void Promise.all(
       void performSave();
       return;
     }
-    const beforeNames = moveClasses.filter((item) => initialEditClassIds.includes(item.id)).map((item) => item.name);
-    const afterNames = moveClasses.filter((item) => editClassIds.includes(item.id)).map((item) => item.name);
+    const beforeNames = moveClasses
+      .filter((item) => initialEditClassIds.includes(item.id))
+      .map((item) => item.name);
+    const afterNames = moveClasses
+      .filter((item) => editClassIds.includes(item.id))
+      .map((item) => item.name);
     confirm({
       title: "Alterar turmas do aluno?",
       message: `Antes: ${beforeNames.join(", ") || "sem turma"}. Depois: ${afterNames.join(", ")}.`,
@@ -1602,7 +1952,9 @@ void Promise.all(
       setIsCpfVisible(true);
     } catch (error) {
       const detail =
-        error instanceof Error ? error.message : "Não foi possível revelar o CPF.";
+        error instanceof Error
+          ? error.message
+          : "Não foi possível revelar o CPF.";
       if (detail.toLowerCase().includes("indisponivel")) {
         setCpfRevealUnavailable(true);
       }
@@ -1622,7 +1974,7 @@ void Promise.all(
 
   const requestStudentInactivation = useCallback((targets: Student[]) => {
     const activeTargets = targets.filter(
-      (student) => student.membershipStatus !== "inactive"
+      (student) => student.membershipStatus !== "inactive",
     );
     if (!activeTargets.length) return;
     setInactivationTargets(activeTargets);
@@ -1644,24 +1996,24 @@ void Promise.all(
       const updatedStudents = await inactivateStudents(
         inactivationTargets.map((student) => student.id),
         reason,
-        { organizationId: cls?.organizationId ?? null }
+        { organizationId: cls?.organizationId ?? null },
       );
       const updatedById = new Map(
-        updatedStudents.map((student) => [student.id, student])
+        updatedStudents.map((student) => [student.id, student]),
       );
       const inactivatedIds = new Set(updatedById.keys());
       const inactivatedEditingStudent = Boolean(
-        editingStudent?.id && inactivatedIds.has(editingStudent.id)
+        editingStudent?.id && inactivatedIds.has(editingStudent.id),
       );
 
       setStudents((current) =>
-        current.filter((student) => !inactivatedIds.has(student.id))
+        current.filter((student) => !inactivatedIds.has(student.id)),
       );
       setOrganizationStudents((current) =>
-        current.map((student) => updatedById.get(student.id) ?? student)
+        current.map((student) => updatedById.get(student.id) ?? student),
       );
       setSelectedStudentIds((current) =>
-        current.filter((studentId) => !inactivatedIds.has(studentId))
+        current.filter((studentId) => !inactivatedIds.has(studentId)),
       );
       setSelectionModeEnabled(false);
       if (inactivatedEditingStudent) {
@@ -1697,7 +2049,7 @@ void Promise.all(
 
   const selectedStudents = useMemo(
     () => students.filter((student) => selectedStudentIds.includes(student.id)),
-    [selectedStudentIds, students]
+    [selectedStudentIds, students],
   );
   const filteredMoveClasses = useMemo(() => {
     const query = normalizeTextKey(moveClassSearch);
@@ -1711,34 +2063,45 @@ void Promise.all(
       });
     if (!query) return sortedClasses;
     return sortedClasses.filter((item) => {
-      const searchable = normalizeTextKey(`${item.name} ${item.unit} ${classGenderLabel[item.gender] ?? item.gender}`);
+      const searchable = normalizeTextKey(
+        `${item.name} ${item.unit} ${classGenderLabel[item.gender] ?? item.gender}`,
+      );
       return searchable.includes(query);
     });
   }, [cls?.id, moveClassSearch, moveClasses]);
   const selectedMoveClass = useMemo(
     () => moveClasses.find((item) => item.id === selectedMoveClassId) ?? null,
-    [moveClasses, selectedMoveClassId]
+    [moveClasses, selectedMoveClassId],
   );
   const editUnitOptions = useMemo(
-    () => Array.from(new Set(moveClasses.map((item) => item.unit))).sort((a, b) => a.localeCompare(b)),
-    [moveClasses]
+    () =>
+      Array.from(new Set(moveClasses.map((item) => item.unit))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [moveClasses],
   );
   const editClassOptions = useMemo(
-    () => moveClasses.filter((item) => !editUnitFilters.length || editUnitFilters.includes(item.unit)),
-    [editUnitFilters, moveClasses]
+    () =>
+      moveClasses.filter(
+        (item) =>
+          !editUnitFilters.length || editUnitFilters.includes(item.unit),
+      ),
+    [editUnitFilters, moveClasses],
   );
   const selectedEditClasses = useMemo(
     () => moveClasses.filter((item) => editClassIds.includes(item.id)),
-    [editClassIds, moveClasses]
+    [editClassIds, moveClasses],
   );
   const isSelectionMode = selectionModeEnabled;
-  const allFilteredSelected = filtered.length > 0 && filtered.every((student) => selectedStudentIds.includes(student.id));
+  const allFilteredSelected =
+    filtered.length > 0 &&
+    filtered.every((student) => selectedStudentIds.includes(student.id));
 
   const toggleSelectedStudent = useCallback((studentId: string) => {
     setSelectedStudentIds((current) =>
       current.includes(studentId)
         ? current.filter((value) => value !== studentId)
-        : [...current, studentId]
+        : [...current, studentId],
     );
   }, []);
 
@@ -1751,9 +2114,24 @@ void Promise.all(
   }, []);
 
   const exitSelectionMode = useCallback(() => {
+    setShowSelectionActionsMenu(false);
     setSelectionModeEnabled(false);
     setSelectedStudentIds([]);
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !isSelectionMode) return;
+
+    const handleEscapeSelection = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      exitSelectionMode();
+      (document.activeElement as HTMLElement | null)?.blur();
+    };
+
+    document.addEventListener("keydown", handleEscapeSelection);
+    return () => document.removeEventListener("keydown", handleEscapeSelection);
+  }, [exitSelectionMode, isSelectionMode]);
 
   const selectAllStudents = useCallback(() => {
     if (!filtered.length) return;
@@ -1786,7 +2164,9 @@ void Promise.all(
         for (const student of targets) {
           byId.set(student.id, student);
         }
-        return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+        return Array.from(byId.values()).sort((a, b) =>
+          a.name.localeCompare(b.name),
+        );
       });
     };
 
@@ -1802,7 +2182,12 @@ void Promise.all(
       },
       onConfirm: async () => {
         try {
-          await moveStudentsToClass(targetIds, cls.id, selectedMoveClass.id, cls.organizationId);
+          await moveStudentsToClass(
+            targetIds,
+            cls.id,
+            selectedMoveClass.id,
+            cls.organizationId,
+          );
           showSaveToast({
             message: `${targets.length} aluno(s) movido(s) para ${selectedMoveClass.name}.`,
             variant: "success",
@@ -1810,7 +2195,10 @@ void Promise.all(
           await load();
         } catch (error) {
           restoreMovedStudents();
-          const detail = error instanceof Error ? error.message : "Não foi possível mover os alunos.";
+          const detail =
+            error instanceof Error
+              ? error.message
+              : "Não foi possível mover os alunos.";
           Alert.alert("Mover alunos", detail);
         }
       },
@@ -1839,14 +2227,17 @@ void Promise.all(
     setCreatingStudent(true);
     setCreateError("");
     try {
-      const currentClassIds = await getStudentClassIds(selectedExistingStudent.student.id, {
-        organizationId: cls?.organizationId ?? null,
-      });
+      const currentClassIds = await getStudentClassIds(
+        selectedExistingStudent.student.id,
+        {
+          organizationId: cls?.organizationId ?? null,
+        },
+      );
       if (!currentClassIds.includes(id)) {
         await setStudentClassIds(
           selectedExistingStudent.student.id,
           [...currentClassIds, id],
-          { organizationId: cls?.organizationId ?? null }
+          { organizationId: cls?.organizationId ?? null },
         );
       }
 
@@ -1861,7 +2252,9 @@ void Promise.all(
       });
     } catch (error) {
       const detail =
-        error instanceof Error ? error.message : "Não foi possível adicionar o aluno à turma.";
+        error instanceof Error
+          ? error.message
+          : "Não foi possível adicionar o aluno à turma.";
       setCreateError(detail);
     } finally {
       setCreatingStudent(false);
@@ -1869,31 +2262,17 @@ void Promise.all(
   };
 
   const handleSelectionMore = useCallback(() => {
-    const actions: { text: string; onPress?: () => void; style?: "default" | "cancel" | "destructive" }[] = [];
-    actions.push({
-      text: "Mover de turma",
-      onPress: () => openMoveClassModal(),
-    });
-    if (allFilteredSelected) {
-      actions.push({
-        text: "Desmarcar tudo",
-        onPress: () => clearSelectedStudents(),
-      });
-    } else {
-      actions.push({
-        text: "Selecionar tudo",
-        onPress: () => selectAllStudents(),
-      });
+    if (showSelectionActionsMenu) {
+      setShowSelectionActionsMenu(false);
+      return;
     }
-    actions.push(
-      {
-        text: "Cancelar seleção",
-        onPress: () => exitSelectionMode(),
+    selectionActionsAnchorRef.current?.measureInWindow(
+      (x, y, width, height) => {
+        setSelectionActionsLayout({ x, y, width, height });
+        setShowSelectionActionsMenu(true);
       },
-      { text: "Fechar", style: "cancel" }
     );
-    Alert.alert("Mais ações", undefined, actions);
-  }, [allFilteredSelected, clearSelectedStudents, exitSelectionMode, openMoveClassModal, selectAllStudents]);
+  }, [showSelectionActionsMenu]);
 
   const handleDuplicateSelectedStudents = useCallback(() => {
     if (!cls) return;
@@ -1927,7 +2306,7 @@ void Promise.all(
         prev
           .filter((item) => !duplicateIds.has(item.id))
           .slice()
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .sort((a, b) => a.name.localeCompare(b.name)),
       );
     };
 
@@ -1938,7 +2317,9 @@ void Promise.all(
       undoMessage: `${targets.length} aluno(s) copiado(s). Desfazer?`,
       onOptimistic: () => {
         setStudents((prev) =>
-          [...prev, ...duplicates].slice().sort((a, b) => a.name.localeCompare(b.name))
+          [...prev, ...duplicates]
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name)),
         );
         clearSelectedStudents();
       },
@@ -1952,7 +2333,10 @@ void Promise.all(
           }
         } catch (error) {
           restoreDuplicates();
-          const detail = error instanceof Error ? error.message : "Não foi possível duplicar os alunos.";
+          const detail =
+            error instanceof Error
+              ? error.message
+              : "Não foi possível duplicar os alunos.";
           Alert.alert("Duplicar alunos", detail);
         }
       },
@@ -1968,16 +2352,14 @@ void Promise.all(
 
   const activeLayout = dropKey ? layouts[dropKey] : null;
   const activeOptions =
-    dropKey === "guardian"
-      ? guardianRelationOptions
-      : positionOptions;
+    dropKey === "guardian" ? guardianRelationOptions : positionOptions;
 
   const activeValue =
     dropKey === "guardian"
       ? guardianRelation
       : dropKey === "primary"
-      ? primaryPos
-      : secondaryPos;
+        ? primaryPos
+        : secondaryPos;
 
   const studentDataSummary = useMemo(() => {
     const parts = [
@@ -1991,7 +2373,9 @@ void Promise.all(
   const academicSummary = useMemo(() => {
     const parts = [
       ra ? `RA ${ra}` : "RA não informado",
-      collegeCourse.trim() ? `Curso ${collegeCourse.trim()}` : "Curso não informado",
+      collegeCourse.trim()
+        ? `Curso ${collegeCourse.trim()}`
+        : "Curso não informado",
     ];
     return parts.join(" • ");
   }, [collegeCourse, ra]);
@@ -2005,11 +2389,13 @@ void Promise.all(
   }, [cpfDisplay, rgDocument]);
   const sportSummary = useMemo(() => {
     const selected = [primaryPos, secondaryPos].filter(Boolean);
-    return selected.length ? selected.map(getOptionLabel).join(" • ") : "Indefinido";
+    return selected.length
+      ? selected.map(getOptionLabel).join(" • ")
+      : "Indefinido";
   }, [primaryPos, secondaryPos]);
   const selectedPositions = useMemo(
     () => Array.from(new Set([primaryPos, secondaryPos].filter(Boolean))),
-    [primaryPos, secondaryPos]
+    [primaryPos, secondaryPos],
   );
 
   const editingIntake = useMemo(() => {
@@ -2041,7 +2427,10 @@ void Promise.all(
 
   const createStudentDataSummary = useMemo(() => {
     if (selectedExistingStudent) {
-      return [selectedExistingStudent.className, selectedExistingStudent.unitName]
+      return [
+        selectedExistingStudent.className,
+        selectedExistingStudent.unitName,
+      ]
         .filter(Boolean)
         .join(" • ");
     }
@@ -2056,7 +2445,9 @@ void Promise.all(
   const createAcademicSummary = useMemo(() => {
     const parts = [
       createRa.trim() ? `RA ${createRa.trim()}` : "RA não informado",
-      createCollegeCourse.trim() ? `Curso ${createCollegeCourse.trim()}` : "Curso não informado",
+      createCollegeCourse.trim()
+        ? `Curso ${createCollegeCourse.trim()}`
+        : "Curso não informado",
     ];
     return parts.join(" • ");
   }, [createCollegeCourse, createRa]);
@@ -2070,7 +2461,9 @@ void Promise.all(
   }, [createCpf, createRg]);
   const createSportSummary = useMemo(() => {
     const positionLabel = getOptionLabel(createPositionPrimary || "indefinido");
-    const secondaryLabel = getOptionLabel(createPositionSecondary || "indefinido");
+    const secondaryLabel = getOptionLabel(
+      createPositionSecondary || "indefinido",
+    );
     return `${positionLabel} • ${secondaryLabel}`;
   }, [createPositionPrimary, createPositionSecondary]);
 
@@ -2083,7 +2476,8 @@ void Promise.all(
 
   const createGuardianSummary = useMemo(() => {
     const nameLabel = createGuardianName.trim() || "Responsável não informado";
-    const relationLabel = createGuardianRelation.trim() || "Parentesco não informado";
+    const relationLabel =
+      createGuardianRelation.trim() || "Parentesco não informado";
     return `${nameLabel} • ${relationLabel}`;
   }, [createGuardianName, createGuardianRelation]);
 
@@ -2100,7 +2494,11 @@ void Promise.all(
       return `${classLabel} • ${unitLabel}`;
     }
     const modalities = Array.from(
-      new Set((editingIntake.modalities ?? []).map((item) => item.trim()).filter(Boolean))
+      new Set(
+        (editingIntake.modalities ?? [])
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
     );
     if (!modalities.length) {
       return `${cls?.name || "Sem turma"} • ${cls?.unit || "Sem unidade"}`;
@@ -2111,12 +2509,15 @@ void Promise.all(
   const intakeHealthSignals = useMemo(() => {
     if (!editingIntake) return [] as string[];
     const signals: string[] = [];
-    if (editingIntake.needsMedicalClearance) signals.push("Necessita liberação médica");
-    if (editingIntake.needsIndividualAttention) signals.push("Treino com atenção individual");
+    if (editingIntake.needsMedicalClearance)
+      signals.push("Necessita liberação médica");
+    if (editingIntake.needsIndividualAttention)
+      signals.push("Treino com atenção individual");
     if (editingIntake.cardioRisk) signals.push("Risco cardiovascular");
     if (editingIntake.orthoRisk) signals.push("Atenção ortopédica");
     if (editingIntake.currentInjury) signals.push("Lesão atual");
-    if (editingIntake.jumpRestriction === "avaliar") signals.push("Avaliar salto/impacto");
+    if (editingIntake.jumpRestriction === "avaliar")
+      signals.push("Avaliar salto/impacto");
     return signals;
   }, [editingIntake]);
 
@@ -2129,9 +2530,15 @@ void Promise.all(
       };
     }
     const all = Array.from(
-      new Set((editingIntake.modalities ?? []).map((item) => item.trim()).filter(Boolean))
+      new Set(
+        (editingIntake.modalities ?? [])
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
     );
-    const others = all.filter((item) => !matchesClassModality(item, cls?.modality));
+    const others = all.filter(
+      (item) => !matchesClassModality(item, cls?.modality),
+    );
     return {
       all,
       others,
@@ -2143,10 +2550,13 @@ void Promise.all(
     if (!editingIntake) return [] as string[];
     if (editingIntake.riskStatus === "apto") {
       const safeBadges: string[] = [];
-      if (!editingIntake.parqPositive && !editingIntake.cardioRisk) safeBadges.push("PAR-Q ok");
+      if (!editingIntake.parqPositive && !editingIntake.cardioRisk)
+        safeBadges.push("PAR-Q ok");
       if (!editingIntake.currentInjury) safeBadges.push("Sem lesão atual");
-      if (editingIntake.jumpRestriction === "nenhuma") safeBadges.push("Sem restrição de salto");
-      if (!editingIntake.needsIndividualAttention) safeBadges.push("Sem atenção individual");
+      if (editingIntake.jumpRestriction === "nenhuma")
+        safeBadges.push("Sem restrição de salto");
+      if (!editingIntake.needsIndividualAttention)
+        safeBadges.push("Sem atenção individual");
       return safeBadges.slice(0, 4);
     }
     return intakeHealthSignals.slice(0, 4);
@@ -2175,12 +2585,32 @@ void Promise.all(
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenPageHeader
-        title="Alunos da turma"
-        subtitle={cls ? `${cls.name} • ${cls.unit}` : "Carregando turma..."}
+        title="Alunos"
         onBack={handleBackPress}
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cadastrar aluno"
+            onPress={() => handleScreenTabChange("cadastro")}
+            style={(state) => ({
+              minHeight: 44,
+              paddingHorizontal: 16,
+              borderRadius: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              backgroundColor: colors.primaryBg,
+              opacity: state.pressed ? 0.82 : 1,
+            })}
+          >
+            <GoAtletaIcon name="add" size={18} color={colors.primaryText} />
+            <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+              Cadastrar aluno
+            </Text>
+          </Pressable>
+        }
       />
       <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 2 }}>
-
         {loadError ? (
           <View
             style={{
@@ -2193,7 +2623,9 @@ void Promise.all(
               gap: 10,
             }}
           >
-            <Text style={{ color: colors.dangerText, fontSize: 13 }}>{loadError}</Text>
+            <Text style={{ color: colors.dangerText, fontSize: 13 }}>
+              {loadError}
+            </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 onPress={() => void load()}
@@ -2206,7 +2638,9 @@ void Promise.all(
                   paddingVertical: 8,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Tentar novamente</Text>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Tentar novamente
+                </Text>
               </Pressable>
               <Pressable
                 onPress={() => router.replace("/login")}
@@ -2219,28 +2653,83 @@ void Promise.all(
                   paddingVertical: 8,
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Ir para login</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                  Ir para login
+                </Text>
               </Pressable>
             </View>
           </View>
         ) : null}
 
-        <AnimatedSegmentedTabs
-          tabs={[
-            { id: "alunos", label: "Alunos" },
-            { id: "cadastro", label: "Cadastro" },
-          ]}
-          activeTab={screenTab}
-          onChange={handleScreenTabChange}
-          itemMinHeight={36}
-          itemPaddingVertical={8}
-          style={{ marginTop: 12 }}
-        />
-
-        {screenTab === "alunos" ? (
+        {
           <>
-            <View style={[getSectionCardStyle(colors, "neutral", { radius: 14, padding: 12 }), { marginTop: 12 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ marginTop: 12 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: windowWidth < 760 ? "wrap" : "nowrap",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <View
+                  style={{
+                    width: windowWidth < 760 ? "100%" : 238,
+                    height: 42,
+                    paddingHorizontal: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <GoAtletaIcon name="classes" size={16} color={colors.primaryBg} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                      {cls?.name ?? "Turma"}
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 10 }}>
+                      {cls?.unit ?? "Unidade"}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "800" }}>
+                    {students.length}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Mais filtros"
+                  accessibilityState={{ expanded: studentsFilterModalOpen }}
+                  onPress={() => {
+                    setDraftMembershipFilters([...membershipFilters]);
+                    setStudentsFilterModalOpen(true);
+                  }}
+                  style={(state) => ({
+                    minHeight: 42,
+                    paddingHorizontal: 12,
+                    borderWidth: 1,
+                    borderColor:
+                      studentsFilterModalOpen || membershipFilters.length < 2
+                        ? colors.primaryBg
+                        : colors.border,
+                    borderRadius: 12,
+                    backgroundColor: state.hovered ? colors.secondaryBg : colors.card,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 7,
+                  })}
+                >
+                  <GoAtletaIcon name="options" size={15} color={colors.muted} />
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Mais filtros</Text>
+                  {membershipFilters.length < 2 ? (
+                    <View style={{ minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: colors.primaryText, fontSize: 9, fontWeight: "900" }}>1</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
                 <TextInput
                   value={search}
                   onChangeText={setSearch}
@@ -2249,8 +2738,12 @@ void Promise.all(
                   style={[inputStyle(colors), { flex: 1 }]}
                 />
                 <Pressable
-                  accessibilityLabel={isSelectionMode ? "Cancelar seleção" : "Selecionar alunos"}
-                  onPress={isSelectionMode ? exitSelectionMode : enterSelectionMode}
+                  accessibilityLabel={
+                    isSelectionMode ? "Cancelar seleção" : "Selecionar alunos"
+                  }
+                  onPress={
+                    isSelectionMode ? exitSelectionMode : enterSelectionMode
+                  }
                   style={{
                     alignItems: "center",
                     justifyContent: "center",
@@ -2258,8 +2751,12 @@ void Promise.all(
                     height: 42,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: isSelectionMode ? colors.primaryBg : colors.border,
-                    backgroundColor: isSelectionMode ? colors.primaryBg : colors.card,
+                    borderColor: isSelectionMode
+                      ? colors.primaryBg
+                      : colors.border,
+                    backgroundColor: isSelectionMode
+                      ? colors.primaryBg
+                      : colors.card,
                   }}
                 >
                   <GoAtletaIcon
@@ -2269,94 +2766,174 @@ void Promise.all(
                   />
                 </Pressable>
               </View>
-              {isSelectionMode && selectedStudents.length > 0 ? (
+            </View>
+
+            <AnchoredDropdown
+              visible={showSelectionActionsMenu && selectedStudents.length > 0}
+              layout={selectionActionsLayout}
+              container={null}
+              animationStyle={{ opacity: 1 }}
+              zIndex={9800}
+              maxHeight={320}
+              nestedScrollEnabled
+              fitContent
+              preferredWidth={220}
+              density="menu"
+              onRequestClose={() => setShowSelectionActionsMenu(false)}
+              interactiveRefs={[selectionActionsAnchorRef]}
+            >
+              <AnchoredDropdownOption
+                active={false}
+                density="compact"
+                onPress={() => {
+                  setShowSelectionActionsMenu(false);
+                  openMoveClassModal();
+                }}
+              >
                 <View
                   style={{
-                    marginTop: 10,
                     flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    flexWrap: "wrap",
+                    gap: 10,
                   }}
                 >
-                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                    {selectedStudents.length} selecionado{selectedStudents.length === 1 ? "" : "s"}
+                  <GoAtletaIcon name="swap" size={17} color={colors.text} />
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Mover de turma
                   </Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <Pressable
-                      onPress={openMoveClassModal}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.card,
-                      }}
-                      accessibilityLabel="Mover alunos"
-                    >
-                      <GoAtletaIcon name="swap" size={17} color={colors.text} />
-                    </Pressable>
-                    <Pressable
-                      onPress={handleDuplicateSelectedStudents}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.card,
-                      }}
-                      accessibilityLabel="Duplicar alunos"
-                    >
-                      <GoAtletaIcon name="copy" size={17} color={colors.text} />
-                    </Pressable>
-                    <Pressable
-                      onPress={handleInactivateSelectedStudents}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.warningBg,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      accessibilityLabel="Inativar alunos"
-                    >
-                      <GoAtletaIcon name="archive" size={17} color={colors.warningText} />
-                    </Pressable>
-                    <Pressable
-                      onPress={handleSelectionMore}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.background,
-                      }}
-                      accessibilityLabel="Mais ações"
-                    >
-                      <GoAtletaIcon name="ellipsisHorizontal" size={17} color={colors.text} />
-                    </Pressable>
-                  </View>
                 </View>
-              ) : null}
-            </View>
+              </AnchoredDropdownOption>
+              <AnchoredDropdownOption
+                active={false}
+                density="compact"
+                onPress={() => {
+                  setShowSelectionActionsMenu(false);
+                  handleDuplicateSelectedStudents();
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <GoAtletaIcon name="copy" size={17} color={colors.text} />
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Duplicar alunos
+                  </Text>
+                </View>
+              </AnchoredDropdownOption>
+              <AnchoredDropdownOption
+                active={false}
+                density="compact"
+                onPress={() => {
+                  setShowSelectionActionsMenu(false);
+                  handleInactivateSelectedStudents();
+                }}
+                style={{
+                  backgroundColor: colors.dangerBg,
+                  borderColor: colors.dangerBorder,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <GoAtletaIcon
+                    name="archive"
+                    size={17}
+                    color={colors.dangerText}
+                  />
+                  <Text
+                    style={{
+                      color: colors.dangerText,
+                      fontSize: 13,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {selectedStudents.length === 1
+                      ? "Inativar aluno"
+                      : "Inativar alunos"}
+                  </Text>
+                </View>
+              </AnchoredDropdownOption>
+              <AnchoredDropdownOption
+                active={false}
+                density="compact"
+                onPress={() => {
+                  setShowSelectionActionsMenu(false);
+                  if (allFilteredSelected) clearSelectedStudents();
+                  else selectAllStudents();
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
+                  {allFilteredSelected ? "Desmarcar tudo" : "Selecionar tudo"}
+                </Text>
+              </AnchoredDropdownOption>
+              <AnchoredDropdownOption
+                active={false}
+                density="compact"
+                onPress={exitSelectionMode}
+              >
+                <Text
+                  style={{
+                    color: colors.muted,
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
+                  Cancelar seleção
+                </Text>
+              </AnchoredDropdownOption>
+            </AnchoredDropdown>
+
+            {windowWidth >= 900 ? (
+              <View
+                style={{
+                  height: 42,
+                  marginTop: 10,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <View style={{ width: 64 }} />
+                <Text style={{ flex: 2.2, minWidth: 210, paddingHorizontal: 10, color: colors.muted, fontSize: 10, fontWeight: "800" }}>ALUNO</Text>
+                <Text style={{ flex: 0.7, minWidth: 76, paddingHorizontal: 10, color: colors.muted, fontSize: 10, fontWeight: "800" }}>IDADE</Text>
+                <Text style={{ flex: 1, minWidth: 100, paddingHorizontal: 10, color: colors.muted, fontSize: 10, fontWeight: "800" }}>TURMA</Text>
+                <Text style={{ flex: 0.8, minWidth: 86, paddingHorizontal: 10, color: colors.muted, fontSize: 10, fontWeight: "800" }}>STATUS</Text>
+                <Text style={{ flex: 1.5, minWidth: 170, paddingHorizontal: 10, color: colors.muted, fontSize: 10, fontWeight: "800" }}>RESPONSÁVEL / CONTATO</Text>
+                <View style={{ width: 96 }} />
+              </View>
+            ) : null}
 
             <ScrollView
               contentContainerStyle={{
-                gap: 10,
-                paddingTop: 12,
+                gap: windowWidth >= 900 ? 0 : 10,
+                paddingTop: windowWidth >= 900 ? 0 : 12,
                 paddingBottom: Math.max(insets.bottom + 36, 52),
               }}
               keyboardShouldPersistTaps="handled"
@@ -2364,14 +2941,40 @@ void Promise.all(
               persistentScrollbar={Platform.OS === "android"}
             >
               {loading ? (
-                <Text style={{ color: colors.muted }}>Carregando alunos...</Text>
+                <Text style={{ color: colors.muted }}>
+                  Carregando alunos...
+                </Text>
+              ) : filtered.length === 0 ? (
+                <View
+                  style={{ alignItems: "center", paddingVertical: 42, gap: 8 }}
+                >
+                  <GoAtletaIcon
+                    name={membershipFilters.includes("inactive") && !membershipFilters.includes("active") ? "archive" : "students"}
+                    size={24}
+                    color={colors.muted}
+                  />
+                  <Text style={{ color: colors.text, fontWeight: "800" }}>
+                    Nenhum aluno encontrado
+                  </Text>
+                  <Text
+                    style={{
+                      color: colors.muted,
+                      fontSize: 12,
+                      textAlign: "center",
+                    }}
+                  >
+                    Ajuste a busca ou os filtros para visualizar outros alunos.
+                  </Text>
+                </View>
               ) : (
                 filtered.map((s) => {
                   const c = getContactPhone(s);
                   const hasPhone = c.status === "ok" && Boolean(c.phoneDigits);
                   const selected = selectedStudentIds.includes(s.id);
-                  const duplicateGroup = duplicateGroupByStudentId.get(s.id) ?? null;
-                  const missingImportantFields = getMissingImportantStudentFields(s);
+                  const duplicateGroup =
+                    duplicateGroupByStudentId.get(s.id) ?? null;
+                  const missingImportantFields =
+                    getMissingImportantStudentFields(s);
                   const photoAccessUrl = studentPhotoAccessUrls[s.id];
                   return (
                     <Pressable
@@ -2383,93 +2986,245 @@ void Promise.all(
                         }
                         openEdit(s);
                       }}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: selected ? colors.primaryBg : colors.border,
-                        borderRadius: 14,
-                        backgroundColor: selected ? colors.primaryBg + "18" : colors.card,
-                        padding: 12,
-                        gap: 12,
+                      style={(state) => ({
+                        ...(Platform.OS === "web"
+                          ? ({
+                              transition:
+                                "background-color 140ms ease, border-color 140ms ease",
+                            } as any)
+                          : null),
+                        minHeight: windowWidth >= 900 ? 72 : undefined,
+                        borderWidth: windowWidth >= 900 ? 0 : 1,
+                        borderBottomWidth: 1,
+                        borderColor: selected
+                          ? colors.primaryBg + "55"
+                          : colors.border,
+                        borderRadius: windowWidth >= 900 ? 0 : 14,
+                        backgroundColor: selected
+                          ? colors.primaryBg + "0D"
+                          : state.hovered
+                            ? colors.secondaryBg
+                            : "transparent",
+                        padding: windowWidth >= 900 ? 0 : 12,
+                        gap: windowWidth >= 900 ? 0 : 12,
                         flexDirection: "row",
                         alignItems: "center",
-                      }}
+                      })}
                     >
-                      {isSelectionMode ? (
-                        <View
-                          style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: 17,
-                            borderWidth: 2,
-                            borderColor: selected ? colors.primaryBg : colors.border,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: selected ? colors.primaryBg : colors.card,
-                            marginRight: 4,
-                          }}
-                        >
-                          {selected ? (
-                            <GoAtletaIcon name="checkmark" size={17} color={colors.primaryText} />
-                          ) : null}
-                        </View>
-                      ) : null}
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={photoAccessUrl ? `Ver foto de ${s.name}` : undefined}
-                        disabled={!photoAccessUrl}
-                        onPress={(event) => {
-                          event.stopPropagation?.();
-                          if (photoAccessUrl) {
-                            setPhotoPreview({ uri: photoAccessUrl, name: s.name });
-                          }
-                        }}
+                      <View
                         style={{
                           width: 52,
                           height: 52,
-                          borderRadius: 26,
-                          overflow: "hidden",
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          alignItems: "center",
-                          justifyContent: "center",
+                          position: "relative",
+                          flexShrink: 0,
                         }}
                       >
-                        {photoAccessUrl ? (
-                          <Image
-                            source={{ uri: photoAccessUrl }}
-                            style={{ width: "100%", height: "100%" }}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                          />
-                        ) : (
-                          <GoAtletaIcon name="personSolid" size={22} color={colors.muted} />
-                        )}
-                      </Pressable>
-                      <View style={{ flex: 1, gap: 2 }}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            photoAccessUrl ? `Ver foto de ${s.name}` : undefined
+                          }
+                          disabled={!photoAccessUrl}
+                          onPress={(event) => {
+                            event.stopPropagation?.();
+                            if (photoAccessUrl) {
+                              setPhotoPreview({
+                                uri: photoAccessUrl,
+                                name: s.name,
+                              });
+                            }
+                          }}
+                          style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: 26,
+                            overflow: "hidden",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.secondaryBg,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {photoAccessUrl ? (
+                            <Image
+                              source={{ uri: photoAccessUrl }}
+                              style={{ width: "100%", height: "100%" }}
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                            />
+                          ) : (
+                            <GoAtletaIcon
+                              name="personSolid"
+                              size={22}
+                              color={colors.muted}
+                            />
+                          )}
+                        </Pressable>
+                        {isSelectionMode ? (
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: -3,
+                              right: -3,
+                              width: 22,
+                              height: 22,
+                              borderRadius: 11,
+                              borderWidth: 2,
+                              borderColor: selected
+                                ? colors.primaryBg
+                                : colors.border,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: selected
+                                ? colors.primaryBg
+                                : colors.card,
+                              zIndex: 2,
+                            }}
+                          >
+                            {selected ? (
+                              <GoAtletaIcon
+                                name="checkmark"
+                                size={12}
+                                color={colors.primaryText}
+                              />
+                            ) : null}
+                          </View>
+                        ) : null}
+                      </View>
+                      <View style={{ flex: windowWidth >= 900 ? 2.2 : 1, minWidth: windowWidth >= 900 ? 210 : 0, paddingHorizontal: windowWidth >= 900 ? 10 : 0, gap: 2 }}>
                         {duplicateGroup ? (
                           <StudentDuplicateBadge
                             colors={colors}
-                            onPress={() => setDuplicateReviewTarget({ group: duplicateGroup, student: s })}
+                            onPress={() =>
+                              setDuplicateReviewTarget({
+                                group: duplicateGroup,
+                                student: s,
+                              })
+                            }
                           />
                         ) : null}
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{s.name}</Text>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontWeight: "700",
+                            fontSize: 16,
+                          }}
+                        >
+                          {s.name}
+                        </Text>
+                        {s.membershipStatus === "inactive" ? (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            <GoAtletaIcon
+                              name="archive"
+                              size={13}
+                              color={colors.muted}
+                            />
+                            <Text
+                              style={{
+                                color: colors.muted,
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Matrícula inativa
+                            </Text>
+                          </View>
+                        ) : inactivitySuggestions.has(s.id) ? (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            <GoAtletaIcon
+                              name="warningCircle"
+                              size={13}
+                              color={colors.warningText}
+                            />
+                            <Text
+                              style={{
+                                color: colors.warningText,
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Revisar ·{" "}
+                              {
+                                inactivitySuggestions.get(s.id)
+                                  ?.consecutiveWeeks
+                              }{" "}
+                              semanas sem presença
+                            </Text>
+                          </View>
+                        ) : null}
                         {missingImportantFields.length ? (
                           <View
                             accessibilityLabel={`Cadastro incompleto: ${formatImportantStudentFields(missingImportantFields)}`}
-                            style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
                           >
-                            <GoAtletaIcon name="warningCircle" size={13} color={colors.warningText} />
+                            <GoAtletaIcon
+                              name="warningCircle"
+                              size={13}
+                              color={colors.warningText}
+                            />
                             <Text
                               numberOfLines={1}
-                              style={{ color: colors.warningText, fontSize: 11, fontWeight: "700" }}
+                              style={{
+                                color: colors.warningText,
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
                             >
-                              Cadastro incompleto · {formatImportantStudentFields(missingImportantFields)}
+                              Cadastro incompleto ·{" "}
+                              {formatImportantStudentFields(
+                                missingImportantFields,
+                              )}
                             </Text>
                           </View>
                         ) : null}
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      {windowWidth >= 900 ? (
+                        <>
+                          <Text style={{ flex: 0.7, minWidth: 76, paddingHorizontal: 10, color: colors.muted, fontSize: 11 }}>
+                            {s.age || "—"} anos
+                          </Text>
+                          <View style={{ flex: 1, minWidth: 100, paddingHorizontal: 10 }}>
+                            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{cls?.name ?? "Turma"}</Text>
+                            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 10 }}>{cls?.unit ?? ""}</Text>
+                          </View>
+                          <View style={{ flex: 0.8, minWidth: 86, paddingHorizontal: 10 }}>
+                            <View style={{ alignSelf: "flex-start", borderRadius: 999, borderWidth: 1, borderColor: s.membershipStatus === "inactive" ? colors.border : inactivitySuggestions.has(s.id) ? colors.warningBg : colors.successBg, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Text style={{ color: s.membershipStatus === "inactive" ? colors.muted : inactivitySuggestions.has(s.id) ? colors.warningText : colors.successText, fontSize: 10, fontWeight: "800" }}>
+                                {s.membershipStatus === "inactive" ? "Inativo" : inactivitySuggestions.has(s.id) ? "Revisar" : "Ativo"}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={{ flex: 1.5, minWidth: 170, paddingHorizontal: 10 }}>
+                            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 11 }}>{s.guardianName || "Responsável não informado"}</Text>
+                            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 10 }}>{s.guardianPhone || s.phone || "Sem contato"}</Text>
+                          </View>
+                        </>
+                      ) : null}
+                      <View
+                        style={{
+                          width: windowWidth >= 900 ? 96 : undefined,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         {!s.studentUserId ? (
                           <Pressable
                             onPress={(event) => {
@@ -2486,13 +3241,23 @@ void Promise.all(
                               justifyContent: "center",
                               backgroundColor: colors.primaryBg,
                               opacity:
-                                studentInviteBusyId && studentInviteBusyId !== s.id ? 0.45 : 1,
+                                studentInviteBusyId &&
+                                studentInviteBusyId !== s.id
+                                  ? 0.45
+                                  : 1,
                             }}
                           >
                             {studentInviteBusyId === s.id ? (
-                              <ActivityIndicator size="small" color={colors.primaryText} />
+                              <ActivityIndicator
+                                size="small"
+                                color={colors.primaryText}
+                              />
                             ) : (
-                              <GoAtletaIcon name="link" size={20} color={colors.primaryText} />
+                              <GoAtletaIcon
+                                name="link"
+                                size={20}
+                                color={colors.primaryText}
+                              />
                             )}
                           </Pressable>
                         ) : null}
@@ -2500,7 +3265,12 @@ void Promise.all(
                           onPress={(event) => {
                             event.stopPropagation?.();
                             void (hasPhone
-                              ? openWhatsApp(buildWaMeLink(c.phoneDigits, `Olá! Sou da turma ${cls?.name ?? ""}.`))
+                              ? openWhatsApp(
+                                  buildWaMeLink(
+                                    c.phoneDigits,
+                                    `Olá! Sou da turma ${cls?.name ?? ""}.`,
+                                  ),
+                                )
                               : Promise.resolve());
                           }}
                           disabled={!hasPhone}
@@ -2511,13 +3281,19 @@ void Promise.all(
                             borderRadius: 21,
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: hasPhone ? "#25D366" : colors.secondaryBg,
+                            backgroundColor: hasPhone
+                              ? "#25D366"
+                              : colors.secondaryBg,
                             borderWidth: 1,
                             borderColor: hasPhone ? "#25D366" : colors.border,
                             opacity: hasPhone ? 1 : 0.5,
                           }}
                         >
-                          <GoAtletaIcon name="whatsapp" size={20} color={hasPhone ? "#fff" : colors.muted} />
+                          <GoAtletaIcon
+                            name="whatsapp"
+                            size={20}
+                            color={hasPhone ? "#fff" : colors.muted}
+                          />
                         </Pressable>
                       </View>
                     </Pressable>
@@ -2526,444 +3302,1500 @@ void Promise.all(
               )}
             </ScrollView>
           </>
-        ) : (
-          <View style={{ flex: 1, marginTop: 12 }}>
-          <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 16 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator persistentScrollbar={Platform.OS === "android"}>
+        }
+      </View>
 
-            {!selectedExistingStudent ? (
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <Pressable
-                  onPress={() => void pickCreatePhoto("library")}
+      {isSelectionMode && selectedStudents.length > 0 ? (
+        <View
+          style={{
+            ...(Platform.OS === "web"
+              ? ({
+                  position: "fixed",
+                  left: "50%",
+                  bottom: Math.max(insets.bottom + 18, 18),
+                  transform: "translateX(-50%)",
+                } as any)
+              : {
+                  position: "absolute",
+                  alignSelf: "center",
+                  bottom: Math.max(insets.bottom + 18, 18),
+                }),
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: 8,
+            paddingLeft: 14,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            zIndex: 9000,
+            shadowColor: "#000",
+            shadowOpacity: 0.16,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 10,
+          }}
+        >
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+            {selectedStudents.length} selecionado
+            {selectedStudents.length === 1 ? "" : "s"}
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={openMoveClassModal}
+              style={{ width: 38, height: 38, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: colors.card }}
+              accessibilityLabel="Mover alunos"
+            >
+              <GoAtletaIcon name="swap" size={17} color={colors.text} />
+            </Pressable>
+            <Pressable
+              onPress={handleDuplicateSelectedStudents}
+              style={{ width: 38, height: 38, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: colors.card }}
+              accessibilityLabel="Duplicar alunos"
+            >
+              <GoAtletaIcon name="copy" size={17} color={colors.text} />
+            </Pressable>
+            <Pressable
+              onPress={handleInactivateSelectedStudents}
+              style={{ width: 38, height: 38, borderRadius: 12, borderWidth: 1, borderColor: colors.dangerBorder, backgroundColor: colors.dangerBg, alignItems: "center", justifyContent: "center" }}
+              accessibilityLabel="Inativar alunos"
+            >
+              <GoAtletaIcon name="archive" size={17} color={colors.dangerText} />
+            </Pressable>
+            <View ref={selectionActionsAnchorRef}>
+              <Pressable
+                onPress={handleSelectionMore}
+                style={{ width: 38, height: 38, borderRadius: 12, borderWidth: 1, borderColor: showSelectionActionsMenu ? colors.primaryBg : colors.border, alignItems: "center", justifyContent: "center", backgroundColor: colors.card }}
+                accessibilityLabel="Mais ações"
+                accessibilityState={{ expanded: showSelectionActionsMenu }}
+              >
+                <GoAtletaIcon name="ellipsisHorizontal" size={17} color={colors.text} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
+
+      <ModalSheet
+        visible={studentsFilterModalOpen}
+        onClose={() => setStudentsFilterModalOpen(false)}
+        position="center"
+        cardStyle={{ width: "100%", maxWidth: 480, padding: 0, borderRadius: 20, overflow: "hidden" }}
+      >
+        <View style={{ minHeight: 58, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>Filtrar alunos</Text>
+          <Pressable accessibilityLabel="Fechar filtros" onPress={() => setStudentsFilterModalOpen(false)} style={(state) => ({ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: state.hovered ? colors.secondaryBg : "transparent" })}>
+            <GoAtletaIcon name="close" size={18} color={colors.muted} />
+          </Pressable>
+        </View>
+        <View style={{ padding: 18, gap: 12 }}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>Status</Text>
+          {(["active", "inactive"] as const).map((value) => {
+            const checked = draftMembershipFilters.includes(value);
+            const count = students.filter((student) =>
+              value === "inactive"
+                ? student.membershipStatus === "inactive" || inactivitySuggestions.has(student.id)
+                : student.membershipStatus !== "inactive" && !inactivitySuggestions.has(student.id),
+            ).length;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked }}
+                onPress={() => setDraftMembershipFilters((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])}
+                style={(state) => ({ minHeight: 44, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: checked ? colors.primaryBg : colors.border, backgroundColor: state.hovered ? colors.secondaryBg : colors.card, flexDirection: "row", alignItems: "center", gap: 10 })}
+              >
+                <GoAtletaIcon name={checked ? "checkbox" : "square"} size={18} color={checked ? colors.primaryBg : colors.muted} />
+                <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: "800" }}>{value === "active" ? "Ativos" : "Inativos"}</Text>
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>{count}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+          <Pressable onPress={() => setDraftMembershipFilters(["active", "inactive"])} suppressWebHoverFeedback style={{ minHeight: 42, paddingHorizontal: 4, justifyContent: "center" }}>
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>Marcar todos</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setMembershipFilters([...draftMembershipFilters]);
+              setStudentsFilterModalOpen(false);
+              exitSelectionMode();
+            }}
+            style={{ minWidth: 142, minHeight: 44, paddingHorizontal: 18, borderRadius: 12, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center" }}
+          >
+            <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "900" }}>Aplicar filtros</Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+
+        <ModalSheet
+          visible={screenTab === "cadastro"}
+          onClose={() => requestDiscardCreateForm("alunos")}
+          position={windowWidth < 720 ? "center" : "right"}
+          slideOffset={560}
+          containerPadding={windowWidth < 720 ? 8 : 0}
+          backdropOpacity={0.7}
+          cardStyle={{
+            width: windowWidth < 720 ? "100%" : "42%",
+            minWidth: windowWidth < 720 ? 0 : 480,
+            maxWidth: 560,
+            height: windowWidth < 720 ? "90%" : "100%",
+            maxHeight: windowWidth < 720 ? "90%" : "100%",
+            alignSelf: windowWidth < 720 ? "center" : "flex-end",
+            marginBottom: 0,
+            borderRadius: windowWidth < 720 ? 18 : 0,
+            padding: 16,
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingBottom: 12,
+            }}
+          >
+            <View style={{ gap: 2 }}>
+              <Text
+                style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}
+              >
+                Cadastrar aluno
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {cls?.name ?? "Turma"}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Fechar cadastro"
+              onPress={() => requestDiscardCreateForm("alunos")}
+              style={(state) => ({
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: state.hovered
+                  ? colors.secondaryBg
+                  : "transparent",
+              })}
+            >
+              <GoAtletaIcon name="close" size={18} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={{ flex: 1, minHeight: 0 }}>
+            <ScrollView
+              contentContainerStyle={{ gap: 10, paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              persistentScrollbar={Platform.OS === "android"}
+            >
+              {!selectedExistingStudent ? (
+                <View
                   style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 36,
-                    overflow: "hidden",
                     borderWidth: 1,
                     borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    alignItems: "center",
-                    justifyContent: "center",
+                    borderRadius: 14,
+                    backgroundColor: colors.card,
+                    padding: 12,
                   }}
                 >
-                  {createPhotoUrl ? (
-                    <Image source={{ uri: createPhotoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                  ) : (
-                    <GoAtletaIcon name="camera" size={24} color={colors.muted} />
-                  )}
-                </Pressable>
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{createPhotoUrl ? "Alterar foto" : "Adicionar foto"}</Text>
-                  <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
-                    <Pressable onPress={() => void pickCreatePhoto("library")}>
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Galeria</Text>
-                    </Pressable>
-                    <Pressable onPress={() => void pickCreatePhoto("camera")}>
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Tirar foto</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            </View>
-            ) : null}
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("studentData")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Dados do aluno</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createStudentDataSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "studentData" || createStudentDataAnim.isVisible) ? (
-                <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={linksContentStyle}>
-                    <FormFieldValidationFeedback
-                      message={createValidationIssue?.field === "name" ? createValidationIssue.message : ""}
-                      attempt={createValidationIssue?.field === "name" ? createValidationIssue.attempt : 0}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => void pickCreatePhoto("library")}
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 36,
+                        overflow: "hidden",
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                     >
-                      <StudentExistingAutocomplete
-                        colors={colors}
-                        value={createName}
-                        students={organizationStudents}
-                        classes={organizationClasses}
-                        currentClassStudentIds={currentClassStudentIds}
-                        selectedStudentId={selectedExistingStudent?.student.id}
-                        inputRef={createNameInputRef}
-                        invalid={createValidationIssue?.field === "name"}
-                        onChangeText={(value) => {
-                          clearCreateValidationError("name");
-                          handleCreateNameChange(value);
+                      {createPhotoUrl ? (
+                        <Image
+                          source={{ uri: createPhotoUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <GoAtletaIcon
+                          name="camera"
+                          size={24}
+                          color={colors.muted}
+                        />
+                      )}
+                    </Pressable>
+                    <View style={{ gap: 6 }}>
+                      <Text
+                        style={{
+                          color: colors.text,
+                          fontSize: 14,
+                          fontWeight: "700",
                         }}
-                        onSelect={(option) => {
-                          clearCreateValidationError("name");
-                          setSelectedExistingStudent(option);
-                          setDuplicateNameConfirmed(false);
-                          setCreateError("");
-                        }}
-                      />
-                    </FormFieldValidationFeedback>
-                    {selectedExistingStudent ? (
+                      >
+                        {createPhotoUrl ? "Alterar foto" : "Adicionar foto"}
+                      </Text>
                       <View
                         style={{
                           flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          paddingHorizontal: 10,
-                          paddingVertical: 8,
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: colors.successBorder,
-                          backgroundColor: colors.successBg,
+                          gap: 12,
+                          flexWrap: "wrap",
                         }}
                       >
-                        <GoAtletaIcon name="checkmark" size={15} color={colors.successText} />
-                        <Text numberOfLines={1} style={{ flex: 1, color: colors.successText, fontSize: 12, fontWeight: "600" }}>
-                          {[selectedExistingStudent.className, selectedExistingStudent.unitName]
-                            .filter(Boolean)
-                            .join(" • ")}
-                        </Text>
-                      </View>
-                    ) : (
-                      <>
-                        <View
-                          style={{
-                            flexDirection: stackCreateContactFields ? "column" : "row",
-                            gap: 10,
-                          }}
+                        <Pressable
+                          onPress={() => void pickCreatePhoto("library")}
                         >
-                          <View style={{ flex: 1 }}>
-                            <FormFieldValidationFeedback
-                              message={createValidationIssue?.field === "birthDate" ? createValidationIssue.message : ""}
-                              attempt={createValidationIssue?.field === "birthDate" ? createValidationIssue.attempt : 0}
-                              presentation="floating"
-                            >
-                              <TextInput
-                                ref={createBirthDateInputRef}
-                                value={createBirthText}
-                                onChangeText={(value) => {
-                                  clearCreateValidationError("birthDate");
-                                  setCreateBirthText(formatBrInput(value));
-                                }}
-                                placeholder="Nascimento (DD/MM/AAAA)"
-                                placeholderTextColor={colors.placeholder}
-                                keyboardType="numeric"
-                                accessibilityLabel="Data de nascimento do aluno"
-                                style={[
-                                  inputStyle(colors),
-                                  getValidationFieldStyle(
-                                    createValidationIssue?.field === "birthDate",
-                                    colors.dangerSolidBg
-                                  ),
-                                ]}
-                              />
-                            </FormFieldValidationFeedback>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <TextInput value={createPhone} onChangeText={(value) => setCreatePhone(formatPhoneBrWithCountry(value))} placeholder="+55 (DDD) 0 0000-0000" placeholderTextColor={colors.placeholder} keyboardType="phone-pad" style={inputStyle(colors)} />
-                          </View>
-                        </View>
-                        <TextInput value={createEmail} onChangeText={setCreateEmail} placeholder="E-mail de login (opcional)" placeholderTextColor={colors.placeholder} autoCapitalize="none" style={inputStyle(colors)} />
-                      </>
-                    )}
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            {!selectedExistingStudent ? (
-            <>
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("academic")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createAcademicSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "academic" || createAcademicAnim.isVisible) ? (
-                <Animated.View style={[createAcademicAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={linksContentStyle}>
-                    <StudentAcademicFields
-                      ra={createRa}
-                      collegeCourse={createCollegeCourse}
-                      onChangeRa={(value) => {
-                        clearCreateValidationError("ra");
-                        setCreateRa(value);
-                      }}
-                      onChangeCollegeCourse={setCreateCollegeCourse}
-                      errors={{
-                        ra: createValidationIssue?.field === "ra" ? createValidationIssue.message : undefined,
-                      }}
-                      raInputRef={createRaInputRef}
-                      validationAttempt={createValidationIssue?.field === "ra" ? createValidationIssue.attempt : 0}
-                    />
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("sportProfile")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createSportSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "sportProfile" || createSportAnim.isVisible) ? (
-                <Animated.View style={[createSportAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={rowStyle}>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
-                        <Pressable onPress={() => setCreateDropKey(createDropKey === "createPrimary" ? null : "createPrimary")} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(createPositionPrimary)}</Text>
-                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createPrimary" ? "180deg" : "0deg" }] }} />
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 12,
+                              fontWeight: "700",
+                            }}
+                          >
+                            Galeria
+                          </Text>
                         </Pressable>
-                        {createDropKey === "createPrimary" ? (
-                          <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
-                            {positionOptions.map((option) => (
-                              <Pressable key={`create_primary_${option}`} onPress={() => { setCreatePositionPrimary(option); setCreateDropKey(null); }} style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: option === createPositionPrimary ? colors.secondaryBg : colors.card }}>
-                                <Text style={{ color: colors.text, fontWeight: option === createPositionPrimary ? "600" : "500" }}>{getOptionLabel(option)}</Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
-                        <Pressable onPress={() => setCreateDropKey(createDropKey === "createSecondary" ? null : "createSecondary")} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(createPositionSecondary)}</Text>
-                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" }] }} />
+                        <Pressable
+                          onPress={() => void pickCreatePhoto("camera")}
+                        >
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 12,
+                              fontWeight: "700",
+                            }}
+                          >
+                            Tirar foto
+                          </Text>
                         </Pressable>
-                        {createDropKey === "createSecondary" ? (
-                          <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
-                            {positionOptions.map((option) => (
-                              <Pressable key={`create_secondary_${option}`} onPress={() => { setCreatePositionSecondary(option); setCreateDropKey(null); }} style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: option === createPositionSecondary ? colors.secondaryBg : colors.card }}>
-                                <Text style={{ color: colors.text, fontWeight: option === createPositionSecondary ? "600" : "500" }}>{getOptionLabel(option)}</Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                        ) : null}
                       </View>
                     </View>
                   </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("documents")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createDocumentsSummary}</Text>
                 </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "documents" || createDocumentsAnim.isVisible) ? (
-                <Animated.View style={[createDocumentsAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                      <View style={{ flex: 1 }}>
-                        <TextInput value={createCpf} onChangeText={(v) => setCreateCpf(maskCpf(v))} placeholder="CPF (opcional)" placeholderTextColor={colors.placeholder} keyboardType="numeric" style={inputStyle(colors)} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <TextInput value={createRg} onChangeText={(v) => setCreateRg(formatRgBr(v))} placeholder="RG (opcional)" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
-                      </View>
-                    </View>
+              ) : null}
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <Pressable
+                  onPress={() => toggleCreateSection("studentData")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Dados do aluno
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {createStudentDataSummary}
+                    </Text>
                   </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("health")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createHealthSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "health" || createHealthAnim.isVisible) ? (
-                <Animated.View style={[createHealthAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={rowStyle}>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>Problema de saúde?</Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable onPress={() => { setCreateHealthIssue(false); setCreateHealthIssueNotes(""); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: !createHealthIssue ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: !createHealthIssue ? colors.primaryText : colors.text, fontWeight: "700" }}>Não</Text>
-                          </Pressable>
-                          <Pressable onPress={() => setCreateHealthIssue(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: createHealthIssue ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: createHealthIssue ? colors.primaryText : colors.text, fontWeight: "700" }}>Sim</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>Uso contínuo de medicação?</Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable onPress={() => { setCreateMedicationUse(false); setCreateMedicationNotes(""); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: !createMedicationUse ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: !createMedicationUse ? colors.primaryText : colors.text, fontWeight: "700" }}>Não</Text>
-                          </Pressable>
-                          <Pressable onPress={() => setCreateMedicationUse(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: createMedicationUse ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: createMedicationUse ? colors.primaryText : colors.text, fontWeight: "700" }}>Sim</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-
-                    {createHealthIssue ? (
-                      <TextInput value={createHealthIssueNotes} onChangeText={setCreateHealthIssueNotes} placeholder="Descreva a questão de saúde" placeholderTextColor={colors.placeholder} style={[inputStyle(colors), { minHeight: 72, textAlignVertical: "top" }]} multiline />
-                    ) : null}
-                    {createMedicationUse ? (
-                      <TextInput value={createMedicationNotes} onChangeText={setCreateMedicationNotes} placeholder="Qual medicação?" placeholderTextColor={colors.placeholder} style={[inputStyle(colors), { minHeight: 72, textAlignVertical: "top" }]} multiline />
-                    ) : null}
-                    <TextInput value={createHealthObs} onChangeText={setCreateHealthObs} placeholder="Adicionar observações" placeholderTextColor={colors.placeholder} style={[inputStyle(colors), { minHeight: 84, textAlignVertical: "top" }]} multiline />
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("guardian")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createGuardianSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "guardian" || createGuardianAnim.isVisible) ? (
-                <Animated.View style={[createGuardianAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                      <View style={{ flex: 1 }}>
-                        <TextInput value={createGuardianName} onChangeText={setCreateGuardianName} placeholder="Responsável (opcional)" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <TextInput value={createGuardianPhone} onChangeText={(value) => setCreateGuardianPhone(formatPhoneBrWithCountry(value))} placeholder="+55 (DDD) 0 0000-0000" placeholderTextColor={colors.placeholder} keyboardType="phone-pad" style={inputStyle(colors)} />
-                      </View>
-                    </View>
-                    <View style={{ gap: 6 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
-                      <Pressable onPress={() => setCreateDropKey(createDropKey === "createGuardian" ? null : "createGuardian")} style={selectFieldStyle}>
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{createGuardianRelation || "Selecione"}</Text>
-                        <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createGuardian" ? "180deg" : "0deg" }] }} />
-                      </Pressable>
-                      {createDropKey === "createGuardian" ? (
-                        <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
-                          {guardianRelationOptions.map((option) => (
-                            <Pressable key={`create_guardian_${option}`} onPress={() => { setCreateGuardianRelation(option); setCreateDropKey(null); }} style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: option === createGuardianRelation ? colors.secondaryBg : colors.card }}>
-                              <Text style={{ color: colors.text, fontWeight: option === createGuardianRelation ? "600" : "500" }}>{option}</Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleCreateSection("links")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Vínculos esportivos</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createLinksSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "links" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openCreateSection === "links" || createLinksAnim.isVisible) ? (
-                <Animated.View style={[createLinksAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 8, padding: 12 }}>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      {cls?.modality ? (
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate:
+                            openCreateSection === "studentData"
+                              ? "180deg"
+                              : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openCreateSection === "studentData" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openCreateSection === "studentData" ||
+                createStudentDataAnim.isVisible ? (
+                  <Animated.View
+                    style={[
+                      createStudentDataAnim.animatedStyle,
+                      { overflow: "hidden" },
+                    ]}
+                  >
+                    <View style={linksContentStyle}>
+                      <FormFieldValidationFeedback
+                        message={
+                          createValidationIssue?.field === "name"
+                            ? createValidationIssue.message
+                            : ""
+                        }
+                        attempt={
+                          createValidationIssue?.field === "name"
+                            ? createValidationIssue.attempt
+                            : 0
+                        }
+                      >
+                        <StudentExistingAutocomplete
+                          colors={colors}
+                          value={createName}
+                          students={organizationStudents}
+                          classes={organizationClasses}
+                          currentClassStudentIds={currentClassStudentIds}
+                          selectedStudentId={
+                            selectedExistingStudent?.student.id
+                          }
+                          inputRef={createNameInputRef}
+                          invalid={createValidationIssue?.field === "name"}
+                          onChangeText={(value) => {
+                            clearCreateValidationError("name");
+                            handleCreateNameChange(value);
+                          }}
+                          onSelect={(option) => {
+                            clearCreateValidationError("name");
+                            setSelectedExistingStudent(option);
+                            setDuplicateNameConfirmed(false);
+                            setCreateError("");
+                          }}
+                        />
+                      </FormFieldValidationFeedback>
+                      {selectedExistingStudent ? (
                         <View
                           style={{
-                            borderRadius: 999,
-                            paddingHorizontal: 8,
-                            paddingVertical: 2,
-                            backgroundColor: colors.secondaryBg,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            paddingHorizontal: 10,
+                            paddingVertical: 8,
+                            borderRadius: 12,
                             borderWidth: 1,
-                            borderColor: colors.border,
+                            borderColor: colors.successBorder,
+                            backgroundColor: colors.successBg,
                           }}
                         >
-                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
-                            {getClassModalityLabel(cls.modality)}
+                          <GoAtletaIcon
+                            name="checkmark"
+                            size={15}
+                            color={colors.successText}
+                          />
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              flex: 1,
+                              color: colors.successText,
+                              fontSize: 12,
+                              fontWeight: "600",
+                            }}
+                          >
+                            {[
+                              selectedExistingStudent.className,
+                              selectedExistingStudent.unitName,
+                            ]
+                              .filter(Boolean)
+                              .join(" • ")}
                           </Text>
                         </View>
-                      ) : null}
+                      ) : (
+                        <>
+                          <View
+                            style={{
+                              flexDirection: stackCreateContactFields
+                                ? "column"
+                                : "row",
+                              gap: 10,
+                            }}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <FormFieldValidationFeedback
+                                message={
+                                  createValidationIssue?.field === "birthDate"
+                                    ? createValidationIssue.message
+                                    : ""
+                                }
+                                attempt={
+                                  createValidationIssue?.field === "birthDate"
+                                    ? createValidationIssue.attempt
+                                    : 0
+                                }
+                                presentation="floating"
+                              >
+                                <TextInput
+                                  ref={createBirthDateInputRef}
+                                  value={createBirthText}
+                                  onChangeText={(value) => {
+                                    clearCreateValidationError("birthDate");
+                                    setCreateBirthText(formatBrInput(value));
+                                  }}
+                                  placeholder="Nascimento (DD/MM/AAAA)"
+                                  placeholderTextColor={colors.placeholder}
+                                  keyboardType="numeric"
+                                  accessibilityLabel="Data de nascimento do aluno"
+                                  style={[
+                                    inputStyle(colors),
+                                    getValidationFieldStyle(
+                                      createValidationIssue?.field ===
+                                        "birthDate",
+                                      colors.dangerSolidBg,
+                                    ),
+                                  ]}
+                                />
+                              </FormFieldValidationFeedback>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                value={createPhone}
+                                onChangeText={(value) =>
+                                  setCreatePhone(
+                                    formatPhoneBrWithCountry(value),
+                                  )
+                                }
+                                placeholder="+55 (DDD) 0 0000-0000"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="phone-pad"
+                                style={inputStyle(colors)}
+                              />
+                            </View>
+                          </View>
+                          <TextInput
+                            value={createEmail}
+                            onChangeText={setCreateEmail}
+                            placeholder="E-mail de login (opcional)"
+                            placeholderTextColor={colors.placeholder}
+                            autoCapitalize="none"
+                            style={inputStyle(colors)}
+                          />
+                        </>
+                      )}
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{`${cls?.name ?? "Sem turma"} • ${cls?.unit ?? "Sem unidade"}`}</Text>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-            </>
-            ) : null}
+                  </Animated.View>
+                ) : null}
+              </View>
 
-          </ScrollView>
-          <View style={{ paddingTop: 10, paddingBottom: Math.max(insets.bottom + 24, 28), borderTopWidth: 1, borderTopColor: colors.border, gap: 8, backgroundColor: colors.background }}>
-            {createError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{createError}</Text> : null}
-            <Pressable
-              onPress={() =>
-                void (selectedExistingStudent ? addSelectedExistingStudent() : createStudent())
-              }
-              disabled={!canSubmitCreateStudent}
+              {!selectedExistingStudent ? (
+                <>
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: colors.card,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => toggleCreateSection("academic")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Perfil Acadêmico
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {createAcademicSummary}
+                        </Text>
+                      </View>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate:
+                                openCreateSection === "academic"
+                                  ? "180deg"
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                    {openCreateSection === "academic" ? (
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: colors.border,
+                          marginHorizontal: 12,
+                        }}
+                      />
+                    ) : null}
+                    {openCreateSection === "academic" ||
+                    createAcademicAnim.isVisible ? (
+                      <Animated.View
+                        style={[
+                          createAcademicAnim.animatedStyle,
+                          { overflow: "hidden" },
+                        ]}
+                      >
+                        <View style={linksContentStyle}>
+                          <StudentAcademicFields
+                            ra={createRa}
+                            collegeCourse={createCollegeCourse}
+                            onChangeRa={(value) => {
+                              clearCreateValidationError("ra");
+                              setCreateRa(value);
+                            }}
+                            onChangeCollegeCourse={setCreateCollegeCourse}
+                            errors={{
+                              ra:
+                                createValidationIssue?.field === "ra"
+                                  ? createValidationIssue.message
+                                  : undefined,
+                            }}
+                            raInputRef={createRaInputRef}
+                            validationAttempt={
+                              createValidationIssue?.field === "ra"
+                                ? createValidationIssue.attempt
+                                : 0
+                            }
+                          />
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
+
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: colors.card,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => toggleCreateSection("sportProfile")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Perfil esportivo
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {createSportSummary}
+                        </Text>
+                      </View>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate:
+                                openCreateSection === "sportProfile"
+                                  ? "180deg"
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                    {openCreateSection === "sportProfile" ? (
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: colors.border,
+                          marginHorizontal: 12,
+                        }}
+                      />
+                    ) : null}
+                    {openCreateSection === "sportProfile" ||
+                    createSportAnim.isVisible ? (
+                      <Animated.View
+                        style={[
+                          createSportAnim.animatedStyle,
+                          { overflow: "hidden" },
+                        ]}
+                      >
+                        <View style={{ gap: 10, padding: 12 }}>
+                          <View style={rowStyle}>
+                            <View style={colStyle}>
+                              <Text
+                                style={{ color: colors.muted, fontSize: 11 }}
+                              >
+                                Posição principal
+                              </Text>
+                              <Pressable
+                                onPress={() =>
+                                  setCreateDropKey(
+                                    createDropKey === "createPrimary"
+                                      ? null
+                                      : "createPrimary",
+                                  )
+                                }
+                                style={selectFieldStyle}
+                              >
+                                <Text
+                                  style={{
+                                    color: colors.text,
+                                    fontSize: 13,
+                                    fontWeight: "500",
+                                  }}
+                                >
+                                  {getSelectDisplayValue(createPositionPrimary)}
+                                </Text>
+                                <GoAtletaIcon
+                                  name="chevronDown"
+                                  size={16}
+                                  color={colors.muted}
+                                  style={{
+                                    transform: [
+                                      {
+                                        rotate:
+                                          createDropKey === "createPrimary"
+                                            ? "180deg"
+                                            : "0deg",
+                                      },
+                                    ],
+                                  }}
+                                />
+                              </Pressable>
+                              {createDropKey === "createPrimary" ? (
+                                <View
+                                  style={{
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    borderRadius: 12,
+                                    overflow: "hidden",
+                                    backgroundColor: colors.card,
+                                  }}
+                                >
+                                  {positionOptions.map((option) => (
+                                    <Pressable
+                                      key={`create_primary_${option}`}
+                                      onPress={() => {
+                                        setCreatePositionPrimary(option);
+                                        setCreateDropKey(null);
+                                      }}
+                                      style={{
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 10,
+                                        backgroundColor:
+                                          option === createPositionPrimary
+                                            ? colors.secondaryBg
+                                            : colors.card,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          color: colors.text,
+                                          fontWeight:
+                                            option === createPositionPrimary
+                                              ? "600"
+                                              : "500",
+                                        }}
+                                      >
+                                        {getOptionLabel(option)}
+                                      </Text>
+                                    </Pressable>
+                                  ))}
+                                </View>
+                              ) : null}
+                            </View>
+                            <View style={colStyle}>
+                              <Text
+                                style={{ color: colors.muted, fontSize: 11 }}
+                              >
+                                Posição secundária
+                              </Text>
+                              <Pressable
+                                onPress={() =>
+                                  setCreateDropKey(
+                                    createDropKey === "createSecondary"
+                                      ? null
+                                      : "createSecondary",
+                                  )
+                                }
+                                style={selectFieldStyle}
+                              >
+                                <Text
+                                  style={{
+                                    color: colors.text,
+                                    fontSize: 13,
+                                    fontWeight: "500",
+                                  }}
+                                >
+                                  {getSelectDisplayValue(
+                                    createPositionSecondary,
+                                  )}
+                                </Text>
+                                <GoAtletaIcon
+                                  name="chevronDown"
+                                  size={16}
+                                  color={colors.muted}
+                                  style={{
+                                    transform: [
+                                      {
+                                        rotate:
+                                          createDropKey === "createSecondary"
+                                            ? "180deg"
+                                            : "0deg",
+                                      },
+                                    ],
+                                  }}
+                                />
+                              </Pressable>
+                              {createDropKey === "createSecondary" ? (
+                                <View
+                                  style={{
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    borderRadius: 12,
+                                    overflow: "hidden",
+                                    backgroundColor: colors.card,
+                                  }}
+                                >
+                                  {positionOptions.map((option) => (
+                                    <Pressable
+                                      key={`create_secondary_${option}`}
+                                      onPress={() => {
+                                        setCreatePositionSecondary(option);
+                                        setCreateDropKey(null);
+                                      }}
+                                      style={{
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 10,
+                                        backgroundColor:
+                                          option === createPositionSecondary
+                                            ? colors.secondaryBg
+                                            : colors.card,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          color: colors.text,
+                                          fontWeight:
+                                            option === createPositionSecondary
+                                              ? "600"
+                                              : "500",
+                                        }}
+                                      >
+                                        {getOptionLabel(option)}
+                                      </Text>
+                                    </Pressable>
+                                  ))}
+                                </View>
+                              ) : null}
+                            </View>
+                          </View>
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
+
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: colors.card,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => toggleCreateSection("documents")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Documentos
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {createDocumentsSummary}
+                        </Text>
+                      </View>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate:
+                                openCreateSection === "documents"
+                                  ? "180deg"
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                    {openCreateSection === "documents" ? (
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: colors.border,
+                          marginHorizontal: 12,
+                        }}
+                      />
+                    ) : null}
+                    {openCreateSection === "documents" ||
+                    createDocumentsAnim.isVisible ? (
+                      <Animated.View
+                        style={[
+                          createDocumentsAnim.animatedStyle,
+                          { overflow: "hidden" },
+                        ]}
+                      >
+                        <View style={{ gap: 10, padding: 12 }}>
+                          <View style={{ flexDirection: "row", gap: 10 }}>
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                value={createCpf}
+                                onChangeText={(v) => setCreateCpf(maskCpf(v))}
+                                placeholder="CPF (opcional)"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                style={inputStyle(colors)}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                value={createRg}
+                                onChangeText={(v) => setCreateRg(formatRgBr(v))}
+                                placeholder="RG (opcional)"
+                                placeholderTextColor={colors.placeholder}
+                                style={inputStyle(colors)}
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
+
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: colors.card,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => toggleCreateSection("health")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Saúde
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {createHealthSummary}
+                        </Text>
+                      </View>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate:
+                                openCreateSection === "health"
+                                  ? "180deg"
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                    {openCreateSection === "health" ? (
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: colors.border,
+                          marginHorizontal: 12,
+                        }}
+                      />
+                    ) : null}
+                    {openCreateSection === "health" ||
+                    createHealthAnim.isVisible ? (
+                      <Animated.View
+                        style={[
+                          createHealthAnim.animatedStyle,
+                          { overflow: "hidden" },
+                        ]}
+                      >
+                        <View style={{ gap: 10, padding: 12 }}>
+                          <View style={rowStyle}>
+                            <View style={colStyle}>
+                              <Text
+                                style={{ color: colors.muted, fontSize: 12 }}
+                              >
+                                Problema de saúde?
+                              </Text>
+                              <View style={{ flexDirection: "row", gap: 8 }}>
+                                <Pressable
+                                  onPress={() => {
+                                    setCreateHealthIssue(false);
+                                    setCreateHealthIssueNotes("");
+                                  }}
+                                  style={{
+                                    paddingVertical: 6,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    backgroundColor: !createHealthIssue
+                                      ? colors.primaryBg
+                                      : colors.secondaryBg,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: !createHealthIssue
+                                        ? colors.primaryText
+                                        : colors.text,
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    Não
+                                  </Text>
+                                </Pressable>
+                                <Pressable
+                                  onPress={() => setCreateHealthIssue(true)}
+                                  style={{
+                                    paddingVertical: 6,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    backgroundColor: createHealthIssue
+                                      ? colors.primaryBg
+                                      : colors.secondaryBg,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: createHealthIssue
+                                        ? colors.primaryText
+                                        : colors.text,
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    Sim
+                                  </Text>
+                                </Pressable>
+                              </View>
+                            </View>
+
+                            <View style={colStyle}>
+                              <Text
+                                style={{ color: colors.muted, fontSize: 12 }}
+                              >
+                                Uso contínuo de medicação?
+                              </Text>
+                              <View style={{ flexDirection: "row", gap: 8 }}>
+                                <Pressable
+                                  onPress={() => {
+                                    setCreateMedicationUse(false);
+                                    setCreateMedicationNotes("");
+                                  }}
+                                  style={{
+                                    paddingVertical: 6,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    backgroundColor: !createMedicationUse
+                                      ? colors.primaryBg
+                                      : colors.secondaryBg,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: !createMedicationUse
+                                        ? colors.primaryText
+                                        : colors.text,
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    Não
+                                  </Text>
+                                </Pressable>
+                                <Pressable
+                                  onPress={() => setCreateMedicationUse(true)}
+                                  style={{
+                                    paddingVertical: 6,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    backgroundColor: createMedicationUse
+                                      ? colors.primaryBg
+                                      : colors.secondaryBg,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: createMedicationUse
+                                        ? colors.primaryText
+                                        : colors.text,
+                                      fontWeight: "700",
+                                    }}
+                                  >
+                                    Sim
+                                  </Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          </View>
+
+                          {createHealthIssue ? (
+                            <TextInput
+                              value={createHealthIssueNotes}
+                              onChangeText={setCreateHealthIssueNotes}
+                              placeholder="Descreva a questão de saúde"
+                              placeholderTextColor={colors.placeholder}
+                              style={[
+                                inputStyle(colors),
+                                { minHeight: 72, textAlignVertical: "top" },
+                              ]}
+                              multiline
+                            />
+                          ) : null}
+                          {createMedicationUse ? (
+                            <TextInput
+                              value={createMedicationNotes}
+                              onChangeText={setCreateMedicationNotes}
+                              placeholder="Qual medicação?"
+                              placeholderTextColor={colors.placeholder}
+                              style={[
+                                inputStyle(colors),
+                                { minHeight: 72, textAlignVertical: "top" },
+                              ]}
+                              multiline
+                            />
+                          ) : null}
+                          <TextInput
+                            value={createHealthObs}
+                            onChangeText={setCreateHealthObs}
+                            placeholder="Adicionar observações"
+                            placeholderTextColor={colors.placeholder}
+                            style={[
+                              inputStyle(colors),
+                              { minHeight: 84, textAlignVertical: "top" },
+                            ]}
+                            multiline
+                          />
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
+
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: colors.card,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => toggleCreateSection("guardian")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Responsável
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {createGuardianSummary}
+                        </Text>
+                      </View>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate:
+                                openCreateSection === "guardian"
+                                  ? "180deg"
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                    {openCreateSection === "guardian" ? (
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: colors.border,
+                          marginHorizontal: 12,
+                        }}
+                      />
+                    ) : null}
+                    {openCreateSection === "guardian" ||
+                    createGuardianAnim.isVisible ? (
+                      <Animated.View
+                        style={[
+                          createGuardianAnim.animatedStyle,
+                          { overflow: "hidden" },
+                        ]}
+                      >
+                        <View style={{ gap: 10, padding: 12 }}>
+                          <View style={{ flexDirection: "row", gap: 10 }}>
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                value={createGuardianName}
+                                onChangeText={setCreateGuardianName}
+                                placeholder="Responsável (opcional)"
+                                placeholderTextColor={colors.placeholder}
+                                style={inputStyle(colors)}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                value={createGuardianPhone}
+                                onChangeText={(value) =>
+                                  setCreateGuardianPhone(
+                                    formatPhoneBrWithCountry(value),
+                                  )
+                                }
+                                placeholder="+55 (DDD) 0 0000-0000"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="phone-pad"
+                                style={inputStyle(colors)}
+                              />
+                            </View>
+                          </View>
+                          <View style={{ gap: 6 }}>
+                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                              Parentesco
+                            </Text>
+                            <Pressable
+                              onPress={() =>
+                                setCreateDropKey(
+                                  createDropKey === "createGuardian"
+                                    ? null
+                                    : "createGuardian",
+                                )
+                              }
+                              style={selectFieldStyle}
+                            >
+                              <Text
+                                style={{
+                                  color: colors.text,
+                                  fontSize: 13,
+                                  fontWeight: "500",
+                                }}
+                              >
+                                {createGuardianRelation || "Selecione"}
+                              </Text>
+                              <GoAtletaIcon
+                                name="chevronDown"
+                                size={16}
+                                color={colors.muted}
+                                style={{
+                                  transform: [
+                                    {
+                                      rotate:
+                                        createDropKey === "createGuardian"
+                                          ? "180deg"
+                                          : "0deg",
+                                    },
+                                  ],
+                                }}
+                              />
+                            </Pressable>
+                            {createDropKey === "createGuardian" ? (
+                              <View
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: 12,
+                                  overflow: "hidden",
+                                  backgroundColor: colors.card,
+                                }}
+                              >
+                                {guardianRelationOptions.map((option) => (
+                                  <Pressable
+                                    key={`create_guardian_${option}`}
+                                    onPress={() => {
+                                      setCreateGuardianRelation(option);
+                                      setCreateDropKey(null);
+                                    }}
+                                    style={{
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 10,
+                                      backgroundColor:
+                                        option === createGuardianRelation
+                                          ? colors.secondaryBg
+                                          : colors.card,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: colors.text,
+                                        fontWeight:
+                                          option === createGuardianRelation
+                                            ? "600"
+                                            : "500",
+                                      }}
+                                    >
+                                      {option}
+                                    </Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
+
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: colors.card,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => toggleCreateSection("links")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Vínculos esportivos
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {createLinksSummary}
+                        </Text>
+                      </View>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate:
+                                openCreateSection === "links"
+                                  ? "180deg"
+                                  : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                    {openCreateSection === "links" ? (
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: colors.border,
+                          marginHorizontal: 12,
+                        }}
+                      />
+                    ) : null}
+                    {openCreateSection === "links" ||
+                    createLinksAnim.isVisible ? (
+                      <Animated.View
+                        style={[
+                          createLinksAnim.animatedStyle,
+                          { overflow: "hidden" },
+                        ]}
+                      >
+                        <View style={{ gap: 8, padding: 12 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            {cls?.modality ? (
+                              <View
+                                style={{
+                                  borderRadius: 999,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 2,
+                                  backgroundColor: colors.secondaryBg,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: colors.text,
+                                    fontSize: 11,
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  {getClassModalityLabel(cls.modality)}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <Text
+                            style={{ color: colors.muted, fontSize: 12 }}
+                          >{`${cls?.name ?? "Sem turma"} • ${cls?.unit ?? "Sem unidade"}`}</Text>
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
+                </>
+              ) : null}
+            </ScrollView>
+            <View
               style={{
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.primaryBg,
-                backgroundColor: colors.primaryBg,
-                paddingVertical: 11,
-                alignItems: "center",
-                opacity: canSubmitCreateStudent ? 1 : 0.5,
+                paddingTop: 10,
+                paddingBottom: Math.max(insets.bottom + 24, 28),
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                gap: 8,
+                backgroundColor: colors.background,
               }}
             >
-              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                {creatingStudent
-                  ? "Salvando..."
-                  : selectedExistingStudent
-                    ? "Adicionar à turma"
-                    : duplicateNameConfirmed
-                      ? "Cadastrar mesmo assim"
-                    : "Cadastrar aluno"}
-              </Text>
-            </Pressable>
+              {createError ? (
+                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                  {createError}
+                </Text>
+              ) : null}
+              <Pressable
+                onPress={() =>
+                  void (selectedExistingStudent
+                    ? addSelectedExistingStudent()
+                    : createStudent())
+                }
+                disabled={!canSubmitCreateStudent}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.primaryBg,
+                  backgroundColor: colors.primaryBg,
+                  paddingVertical: 11,
+                  alignItems: "center",
+                  opacity: canSubmitCreateStudent ? 1 : 0.5,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                  {creatingStudent
+                    ? "Salvando..."
+                    : selectedExistingStudent
+                      ? "Adicionar à turma"
+                      : duplicateNameConfirmed
+                        ? "Cadastrar mesmo assim"
+                        : "Cadastrar aluno"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-          </View>
-        )}
-      </View>
+        </ModalSheet>
 
       <ModalSheet
         visible={Boolean(duplicateReviewTarget)}
@@ -2983,50 +4815,35 @@ void Promise.all(
         visible={Boolean(editingStudent)}
         onClose={requestCloseEditModal}
         position="center"
-        cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
+        cardStyle={[
+          editModalCardStyle,
+          { height: Platform.OS === "web" ? "92%" : "96%" },
+        ]}
       >
-        <View ref={containerRef} style={{ flex: 1, position: "relative", minHeight: 0 }}>
+        <View
+          ref={containerRef}
+          style={{ flex: 1, position: "relative", minHeight: 0 }}
+        >
           <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 10,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>Editar aluno</Text>
-            <Pressable
-              onPress={requestCloseEditModal}
+            <View
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
               }}
             >
-              <GoAtletaIcon name="close" size={18} color={colors.text} />
-            </Pressable>
-          </View>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ gap: 10, paddingBottom: 24 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator
-            persistentScrollbar={Platform.OS === "android"}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 4, paddingBottom: 2 }}>
+              <Text
+                style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}
+              >
+                Editar aluno
+              </Text>
               <Pressable
-                onPress={() => void pickStudentPhoto("library")}
+                onPress={requestCloseEditModal}
                 style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 36,
-                  overflow: "hidden",
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
@@ -3034,568 +4851,1396 @@ void Promise.all(
                   justifyContent: "center",
                 }}
               >
-                {photoChanged && photoUrl ? (
-                  <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                ) : editingStudent && studentPhotoAccessUrls[editingStudent.id] ? (
-                  <Image
-                    source={{ uri: studentPhotoAccessUrls[editingStudent.id] }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <GoAtletaIcon name="camera" size={24} color={colors.muted} />
-                )}
+                <GoAtletaIcon name="close" size={18} color={colors.text} />
               </Pressable>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
-                  {photoUrl ? "Alterar foto" : "Adicionar foto"}
-                </Text>
-                <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
-                  <Pressable onPress={() => void pickStudentPhoto("library")}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Galeria</Text>
-                  </Pressable>
-                  <Pressable onPress={() => void pickStudentPhoto("camera")}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Tirar foto</Text>
-                  </Pressable>
+            </View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ gap: 10, paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              persistentScrollbar={Platform.OS === "android"}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  paddingHorizontal: 4,
+                  paddingBottom: 2,
+                }}
+              >
+                <Pressable
+                  onPress={() => void pickStudentPhoto("library")}
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    overflow: "hidden",
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {photoChanged && photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                  ) : editingStudent &&
+                    studentPhotoAccessUrls[editingStudent.id] ? (
+                    <Image
+                      source={{
+                        uri: studentPhotoAccessUrls[editingStudent.id],
+                      }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <GoAtletaIcon
+                      name="camera"
+                      size={24}
+                      color={colors.muted}
+                    />
+                  )}
+                </Pressable>
+                <View style={{ gap: 6 }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 14,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {photoUrl ? "Alterar foto" : "Adicionar foto"}
+                  </Text>
+                  <View
+                    style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}
+                  >
+                    <Pressable onPress={() => void pickStudentPhoto("library")}>
+                      <Text
+                        style={{
+                          color: colors.text,
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Galeria
+                      </Text>
+                    </Pressable>
+                    <Pressable onPress={() => void pickStudentPhoto("camera")}>
+                      <Text
+                        style={{
+                          color: colors.text,
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Tirar foto
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("studentData")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
               >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Dados do aluno</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{studentDataSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "studentData" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "studentData" || studentDataAnim.isVisible) ? (
-                <Animated.View style={[studentDataAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={rowStyle}>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
-                        <FormFieldValidationFeedback
-                          message={editValidationIssue?.field === "name" ? editValidationIssue.message : ""}
-                          attempt={editValidationIssue?.field === "name" ? editValidationIssue.attempt : 0}
-                        >
-                          <TextInput
-                            ref={editNameInputRef}
-                            value={name}
-                            onChangeText={(value) => {
-                              clearEditValidationError("name");
-                              setName(value);
-                            }}
-                            placeholder="Nome"
-                            placeholderTextColor={colors.placeholder}
-                            accessibilityLabel="Nome do aluno"
-                            style={[
-                              inputStyle(colors),
-                              getValidationFieldStyle(
-                                editValidationIssue?.field === "name",
-                                colors.dangerSolidBg
-                              ),
-                            ]}
-                          />
-                        </FormFieldValidationFeedback>
-                      </View>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>E-mail de login</Text>
-                        <TextInput value={email} onChangeText={setEmail} placeholder="email@exemplo.com" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
-                      </View>
-                    </View>
-
-                    <View style={rowStyle}>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Nascimento</Text>
-                        <FormFieldValidationFeedback
-                          message={editValidationIssue?.field === "birthDate" ? editValidationIssue.message : ""}
-                          attempt={editValidationIssue?.field === "birthDate" ? editValidationIssue.attempt : 0}
-                        >
-                          <TextInput
-                            ref={editBirthDateInputRef}
-                            value={birthText}
-                            onChangeText={(value) => {
-                              clearEditValidationError("birthDate");
-                              const formatted = formatBrInput(value);
-                              setBirthText(formatted);
-                              const iso = brToIso(formatted);
-                              if (iso) setBirthIso(iso);
-                              if (!formatted) setBirthIso("");
-                            }}
-                            placeholder="DD/MM/AAAA"
-                            placeholderTextColor={colors.placeholder}
-                            accessibilityLabel="Data de nascimento do aluno"
-                            style={[
-                              inputStyle(colors),
-                              getValidationFieldStyle(
-                                editValidationIssue?.field === "birthDate",
-                                colors.dangerSolidBg
-                              ),
-                            ]}
-                            keyboardType="numeric"
-                          />
-                        </FormFieldValidationFeedback>
-                      </View>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do aluno</Text>
-                        <TextInput
-                          value={phone}
-                          onChangeText={(value) => setPhone(formatPhoneBrWithCountry(value))}
-                          placeholder="+55 (DDD) 0 0000-0000"
-                          placeholderTextColor={colors.placeholder}
-                          style={inputStyle(colors)}
-                          keyboardType="phone-pad"
-                        />
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("academic")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{academicSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "academic" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "academic" || academicAnim.isVisible) ? (
-                <Animated.View style={[academicAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <StudentAcademicFields
-                      ra={ra}
-                      collegeCourse={collegeCourse}
-                      onChangeRa={(value) => {
-                        clearEditValidationError("ra");
-                        setRa(normalizeRaDigits(value));
-                        setDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                <Pressable
+                  onPress={() => toggleSection("studentData")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
                       }}
-                      onChangeCollegeCourse={setCollegeCourse}
-                      errors={documentsError}
-                      raInputRef={editRaInputRef}
-                      validationAttempt={editValidationIssue?.field === "ra" ? editValidationIssue.attempt : 0}
-                    />
+                    >
+                      Dados do aluno
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {studentDataSummary}
+                    </Text>
                   </View>
-                </Animated.View>
-              ) : null}
-            </View>
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate:
+                            openSection === "studentData" ? "180deg" : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "studentData" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "studentData" || studentDataAnim.isVisible ? (
+                  <Animated.View
+                    style={[
+                      studentDataAnim.animatedStyle,
+                      { overflow: "hidden" },
+                    ]}
+                  >
+                    <View style={{ gap: 10, padding: 12 }}>
+                      <View style={rowStyle}>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Nome do aluno
+                          </Text>
+                          <FormFieldValidationFeedback
+                            message={
+                              editValidationIssue?.field === "name"
+                                ? editValidationIssue.message
+                                : ""
+                            }
+                            attempt={
+                              editValidationIssue?.field === "name"
+                                ? editValidationIssue.attempt
+                                : 0
+                            }
+                          >
+                            <TextInput
+                              ref={editNameInputRef}
+                              value={name}
+                              onChangeText={(value) => {
+                                clearEditValidationError("name");
+                                setName(value);
+                              }}
+                              placeholder="Nome"
+                              placeholderTextColor={colors.placeholder}
+                              accessibilityLabel="Nome do aluno"
+                              style={[
+                                inputStyle(colors),
+                                getValidationFieldStyle(
+                                  editValidationIssue?.field === "name",
+                                  colors.dangerSolidBg,
+                                ),
+                              ]}
+                            />
+                          </FormFieldValidationFeedback>
+                        </View>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            E-mail de login
+                          </Text>
+                          <TextInput
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="email@exemplo.com"
+                            placeholderTextColor={colors.placeholder}
+                            style={inputStyle(colors)}
+                          />
+                        </View>
+                      </View>
 
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("documents")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{documentsSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "documents" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "documents" || documentsAnim.isVisible) ? (
-                <Animated.View style={[documentsAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <StudentDocumentsFields
-                      cpfDisplay={cpfDisplay}
-                      rg={rgDocument}
-                      onChangeCpf={(value) => {
-                        setCpfWasEdited(true);
-                        setCpfDisplay(value);
-                        setCpfRevealedValue(null);
-                        setIsCpfVisible(false);
-                        setCpfRevealUnavailable(false);
-                        setDocumentsError((prev) => ({ ...prev, cpf: undefined }));
-                      }}
-                      onChangeRg={setRgDocument}
-                      showRevealCpfButton={Boolean(editingStudent && canRevealCpf)}
-                      isCpfVisible={isCpfVisible}
-                      revealCpfBusy={revealCpfBusy}
-                      onRevealCpf={() => void revealCpf()}
-                      errors={documentsError}
-                    />
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("sportProfile")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{sportSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "sportProfile" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "sportProfile" || sportAnim.isVisible) ? (
-                <Animated.View style={[sportAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={{ gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade que pratica</Text>
-                      <View style={selectFieldStyle}>
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getClassModalityLabel(cls?.modality ?? "voleibol")}</Text>
+                      <View style={rowStyle}>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Nascimento
+                          </Text>
+                          <FormFieldValidationFeedback
+                            message={
+                              editValidationIssue?.field === "birthDate"
+                                ? editValidationIssue.message
+                                : ""
+                            }
+                            attempt={
+                              editValidationIssue?.field === "birthDate"
+                                ? editValidationIssue.attempt
+                                : 0
+                            }
+                          >
+                            <TextInput
+                              ref={editBirthDateInputRef}
+                              value={birthText}
+                              onChangeText={(value) => {
+                                clearEditValidationError("birthDate");
+                                const formatted = formatBrInput(value);
+                                setBirthText(formatted);
+                                const iso = brToIso(formatted);
+                                if (iso) setBirthIso(iso);
+                                if (!formatted) setBirthIso("");
+                              }}
+                              placeholder="DD/MM/AAAA"
+                              placeholderTextColor={colors.placeholder}
+                              accessibilityLabel="Data de nascimento do aluno"
+                              style={[
+                                inputStyle(colors),
+                                getValidationFieldStyle(
+                                  editValidationIssue?.field === "birthDate",
+                                  colors.dangerSolidBg,
+                                ),
+                              ]}
+                              keyboardType="numeric"
+                            />
+                          </FormFieldValidationFeedback>
+                        </View>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Telefone do aluno
+                          </Text>
+                          <TextInput
+                            value={phone}
+                            onChangeText={(value) =>
+                              setPhone(formatPhoneBrWithCountry(value))
+                            }
+                            placeholder="+55 (DDD) 0 0000-0000"
+                            placeholderTextColor={colors.placeholder}
+                            style={inputStyle(colors)}
+                            keyboardType="phone-pad"
+                          />
+                        </View>
                       </View>
                     </View>
-                    <View style={{ gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posições que joga</Text>
-                      <Pressable onPress={() => setShowPositionPicker((current) => !current)} style={selectFieldStyle}>
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{sportSummary}</Text>
-                        <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showPositionPicker ? "180deg" : "0deg" }] }} />
-                      </Pressable>
-                      {positionPickerAnim.isVisible ? (
-                        <Animated.View style={[positionPickerAnim.animatedStyle, { overflow: "hidden" }]}>
-                          <View style={{ maxHeight: 190, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
-                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
-                              {positionOptions.filter((position) => position !== "indefinido").map((position, index) => {
-                                const active = selectedPositions.includes(position);
-                                return (
-                                  <StudentMultiSelectOption
-                                    key={position}
-                                    label={getOptionLabel(position)}
-                                    value={position}
-                                    active={active}
-                                    onToggle={(value) => {
-                                      const next = active
-                                        ? selectedPositions.filter((item) => item !== value)
-                                        : [...selectedPositions.filter((item) => item !== value), value].slice(-2);
-                                      setPrimaryPos(next[0] ?? "");
-                                      setSecondaryPos(next[1] ?? "");
-                                    }}
-                                    isFirst={index === 0}
-                                    compact
-                                  />
-                                );
-                              })}
-                            </ScrollView>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <Pressable
+                  onPress={() => toggleSection("academic")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Perfil Acadêmico
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {academicSummary}
+                    </Text>
+                  </View>
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate:
+                            openSection === "academic" ? "180deg" : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "academic" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "academic" || academicAnim.isVisible ? (
+                  <Animated.View
+                    style={[academicAnim.animatedStyle, { overflow: "hidden" }]}
+                  >
+                    <View style={{ gap: 10, padding: 12 }}>
+                      <StudentAcademicFields
+                        ra={ra}
+                        collegeCourse={collegeCourse}
+                        onChangeRa={(value) => {
+                          clearEditValidationError("ra");
+                          setRa(normalizeRaDigits(value));
+                          setDocumentsError((prev) => ({
+                            ...prev,
+                            ra: undefined,
+                          }));
+                        }}
+                        onChangeCollegeCourse={setCollegeCourse}
+                        errors={documentsError}
+                        raInputRef={editRaInputRef}
+                        validationAttempt={
+                          editValidationIssue?.field === "ra"
+                            ? editValidationIssue.attempt
+                            : 0
+                        }
+                      />
+                    </View>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <Pressable
+                  onPress={() => toggleSection("documents")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Documentos
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {documentsSummary}
+                    </Text>
+                  </View>
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate:
+                            openSection === "documents" ? "180deg" : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "documents" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "documents" || documentsAnim.isVisible ? (
+                  <Animated.View
+                    style={[
+                      documentsAnim.animatedStyle,
+                      { overflow: "hidden" },
+                    ]}
+                  >
+                    <View style={{ gap: 10, padding: 12 }}>
+                      <StudentDocumentsFields
+                        cpfDisplay={cpfDisplay}
+                        rg={rgDocument}
+                        onChangeCpf={(value) => {
+                          setCpfWasEdited(true);
+                          setCpfDisplay(value);
+                          setCpfRevealedValue(null);
+                          setIsCpfVisible(false);
+                          setCpfRevealUnavailable(false);
+                          setDocumentsError((prev) => ({
+                            ...prev,
+                            cpf: undefined,
+                          }));
+                        }}
+                        onChangeRg={setRgDocument}
+                        showRevealCpfButton={Boolean(
+                          editingStudent && canRevealCpf,
+                        )}
+                        isCpfVisible={isCpfVisible}
+                        revealCpfBusy={revealCpfBusy}
+                        onRevealCpf={() => void revealCpf()}
+                        errors={documentsError}
+                      />
+                    </View>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <Pressable
+                  onPress={() => toggleSection("sportProfile")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Perfil esportivo
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {sportSummary}
+                    </Text>
+                  </View>
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate:
+                            openSection === "sportProfile" ? "180deg" : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "sportProfile" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "sportProfile" || sportAnim.isVisible ? (
+                  <Animated.View
+                    style={[sportAnim.animatedStyle, { overflow: "hidden" }]}
+                  >
+                    <View style={{ gap: 10, padding: 12 }}>
+                      <View style={{ gap: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          Modalidade que pratica
+                        </Text>
+                        <View style={selectFieldStyle}>
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 13,
+                              fontWeight: "500",
+                            }}
+                          >
+                            {getClassModalityLabel(cls?.modality ?? "voleibol")}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={{ gap: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          Posições que joga
+                        </Text>
+                        <Pressable
+                          onPress={() =>
+                            setShowPositionPicker((current) => !current)
+                          }
+                          style={selectFieldStyle}
+                        >
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 13,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {sportSummary}
+                          </Text>
+                          <GoAtletaIcon
+                            name="chevronDown"
+                            size={16}
+                            color={colors.muted}
+                            style={{
+                              transform: [
+                                {
+                                  rotate: showPositionPicker
+                                    ? "180deg"
+                                    : "0deg",
+                                },
+                              ],
+                            }}
+                          />
+                        </Pressable>
+                        {positionPickerAnim.isVisible ? (
+                          <Animated.View
+                            style={[
+                              positionPickerAnim.animatedStyle,
+                              { overflow: "hidden" },
+                            ]}
+                          >
+                            <View
+                              style={{
+                                maxHeight: 190,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 12,
+                                backgroundColor: colors.card,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <ScrollView
+                                nestedScrollEnabled
+                                showsVerticalScrollIndicator
+                                contentContainerStyle={{ padding: 6, gap: 4 }}
+                              >
+                                {positionOptions
+                                  .filter(
+                                    (position) => position !== "indefinido",
+                                  )
+                                  .map((position, index) => {
+                                    const active =
+                                      selectedPositions.includes(position);
+                                    return (
+                                      <StudentMultiSelectOption
+                                        key={position}
+                                        label={getOptionLabel(position)}
+                                        value={position}
+                                        active={active}
+                                        onToggle={(value) => {
+                                          const next = active
+                                            ? selectedPositions.filter(
+                                                (item) => item !== value,
+                                              )
+                                            : [
+                                                ...selectedPositions.filter(
+                                                  (item) => item !== value,
+                                                ),
+                                                value,
+                                              ].slice(-2);
+                                          setPrimaryPos(next[0] ?? "");
+                                          setSecondaryPos(next[1] ?? "");
+                                        }}
+                                        isFirst={index === 0}
+                                        compact
+                                      />
+                                    );
+                                  })}
+                              </ScrollView>
+                            </View>
+                          </Animated.View>
+                        ) : null}
+                      </View>
+                    </View>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <Pressable
+                  onPress={() => toggleSection("health")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Saúde
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {healthSummary}
+                    </Text>
+                  </View>
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate: openSection === "health" ? "180deg" : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "health" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "health" || healthAnim.isVisible ? (
+                  <Animated.View
+                    style={[healthAnim.animatedStyle, { overflow: "hidden" }]}
+                  >
+                    <View style={{ gap: 10, padding: 12 }}>
+                      <View style={rowStyle}>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
+                            Problema de saúde?
+                          </Text>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <Pressable
+                              onPress={() => {
+                                setHealthIssue(false);
+                                setHealthIssueNotes("");
+                              }}
+                              style={{
+                                paddingVertical: 6,
+                                paddingHorizontal: 14,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                backgroundColor: !healthIssue
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: !healthIssue
+                                    ? colors.primaryText
+                                    : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Não
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => setHealthIssue(true)}
+                              style={{
+                                paddingVertical: 6,
+                                paddingHorizontal: 14,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                backgroundColor: healthIssue
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: healthIssue
+                                    ? colors.primaryText
+                                    : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Sim
+                              </Text>
+                            </Pressable>
                           </View>
-                        </Animated.View>
+                        </View>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
+                            Uso contínuo de medicação?
+                          </Text>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <Pressable
+                              onPress={() => {
+                                setMedicationUse(false);
+                                setMedicationNotes("");
+                              }}
+                              style={{
+                                paddingVertical: 6,
+                                paddingHorizontal: 14,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                backgroundColor: !medicationUse
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: !medicationUse
+                                    ? colors.primaryText
+                                    : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Não
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => setMedicationUse(true)}
+                              style={{
+                                paddingVertical: 6,
+                                paddingHorizontal: 14,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                backgroundColor: medicationUse
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: medicationUse
+                                    ? colors.primaryText
+                                    : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Sim
+                              </Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      </View>
+                      {healthIssue ? (
+                        <TextInput
+                          value={healthIssueNotes}
+                          onChangeText={setHealthIssueNotes}
+                          placeholder="Descreva a questão de saúde"
+                          placeholderTextColor={colors.placeholder}
+                          style={[
+                            inputStyle(colors),
+                            { minHeight: 72, textAlignVertical: "top" },
+                          ]}
+                          multiline
+                        />
+                      ) : null}
+                      {medicationUse ? (
+                        <TextInput
+                          value={medicationNotes}
+                          onChangeText={setMedicationNotes}
+                          placeholder="Qual medicação?"
+                          placeholderTextColor={colors.placeholder}
+                          style={[
+                            inputStyle(colors),
+                            { minHeight: 72, textAlignVertical: "top" },
+                          ]}
+                          multiline
+                        />
+                      ) : null}
+                      <TextInput
+                        value={healthObs}
+                        onChangeText={setHealthObs}
+                        placeholder="Adicionar observações"
+                        placeholderTextColor={colors.placeholder}
+                        style={[
+                          inputStyle(colors),
+                          { minHeight: 84, textAlignVertical: "top" },
+                        ]}
+                        multiline
+                      />
+
+                      {editingIntake ? (
+                        <View style={{ gap: 8 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            {editingIntake.riskStatus !== "apto" ? (
+                              <View
+                                style={{
+                                  borderRadius: 999,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 2,
+                                  backgroundColor:
+                                    riskBadgePalette[editingIntake.riskStatus]
+                                      .bg,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color:
+                                      riskBadgePalette[editingIntake.riskStatus]
+                                        .text,
+                                    fontSize: 11,
+                                    fontWeight: "700",
+                                  }}
+                                >
+                                  {
+                                    riskBadgePalette[editingIntake.riskStatus]
+                                      .label
+                                  }
+                                </Text>
+                              </View>
+                            ) : null}
+                            {healthBadgeItems.map((item) => (
+                              <View
+                                key={item}
+                                style={{
+                                  borderRadius: 999,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 2,
+                                  backgroundColor: colors.secondaryBg,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: colors.text,
+                                    fontSize: 11,
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  {item}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                          {editingIntake.notes ? (
+                            <Text
+                              style={{ color: colors.muted, fontSize: 12 }}
+                              numberOfLines={2}
+                            >
+                              {editingIntake.notes}
+                            </Text>
+                          ) : null}
+                        </View>
                       ) : null}
                     </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
+                  </Animated.View>
+                ) : null}
+              </View>
 
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("health")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
               >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{healthSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "health" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "health" || healthAnim.isVisible) ? (
-                <Animated.View style={[healthAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                  <View style={rowStyle}>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>Problema de saúde?</Text>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <Pressable onPress={() => { setHealthIssue(false); setHealthIssueNotes(""); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: !healthIssue ? colors.primaryBg : colors.secondaryBg }}>
-                          <Text style={{ color: !healthIssue ? colors.primaryText : colors.text, fontWeight: "700" }}>Não</Text>
-                        </Pressable>
-                        <Pressable onPress={() => setHealthIssue(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: healthIssue ? colors.primaryBg : colors.secondaryBg }}>
-                          <Text style={{ color: healthIssue ? colors.primaryText : colors.text, fontWeight: "700" }}>Sim</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>Uso contínuo de medicação?</Text>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <Pressable onPress={() => { setMedicationUse(false); setMedicationNotes(""); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: !medicationUse ? colors.primaryBg : colors.secondaryBg }}>
-                          <Text style={{ color: !medicationUse ? colors.primaryText : colors.text, fontWeight: "700" }}>Não</Text>
-                        </Pressable>
-                        <Pressable onPress={() => setMedicationUse(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: medicationUse ? colors.primaryBg : colors.secondaryBg }}>
-                          <Text style={{ color: medicationUse ? colors.primaryText : colors.text, fontWeight: "700" }}>Sim</Text>
-                        </Pressable>
-                      </View>
-                    </View>
+                <Pressable
+                  onPress={() => toggleSection("guardian")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Responsável
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {guardianSummary}
+                    </Text>
                   </View>
-                  {healthIssue ? (
-                    <TextInput value={healthIssueNotes} onChangeText={setHealthIssueNotes} placeholder="Descreva a questão de saúde" placeholderTextColor={colors.placeholder} style={[inputStyle(colors), { minHeight: 72, textAlignVertical: "top" }]} multiline />
-                  ) : null}
-                  {medicationUse ? (
-                    <TextInput value={medicationNotes} onChangeText={setMedicationNotes} placeholder="Qual medicação?" placeholderTextColor={colors.placeholder} style={[inputStyle(colors), { minHeight: 72, textAlignVertical: "top" }]} multiline />
-                  ) : null}
-                  <TextInput value={healthObs} onChangeText={setHealthObs} placeholder="Adicionar observações" placeholderTextColor={colors.placeholder} style={[inputStyle(colors), { minHeight: 84, textAlignVertical: "top" }]} multiline />
-
-                  {editingIntake ? (
-                    <View style={{ gap: 8 }}>
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                        {editingIntake.riskStatus !== "apto" ? (
-                          <View
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        {
+                          rotate:
+                            openSection === "guardian" ? "180deg" : "0deg",
+                        },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "guardian" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "guardian" || guardianAnim.isVisible ? (
+                  <Animated.View
+                    style={[guardianAnim.animatedStyle, { overflow: "hidden" }]}
+                  >
+                    <View style={{ gap: 10, padding: 12 }}>
+                      <View style={rowStyle}>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Nome do responsável
+                          </Text>
+                          <TextInput
+                            value={guardianName}
+                            onChangeText={setGuardianName}
+                            placeholder="Responsável"
+                            placeholderTextColor={colors.placeholder}
+                            style={inputStyle(colors)}
+                          />
+                        </View>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Telefone do responsável
+                          </Text>
+                          <TextInput
+                            value={guardianPhone}
+                            onChangeText={(value) =>
+                              setGuardianPhone(formatPhoneBrWithCountry(value))
+                            }
+                            placeholder="+55 (DDD) 0 0000-0000"
+                            placeholderTextColor={colors.placeholder}
+                            keyboardType="phone-pad"
+                            style={inputStyle(colors)}
+                          />
+                        </View>
+                      </View>
+                      <View style={{ gap: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          Parentesco
+                        </Text>
+                        <Pressable
+                          onPress={() =>
+                            setShowGuardianRelationPicker((current) => !current)
+                          }
+                          style={selectFieldStyle}
+                        >
+                          <Text
                             style={{
-                              borderRadius: 999,
-                              paddingHorizontal: 8,
-                              paddingVertical: 2,
-                              backgroundColor: riskBadgePalette[editingIntake.riskStatus].bg,
+                              color: colors.text,
+                              fontSize: 13,
+                              fontWeight: "500",
                             }}
                           >
-                            <Text style={{ color: riskBadgePalette[editingIntake.riskStatus].text, fontSize: 11, fontWeight: "700" }}>
-                              {riskBadgePalette[editingIntake.riskStatus].label}
-                            </Text>
-                          </View>
+                            {guardianRelation || "Selecione"}
+                          </Text>
+                          <GoAtletaIcon
+                            name="chevronDown"
+                            size={16}
+                            color={colors.muted}
+                            style={{
+                              transform: [
+                                {
+                                  rotate: showGuardianRelationPicker
+                                    ? "180deg"
+                                    : "0deg",
+                                },
+                              ],
+                            }}
+                          />
+                        </Pressable>
+                        {guardianRelationPickerAnim.isVisible ? (
+                          <Animated.View
+                            style={[
+                              guardianRelationPickerAnim.animatedStyle,
+                              { overflow: "hidden" },
+                            ]}
+                          >
+                            <View
+                              style={{
+                                maxHeight: 160,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 12,
+                                backgroundColor: colors.card,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <ScrollView
+                                nestedScrollEnabled
+                                showsVerticalScrollIndicator
+                                contentContainerStyle={{ padding: 6, gap: 4 }}
+                              >
+                                {guardianRelationOptions.map((item, index) => (
+                                  <StudentSelectOption
+                                    key={item}
+                                    label={item}
+                                    value={item}
+                                    active={item === guardianRelation}
+                                    onSelect={(value) => {
+                                      setGuardianRelation(value);
+                                      setShowGuardianRelationPicker(false);
+                                    }}
+                                    isFirst={index === 0}
+                                  />
+                                ))}
+                              </ScrollView>
+                            </View>
+                          </Animated.View>
                         ) : null}
-                        {healthBadgeItems.map((item) => (
-                          <View
-                            key={item}
-                            style={{
-                              borderRadius: 999,
-                              paddingHorizontal: 8,
-                              paddingVertical: 2,
-                              backgroundColor: colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                            }}
+                      </View>
+                    </View>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <Pressable
+                  onPress={() => toggleSection("links")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Turma e unidade
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {linksSummary}
+                    </Text>
+                  </View>
+                  <GoAtletaIcon
+                    name="chevronDown"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: openSection === "links" ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+                {openSection === "links" ? (
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: colors.border,
+                      marginHorizontal: 12,
+                    }}
+                  />
+                ) : null}
+                {openSection === "links" || linksAnim.isVisible ? (
+                  <Animated.View
+                    style={[linksAnim.animatedStyle, { overflow: "hidden" }]}
+                  >
+                    <View style={linksContentStyle}>
+                      <View style={rowStyle}>
+                        <View style={colStyle}>
+                          <Text style={linksLabelStyle}>Unidade</Text>
+                          <Pressable
+                            onPress={() =>
+                              setShowEditUnitPicker((current) => !current)
+                            }
+                            style={selectFieldStyle}
                           >
-                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>{item}</Text>
+                            <Text style={linksValueStyle}>
+                              {editUnitFilters.length === 1
+                                ? editUnitFilters[0]
+                                : editUnitFilters.length
+                                  ? `${editUnitFilters.length} unidades`
+                                  : "Todas as unidades"}
+                            </Text>
+                            <GoAtletaIcon
+                              name="chevronDown"
+                              size={16}
+                              color={colors.muted}
+                              style={editUnitChevronStyle}
+                            />
+                          </Pressable>
+                          {editUnitPickerAnim.isVisible ? (
+                            <Animated.View
+                              style={[
+                                editUnitPickerAnim.animatedStyle,
+                                { overflow: "hidden" },
+                              ]}
+                            >
+                              <View
+                                style={{
+                                  maxHeight: 142,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: 12,
+                                  backgroundColor: colors.card,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <ScrollView
+                                  nestedScrollEnabled
+                                  showsVerticalScrollIndicator
+                                  contentContainerStyle={{ padding: 6, gap: 4 }}
+                                >
+                                  {editUnitOptions.map((unit, index) => (
+                                    <StudentMultiSelectOption
+                                      key={unit}
+                                      label={unit}
+                                      value={unit}
+                                      active={editUnitFilters.includes(unit)}
+                                      onToggle={(value) => {
+                                        setEditUnitFilters((current) =>
+                                          current.includes(value)
+                                            ? current.filter(
+                                                (item) => item !== value,
+                                              )
+                                            : [...current, value],
+                                        );
+                                      }}
+                                      isFirst={index === 0}
+                                      compact
+                                    />
+                                  ))}
+                                </ScrollView>
+                              </View>
+                            </Animated.View>
+                          ) : null}
+                        </View>
+                        <View style={colStyle}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Turma
+                          </Text>
+                          <FormFieldValidationFeedback
+                            message={
+                              editValidationIssue?.field === "classes"
+                                ? editValidationIssue.message
+                                : ""
+                            }
+                            attempt={
+                              editValidationIssue?.field === "classes"
+                                ? editValidationIssue.attempt
+                                : 0
+                            }
+                          >
+                            <Pressable
+                              onPress={() =>
+                                setShowEditClassPicker((current) => !current)
+                              }
+                              style={[
+                                selectFieldStyle,
+                                getValidationFieldStyle(
+                                  editValidationIssue?.field === "classes",
+                                  colors.dangerSolidBg,
+                                ),
+                              ]}
+                            >
+                              <Text
+                                style={{
+                                  color: colors.text,
+                                  fontSize: 13,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {selectedEditClasses.length === 1
+                                  ? `${selectedEditClasses[0].name} (${classGenderLabel[selectedEditClasses[0].gender]})`
+                                  : selectedEditClasses.length
+                                    ? `${selectedEditClasses.length} turmas`
+                                    : "Selecione"}
+                              </Text>
+                              <GoAtletaIcon
+                                name="chevronDown"
+                                size={16}
+                                color={colors.muted}
+                                style={{
+                                  transform: [
+                                    {
+                                      rotate: showEditClassPicker
+                                        ? "180deg"
+                                        : "0deg",
+                                    },
+                                  ],
+                                }}
+                              />
+                            </Pressable>
+                          </FormFieldValidationFeedback>
+                          {editClassPickerAnim.isVisible ? (
+                            <Animated.View
+                              style={[
+                                editClassPickerAnim.animatedStyle,
+                                { overflow: "hidden" },
+                              ]}
+                            >
+                              <View
+                                style={{
+                                  maxHeight: 142,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                  borderRadius: 12,
+                                  backgroundColor: colors.card,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <ScrollView
+                                  nestedScrollEnabled
+                                  showsVerticalScrollIndicator
+                                  contentContainerStyle={{ padding: 6, gap: 4 }}
+                                >
+                                  {editClassOptions.map((item, index) => (
+                                    <StudentMultiSelectOption
+                                      key={item.id}
+                                      label={`${item.name} (${classGenderLabel[item.gender]})`}
+                                      value={item.id}
+                                      active={editClassIds.includes(item.id)}
+                                      onToggle={(value) => {
+                                        clearEditValidationError("classes");
+                                        setEditClassIds((current) =>
+                                          current.includes(value)
+                                            ? current.filter(
+                                                (id) => id !== value,
+                                              )
+                                            : [...current, value],
+                                        );
+                                      }}
+                                      isFirst={index === 0}
+                                      compact
+                                    />
+                                  ))}
+                                </ScrollView>
+                              </View>
+                            </Animated.View>
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={linksTagsStyle}>
+                        {selectedEditClasses.map((item) => (
+                          <View key={item.id} style={linksTagStyle}>
+                            <Text
+                              style={linksTagTextStyle}
+                            >{`${item.name} • ${item.unit}`}</Text>
                           </View>
                         ))}
                       </View>
-                      {editingIntake.notes ? (
-                        <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
-                          {editingIntake.notes}
-                        </Text>
-                      ) : null}
                     </View>
-                  ) : null}
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
+                  </Animated.View>
+                ) : null}
+              </View>
 
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable
-                onPress={() => toggleSection("guardian")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{guardianSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "guardian" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "guardian" || guardianAnim.isVisible) ? (
-                <Animated.View style={[guardianAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                  <View style={rowStyle}>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsável</Text>
-                      <TextInput value={guardianName} onChangeText={setGuardianName} placeholder="Responsável" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
-                    </View>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsável</Text>
-                      <TextInput value={guardianPhone} onChangeText={(value) => setGuardianPhone(formatPhoneBrWithCountry(value))} placeholder="+55 (DDD) 0 0000-0000" placeholderTextColor={colors.placeholder} keyboardType="phone-pad" style={inputStyle(colors)} />
-                    </View>
-                  </View>
-                  <View style={{ gap: 4 }}>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
-                    <Pressable onPress={() => setShowGuardianRelationPicker((current) => !current)} style={selectFieldStyle}>
-                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{guardianRelation || "Selecione"}</Text>
-                      <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showGuardianRelationPicker ? "180deg" : "0deg" }] }} />
-                    </Pressable>
-                    {guardianRelationPickerAnim.isVisible ? (
-                      <Animated.View style={[guardianRelationPickerAnim.animatedStyle, { overflow: "hidden" }]}>
-                        <View style={{ maxHeight: 160, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
-                          <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
-                            {guardianRelationOptions.map((item, index) => (
-                              <StudentSelectOption
-                                key={item}
-                                label={item}
-                                value={item}
-                                active={item === guardianRelation}
-                                onSelect={(value) => {
-                                  setGuardianRelation(value);
-                                  setShowGuardianRelationPicker(false);
-                                }}
-                                isFirst={index === 0}
-                              />
-                            ))}
-                          </ScrollView>
-                        </View>
-                      </Animated.View>
-                    ) : null}
-                  </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("links")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Turma e unidade</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{linksSummary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "links" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {(openSection === "links" || linksAnim.isVisible) ? (
-                <Animated.View style={[linksAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={linksContentStyle}>
-                    <View style={rowStyle}>
-                      <View style={colStyle}>
-                        <Text style={linksLabelStyle}>Unidade</Text>
-                        <Pressable onPress={() => setShowEditUnitPicker((current) => !current)} style={selectFieldStyle}>
-                          <Text style={linksValueStyle}>{editUnitFilters.length === 1 ? editUnitFilters[0] : editUnitFilters.length ? `${editUnitFilters.length} unidades` : "Todas as unidades"}</Text>
-                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={editUnitChevronStyle} />
-                        </Pressable>
-                        {editUnitPickerAnim.isVisible ? (
-                          <Animated.View style={[editUnitPickerAnim.animatedStyle, { overflow: "hidden" }]}>
-                            <View style={{ maxHeight: 142, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
-                              <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
-                                {editUnitOptions.map((unit, index) => (
-                                  <StudentMultiSelectOption
-                                    key={unit}
-                                    label={unit}
-                                    value={unit}
-                                    active={editUnitFilters.includes(unit)}
-                                    onToggle={(value) => {
-                                      setEditUnitFilters((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
-                                    }}
-                                    isFirst={index === 0}
-                                    compact
-                                  />
-                                ))}
-                              </ScrollView>
-                            </View>
-                          </Animated.View>
-                        ) : null}
-                      </View>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
-                        <FormFieldValidationFeedback
-                          message={editValidationIssue?.field === "classes" ? editValidationIssue.message : ""}
-                          attempt={editValidationIssue?.field === "classes" ? editValidationIssue.attempt : 0}
-                        >
-                          <Pressable
-                            onPress={() => setShowEditClassPicker((current) => !current)}
-                            style={[
-                              selectFieldStyle,
-                              getValidationFieldStyle(
-                                editValidationIssue?.field === "classes",
-                                colors.dangerSolidBg
-                              ),
-                            ]}
-                          >
-                            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{selectedEditClasses.length === 1 ? `${selectedEditClasses[0].name} (${classGenderLabel[selectedEditClasses[0].gender]})` : selectedEditClasses.length ? `${selectedEditClasses.length} turmas` : "Selecione"}</Text>
-                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
-                          </Pressable>
-                        </FormFieldValidationFeedback>
-                        {editClassPickerAnim.isVisible ? (
-                          <Animated.View style={[editClassPickerAnim.animatedStyle, { overflow: "hidden" }]}>
-                            <View style={{ maxHeight: 142, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
-                              <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
-                                {editClassOptions.map((item, index) => (
-                                  <StudentMultiSelectOption
-                                    key={item.id}
-                                    label={`${item.name} (${classGenderLabel[item.gender]})`}
-                                    value={item.id}
-                                    active={editClassIds.includes(item.id)}
-                                    onToggle={(value) => {
-                                      clearEditValidationError("classes");
-                                      setEditClassIds((current) => current.includes(value) ? current.filter((id) => id !== value) : [...current, value]);
-                                    }}
-                                    isFirst={index === 0}
-                                    compact
-                                  />
-                                ))}
-                              </ScrollView>
-                            </View>
-                          </Animated.View>
-                        ) : null}
-                      </View>
-                    </View>
-                    <View style={linksTagsStyle}>
-                      {selectedEditClasses.map((item) => (
-                        <View key={item.id} style={linksTagStyle}>
-                          <Text style={linksTagTextStyle}>{`${item.name} • ${item.unit}`}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <Pressable
-              onPress={() => {
-                if (editingStudent) {
-                  requestStudentInactivation([editingStudent]);
-                }
-              }}
-              disabled={!editingStudent || saving || inactivationSaving}
-              style={{
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.warningText,
-                backgroundColor: colors.warningBg,
-                paddingVertical: 10,
-                alignItems: "center",
-                opacity: !editingStudent || saving || inactivationSaving ? 0.45 : 1,
-              }}
-            >
-              <Text
+                onPress={() => {
+                  if (editingStudent) {
+                    requestStudentInactivation([editingStudent]);
+                  }
+                }}
+                disabled={!editingStudent || saving || inactivationSaving}
                 style={{
-                  color: colors.warningText,
-                  fontWeight: "700",
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.warningText,
+                  backgroundColor: colors.warningBg,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  opacity:
+                    !editingStudent || saving || inactivationSaving ? 0.45 : 1,
                 }}
               >
-                Inativar aluno
-              </Text>
-            </Pressable>
-          </ScrollView>
+                <Text
+                  style={{
+                    color: colors.warningText,
+                    fontWeight: "700",
+                  }}
+                >
+                  Inativar aluno
+                </Text>
+              </Pressable>
+            </ScrollView>
 
-          <View
-            style={{
-              paddingTop: 10,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-            }}
-          >
-            <Pressable
-              onPress={() => void save()}
-              disabled={saving || photoSaving || !isEditDirty}
+            <View
               style={{
-                borderRadius: 12,
-                backgroundColor: colors.primaryBg,
-                paddingVertical: 11,
-                alignItems: "center",
-                opacity: saving || photoSaving ? 0.7 : !isEditDirty ? 0.45 : 1,
+                paddingTop: 10,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
               }}
             >
-              <Text
+              <Pressable
+                onPress={() => void save()}
+                disabled={saving || photoSaving || !isEditDirty}
                 style={{
-                  color: colors.primaryText,
-                  fontWeight: "700",
+                  borderRadius: 12,
+                  backgroundColor: colors.primaryBg,
+                  paddingVertical: 11,
+                  alignItems: "center",
+                  opacity:
+                    saving || photoSaving ? 0.7 : !isEditDirty ? 0.45 : 1,
                 }}
               >
-                {saving || photoSaving ? "Salvando..." : "Salvar"}
-              </Text>
-            </Pressable>
-          </View>
+                <Text
+                  style={{
+                    color: colors.primaryText,
+                    fontWeight: "700",
+                  }}
+                >
+                  {saving || photoSaving ? "Salvando..." : "Salvar"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           <AnchoredDropdown
@@ -3616,7 +6261,16 @@ void Promise.all(
                 active={opt === activeValue}
                 onPress={() => onSelect(opt)}
               >
-                <Text style={{ color: opt === activeValue ? colors.primaryText : colors.text, fontSize: 14, fontWeight: opt === activeValue ? "700" : "500" }}>{getOptionLabel(opt)}</Text>
+                <Text
+                  style={{
+                    color:
+                      opt === activeValue ? colors.primaryText : colors.text,
+                    fontSize: 14,
+                    fontWeight: opt === activeValue ? "700" : "500",
+                  }}
+                >
+                  {getOptionLabel(opt)}
+                </Text>
               </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
@@ -3632,18 +6286,23 @@ void Promise.all(
       >
         <View style={{ gap: 14 }}>
           <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            <Text
+              style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}
+            >
               {inactivationTargets.length === 1
                 ? "Inativar aluno"
                 : `Inativar ${inactivationTargets.length} alunos`}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-              O cadastro e o histórico serão preservados. O motivo ficará registrado na Gestão.
+              O cadastro e o histórico serão preservados. O motivo ficará
+              registrado na Gestão.
             </Text>
           </View>
 
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+            <Text
+              style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}
+            >
               Motivo da inativação
             </Text>
             <TextInput
@@ -3667,11 +6326,19 @@ void Promise.all(
                 },
               ]}
             />
-            <Text style={{ color: colors.muted, fontSize: 11, textAlign: "right" }}>
+            <Text
+              style={{ color: colors.muted, fontSize: 11, textAlign: "right" }}
+            >
               {inactivationReason.length}/240
             </Text>
             {inactivationError ? (
-              <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>
+              <Text
+                style={{
+                  color: colors.dangerText,
+                  fontSize: 12,
+                  fontWeight: "600",
+                }}
+              >
                 {inactivationError}
               </Text>
             ) : null}
@@ -3693,7 +6360,9 @@ void Promise.all(
                 opacity: inactivationSaving ? 0.55 : 1,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Cancelar
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => void confirmStudentInactivation()}
@@ -3728,9 +6397,14 @@ void Promise.all(
       >
         <View style={{ gap: 10 }}>
           <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Mover alunos</Text>
+            <Text
+              style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}
+            >
+              Mover alunos
+            </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Selecione a turma de destino para {selectedStudents.length} aluno(s).
+              Selecione a turma de destino para {selectedStudents.length}{" "}
+              aluno(s).
             </Text>
           </View>
 
@@ -3743,12 +6417,22 @@ void Promise.all(
           />
 
           {moveClassError ? (
-            <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>{moveClassError}</Text>
+            <Text
+              style={{
+                color: colors.dangerText,
+                fontSize: 12,
+                fontWeight: "600",
+              }}
+            >
+              {moveClassError}
+            </Text>
           ) : null}
 
           {moveClassesLoading ? (
             <View style={{ paddingVertical: 14, alignItems: "center" }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Carregando turmas...</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Carregando turmas...
+              </Text>
             </View>
           ) : filteredMoveClasses.length ? (
             <FlatList
@@ -3767,7 +6451,9 @@ void Promise.all(
                     style={{
                       borderWidth: 1,
                       borderColor: active ? colors.primaryBg : colors.border,
-                      backgroundColor: active ? colors.secondaryBg : colors.card,
+                      backgroundColor: active
+                        ? colors.secondaryBg
+                        : colors.card,
                       borderRadius: 14,
                       paddingHorizontal: 12,
                       paddingVertical: 10,
@@ -3803,7 +6489,13 @@ void Promise.all(
             </View>
           )}
 
-          <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 10,
+              justifyContent: "flex-end",
+            }}
+          >
             <Pressable
               onPress={closeMoveClassModal}
               style={{
@@ -3815,7 +6507,9 @@ void Promise.all(
                 backgroundColor: colors.card,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Cancelar
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => void handleConfirmMoveSelectedStudents()}
@@ -3825,7 +6519,8 @@ void Promise.all(
                 paddingVertical: 10,
                 borderRadius: 12,
                 backgroundColor: colors.primaryBg,
-                opacity: !selectedMoveClassId || !selectedStudents.length ? 0.45 : 1,
+                opacity:
+                  !selectedMoveClassId || !selectedStudents.length ? 0.45 : 1,
               }}
             >
               <Text style={{ color: colors.primaryText, fontWeight: "700" }}>

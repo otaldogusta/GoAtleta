@@ -111,7 +111,10 @@ import {
 import { TodayScheduleRail } from "./components/TodayScheduleRail";
 import { WeekDaySelector } from "./components/WeekDaySelector";
 import type { HomeScheduleItem } from "./components/homeScheduleTypes";
-import { buildHomeScheduleSlots } from "./components/build-home-schedule-slots";
+import {
+  buildHomeScheduleSlots,
+  resolvePreferredScheduleSlotIndex,
+} from "./components/build-home-schedule-slots";
 import { buildClassAttendanceWorkspaceHref } from "../classes/class-workspace-route";
 import { resolveHomeFloatingNoticeBottom } from "./home-floating-notice-layout";
 const HomeProfessorBelowFold = lazy(() =>
@@ -1545,12 +1548,15 @@ export function HomeProfessorScreen({
   const handleSelectWeekDay = useCallback(
     (dateKey: string) => {
       setSelectedDateKey(dateKey);
-      const firstSlotIndex = heroScheduleSlots.findIndex(
-        (slot) => slot.items[0]?.dateKey === dateKey
+      const preferredSlotIndex = resolvePreferredScheduleSlotIndex(
+        heroScheduleSlots,
+        dateKey,
+        todayDateKey,
+        nowTime,
       );
-      if (firstSlotIndex >= 0) setHeroManualIndex(firstSlotIndex);
+      if (preferredSlotIndex >= 0) setHeroManualIndex(preferredSlotIndex);
     },
-    [heroScheduleSlots]
+    [heroScheduleSlots, nowTime, todayDateKey]
   );
 
   const todayScheduleSlots = useMemo(() => buildHomeScheduleSlots(todayAgendaItems), [todayAgendaItems]);

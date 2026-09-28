@@ -322,8 +322,6 @@ const parsePseTarget = (value: string | undefined) => {
 
 type SectionKey = "load" | "guides" | "cycle" | "week";
 
-type CompetitiveBlockKey = "profile" | "calendar" | "exceptions";
-
 type PeriodizationTab = "geral" | "ciclo" | "semana";
 
 const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
@@ -664,17 +662,6 @@ export default function PeriodizationScreen() {
   const [periodizationManagerMode, setPeriodizationManagerMode] = useState<
     "manage" | "create-next"
   >("manage");
-  useCopilotContext(
-    useMemo(
-      () => ({
-        screen: "periodization_index",
-        title: "Periodização",
-        subtitle: "Macrociclo, blocos dominantes e demanda semanal",
-      }),
-      [],
-    ),
-  );
-
   const [sectionOpen, setSectionOpen] = usePersistedState<
     Record<SectionKey, boolean>
   >(
@@ -690,13 +677,6 @@ export default function PeriodizationScreen() {
       week: true,
     },
   );
-  const [competitiveBlocksOpen, setCompetitiveBlocksOpen] = usePersistedState<
-    Record<CompetitiveBlockKey, boolean>
-  >("periodization_competitive_blocks_v1", {
-    profile: true,
-    calendar: true,
-    exceptions: true,
-  });
   const [customCycleTitles, setCustomCycleTitles] = usePersistedState<
     Record<string, string>
   >("periodization_cycle_titles_v1", {});
@@ -732,6 +712,8 @@ export default function PeriodizationScreen() {
   const [selectedClassId, setSelectedClassId] = useState(initialClassParam);
 
   const [competitiveProfile, setCompetitiveProfile] =
+    useState<ClassCompetitiveProfile | null>(null);
+  const [savedCompetitiveProfile, setSavedCompetitiveProfile] =
     useState<ClassCompetitiveProfile | null>(null);
   const [calendarExceptions, setCalendarExceptions] = useState<
     ClassCalendarException[]
@@ -874,45 +856,11 @@ export default function PeriodizationScreen() {
   const mesoTriggerRef = useRef<View>(null);
 
   const microTriggerRef = useRef<View>(null);
-  const competitiveScrollRef = useRef<ScrollView>(null);
-
   const toggleSection = useCallback(
     (key: SectionKey) => {
       setSectionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
     },
     [setSectionOpen],
-  );
-
-  const scrollToCompetitiveBlock = useCallback((key: CompetitiveBlockKey) => {
-    const targetByKey: Record<CompetitiveBlockKey, number> = {
-      profile: 0,
-      calendar: 120,
-      exceptions: 260,
-    };
-    setTimeout(() => {
-      competitiveScrollRef.current?.scrollTo({
-        y: targetByKey[key],
-        animated: true,
-      });
-    }, 220);
-  }, []);
-
-  const toggleCompetitiveBlock = useCallback(
-    (key: CompetitiveBlockKey) => {
-      setCompetitiveBlocksOpen((prev) => {
-        const nextValue = !prev[key];
-        if (nextValue) {
-          scrollToCompetitiveBlock(key);
-        }
-        return {
-          profile: false,
-          calendar: false,
-          exceptions: false,
-          [key]: nextValue,
-        };
-      });
-    },
-    [scrollToCompetitiveBlock, setCompetitiveBlocksOpen],
   );
 
   const { animatedStyle: loadAnimStyle, isVisible: showLoadContent } =
@@ -925,21 +873,6 @@ export default function PeriodizationScreen() {
     useCollapsibleAnimation(sectionOpen.cycle);
 
   useCollapsibleAnimation(sectionOpen.week);
-
-  const {
-    animatedStyle: competitiveProfileAnimStyle,
-    isVisible: showCompetitiveProfileContent,
-  } = useCollapsibleAnimation(competitiveBlocksOpen.profile);
-
-  const {
-    animatedStyle: competitiveCalendarAnimStyle,
-    isVisible: showCompetitiveCalendarContent,
-  } = useCollapsibleAnimation(competitiveBlocksOpen.calendar);
-
-  const {
-    animatedStyle: competitiveExceptionsAnimStyle,
-    isVisible: showCompetitiveExceptionsContent,
-  } = useCollapsibleAnimation(competitiveBlocksOpen.exceptions);
 
   const {
     animatedStyle: unitPickerAnimStyle,
@@ -1671,6 +1604,7 @@ export default function PeriodizationScreen() {
     if (!selectedClassId) {
       Promise.resolve().then(() => {
         setCompetitiveProfile(null);
+        setSavedCompetitiveProfile(null);
       });
       Promise.resolve().then(() => {
         setCalendarExceptions([]);
@@ -1703,12 +1637,14 @@ export default function PeriodizationScreen() {
         ]);
         if (cancelled) return;
         setCompetitiveProfile(profile);
+        setSavedCompetitiveProfile(profile);
         setCalendarExceptions(exceptions);
         setExceptionDateInput("");
         setExceptionReasonInput("");
       } catch (error) {
         if (cancelled) return;
         setCompetitiveProfile(null);
+        setSavedCompetitiveProfile(null);
         setCalendarExceptions([]);
         logAction("periodization_competitive_load_failed", {
           classId: selectedClassId,
@@ -2437,6 +2373,62 @@ export default function PeriodizationScreen() {
     weekPlans,
     weeklySessions,
   ]);
+
+  const periodizationCopilotContext = useMemo(
+    () => ({
+      screen: "periodization",
+      title: selectedClass
+        ? `Periodização · ${normalizeText(selectedClass.name)}`
+        : "Periodização",
+      subtitle: "Macrociclo, blocos dominantes e demanda semanal",
+      operationalFacts: selectedClass
+        ? [
+            {
+              key: "planning_class_id",
+              label: "ID da turma ativa",
+              value: selectedClass.id,
+              status: "info" as const,
+            },
+            {
+              key: "planning_class",
+              label: "Turma ativa",
+              value: normalizeText(selectedClass.name),
+              status: "info" as const,
+            },
+            {
+              key: "periodization_cycle",
+              label: "Ciclo atual",
+              value: `${periodizationCopilotSnapshot.weeks} semanas · semana atual ${periodizationCopilotSnapshot.currentWeek}`,
+              status: "info" as const,
+            },
+            {
+              key: "periodization_visible_weeks",
+              label: "Semanas planejadas",
+              value: visibleClassPlans.length,
+              status: "info" as const,
+              details: visibleClassPlans.map((plan) =>
+                [
+                  `Semana ${plan.weekNumber}`,
+                  plan.startDate ? `início ${formatDisplayDate(plan.startDate)}` : "",
+                  normalizeText(plan.theme || plan.phase || "sem foco definido"),
+                  `fonte ${plan.source}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+              ),
+            },
+          ]
+        : [],
+    }),
+    [
+      periodizationCopilotSnapshot.currentWeek,
+      periodizationCopilotSnapshot.weeks,
+      selectedClass,
+      visibleClassPlans,
+    ],
+  );
+
+  useCopilotContext(periodizationCopilotContext);
 
   const periodizationCopilotActions = usePeriodizationCopilotActions({
     periodizationCopilotSnapshot,
@@ -3963,7 +3955,7 @@ export default function PeriodizationScreen() {
       : "--";
   }
 
-  const formatDisplayDate = (value: string | null) => {
+  function formatDisplayDate(value: string | null) {
     if (!value) return "";
 
     const parsed = parseIsoDate(value);
@@ -3971,7 +3963,7 @@ export default function PeriodizationScreen() {
     if (!parsed) return value;
 
     return parsed.toLocaleDateString("pt-BR");
-  };
+  }
 
   const formatWeekSessionLabel = (value: string) => {
     const normalized = normalizeText(value).trim();
@@ -4143,6 +4135,7 @@ export default function PeriodizationScreen() {
     try {
       await saveClassCompetitiveProfile(payload);
       setCompetitiveProfile(payload);
+      setSavedCompetitiveProfile(payload);
       Alert.alert("Periodização", "Perfil competitivo salvo para a turma.");
     } catch (error) {
       const message =
@@ -4176,6 +4169,7 @@ export default function PeriodizationScreen() {
     try {
       await deleteClassCompetitiveProfile(selectedClass.id);
       setCompetitiveProfile(null);
+      setSavedCompetitiveProfile(null);
       Alert.alert("Periodização", "Modo competitivo desativado para a turma.");
     } catch (error) {
       const message =
@@ -4249,9 +4243,36 @@ export default function PeriodizationScreen() {
     [],
   );
 
-  const competitiveBlockPadding = 14;
+  const competitiveBlockPadding = 12;
   const competitiveExceptionsMaxHeight = 180;
-  const competitiveContentHeight = 220;
+  const competitiveProfileBaseline = {
+    cycleStartDate:
+      savedCompetitiveProfile?.cycleStartDate?.trim() ||
+      selectedClass?.cycleStartDate?.trim() ||
+      formatIsoDate(new Date()),
+    targetCompetition: savedCompetitiveProfile?.targetCompetition?.trim() || "",
+    targetDate: savedCompetitiveProfile?.targetDate?.trim() || "",
+    tacticalSystem: savedCompetitiveProfile?.tacticalSystem?.trim() || "",
+    currentPhase: savedCompetitiveProfile?.currentPhase?.trim() || "Base",
+    notes: savedCompetitiveProfile?.notes?.trim() || "",
+  };
+  const isCompetitiveProfileDirty = Boolean(
+    selectedClass &&
+      (
+        competitiveCycleStartDateInput.trim() !==
+          formatDateForInput(competitiveProfileBaseline.cycleStartDate) ||
+        (competitiveProfile?.targetCompetition?.trim() || "") !==
+          competitiveProfileBaseline.targetCompetition ||
+        competitiveTargetDateInput.trim() !==
+          formatDateForInput(competitiveProfileBaseline.targetDate) ||
+        (competitiveProfile?.tacticalSystem?.trim() || "") !==
+          competitiveProfileBaseline.tacticalSystem ||
+        (competitiveProfile?.currentPhase?.trim() || "Base") !==
+          competitiveProfileBaseline.currentPhase ||
+        (competitiveProfile?.notes?.trim() || "") !==
+          competitiveProfileBaseline.notes
+      ),
+  );
 
   const competitiveAgendaCard = selectedClass ? (
     <CompetitiveAgendaCard
@@ -4260,17 +4281,8 @@ export default function PeriodizationScreen() {
       isCompetitiveMode={isCompetitiveMode}
       handleDisableCompetitiveMode={handleDisableCompetitiveMode}
       isSavingCompetitiveProfile={isSavingCompetitiveProfile}
-      competitiveScrollRef={competitiveScrollRef}
-      competitiveContentHeight={competitiveContentHeight}
+      isCompetitiveProfileDirty={isCompetitiveProfileDirty}
       competitiveBlockPadding={competitiveBlockPadding}
-      toggleCompetitiveBlock={toggleCompetitiveBlock}
-      competitiveBlocksOpen={competitiveBlocksOpen}
-      competitiveProfileAnimStyle={competitiveProfileAnimStyle}
-      showCompetitiveProfileContent={showCompetitiveProfileContent}
-      competitiveCalendarAnimStyle={competitiveCalendarAnimStyle}
-      showCompetitiveCalendarContent={showCompetitiveCalendarContent}
-      competitiveExceptionsAnimStyle={competitiveExceptionsAnimStyle}
-      showCompetitiveExceptionsContent={showCompetitiveExceptionsContent}
       competitiveExceptionsMaxHeight={competitiveExceptionsMaxHeight}
       competitiveProfile={competitiveProfile}
       updateCompetitiveProfileDraft={updateCompetitiveProfileDraft}
@@ -4315,9 +4327,36 @@ export default function PeriodizationScreen() {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: responsiveLayout.isMobile ? "flex-end" : "flex-start",
+        flexWrap: "wrap",
         gap: 8,
       }}
     >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          isPeriodizationConfigured
+            ? "Editar periodização da turma"
+            : "Configurar periodização da turma"
+        }
+        onPress={() => openPeriodizationManager("cycle", "manage")}
+        style={(state) => ({
+          minHeight: 40,
+          paddingHorizontal: responsiveLayout.isMobile ? 11 : 15,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: state.hovered ? colors.secondaryBg : colors.card,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 7,
+        })}
+      >
+        <GoAtletaIcon name="options" size={16} color={colors.text} />
+        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          {isPeriodizationConfigured ? "Editar periodização" : "Configurar periodização"}
+        </Text>
+      </Pressable>
       {isPeriodizationConfigured && activeCycle && isViewingActiveCycle ? (
         <PlanningRegenerateDropdown
           colors={colors}
@@ -4329,28 +4368,6 @@ export default function PeriodizationScreen() {
           onRegenerateCycle={handleGenerateCycle}
         />
       ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Gerenciar periodização"
-        onPress={() => openPeriodizationManager("cycle")}
-        style={{
-          minHeight: 40,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 7,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          paddingHorizontal: responsiveLayout.isMobile ? 12 : 18,
-        }}
-      >
-        <GoAtletaIcon name="options" size={16} color={colors.text} />
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-          {responsiveLayout.isMobile ? "Parâmetros" : "Parâmetros do ciclo"}
-        </Text>
-      </Pressable>
     </View>
   ) : null;
 
@@ -4906,11 +4923,14 @@ export default function PeriodizationScreen() {
             }}
             onSave={async (draft) => {
               const saved = await handleSavePeriodizationSetup(draft);
-              if (saved && periodizationManagerMode === "create-next") {
+              if (saved) {
                 setShowPeriodizationManager(false);
                 setPeriodizationManagerMode("manage");
                 showSaveToast({
-                  message: `Ciclo ${draft.cycleStartDate.slice(0, 4)} criado e ativado. Agora revise ou gere as semanas automáticas.`,
+                  message:
+                    periodizationManagerMode === "create-next"
+                      ? `Ciclo ${draft.cycleStartDate.slice(0, 4)} criado e ativado.`
+                      : "Periodização salva e aplicada.",
                   variant: "success",
                 });
               }

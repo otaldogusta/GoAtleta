@@ -1,4 +1,7 @@
-import { buildHomeScheduleSlots } from "../build-home-schedule-slots";
+import {
+  buildHomeScheduleSlots,
+  resolvePreferredScheduleSlotIndex,
+} from "../build-home-schedule-slots";
 import type { HomeScheduleItem } from "../homeScheduleTypes";
 
 const lesson = (
@@ -32,5 +35,54 @@ describe("buildHomeScheduleSlots", () => {
       [expect.objectContaining({ classId: "class-3" })],
     ]);
     expect(new Set(slots.map((slot) => slot.key)).size).toBe(3);
+  });
+
+  it("selects the current or next lesson when today is clicked", () => {
+    const slots = buildHomeScheduleSlots([
+      lesson("class-1", "Primeira", 9 * 60 * 60 * 1000),
+      lesson("class-2", "Atual", 10 * 60 * 60 * 1000),
+      lesson("class-3", "Próxima", 14 * 60 * 60 * 1000),
+    ]);
+
+    expect(
+      resolvePreferredScheduleSlotIndex(
+        slots,
+        "2026-09-26",
+        "2026-09-26",
+        10.5 * 60 * 60 * 1000,
+      ),
+    ).toBe(1);
+  });
+
+  it("selects the latest lesson when all lessons of the day have ended", () => {
+    const slots = buildHomeScheduleSlots([
+      lesson("class-1", "Primeira", 9 * 60 * 60 * 1000),
+      lesson("class-2", "Última", 14 * 60 * 60 * 1000),
+    ]);
+
+    expect(
+      resolvePreferredScheduleSlotIndex(
+        slots,
+        "2026-09-26",
+        "2026-09-26",
+        18 * 60 * 60 * 1000,
+      ),
+    ).toBe(1);
+  });
+
+  it("keeps the first lesson as the entry point for a future day", () => {
+    const slots = buildHomeScheduleSlots([
+      { ...lesson("class-1", "Primeira", 9 * 60 * 60 * 1000), dateKey: "2026-09-27" },
+      { ...lesson("class-2", "Última", 14 * 60 * 60 * 1000), dateKey: "2026-09-27" },
+    ]);
+
+    expect(
+      resolvePreferredScheduleSlotIndex(
+        slots,
+        "2026-09-27",
+        "2026-09-26",
+        4_000_000,
+      ),
+    ).toBe(0);
   });
 });

@@ -14,3 +14,23 @@ export function buildHomeScheduleSlots(items: HomeScheduleItem[]): HomeScheduleS
       items: [item],
     }));
 }
+
+export function resolvePreferredScheduleSlotIndex(
+  slots: HomeScheduleSlot[],
+  dateKey: string,
+  todayDateKey: string,
+  nowTime: number,
+) {
+  const matchingIndexes = slots.flatMap((slot, index) =>
+    slot.items[0]?.dateKey === dateKey ? [index] : [],
+  );
+  if (!matchingIndexes.length) return -1;
+
+  if (dateKey > todayDateKey) return matchingIndexes[0];
+  if (dateKey < todayDateKey) return matchingIndexes[matchingIndexes.length - 1];
+
+  return (
+    matchingIndexes.find((index) => slots[index].endTime > nowTime) ??
+    matchingIndexes[matchingIndexes.length - 1]
+  );
+}

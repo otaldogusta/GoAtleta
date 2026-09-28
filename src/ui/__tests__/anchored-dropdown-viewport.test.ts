@@ -18,4 +18,11 @@ describe("anchored dropdown viewport contract", () => {
     expect(source).toContain('window.visualViewport?.addEventListener("resize", handleVisibilityOrBlur)');
     expect(source).toContain('window.visualViewport?.removeEventListener("resize", handleVisibilityOrBlur)');
   });
+
+  test("fits short lists to their content and only scrolls on real overflow by default", () => {
+    expect(source).toContain("fitContent = true");
+    expect(source).toContain('element.style.overflowY = fitContent ? "auto" : "scroll"');
+    expect(source).toContain("height: fitContent ? undefined : resolvedMaxHeight");
+    expect(source).toContain("maxHeight: resolvedMaxHeight");
+  });
 });

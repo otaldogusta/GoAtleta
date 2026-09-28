@@ -63,6 +63,17 @@ describe("training planning platform parity", () => {
     expect(classPlanWorkspace).toContain('if (Platform.OS !== "web")');
     expect(classPlanWorkspace).toContain("<View style={styles.workspacePreview}>{preview}</View>");
     expect(classPlanWorkspace).toContain("onMessage={handlePdfBridgeMessage}");
+    expect(classPlanWorkspace).toContain("workspaceFloatingCard: {");
+    expect(classPlanWorkspace).toContain('position: "absolute"');
+    expect(classPlanWorkspace).not.toContain("padding: 4");
+    expect(classPlanWorkspace).not.toContain("paddingTop: 68");
+    expect(classPlanWorkspace).toContain("workspaceViewFloatingControls: {");
+    expect(classPlanWorkspace).toContain("bottom: 14");
+    expect(classPlanWorkspace).toContain("right: 14");
+    expect(classPlanWorkspace).toContain("workspaceFloatingGroup: {");
+    expect(classPlanWorkspace).toContain("gap: 8");
+    expect(classPlanWorkspace).toContain('accessibilityLabel="Refazer alteração"');
+    expect(classPlanWorkspace).toContain('accessibilityHint="Atalho Ctrl Shift Z"');
     expect(nativePdfPreview).toContain('from "react-native-webview"');
     expect(nativePdfPreview).toContain("window.ReactNativeWebView.postMessage");
     expect(nativePdfPreview).toContain("if (!html)");
@@ -79,6 +90,13 @@ describe("training planning platform parity", () => {
   });
 
   it("keeps compact web plan actions in the header and above page FABs", () => {
+    expect(trainingRoute).toContain("workspaceHeaderStyles.actionGroup");
+    expect(trainingRoute).toContain("workspaceHeaderStyles.divider");
+    expect(trainingRoute).toContain(">Baixar PDF</Text>");
+    expect(trainingRoute).toContain("backgroundColor: colors.primaryBg");
+    expect(trainingRoute.indexOf('accessibilityLabel="Importar PDF"')).toBeLessThan(
+      trainingRoute.indexOf('accessibilityLabel="Criar novo plano"')
+    );
     expect(classPlanWorkspace).toContain("{inlinePdfEditor ? inlineSaveButton : null}");
     expect(classPlanWorkspace).toContain("{menuButton}\n          </>");
     expect(classPlanModalFrame).toContain("overlayZIndex = 6000");
@@ -109,7 +127,9 @@ describe("training planning platform parity", () => {
     expect(trainingRoute).toContain('renderWorkspaceLibrary("sheet", false)');
     expect(trainingRoute).toContain('renderWorkspaceLibrary("rail", true)');
     expect(trainingRoute).toContain(") : !workspaceLibraryCollapsed || !selectedPlan ? (");
-    expect(trainingRoute).toContain('boxShadow: "10px 0 28px rgba(10, 19, 34, 0.26)"');
+    expect(trainingRoute).toContain("boxShadow: showWorkspaceLibraryPanel");
+    expect(trainingRoute).toContain('"10px 0 28px rgba(10, 19, 34, 0.26)"');
+    expect(trainingRoute).toContain(': "none"');
     expect(trainingRoute).toContain("workspaceLibraryExpanded={!workspaceLibraryCollapsed}");
     expect(trainingRoute).not.toContain("paddingLeft: responsiveLayout.isMobile && workspaceLibraryCollapsed ? 64 : 0");
   });

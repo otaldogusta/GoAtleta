@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import type { ThemeColors } from "../../ui/app-theme";
+import { radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -32,8 +33,43 @@ function ManagerSelect<T extends string | number>({ value, options, colors, onCh
   };
   return <>
     <View ref={triggerRef}><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={toggle} style={{ minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{activeLabel}</Text><GoAtletaIcon name={open ? "chevronUp" : "chevronDown"} size={15} color={colors.muted} /></Pressable></View>
-    <AnchoredDropdown visible={open} layout={layout} container={null} animationStyle={{}} zIndex={9200} maxHeight={180} nestedScrollEnabled portalToBodyOnWeb onRequestClose={() => setOpen(false)} interactiveRefs={[triggerRef]} density="compact">
-      {options.map((option) => <AnchoredDropdownOption key={String(option.value)} active={option.value === value} density="compact" onPress={() => { onChange(option.value); setOpen(false); }}><Text style={{ color: option.value === value ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "700" }}>{option.label}</Text></AnchoredDropdownOption>)}
+    <AnchoredDropdown
+      visible={open}
+      layout={layout}
+      container={null}
+      animationStyle={{}}
+      zIndex={9200}
+      maxHeight={150}
+      nestedScrollEnabled={false}
+      showVerticalScrollIndicator={false}
+      portalToBodyOnWeb
+      onRequestClose={() => setOpen(false)}
+      interactiveRefs={[triggerRef]}
+      density="compact"
+      fitContent
+    >
+      {options.map((option) => (
+        <AnchoredDropdownOption
+          key={String(option.value)}
+          active={option.value === value}
+          density="compact"
+          style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: 12 }}
+          onPress={() => {
+            onChange(option.value);
+            setOpen(false);
+          }}
+        >
+          <Text
+            style={{
+              color: option.value === value ? colors.primaryText : colors.text,
+              fontSize: 12,
+              fontWeight: "700",
+            }}
+          >
+            {option.label}
+          </Text>
+        </AnchoredDropdownOption>
+      ))}
     </AnchoredDropdown>
   </>;
 }
@@ -346,11 +382,15 @@ function ImpactRow({
   icon,
   label,
   value,
+  complete,
+  showStatus = true,
 }: {
   colors: ThemeColors;
   icon: "calendar" | "trend" | "refresh" | "students" | "checkmarkCircle" | "periodization";
   label: string;
   value: string;
+  complete: boolean;
+  showStatus?: boolean;
 }) {
   return (
     <View
@@ -386,11 +426,13 @@ function ImpactRow({
       >
         {value}
       </Text>
-      <GoAtletaIcon
-        name="checkmarkCircle"
-        size={16}
-        color={colors.successText}
-      />
+      {showStatus ? (
+        <GoAtletaIcon
+          name={complete ? "checkmarkCircle" : "circleOutline"}
+          size={16}
+          color={complete ? colors.successText : colors.muted}
+        />
+      ) : null}
     </View>
   );
 }
@@ -433,7 +475,6 @@ export function PeriodizationManagerSheet({
   const narrow = width < 980;
   const [draft, setDraft] = useState(initialDraft);
   const [savedDraft, setSavedDraft] = useState(initialDraft);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cycleDateInput, setCycleDateInput] = useState(() => formatBrazilianDate(initialDraft.cycleStartDate));
   const wasVisibleRef = useRef(false);
@@ -453,6 +494,31 @@ export function PeriodizationManagerSheet({
     ? `${String(Math.floor((timeEndMinutes % 1440) / 60)).padStart(2, "0")}:${String(timeEndMinutes % 60).padStart(2, "0")}`
     : "";
   const recommendedRecoveryWeeks = draft.intensityMax >= 8 ? 3 : draft.intensityMax >= 6 ? 4 : 5;
+  const classParametersComplete =
+    Boolean(draft.goal.trim()) && ["MV1", "MV2", "MV3"].includes(draft.mvLevel);
+  const agendaParametersComplete =
+    draft.daysOfWeek.length > 0 &&
+    /^\d{2}:\d{2}$/.test(draft.startTime) &&
+    draft.durationMinutes >= 15 &&
+    draft.durationMinutes <= 300;
+  const cycleParametersComplete =
+    /^\d{4}-\d{2}-\d{2}$/.test(draft.cycleStartDate) &&
+    CYCLE_OPTIONS.some((option) => option.value === draft.cycleLengthWeeks);
+  const loadParametersComplete =
+    LOAD_MODEL_OPTIONS.some((option) => option.value === draft.loadModel) &&
+    RECOVERY_OPTIONS.includes(draft.recoveryWeeks as (typeof RECOVERY_OPTIONS)[number]) &&
+    draft.intensityMin >= 1 &&
+    draft.intensityMax <= 10 &&
+    draft.intensityMin < draft.intensityMax;
+  const setupGuidance = !classParametersComplete
+    ? "Revise o objetivo e o nível da turma."
+    : !agendaParametersComplete
+      ? "Confirme os dias, o horário e a duração das aulas."
+      : !cycleParametersComplete
+        ? "Defina a data de início do ciclo para concluir a configuração."
+        : !loadParametersComplete
+          ? "Revise o modelo e os limites de carga."
+          : "Revise os parâmetros sugeridos e salve para ativar a periodização.";
 
   useEffect(() => {
     const opening = visible && !wasVisibleRef.current;
@@ -462,7 +528,6 @@ export function PeriodizationManagerSheet({
     setDraft(initialDraft);
     setSavedDraft(initialDraft);
     setCycleDateInput(formatBrazilianDate(initialDraft.cycleStartDate));
-    setAdvancedOpen(false);
     setMenuOpen(false);
   }, [initialDraft, mode, visible]);
 
@@ -990,37 +1055,10 @@ export function PeriodizationManagerSheet({
             <View style={{ height: 1, backgroundColor: colors.border }} />
 
             <View style={{ gap: 10 }}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setAdvancedOpen((current) => !current)}
-                style={{
-                  minHeight: 42,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Text
-                  style={{
-                    flex: 1,
-                    color: colors.text,
-                    fontSize: 13,
-                    fontWeight: "800",
-                  }}
-                >
-                  4. Avançados
-                  <Text style={{ color: colors.muted, fontWeight: "500" }}>
-                    {" "}
-                    · competição, pausas e disponibilidade
-                  </Text>
-                </Text>
-                <GoAtletaIcon
-                  name={advancedOpen ? "chevronUp" : "chevronDown"}
-                  size={17}
-                  color={colors.muted}
-                />
-              </Pressable>
-              {advancedOpen ? advancedContent : null}
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                4. Competição, pausas e disponibilidade
+              </Text>
+              {advancedContent}
             </View>
 
             {compact ? (
@@ -1079,10 +1117,72 @@ export function PeriodizationManagerSheet({
               />
             </View>
 
-            <View style={{ gap: 10 }}>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                {creatingNextCycle ? "Configuração do próximo ciclo" : "Configuração atual"}
-              </Text>
+            <View style={{ gap: 14 }}>
+              {!configured || creatingNextCycle ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderColor: colors.warningBorder,
+                    borderRadius: 12,
+                    backgroundColor: colors.warningBg,
+                  }}
+                >
+                  <GoAtletaIcon name="warningCircle" size={18} color={colors.warningText} />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={{ color: colors.warningText, fontSize: 12, fontWeight: "800" }}>
+                      Próximo passo
+                    </Text>
+                    <Text style={{ color: colors.warningText, fontSize: 11, lineHeight: 16 }}>
+                      {creatingNextCycle
+                        ? "Revise os dados sugeridos e defina o início do próximo ciclo."
+                        : setupGuidance}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                  Dados já disponíveis
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
+                  Herdados do cadastro da turma. Revise apenas se algo mudou.
+                </Text>
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                  }}
+                >
+                  <ImpactRow
+                    colors={colors}
+                    icon="students"
+                    label="Turma"
+                    value={`${LEVEL_OPTIONS.find((option) => option.value === draft.mvLevel)?.label ?? draft.mvLevel} · ${draft.goal.trim() || "Objetivo não definido"}`}
+                    complete={classParametersComplete}
+                    showStatus={false}
+                  />
+                  <ImpactRow
+                    colors={colors}
+                    icon="calendar"
+                    label="Agenda"
+                    value={`${dayLabel || "Dias não definidos"} · ${draft.startTime || "--:--"}${timeEnd ? `–${timeEnd}` : ""} · ${draft.durationMinutes} min`}
+                    complete={agendaParametersComplete}
+                    showStatus={false}
+                  />
+                </View>
+              </View>
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                  Configuração da periodização
+                </Text>
               <View
                 style={{
                   borderWidth: 1,
@@ -1093,37 +1193,47 @@ export function PeriodizationManagerSheet({
               >
                 <ImpactRow
                   colors={colors}
-                  icon="students"
-                  label="Turma"
-                  value={`${LEVEL_OPTIONS.find((option) => option.value === draft.mvLevel)?.label ?? draft.mvLevel} · ${draft.goal.trim() || "Objetivo não definido"}`}
-                />
-                <ImpactRow
-                  colors={colors}
-                  icon="calendar"
-                  label="Agenda"
-                  value={`${dayLabel || "Dias não definidos"} · ${draft.startTime || "--:--"}${timeEnd ? `–${timeEnd}` : ""} · ${draft.durationMinutes} min`}
-                />
-                <ImpactRow
-                  colors={colors}
                   icon="periodization"
-                  label="Ciclo"
-                  value={`${formatBrazilianDate(draft.cycleStartDate)} · ${draft.cycleLengthWeeks} semanas`}
+                  label="Parâmetros do ciclo"
+                  value={`${formatBrazilianDate(draft.cycleStartDate) || "Data de início pendente"} · ${draft.cycleLengthWeeks} semanas`}
+                  complete={cycleParametersComplete}
                 />
                 <ImpactRow
                   colors={colors}
                   icon="trend"
                   label="Carga"
                   value={`${LOAD_MODEL_OPTIONS.find((option) => option.value === draft.loadModel)?.label} · PSE ${draft.intensityMin}–${draft.intensityMax} · recuperação a cada ${draft.recoveryWeeks}`}
+                  complete={loadParametersComplete}
                 />
+              </View>
+              </View>
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                  Conteúdo existente
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
+                  Será preservado ao salvar a nova configuração.
+                </Text>
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                  }}
+                >
                 <ImpactRow
                   colors={colors}
                   icon="refresh"
-                  label="Semanas automáticas"
+                  label="Planejamento gerado"
                   value={
                     creatingNextCycle
                       ? "Serão geradas após a criação"
-                      : `${autoPlanCount} gerenciadas automaticamente`
+                      : `${autoPlanCount} semanas geradas automaticamente`
                   }
+                  complete={!creatingNextCycle && autoPlanCount > 0}
+                  showStatus={false}
                 />
                 <ImpactRow
                   colors={colors}
@@ -1134,13 +1244,18 @@ export function PeriodizationManagerSheet({
                       ? `${manualPlanCount} continuam no histórico`
                       : `${manualPlanCount} preservados`
                   }
+                  complete={manualPlanCount > 0}
+                  showStatus={false}
                 />
                 <ImpactRow
                   colors={colors}
                   icon="checkmarkCircle"
                   label="Aulas concluídas"
                   value={`${completedLessonCount} preservadas e consideradas`}
+                  complete={completedLessonCount > 0}
+                  showStatus={false}
                 />
+              </View>
               </View>
             </View>
 

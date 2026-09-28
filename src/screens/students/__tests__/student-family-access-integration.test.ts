@@ -175,6 +175,8 @@ describe("student family access integration", () => {
     expect(filterBarSource).toContain('label="Responsável / acesso"');
     expect(filterBarSource).toContain("Limpar filtros");
     expect(filterBarSource).toContain("Filtros");
+    expect(studentsListSource).toContain("const showContactColumn = showTable;");
+    expect(studentsListSource).toContain("paddingHorizontal: compactFilters ? 0 : 18");
     expect(studentsListSource).toContain("RESPONSÁVEL / CONTATO");
     expect(studentsListSource).toContain("Adicionar responsável");
     expect(studentsListSource).toContain("Acesso ativo");

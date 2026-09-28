@@ -146,7 +146,7 @@ export const CopilotModal = memo(function CopilotModal({
         }}
       >
         {<View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={chatBusy} />
+          {lesson ? <AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={chatBusy} /> : <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Assistente</Text>}
           <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{lesson ? `${lesson.className} · ${lesson.date.split("-").reverse().join("/")}` : operationalContext.snapshot.contextTitle ?? "Go"}</Text>
         </View>}
         <Pressable
@@ -186,7 +186,7 @@ export const CopilotModal = memo(function CopilotModal({
       </View>
 
       {lesson ? <CopilotLessonChat historyOpen={historyOpen} onCloseHistory={() => setHistoryOpen(false)} {...lesson} appSnapshot={operationalContext.snapshot} modelPreference={modelPreference} onBusyChange={setChatBusy} /> :
-        <CopilotScreenChat historyOpen={historyOpen} onCloseHistory={() => setHistoryOpen(false)} onClose={close} snapshot={operationalContext.snapshot} modelPreference={modelPreference} onBusyChange={setChatBusy} />}
+        <CopilotScreenChat historyOpen={historyOpen} onCloseHistory={() => setHistoryOpen(false)} onClose={close} snapshot={operationalContext.snapshot} modelPreference={modelPreference} onModelPreferenceChange={setModelPreference} onBusyChange={setChatBusy} />}
     </ModalSheet>
   );
 });

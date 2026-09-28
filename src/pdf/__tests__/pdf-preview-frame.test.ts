@@ -32,6 +32,8 @@ describe("buildPreviewHtml", () => {
     expect(buildPreviewHtml(source, true, 120)).toContain("requestedZoom = 1.2;");
     expect(buildPreviewHtml(source, true, 30)).toContain("requestedZoom = 0.7;");
     expect(buildPreviewHtml(source, true, 180)).toContain("requestedZoom = 1.4;");
+    expect(buildPreviewHtml(source, true, 120)).toContain("GOATLETA_PDF_SET_ZOOM");
+    expect(buildPreviewHtml(source, true, 120)).toContain("transition: zoom 160ms ease-out;");
   });
 
   it("keeps a readable mobile page width with touch-friendly horizontal panning", () => {

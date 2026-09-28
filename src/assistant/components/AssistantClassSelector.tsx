@@ -46,7 +46,7 @@ export function AssistantClassSelector({ classes, value, onChange, normalizeLabe
       {inlinePrompt ? (
         <View style={styles.inlineSentence}>
           <Text style={[styles.inlineText, { color: colors.muted }]}>O que vamos criar para </Text>
-          <View ref={anchor} collapsable={false} style={styles.inlineAnchor}>
+          <View ref={anchor} collapsable={Platform.OS === "web" ? undefined : false} style={styles.inlineAnchor}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Selecionar turma. Atual: ${selectedLabel}`}
@@ -62,7 +62,7 @@ export function AssistantClassSelector({ classes, value, onChange, normalizeLabe
           </View>
           <Text style={[styles.inlineText, { color: colors.muted }]}>?</Text>
         </View>
-      ) : <View ref={anchor} collapsable={false}>
+      ) : <View ref={anchor} collapsable={Platform.OS === "web" ? undefined : false}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Selecionar turma. Atual: ${selectedLabel}`}

@@ -66,26 +66,6 @@ export type TrainingPlanRow = {
   pedagogy?: unknown | null;
 };
 
-export type TrainingTemplateRow = {
-  id: string;
-  title: string;
-  ageband: string;
-  tags: string[];
-  warmup: string[];
-  main: string[];
-  cooldown: string[];
-  warmuptime: string;
-  maintime: string;
-  cooldowntime: string;
-  createdat: string;
-};
-
-export type HiddenTemplateRow = {
-  id: string;
-  templateid: string;
-  createdat: string;
-};
-
 export type TrainingSessionIntegrationRuleRow = {
   id: string;
   organization_id?: string | null;

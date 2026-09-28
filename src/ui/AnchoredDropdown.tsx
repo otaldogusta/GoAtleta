@@ -60,7 +60,7 @@ export function AnchoredDropdown({
   portalToBodyOnWeb = true,
   interactiveRefs,
   density = "default",
-  fitContent = false,
+  fitContent = true,
   preferredWidth,
   activeItemId,
 }: AnchoredDropdownProps) {

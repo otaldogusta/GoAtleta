@@ -983,11 +983,15 @@ const mapPeriodizationSnapshot = (
         snapshot.currentWeek?.focus ||
         snapshot.cycle?.name ||
         "Periodização da turma",
-      source: "Go Atleta / planning_cycles + class_plans + events",
+      source:
+        "Go Atleta / classes + planning_cycles + class_plans + class_competitive_profiles + class_calendar_exceptions + events",
       chunk: [
         `periodization_date: ${snapshot.date}`,
+        `class_context: ${compactJson(snapshot.classContext)}`,
         `cycle: ${compactJson(snapshot.cycle)}`,
         `current_week: ${compactJson(snapshot.currentWeek)}`,
+        `competitive_profile: ${compactJson(snapshot.competitiveProfile)}`,
+        `calendar_exceptions: ${compactJson(snapshot.calendarExceptions)}`,
         `upcoming_events: ${compactJson(snapshot.upcomingEvents)}`,
         `decision_hints: ${compactJson(snapshot.decisionHints)}`,
       ].join("\n"),
@@ -1015,8 +1019,11 @@ const mapPeriodizationSnapshot = (
       confidence: 1,
       metadata: {
         periodizationDate: snapshot.date,
+        classContext: snapshot.classContext ?? null,
         cycle: snapshot.cycle ?? null,
         currentWeek: snapshot.currentWeek ?? null,
+        competitiveProfile: snapshot.competitiveProfile ?? null,
+        calendarExceptions: snapshot.calendarExceptions ?? null,
       },
       createdAt: `${snapshot.date}T00:00:00.000Z`,
       sourceDocumentId: "",
@@ -1234,7 +1241,10 @@ export async function resolveAIDocumentContext(
     contextFingerprint: options.periodization
       ? JSON.stringify({
           cycle: options.periodization.cycle ?? null,
+          classContext: options.periodization.classContext ?? null,
           currentWeek: options.periodization.currentWeek ?? null,
+          competitiveProfile: options.periodization.competitiveProfile ?? null,
+          calendarExceptions: options.periodization.calendarExceptions ?? null,
           upcomingEvents: options.periodization.upcomingEvents ?? null,
           decisionHints: options.periodization.decisionHints,
         })

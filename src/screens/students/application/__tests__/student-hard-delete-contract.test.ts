@@ -20,6 +20,8 @@ describe("operational athlete deletion contract", () => {
 
     expect(classRoster).toContain("inactivateStudents");
     expect(classRoster).toContain("Inativar aluno");
+    expect(classRoster).toContain("showSelectionActionsMenu");
+    expect(classRoster).toContain("colors.dangerBg");
     expect(classRoster).toContain('accessibilityLabel="Inativar alunos"');
     expect(classRoster).not.toContain("deleteStudents(");
     expect(classRoster).not.toContain("deleteStudent(");

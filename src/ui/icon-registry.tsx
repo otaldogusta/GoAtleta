@@ -114,6 +114,7 @@ export const GOATLETA_ICON_NAMES = {
   trash: "trash-outline",
   archive: "archive-outline",
   restore: "arrow-undo-outline",
+  redo: "arrow-redo-outline",
   play: "play",
   playForward: "play-forward-outline",
   pause: "pause",

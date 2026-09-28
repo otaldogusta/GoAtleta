@@ -273,7 +273,6 @@ export const CACHE_KEYS = {
   classCalendarExceptions: "cache_class_calendar_exceptions_v1",
   attendanceRecords: "cache_attendance_records_v1",
   trainingPlans: "cache_training_plans_v1",
-  trainingTemplates: "cache_training_templates_v1",
   students: "cache_students_v1",
 };
 
