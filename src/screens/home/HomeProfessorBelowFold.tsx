@@ -62,10 +62,12 @@ function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCar
     <Pressable
       onPress={onPress}
       style={{
-        flexBasis: mobile ? 150 : "48%",
+        flexBasis: mobile ? 150 : 200,
         flexGrow: 1,
-        padding: mobile ? 10 : isWeb ? 12 : 14,
-        borderRadius: 18,
+        minWidth: 0,
+        minHeight: 56,
+        padding: mobile ? 8 : 10,
+        borderRadius: 12,
         ...shortcutCardSurfaceStyle,
       }}
     >
@@ -198,7 +200,7 @@ function HomeProfessorBelowFoldBase({
       <View style={{ gap: 10 }}>
         <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {coordinationShortcuts.map((shortcut) => (
             <ShortcutCard
               key={shortcut.route}
@@ -218,7 +220,7 @@ function HomeProfessorBelowFoldBase({
     <View style={{ gap: 10 }}>
       <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {canOpenTrainingShortcut ? (
           <ShortcutCard
             label="Planejamento"

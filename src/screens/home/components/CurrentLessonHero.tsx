@@ -49,11 +49,11 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
         borderRadius: radius.container,
         borderWidth: 1,
         borderColor: colors.borderSubtle,
-        padding: mobile ? 12 : compact ? 14 : 18,
+        padding: 12,
         ...shadow.card,
         flexDirection: mobile ? "column" : "row",
         alignItems: mobile ? "stretch" : "center",
-        gap: mobile ? 10 : compact ? 14 : 18,
+        gap: mobile ? 10 : 12,
       }}
     >
       <View
@@ -62,13 +62,13 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
           minWidth: 0,
           flexDirection: "row",
           alignItems: "center",
-          gap: mobile ? 10 : compact ? 14 : 18,
+          gap: mobile ? 10 : 12,
         }}
       >
         <View
           style={{
-            width: mobile ? 46 : compact ? 62 : 72,
-            height: mobile ? 46 : compact ? 62 : 72,
+            width: mobile ? 40 : 48,
+            height: mobile ? 40 : 48,
             borderRadius: mobile ? radius.card : radius.container,
             backgroundColor: colors.successBg,
             alignItems: "center",
@@ -76,7 +76,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
             flexShrink: 0,
           }}
         >
-          <GoAtletaIcon name="calendar" size={mobile ? 20 : compact ? 23 : 26} color={colors.successText} />
+          <GoAtletaIcon name="calendar" size={20} color={colors.successText} />
         </View>
 
         <View style={{ flex: 1, minWidth: 0, gap: mobile ? 3 : compact ? 5 : 7 }}>
@@ -86,7 +86,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
                 {statusLabel}
               </Text>
               <Text
-                style={{ flexShrink: 1, color: colors.textMuted, fontSize: mobile ? 12 : compact ? 14 : 16, fontWeight: "700" }}
+              style={{ flexShrink: 1, color: colors.textMuted, fontSize: 12, fontWeight: "700" }}
                 numberOfLines={1}
               >
                 {slot?.timeLabel ?? selectedDateLabel}
@@ -96,7 +96,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
             <Text
-              style={{ flexShrink: 1, color: colors.textPrimary, fontSize: mobile ? 18 : compact ? 21 : 24, fontWeight: "900" }}
+              style={{ flexShrink: 1, color: colors.textPrimary, fontSize: mobile ? 17 : 20, fontWeight: "900" }}
               numberOfLines={1}
             >
               {title}

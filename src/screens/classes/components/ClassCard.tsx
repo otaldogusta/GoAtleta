@@ -844,7 +844,7 @@ export const ClassCard = memo(function ClassCard({
 
 const styles = StyleSheet.create({
   tableRow: {
-    minHeight: 88,
+    minHeight: 68,
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,

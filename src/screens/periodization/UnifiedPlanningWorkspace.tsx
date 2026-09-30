@@ -1,3 +1,4 @@
+import { PlanningAssistantHost, usePlanningAssistant } from "./PlanningAssistant";
 import { ProfilePlanReview } from "./components/ProfilePlanReview";
 import { useActionSignal } from "../../hooks/use-action-signal";
 import { Suspense, lazy, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +14,8 @@ import Svg, { Path } from "react-native-svg";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import type { ClassGroup, LessonBlock, PlanningCycle } from "../../core/models";
 import { parsePeriodizationPolicy } from "../../core/periodization-policy";
+import { resolveClassDevelopmentLevelLabel } from "../../core/class-development-level";
+import { useWhatsAppSettings } from "../../ui/whatsapp-settings-context";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import type { ThemeColors } from "../../ui/app-theme";
@@ -121,6 +124,7 @@ function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }
       onClose={onClose}
       borderColor={colors.border}
     >
+      <PlanningAssistantHost colors={colors} surface="lesson">
       <View style={modalContentSafeAreaStyle}>
         {children ?? (
           <ClassPlanLoadingContent
@@ -131,6 +135,7 @@ function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }
           />
         )}
       </View>
+      </PlanningAssistantHost>
     </ClassPlanModalFrame>
   );
 }
@@ -421,12 +426,6 @@ const MonthContextSummary = memo(function MonthContextSummary({ colors, events, 
     </View>
   );
 });
-
-const LEVEL_LABELS: Record<string, string> = {
-  "1": "Iniciante",
-  "2": "Intermediária",
-  "3": "Avançada",
-};
 
 const LOAD_MODEL_LABELS: Record<string, string> = {
   ondulatorio: "Ondulatório",
@@ -920,6 +919,8 @@ function PlanningWorkspaceLoadingState({
 }
 
 export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, regenerateMonthSignal, refreshSignal = 0, onMonthChange, onOpenManager, onRegenerateCycle }: Props) {
+  const assistant = usePlanningAssistant();
+  const { coachName, coachNameByClass } = useWhatsAppSettings();
   const { height } = useWindowDimensions();
   const { containerRef, layout, onLayout, width } = useContainerResponsiveLayout("dashboard");
 
@@ -943,6 +944,12 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     recentSessionLogs: monthly.recentSessionLogs,
     studentContexts: monthly.studentContexts,
   });
+  const setSelection = assistant?.setSelection;
+  const setLesson = assistant?.setLesson;
+  useEffect(() => {
+    setSelection?.({ month: selectedMonthKey, cycleId: monthly.activeCycle?.id, weekId: selectedEvent?.weekId, weekNumber: selectedEvent?.weekNumber, lessonDate: selectedEvent?.date, lessonId: selectedEvent?.dailyPlan?.id });
+  }, [setSelection, selectedMonthKey, monthly.activeCycle?.id, selectedEvent]);
+  useEffect(() => { setLesson?.(showLesson ? {} : null); return () => setLesson?.(null); }, [showLesson, setLesson]);
   const summaries = useMemo(() => buildMonthPlanningSummaries(monthly.classPlans, monthly.selectedClass, monthly.activeCycle, monthly.calendarExceptions), [monthly.activeCycle, monthly.calendarExceptions, monthly.classPlans, monthly.selectedClass]);
   const selectedCycleYear = String(
     monthly.activeCycle?.year ||
@@ -1005,15 +1012,15 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     void reloadMonthly();
   }, [reloadMonthly, refreshSignal]);
 
-  const eventContext = [classId, selectedMonthKey, split, contextualTodayIso].join(":");
+  const eventContext = [classId, selectedMonthKey, contextualTodayIso].join(":");
   const [previousEventContext, setPreviousEventContext] = useState(eventContext);
   const [previousAgendaEvents, setPreviousAgendaEvents] = useState(monthly.agendaEvents);
   if (previousEventContext !== eventContext || previousAgendaEvents !== monthly.agendaEvents) {
     setPreviousEventContext(eventContext);
     setPreviousAgendaEvents(monthly.agendaEvents);
-    setSelectedEvent(split
-      ? resolveDefaultSelectedAgendaEvent(monthly.agendaEvents, selectedEvent?.id, contextualTodayIso)
-      : null);
+    setSelectedEvent(monthly.agendaEvents.find(event => event.id === selectedEvent?.id) ?? (split
+      ? resolveDefaultSelectedAgendaEvent(monthly.agendaEvents, undefined, contextualTodayIso)
+      : null));
   }
 
   const applyMonth = useCallback(async () => {
@@ -1106,7 +1113,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   const durationMinutes = monthly.selectedClass?.durationMinutes ?? 60;
   const classTime = monthly.selectedClass ? `${monthly.selectedClass.daysOfWeek.join(" e ")} · ${monthly.selectedClass.startTime}` : "";
   const classLevelLabel = monthly.selectedClass?.mvLevel
-    ? LEVEL_LABELS[String(monthly.selectedClass.mvLevel)] || `Nível (${monthly.selectedClass.mvLevel})`
+    ? resolveClassDevelopmentLevelLabel(monthly.selectedClass)
     : "Não definido";
   const objectiveLabel = resolveGoalLabel(monthly.selectedClass?.goal);
   const loadModelLabel = `${LOAD_MODEL_LABELS[activePolicy.loadModel]} · PSE ${activePolicy.intensityMin}–${activePolicy.intensityMax}`;
@@ -1130,9 +1137,11 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   const monthRail = <MonthRail colors={colors} summaries={visibleSummaries} selectedMonthKey={selectedMonthKey} selectedMonthEvents={monthly.agendaEvents} presentations={monthPresentations} horizontal={!dense} referenceMonthKey={contextualCurrentMonthKey} onSelect={selectMonth} />;
   const detail = monthly.selectedClass ? <LessonDetail colors={colors} event={selectedEvent} classTime={classTime || "Horário da turma"} monthPresentation={currentPresentation} classGroup={monthly.selectedClass} cycle={monthly.activeCycle} onClear={() => setSelectedEvent(null)} showClose={!split} onOpen={() => { if (selectedEvent) void openEventPlan(selectedEvent); }} /> : null;
   const isStackedMobile = width < 560;
+  const sideMonthSummary = !split && width >= 800;
   const monthContent = (
-    <View style={{ gap: 11 }}>
-      {!split ? (
+    <View style={{ gap: 12, flexDirection: sideMonthSummary ? "row" : "column", alignItems: "flex-start" }}>
+      <View style={{ flex: sideMonthSummary ? 1 : undefined, width: sideMonthSummary ? undefined : "100%", minWidth: 0, gap: 11 }}>
+      {!split && !sideMonthSummary ? (
         <MonthContextSummary
           colors={colors}
           events={monthly.agendaEvents}
@@ -1152,10 +1161,13 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
         onOpenPlan={(event: ProfessorAgendaEvent) => void openEventPlan(event)}
         renderSelectedDetail={!split ? () => detail : undefined}
       />
+      </View>
+      {sideMonthSummary ? <View style={{ width: 210 }}><MonthContextSummary colors={colors} events={monthly.agendaEvents} presentation={currentPresentation} compact /></View> : null}
     </View>
   );
 
   return (
+    <PlanningAssistantHost colors={colors} surface="workspace">
     <ResponsivePage
       variant="dashboard"
       gap={0}
@@ -1245,7 +1257,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
           <View style={{ height: panelHeight, minHeight: 590, flexDirection: "row", paddingVertical: 12 }}>
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator contentContainerStyle={{ paddingRight: 12 }}>{monthContent}</ScrollView>
             <View style={{ width: "38%", minWidth: 270, borderLeftWidth: 1, borderLeftColor: colors.border }}>
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator>{detail}</ScrollView>
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator >{detail}</ScrollView>
             </View>
           </View>
         ) : <View style={{ gap: 12, paddingVertical: 12 }}>{monthContent}</View>}
@@ -1278,6 +1290,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
                 visible
                 plan={sessionPlan.plan}
                 classGroup={monthly.selectedClass}
+                coachName={coachNameByClass[monthly.selectedClass.id] || coachName}
                 lessonDate={sessionPlan.lessonDate || selectedEvent.date}
                 initialMode="preview"
                 presentation="embedded"
@@ -1286,6 +1299,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
                   setShowLesson(false);
                   sessionPlan.clear();
                 }}
+                onDraftChange={(draft) => setLesson?.({ draft })}
                 onSavePlan={async (draft) => {
                   const savedPlan = await sessionPlan.savePlan(draft);
                   await monthly.reload();
@@ -1303,5 +1317,6 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
         ) : null}
       </View>
     </ResponsivePage>
+    </PlanningAssistantHost>
   );
 }

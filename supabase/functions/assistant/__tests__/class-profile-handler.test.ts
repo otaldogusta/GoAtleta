@@ -87,3 +87,13 @@ test("re-interprets a racing update and commits against the refreshed version", 
   expect(requestAssistantCompletion).toHaveBeenCalledTimes(2);
   expect(writer.mock.calls.at(-1)[1].p_payload.changes[0].value).toBe("pode pingar uma vez");
 });
+
+test("uses provisional stage choices only as context, never as the teacher report", async () => {
+  (requestAssistantCompletion as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "question", changes: [], reply: "Revise a carga antes de aplicar.", question: "" }) } }] }) });
+  const response = await handleClassProfile({ supabase: client() as any, organizationId: "org", classId: "raposas", userId: "coach", body: { action: "send", requestId, content: message.content, planningContext: { step: "Carga", summary: "Rascunho linear, PSE 3–6" } } });
+  expect(response!.status).toBe(200);
+  const modelMessages = (requestAssistantCompletion as jest.Mock).mock.calls[0][1].messages;
+  expect(modelMessages[0].content).toContain("sem tratá-lo como relato ou evidência para changes");
+  expect(JSON.parse(modelMessages[1].content)).toMatchObject({ currentMessage: message.content, planningContext: { step: "Carga", summary: "Rascunho linear, PSE 3–6" } });
+  expect(writer.mock.calls[0][1].p_payload).not.toHaveProperty("planningContext");
+});

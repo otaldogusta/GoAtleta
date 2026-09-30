@@ -15,7 +15,7 @@ type ResponsivePageProps = {
 export function ResponsivePage({
   children,
   variant = "content",
-  gap = 16,
+  gap,
   style,
 }: ResponsivePageProps) {
   const layout = useResponsiveLayout(variant);
@@ -30,7 +30,7 @@ export function ResponsivePage({
           alignSelf: "center",
           paddingHorizontal: layout.gutter,
           boxSizing: "border-box",
-          gap,
+          gap: gap ?? layout.density.pageGap,
         },
         style,
       ]}

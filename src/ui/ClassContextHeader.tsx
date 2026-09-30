@@ -12,6 +12,7 @@ import { getUnitPalette } from "./unit-colors";
 import { useIsOnline } from "../hooks/use-is-online";
 import { navigateBackOrReplace } from "../navigation/safe-router";
 import { normalizeDisplayText } from "../utils/text-normalization";
+import { useResponsiveLayout } from "./use-responsive-layout";
 
 type BackFallback = Parameters<typeof navigateBackOrReplace>[0]["fallback"];
 
@@ -44,6 +45,7 @@ export function ClassContextHeader({
 }: ClassContextHeaderProps) {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { density } = useResponsiveLayout();
   const isOnline = useIsOnline();
   const unitLabel = unit?.trim() ?? "";
   const safeTitle = normalizeDisplayText(title);
@@ -92,7 +94,7 @@ export function ClassContextHeader({
           {safeTitle ? (
             <Text
               numberOfLines={2}
-              style={{ flexShrink: 1, fontSize: 26, fontWeight: "700", color: colors.text }}
+              style={{ flexShrink: 1, fontSize: density.pageTitleFontSize, lineHeight: density.pageTitleLineHeight, fontWeight: "700", color: colors.text }}
             >
               {safeTitle}
             </Text>
@@ -109,7 +111,7 @@ export function ClassContextHeader({
               opacity: isOnline ? 1 : 0.45,
             }}
           />
-          <Text numberOfLines={1} style={{ fontSize: 18, fontWeight: "700", color: colors.text, maxWidth: 140 }}>
+          <Text numberOfLines={1} style={{ fontSize: density.sectionTitleFontSize, fontWeight: "700", color: colors.text, maxWidth: 140 }}>
             {safeClassName}
           </Text>
           {gender ? <ClassGenderBadge gender={gender} size="md" /> : null}

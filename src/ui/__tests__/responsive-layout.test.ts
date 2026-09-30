@@ -99,8 +99,8 @@ describe("responsive layout", () => {
 
   it("reduces visual density on mobile without shrinking touch targets", () => {
     expect(resolveResponsiveLayout(390).density).toEqual({
-      pageTitleFontSize: 22,
-      pageTitleLineHeight: 28,
+      pageTitleFontSize: 20,
+      pageTitleLineHeight: 26,
       sectionTitleFontSize: 16,
       cardTitleFontSize: 14,
       bodyFontSize: 14,
@@ -111,10 +111,17 @@ describe("responsive layout", () => {
     });
     expect(resolveResponsiveLayout(1440).density).toEqual(
       expect.objectContaining({
-        pageTitleFontSize: 26,
-        cardPadding: 20,
+        pageTitleFontSize: 22,
+        cardPadding: 14,
       })
     );
+  });
+
+  it("uses additional workspace width for content without enlarging the reading scale", () => {
+    const workspaceDensity = resolveResponsiveLayout(834).density;
+    for (const width of [1100, 1440, 1600, 2560]) {
+      expect(resolveResponsiveLayout(width).density).toEqual(workspaceDensity);
+    }
   });
 
   it("normalizes invalid and negative widths", () => {

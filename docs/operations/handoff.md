@@ -1,5 +1,15 @@
 # Continuidade — 16/09/2026
 
+## Assistente unificado e densidade — 30/09/2026
+
+Pacote preparado para commit/push em branch `codex/`, sem merge em `main` ou deploy de produção. Inclui revisão de densidade, editor de periodização compacto e conversa contextual compartilhada entre chatbot, planejamento e modais. Ver `planning-assistant-local.md` e `../ui/DENSITY_AUDIT.md` para escopo e evidências.
+
+- Função `assistant` publicada na versão 87, ativa e com JWT. Smoke autenticado com modelo real concluído; nenhuma migração aplicada.
+- Ajustes finais: launcher em portal fora da rolagem; painel lateral usa a altura disponível; resumo mensal lateral em largura intermediária, removido da coluna de detalhes da aula; PDF usa professor configurado por turma e rótulo canônico de nível.
+- `build:verified` passou com 529 suites / 2.914 testes e sete suites PostgreSQL antes dos microajustes finais. Após eles, 15 testes de PDF/nível, tipos, org-scope, perf-hygiene e smoke de abertura do modal passaram. O Metro precisou de reinício com `--clear` após cache de módulos inválido.
+- Capturas e artefatos privados permanecem ignorados e fora do commit. Planos existentes não são reescritos pela conversa.
+
+
 ## Perfil pedagógico inteligente — publicação de 29/09/2026
 
 Pacote autorizado para `main`. O diagnóstico da turma passa a ser um perfil pedagógico persistente, versionado e auditável, compartilhado pelo assistente e pelos geradores mensal, semanal e diário. Relatos são salvos independentemente das configurações do ciclo; planos existentes só mudam após revisão explícita.

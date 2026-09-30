@@ -15,6 +15,7 @@ type ResponsiveGridProps = {
     split: Exclude<ResponsiveGridComposition, "1">;
   };
   gap?: number;
+  splitEnabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -31,12 +32,13 @@ export function ResponsiveGrid({
   children,
   columns,
   gap = 16,
+  splitEnabled = true,
   style,
 }: ResponsiveGridProps) {
   const viewportLayout = useResponsiveLayout();
   const { containerRef, onLayout, width: containerWidth } =
     useContainerResponsiveLayout();
-  const split = canSplitResponsiveGrid(viewportLayout, containerWidth);
+  const split = splitEnabled && canSplitResponsiveGrid(viewportLayout, containerWidth);
   const items = Children.toArray(children);
 
   return (

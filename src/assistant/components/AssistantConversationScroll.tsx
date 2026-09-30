@@ -5,11 +5,13 @@ import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { spacing } from "../../theme/tokens";
 import { useConversationScroll } from "../hooks/useConversationScroll";
+import { useUnifiedAssistant } from "../UnifiedAssistantProvider";
 
 /** Keep reading position when unpinned; follow new content only at the bottom. */
-export function AssistantConversationScroll({ children, contentContainerStyle }: Pick<ScrollViewProps, "children" | "contentContainerStyle">) {
+export function AssistantConversationScroll({ children, contentContainerStyle, persistent = false }: Pick<ScrollViewProps, "children" | "contentContainerStyle"> & { persistent?: boolean }) {
   const { colors } = useAppTheme();
-  const { scrollRef, showLatest, scrollToLatest, onScroll, onContentSizeChange, onLayout } = useConversationScroll();
+  const unified = useUnifiedAssistant();
+  const { scrollRef, showLatest, scrollToLatest, onScroll, onContentSizeChange, onLayout } = useConversationScroll(persistent && unified ? unified : undefined);
   const reduceMotion = useRef(true);
   useEffect(() => {
     let alive = true;
