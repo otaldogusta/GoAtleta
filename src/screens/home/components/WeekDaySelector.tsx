@@ -37,9 +37,9 @@ export const WeekDaySelector = memo(function WeekDaySelector({
         borderRadius: radius.container,
         borderWidth: 1,
         borderColor: colors.borderSubtle,
-        padding: mobile ? 12 : compact ? 14 : 16,
+        padding: 12,
         ...shadow.card,
-        gap: mobile ? 10 : compact ? 12 : 14,
+        gap: 8,
       }}
     >
         <Text style={{ color: colors.textPrimary, fontSize: mobile ? 15 : compact ? 16 : 17, fontWeight: "900" }}>
@@ -67,14 +67,14 @@ export const WeekDaySelector = memo(function WeekDaySelector({
               style={{
                 flex: 1,
                 minWidth: mobile ? 40 : compact ? 68 : 80,
-                minHeight: mobile ? 58 : compact ? 64 : 76,
+                minHeight: mobile ? 58 : 60,
                 borderRadius: radius.card,
                 backgroundColor: isSelected ? colors.successBg : colors.surface,
                 borderWidth: isSelected ? 1 : 0,
                 borderColor: isSelected ? colors.successBorder : "transparent",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: mobile ? 2 : compact ? 3 : 5,
+                gap: 2,
                 paddingHorizontal: mobile ? 2 : 8,
               }}
             >

@@ -118,7 +118,7 @@ export function useClassDiagnostic(organizationId: string, classId: string) {
     void persist(key, { input: value, command: pendingRef.current }).catch(() => { if (scope.current === key) setError("Não foi possível preservar o rascunho neste dispositivo."); });
   }, [key]);
   const command = (value: ProfileCommand) => run({ ...value, requestId: value.requestId ?? createProfileRequestId(), expectedVersion: snapshot?.profile?.version ?? 0 });
-  const send = () => input.trim() && !pendingRef.current ? command({ action: "send", content: input.trim() }) : Promise.resolve(false);
+  const send = (planningContext?: ProfileCommand["planningContext"]) => input.trim() && !pendingRef.current ? command({ action: "send", content: input.trim(), planningContext }) : Promise.resolve(false);
   const messages = (isScoped ? snapshot?.messages ?? [] : []).flatMap(message => [
     { role: "user" as const, content: message.content },
     ...(message.reply || message.question ? [{ role: "assistant" as const, content: [message.reply, message.question].filter(Boolean).join("\n\n") }] : []),

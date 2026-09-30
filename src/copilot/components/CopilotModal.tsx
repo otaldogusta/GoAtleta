@@ -16,6 +16,7 @@ import type { OperationalContextResult } from "../operational-context";
 import type { CopilotAction, InsightsCategory, InsightsView } from "../types";
 import { CopilotLessonChat } from "./CopilotLessonChat";
 import type { CopilotLessonScope } from "../lesson-context";
+import { useUnifiedAssistant } from "../../assistant/UnifiedAssistantProvider";
 
 
 type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
@@ -35,6 +36,7 @@ type Colors = {
 };
 
 type CopilotModalProps = {
+  inline?: boolean;
   lesson?: CopilotLessonScope | null;
   visible: boolean;
   isWebModal: boolean;
@@ -91,6 +93,7 @@ type CopilotModalProps = {
 };
 
 export const CopilotModal = memo(function CopilotModal({
+  inline = false,
   lesson,
   visible,
   isWebModal,
@@ -104,22 +107,25 @@ export const CopilotModal = memo(function CopilotModal({
   operationalContext,
   close,
 }: CopilotModalProps) {
-  const [modelPreference, setModelPreference] = useState<AssistantModelChoice>("auto");
+  const unified = useUnifiedAssistant();
+  const [fallbackModel, setFallbackModel] = useState<AssistantModelChoice>("auto");
+  const modelPreference = unified?.model ?? fallbackModel;
+  const setModelPreference = unified?.setModel ?? setFallbackModel;
   const [historyOpen, setHistoryOpen] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   if (!visible) return null;
   return (
-    <ModalSheet
+    <ChatFrame inline={inline}
       visible={visible}
       onClose={close}
       backdropOpacity={0.5}
-      position={isWebModal ? "center" : "bottom"}
+      position={viewportWidth >= 600 ? "right" : "bottom"}
       overlayZIndex={5000}
       slideOffset={isWebModal ? 10 : 24}
       cardStyle={{
-        width: isWebModal ? "94%" : "100%",
-        maxWidth: isWebModal ? Math.max(420, Math.min(viewportWidth - 42, 860)) : sheetMaxWidth,
-        alignSelf: "center",
+        width: viewportWidth >= 600 ? 360 : "100%",
+        maxWidth: viewportWidth >= 600 ? 360 : sheetMaxWidth,
+        alignSelf: viewportWidth >= 600 ? "flex-end" : "stretch",
         maxHeight: isWebModal ? Math.min(viewportHeight - 36, 820) : sheetMaxHeight,
         minHeight: isWebModal ? Math.min(Math.max(560, viewportHeight * 0.75), viewportHeight - 48) : sheetMinHeight,
         marginBottom: isWebModal ? 0 : 0,
@@ -146,9 +152,10 @@ export const CopilotModal = memo(function CopilotModal({
         }}
       >
         {<View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          {lesson ? <AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={chatBusy} /> : <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Assistente</Text>}
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Assistente</Text>
           <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{lesson ? `${lesson.className} · ${lesson.date.split("-").reverse().join("/")}` : operationalContext.snapshot.contextTitle ?? "Go"}</Text>
         </View>}
+        <AssistantModelSelector compact value={modelPreference} onChange={setModelPreference} disabled={chatBusy} />
         <Pressable
           accessibilityLabel="Histórico do assistente"
           accessibilityRole="button"
@@ -187,6 +194,11 @@ export const CopilotModal = memo(function CopilotModal({
 
       {lesson ? <CopilotLessonChat historyOpen={historyOpen} onCloseHistory={() => setHistoryOpen(false)} {...lesson} appSnapshot={operationalContext.snapshot} modelPreference={modelPreference} onBusyChange={setChatBusy} /> :
         <CopilotScreenChat historyOpen={historyOpen} onCloseHistory={() => setHistoryOpen(false)} onClose={close} snapshot={operationalContext.snapshot} modelPreference={modelPreference} onModelPreferenceChange={setModelPreference} onBusyChange={setChatBusy} />}
-    </ModalSheet>
+    </ChatFrame>
   );
 });
+
+function ChatFrame({ inline, children, ...props }: React.ComponentProps<typeof ModalSheet> & { inline: boolean }) {
+  if (inline) return <View style={{ flex: 1, minHeight: 0, minWidth: 0, padding: 12, gap: 8, backgroundColor: props.cardStyle && typeof props.cardStyle === "object" && "backgroundColor" in props.cardStyle ? props.cardStyle.backgroundColor : undefined }}>{children}</View>;
+  return <ModalSheet {...props}>{children}</ModalSheet>;
+}

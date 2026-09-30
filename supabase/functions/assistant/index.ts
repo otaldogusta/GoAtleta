@@ -1,3 +1,4 @@
+import { handlePlanningDiscussion } from "./planning-context-handler.ts";
 import { loadActivityContext } from "./activity-context.ts";
 import { handleClassProfile } from "./class-profile-handler.ts";
 import { resolveAttendanceRanking } from "./attendance-ranking.ts";
@@ -926,6 +927,10 @@ Deno.serve(createEdgeFunction({
           "A turma informada nao pertence ao workspace ativo."
         );
       }
+    }
+
+    if (body.planningContext) {
+      return handlePlanningDiscussion({ supabase, organizationId, classId, body });
     }
 
     if (body.mode === "class_diagnostic") {

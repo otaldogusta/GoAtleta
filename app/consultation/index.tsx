@@ -5,6 +5,8 @@ import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, 
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
+import { ResponsiveGrid } from "../../src/components/ui/ResponsiveGrid";
+import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import type {
   AvailableEquipment,
   ConsultationGoal,
@@ -337,6 +339,7 @@ const ConsultationField = ({
 export function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout();
   const router = useRouter();
   const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18, padding: 18 });
   const [students, setStudents] = useState<Student[]>([]);
@@ -818,7 +821,7 @@ export function ConsultationScreen() {
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           {selectedStudent ? (
-            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", justifyContent: "space-between", gap: 12 }}>
+            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", justifyContent: "space-between", gap: 12 }}>
               <View style={{ flex: 1, gap: 5 }}>
                 <Text style={{ color: colors.text, fontSize: 19, fontWeight: "900" }}>{selectedStudent.name}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -929,7 +932,7 @@ export function ConsultationScreen() {
         </ScrollView>
 
         {activeConsultationTab === "profile" ? (
-          <>
+          <ResponsiveGrid columns={{ compact: "1", split: "6/6" }} splitEnabled={responsiveLayout.supportsDenseGrid} gap={12}>
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <View style={{ gap: 4 }}>
             <Text style={{ color: colors.text, fontWeight: "900", fontSize: 17 }}>Aluno</Text>
@@ -1048,7 +1051,7 @@ export function ConsultationScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "900", fontSize: 13 }}>Nova aluna no piloto</Text>
-            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", gap: 10 }}>
               <View style={{ flex: 1 }}>
                 <ConsultationField colors={colors} label="Nome" value={pilotStudentName} onChangeText={setPilotStudentName} />
               </View>
@@ -1056,7 +1059,7 @@ export function ConsultationScreen() {
                 <ConsultationField colors={colors} label="E-mail ou telefone" value={pilotStudentContact} onChangeText={setPilotStudentContact} />
               </View>
             </View>
-            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", alignItems: Platform.OS === "web" ? "center" : "stretch", gap: 10 }}>
+            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", alignItems: responsiveLayout.usesWorkspaceShell ? "center" : "stretch", gap: 10 }}>
               <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
                 Esta ficha nova vale apenas para o piloto local. O cadastro oficial fica fora deste pacote.
               </Text>
@@ -1153,7 +1156,7 @@ export function ConsultationScreen() {
                     ))}
                   </View>
                 </View>
-                <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <ConsultationField colors={colors} label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
                   </View>
@@ -1183,7 +1186,7 @@ export function ConsultationScreen() {
               </ProfileSection>
 
               <ProfileSection title="Cuidados" attention={Boolean(restrictions.trim() || injuries.trim())}>
-                <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <ConsultationField colors={colors} label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
                   </View>
@@ -1197,7 +1200,7 @@ export function ConsultationScreen() {
                 <ConsultationField colors={colors} label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
               </ProfileSection>
 
-              <View style={{ flexDirection: Platform.OS === "web" && hasSavedProfile ? "row" : "column", gap: 10 }}>
+              <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell && hasSavedProfile ? "row" : "column", gap: 10 }}>
                 {hasSavedProfile ? (
                   <Pressable
                     onPress={() => {
@@ -1211,7 +1214,7 @@ export function ConsultationScreen() {
                       backgroundColor: colors.secondaryBg,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      flex: Platform.OS === "web" ? 1 : undefined,
+                      flex: responsiveLayout.usesWorkspaceShell ? 1 : undefined,
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "900" }}>Recolher perfil</Text>
@@ -1224,7 +1227,7 @@ export function ConsultationScreen() {
                     padding: 12,
                     borderRadius: radius.full,
                     backgroundColor: colors.primaryBg,
-                    flex: Platform.OS === "web" && hasSavedProfile ? 1 : undefined,
+                    flex: responsiveLayout.usesWorkspaceShell && hasSavedProfile ? 1 : undefined,
                   }}
                 >
                   <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
@@ -1233,7 +1236,7 @@ export function ConsultationScreen() {
             </Animated.View>
           ) : null}
         </View>
-          </>
+          </ResponsiveGrid>
         ) : null}
 
         {activeConsultationTab === "prescription" ? (
@@ -1407,7 +1410,7 @@ export function ConsultationScreen() {
         </View>
 
         <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", justifyContent: "space-between", gap: 8 }}>
+          <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", justifyContent: "space-between", gap: 8 }}>
             <View style={{ gap: 4, flex: 1 }}>
               <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Feedback resumido</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -1418,7 +1421,7 @@ export function ConsultationScreen() {
               onPress={() => setActiveConsultationTab("feedback")}
               style={{
                 alignItems: "center",
-                alignSelf: Platform.OS === "web" ? "flex-start" : "stretch",
+                alignSelf: responsiveLayout.usesWorkspaceShell ? "flex-start" : "stretch",
                 borderRadius: radius.full,
                 borderWidth: 1,
                 borderColor: colors.border,
@@ -1504,7 +1507,7 @@ export function ConsultationScreen() {
                 Indicadores simples com base nos treinos publicados e feedbacks recebidos.
               </Text>
             </View>
-            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", flexWrap: "wrap", gap: 10 }}>
+            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", flexWrap: "wrap", gap: 10 }}>
               {[
                 { label: "Adesão", value: `${progressSummary.adherencePercent}%`, detail: `${progressSummary.workoutsCompleted}/${progressSummary.workoutsPublished} treino(s)` },
                 { label: "PSE médio", value: progressSummary.averageRpe === null ? "-" : String(progressSummary.averageRpe), detail: "Esforço percebido" },
@@ -1514,8 +1517,8 @@ export function ConsultationScreen() {
                 <View
                   key={item.label}
                   style={{
-                    flex: Platform.OS === "web" ? 1 : undefined,
-                    minWidth: Platform.OS === "web" ? 150 : undefined,
+                    flex: responsiveLayout.usesWorkspaceShell ? 1 : undefined,
+                    minWidth: responsiveLayout.usesWorkspaceShell ? 150 : undefined,
                     gap: 5,
                     padding: 12,
                     borderRadius: radius.internal,
@@ -1638,7 +1641,7 @@ export function ConsultationScreen() {
           <View style={{ gap: 14 }}>
             <View
               style={{
-                flexDirection: Platform.OS === "web" ? "row" : "column",
+                flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column",
                 gap: 10,
               }}
             >
@@ -1673,7 +1676,7 @@ export function ConsultationScreen() {
             <View style={{ gap: 12 }}>
               {activePrescriptionBlock === "prescription" ? (
                 <View style={{ gap: 12 }}>
-                  <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                  <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", gap: 10 }}>
                     <View style={{ flex: 1 }}>
                       <ConsultationField colors={colors} label="Título" value={title} onChangeText={setTitle} />
                     </View>
@@ -1848,7 +1851,7 @@ export function ConsultationScreen() {
                         setShowConfirmDeleteWorkout(true);
                       }}
                       style={{
-                        alignSelf: Platform.OS === "web" ? "center" : "stretch",
+                        alignSelf: responsiveLayout.usesWorkspaceShell ? "center" : "stretch",
                         backgroundColor: colors.dangerBg,
                         borderColor: colors.dangerBorder,
                         borderRadius: radius.card,

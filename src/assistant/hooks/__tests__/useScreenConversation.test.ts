@@ -5,6 +5,32 @@ import type { OperationalSnapshot } from "../../../copilot/operational-context";
 jest.mock("../../../api/ai", () => ({ requestAssistantConversation: jest.fn() }));
 const snapshot = { screen: "coord/classes", contextTitle: "Turmas" } as OperationalSnapshot;
 beforeEach(() => jest.clearAllMocks());
+
+const datedDraft = { title:"Aula",tags:[],warmup:["Mobilidade"],main:["Passe"],cooldown:["Respiração"],warmupTime:"10 min",mainTime:"40 min",cooldownTime:"10 min" };
+test("dated drafts require the backend lesson authorization and remain bound to the original plan", async () => {
+  let finish!: (value:unknown)=>void;
+  (requestAssistantConversation as jest.Mock).mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+  const hook=renderHook(({classId,date})=>useScreenConversation("org-a",snapshot,"auto",undefined,{classId,sessionDate:date,currentPlanId:"original-plan",lessonAction:"auto"}),{initialProps:{classId:"class-a",date:"2026-09-30"}});
+  act(()=>hook.result.current.setInput("Monte a aula"));
+  let pending!:Promise<void>;
+  act(()=>{pending=hook.result.current.send();});
+  hook.rerender({classId:"class-b",date:"2026-10-01"});
+  await act(async()=>{finish({reply:"Pronto",draftTraining:datedDraft,lessonContext:{version:1,classId:"class-a",organizationId:"org-a",date:"2026-09-30"}});await pending;});
+  expect(hook.result.current.draftContext).toMatchObject({classId:"class-a",date:"2026-09-30",expectedPlanId:"original-plan"});
+  expect(hook.result.current.draftTraining?.title).toBe("Aula");
+});
+test("unconfirmed or mismatched dated responses cannot create an applicable draft", async () => {
+  (requestAssistantConversation as jest.Mock).mockResolvedValueOnce({reply:"Ideia",draftTraining:datedDraft}).mockResolvedValueOnce({reply:"Outra turma",draftTraining:datedDraft,lessonContext:{version:1,classId:"class-b",organizationId:"org-a",date:"2026-09-30"}});
+  const hook=renderHook(()=>useScreenConversation("org-a",snapshot,"auto",undefined,{classId:"class-a",sessionDate:"2026-09-30",lessonAction:"auto"}));
+  act(()=>hook.result.current.setInput("Monte"));
+  await act(async()=>{await hook.result.current.send();});
+  expect(hook.result.current.draftTraining).toBeNull();
+  expect(hook.result.current.draftContext).toBeNull();
+  act(()=>hook.result.current.setInput("Tente de novo"));
+  await act(async()=>{await hook.result.current.send();});
+  expect(hook.result.current.error).toContain("turma e a data");
+  expect(hook.result.current.input).toBe("Tente de novo");
+});
 test("passes the current organization, screen and selected model without inventing a class", async () => {
   (requestAssistantConversation as jest.Mock).mockResolvedValue({ reply: "Como posso ajudar com as turmas?" });
   const { result } = renderHook(() => useScreenConversation("org-a", snapshot, "auto"));

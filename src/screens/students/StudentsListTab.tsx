@@ -47,6 +47,7 @@ import type { StudentListUnitGroup } from "./application/student-list-selectors"
 import {
   resolveStudentsFilterModalHeight,
   resolveStudentsListLayout,
+  resolveStudentsPageSize,
 } from "./application/students-list-layout";
 import { BirthdayAvatar } from "./components/BirthdayAvatar";
 import {
@@ -101,7 +102,6 @@ export type StudentsListTabProps = {
   canManageFamilyAccess?: boolean;
 };
 
-const PAGE_SIZE = 8;
 
 function StudentFilterToggle({
   label,
@@ -326,6 +326,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   const { containerRef, onLayout, width } =
     useContainerResponsiveLayout("dashboard");
   const { showTable } = resolveStudentsListLayout(width);
+  const pageSize = resolveStudentsPageSize(viewportHeight, showTable);
   const compactFilters = !showTable;
   const showContactColumn = showTable;
   const filtersModalHeight = resolveStudentsFilterModalHeight(
@@ -603,6 +604,7 @@ export const StudentsListTab = memo(function StudentsListTab({
     membershipScope,
     studentsSearch,
     studentsUnitFilter,
+    pageSize,
   ]);
 
   useEffect(() => {
@@ -620,15 +622,15 @@ export const StudentsListTab = memo(function StudentsListTab({
     };
   }, [classOptions]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageRows = filteredRows.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
   const firstResult =
-    filteredRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
-  const lastResult = Math.min(currentPage * PAGE_SIZE, filteredRows.length);
+    filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastResult = Math.min(currentPage * pageSize, filteredRows.length);
 
   const pageNumbers = useMemo(() => {
     if (totalPages <= 5) {
@@ -1029,7 +1031,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                       key={student.id}
                       onPress={() => onStudentPress?.(student)}
                       style={(state) => ({
-                        minHeight: canManageFamilyAccess ? 76 : showTable ? 72 : 56,
+                        minHeight: showTable ? (canManageFamilyAccess ? 68 : 60) : canManageFamilyAccess ? 76 : 56,
                         borderBottomWidth: StyleSheet.hairlineWidth,
                         borderBottomColor: colors.borderSubtle ?? colors.border,
                         borderLeftWidth:

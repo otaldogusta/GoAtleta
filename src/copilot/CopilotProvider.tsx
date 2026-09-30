@@ -1,4 +1,5 @@
 import { CopilotLoadingModal } from "./components/CopilotLoadingModal";
+import { UnifiedAssistantProvider, UnifiedAssistantLayout } from "../assistant/UnifiedAssistantProvider";
 import { usePathname, useRouter } from "expo-router";
 import {
   createContext,
@@ -12,7 +13,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, Platform, useWindowDimensions } from "react-native";
+import { Animated, Platform, View, useWindowDimensions } from "react-native";
+import { AssistantPending } from "../assistant/components/AssistantPending";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 
@@ -1050,8 +1052,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     <CopilotActionsContext.Provider value={actionsValue}>
       <CopilotDataContext.Provider value={dataValue}>
         <CopilotLessonContext.Provider value={setLesson}>
-          {children}
-          {showFab && !state.open ? (
+          <UnifiedAssistantProvider key={`${session?.user.id ?? ""}:${activeOrganizationId ?? ""}`} userId={session?.user.id ?? ""} organizationId={activeOrganizationId ?? ""} snapshot={operationalContext.snapshot} lesson={lesson?.scope ?? null} open={state.open} toggle={state.open ? close : open}>
+          <UnifiedAssistantLayout open={state.open} launcher={showFab && !state.open ? (
             <CopilotFab
               showPulse={isPulsing}
               hasBadge={shouldPulseFab}
@@ -1061,12 +1063,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               hintMessage={fabHint?.message ?? null}
               onPress={open}
             />
-          ) : null}
-
-          {state.open ? (
-            <Suspense fallback={<CopilotLoadingModal onClose={close} />}>
+          ) : null} panel={state.open ? (
+            <Suspense fallback={viewportWidth >= 1200 ? <View style={{ flex: 1, padding: 12, backgroundColor: colors.card }}><AssistantPending label="Abrindo conversa" compact /></View> : <CopilotLoadingModal onClose={close} />}>
               <LazyCopilotModal
                 visible
+                inline={viewportWidth >= 1200}
                 isWebModal={isWebModal}
                 viewportWidth={viewportWidth}
                 viewportHeight={viewportHeight}
@@ -1125,7 +1126,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                 handleComposerKeyPress={handleComposerKeyPress}
               />
             </Suspense>
-          ) : null}
+          ) : null}>{children}</UnifiedAssistantLayout>
+          </UnifiedAssistantProvider>
         </CopilotLessonContext.Provider>
       </CopilotDataContext.Provider>
     </CopilotActionsContext.Provider>

@@ -4,6 +4,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { radius } from "../../theme/tokens";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 type AppHeaderProps = {
   title: string;
@@ -12,6 +13,7 @@ type AppHeaderProps = {
 
 export function AppHeader({ title, subtitle }: AppHeaderProps) {
   const { colors } = useAppTheme();
+  const { density } = useResponsiveLayout();
   return (
     <View
       style={{
@@ -22,7 +24,7 @@ export function AppHeader({ title, subtitle }: AppHeaderProps) {
       }}
     >
       <View style={{ gap: 2 }}>
-        <Text style={{ fontSize: 30, lineHeight: 34, fontWeight: "800", color: colors.text }}>
+        <Text style={{ fontSize: density.pageTitleFontSize, lineHeight: density.pageTitleLineHeight, fontWeight: "800", color: colors.text }}>
           {title}
         </Text>
         {subtitle ? (

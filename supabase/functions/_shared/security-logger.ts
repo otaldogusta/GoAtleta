@@ -27,6 +27,7 @@ export type SecurityEventName =
   | "dns_fail"
   | "redirect_blocked"
   | "rate_limit_exceeded"
+  | "assistant_source_rejected"
   | "auth_rejected";
 
 export type HostnamePolicy = "plain" | "hash" | "omit";

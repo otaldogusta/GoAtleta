@@ -18,11 +18,14 @@ compartilhados não devem escolher tamanho por `Platform.OS`.
 
 | Uso | Mobile | Tablet/desktop | Wide/ultrawide |
 | --- | ---: | ---: | ---: |
-| Título de página | 22/28 | 24–26/30–32 | 26–28/32–34 |
-| Título de seção | 16 | 17–18 | 18–20 |
-| Título de card/linha | 14 | 15 | 16 |
-| Corpo | 14 | 14–15 | 15–16 |
-| Metadado | 12 | 12 | 13 |
+| Título de página | 20/26 | 22/28 | 22/28 |
+| Título de seção | 16 | 16 | 16 |
+| Título de card/linha | 14 | 14 | 14 |
+| Corpo | 14 | 14 | 14 |
+| Metadado | 12 | 12 | 12 |
+
+A largura adicional libera colunas e conteúdo, sem ampliar automaticamente a
+escala de leitura. Componentes com destaque próprio devem manter essa proporção.
 
 - Display: `Inter Tight`, reservado para superfícies editoriais ou institucionais.
 - Monoespaçada somente para código, IDs e valores técnicos.
@@ -32,7 +35,7 @@ compartilhados não devem escolher tamanho por `Platform.OS`.
 - Usar a escala `8, 12, 16, 20, 24, 32` de `src/theme/tokens.ts`.
 - Usar `radius.internal`, `radius.card` e `radius.container`; não criar radius local.
 - Preferir uma superfície principal com seções e separadores a cards aninhados.
-- Cards operacionais usam 10–12 px no mobile e 16–20 px no workspace, conforme
+- Cards operacionais usam 10–12 px no mobile e 12–14 px no workspace, conforme
   a complexidade e os alvos de toque internos.
 - Sombras são último recurso; borda e contraste de superfície vêm primeiro.
 

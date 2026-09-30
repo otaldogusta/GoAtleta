@@ -1057,7 +1057,7 @@ export function HomeProfessorScreen({
   const isUx2CCompact = usesCurrentHomeExperience && !isUx2CWideDesktop;
   const isUx2CMobile = usesCurrentHomeExperience && responsiveLayout.isMobile;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
-  const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
+  const ux2CGap = 16;
   const ux2CRailHeight = Math.max(
     isUx2CCompact ? 520 : 560,
     Math.min(isUx2CCompact ? 680 : 760, screenHeight - (isUx2CCompact ? 132 : 148))
@@ -1085,9 +1085,9 @@ export function HomeProfessorScreen({
   const homeContentContainerStyle = useMemo(
     () =>
       ({
-        padding: usesCurrentHomeExperience ? (isUx2CCompact ? 16 : 22) : isWebHome ? 14 : 16,
+        padding: usesCurrentHomeExperience ? 16 : isWebHome ? 14 : 16,
         gap: usesCurrentHomeExperience ? (isUx2CCompact ? 12 : 14) : isWebHome ? 12 : 14,
-        paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
+        paddingBottom: insets.bottom + (responsiveLayout.usesWorkspaceShell ? 24 : 96),
         width: "100%",
         maxWidth: usesCurrentHomeExperience
           ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : undefined)
@@ -1098,7 +1098,7 @@ export function HomeProfessorScreen({
               : undefined,
         alignSelf: "center",
       }) as const,
-    [insets.bottom, isAdminDashboardContext, isUx2CCompact, isUx2CUltraWide, isUx2CWideDesktop, isWebHome, usesCurrentHomeExperience]
+    [insets.bottom, isAdminDashboardContext, isUx2CCompact, isUx2CUltraWide, isUx2CWideDesktop, isWebHome, responsiveLayout.usesWorkspaceShell, usesCurrentHomeExperience]
   );
 
   const agendaScrollStyle = useMemo(() => {

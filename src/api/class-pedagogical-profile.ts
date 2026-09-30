@@ -15,6 +15,7 @@ export type ProfileCommand = {
   action: "load" | "send" | "selectors" | "undo" | "evolution" | "accept" | "reject";
   requestId?: string; content?: string; gameFormat?: string; netHeight?: number;
   expectedVersion?: number; revisionId?: string; suggestionId?: string;
+  planningContext?: { step: string; summary: string };
 };
 const listeners = new Set<(record: ProfileRecord) => void>();
 export async function readClassProfileSource(organizationId: string, classId: string, sourceId: string): Promise<ProfileMessage | null> {

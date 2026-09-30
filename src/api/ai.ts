@@ -22,6 +22,7 @@ export type AssistantConversationRequest = {
   sport?: string;
   memoryContext?: string[];
   appSnapshot?: unknown;
+  planningContext?: import("../screens/periodization/application/planning-assistant-context").PlanningAssistantContext;
   lessonAction?: "discuss" | "draft" | "auto";
   sessionDate?: string;
   signal?: AbortSignal;
@@ -532,6 +533,7 @@ export async function requestAssistantConversation(
       sport: payload.sport,
       memoryContext: payload.memoryContext ?? [],
       appSnapshot: payload.appSnapshot ?? null,
+      planningContext: payload.planningContext,
       screen: payload.appSnapshot && typeof payload.appSnapshot === "object" &&
         "screen" in payload.appSnapshot && typeof payload.appSnapshot.screen === "string"
         ? payload.appSnapshot.screen || "assistant" : "assistant",

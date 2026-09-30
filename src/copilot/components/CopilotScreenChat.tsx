@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "../../auth/auth";
 import { AttendanceDestinationDialog } from "../../assistant/components/AttendanceDestinationDialog";
@@ -9,13 +9,11 @@ import { AssistantComposer } from "../../assistant/components/AssistantComposer"
 import { AssistantConversationScroll } from "../../assistant/components/AssistantConversationScroll";
 import { AssistantHistory } from "../../assistant/components/AssistantHistory";
 import { AssistantMessages } from "../../assistant/components/AssistantMessages";
-import { AssistantModelSelector } from "../../assistant/components/AssistantModelSelector";
 import { AssistantPending } from "../../assistant/components/AssistantPending";
 import { AssistantTrainingDraftCard } from "../../assistant/components/AssistantTrainingDraftCard";
 import { AssistantWelcome } from "../../assistant/components/AssistantWelcome";
 import { getConversationSuggestions } from "../../assistant/conversation-suggestions";
-import { useConversationHistory } from "../../assistant/hooks/useConversationHistory";
-import { useScreenConversation } from "../../assistant/hooks/useScreenConversation";
+import { useUnifiedAssistant } from "../../assistant/UnifiedAssistantProvider";
 import type { AssistantModelChoice } from "../../assistant/model-choice";
 import { resolveReplyDestination } from "../../assistant/reply-destination";
 import type { ClassGroup } from "../../core/models";
@@ -55,7 +53,7 @@ export function CopilotScreenChat(props: Props) {
     canCoordinate={hasCoordinationAccess(organizations, activeOrganization)} organizationId={activeOrganization.id} />;
 }
 
-function ScreenConversation({ organizationId, snapshot, modelPreference, onModelPreferenceChange, onBusyChange, onClose, conversationKey, canCoordinate, historyOpen, onCloseHistory }: Props & { organizationId: string; conversationKey: string; canCoordinate: boolean }) {
+function ScreenConversation({ organizationId, snapshot, onBusyChange, onClose, conversationKey, canCoordinate, historyOpen, onCloseHistory }: Props & { organizationId: string; conversationKey: string; canCoordinate: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [attendanceText, setAttendanceText] = useState<string | null>(null);
@@ -68,7 +66,6 @@ function ScreenConversation({ organizationId, snapshot, modelPreference, onModel
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const composerRef = useRef<TextInput | null>(null);
   const { colors } = useAppTheme();
-  const { width } = useWindowDimensions();
   const isPlanning = snapshot.screen === "planning";
   const isPeriodization = snapshot.screen === "periodization" || snapshot.screen === "periodization_index";
   const hasClassContext = isPlanning || isPeriodization;
@@ -90,12 +87,11 @@ function ScreenConversation({ organizationId, snapshot, modelPreference, onModel
   }, [hasClassContext, snapshot.operationalFacts]);
 
   const selectedClass = classes.find(item => item.id === classId) ?? classes[0];
-  const chat = useScreenConversation(organizationId, snapshot, modelPreference, conversationKey, hasClassContext ? {
-    classId: selectedClass?.id,
-    sport: selectedClass?.modality || "volleyball",
-    lessonAction: isPlanning ? "auto" : undefined,
-  } : undefined);
-  const history = useConversationHistory(conversationKey, chat.messages, chat.input, chat.busy, chat.historyId);
+  const unified = useUnifiedAssistant()!;
+  const chat = unified.chat;
+  const history = unified.history;
+  const setScreenClass = unified.setScreenClass;
+  useEffect(() => { setScreenClass(hasClassContext && selectedClass ? { classId: selectedClass.id, sport: selectedClass.modality || "volleyball" } : null); }, [hasClassContext, selectedClass, setScreenClass]);
   const refreshHistory = history.refresh;
   useEffect(() => { if (historyOpen) void refreshHistory(); }, [historyOpen, refreshHistory]);
   useEffect(() => { onBusyChange(chat.busy); return () => onBusyChange(false); }, [chat.busy, onBusyChange]);
@@ -118,7 +114,7 @@ function ScreenConversation({ organizationId, snapshot, modelPreference, onModel
     { label: "Adaptar o plano atual", prompt: "Analise o plano aberto e proponha uma versão adaptada para a turma, mantendo o objetivo principal." },
   ], [selectedClass?.name]);
   const applyDraft = () => {
-    if (!chat.draftTraining || !selectedClass?.id) return;
+    if (!chat.draftTraining || chat.draftContext || !selectedClass?.id) return;
     chat.remember(history.id);
     onClose();
     router.replace({ pathname: pathname as never, params: {
@@ -134,23 +130,22 @@ function ScreenConversation({ organizationId, snapshot, modelPreference, onModel
       chat.remember(history.id); setAttendanceText(null); onClose();
       router.push({ pathname: "/class/[id]/attendance", params: { id: item.classId, date: item.targetDate } });
     }} /> : null}
-    <AssistantConversationScroll contentContainerStyle={styles.messages}>
+    <AssistantConversationScroll persistent contentContainerStyle={styles.messages}>
       {!chat.messages.length ? <View style={styles.welcome}><AssistantWelcome
         heading={isPlanning ? "Vamos montar seu plano?" : undefined}
-        compact={width < 600}
+        compact
         subtitle={isPlanning && classes.length ? <AssistantClassSelector classes={classes} value={classId} onChange={setClassId} normalizeLabel={name => name.replace(/^turma\s+/i, "").trim()} inlinePrompt /> : undefined}
         suggestions={isPlanning ? planningSuggestions : getConversationSuggestions(`${snapshot.screen ?? ""} ${snapshot.contextTitle ?? ""}`)}
         onSuggestion={prompt => { chat.setInput(prompt); composerRef.current?.focus(); }}
       /></View> : null}
       <AssistantMessages onNavigate={navigate} getDestinationLabel={text => { const target = destination(text); return target ? `Ir para ${target.label}. Pedirá confirmação.` : undefined; }} messages={chat.partialReply ? [...chat.messages, { role: "assistant", content: chat.partialReply }] : chat.messages} />
-      {isPlanning && chat.draftTraining ? <AssistantTrainingDraftCard draft={chat.draftTraining} className={selectedClass?.name} onApply={applyDraft} /> : null}
+      {isPlanning && chat.draftTraining && !chat.draftContext ? <AssistantTrainingDraftCard draft={chat.draftTraining} className={selectedClass?.name} onApply={applyDraft} /> : null}
       {chat.busy && !chat.partialReply ? <AssistantPending label="Preparando resposta" compact /> : null}
       {history.error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{history.error}</Text> : null}
       {chat.error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{chat.error}</Text> : null}
     </AssistantConversationScroll>
     <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <AssistantComposer voiceScope={{ organizationId, classId: selectedClass?.id }} inputRef={composerRef} value={chat.input} onChangeText={chat.setInput} busy={chat.busy} onSend={() => { void chat.send(); }}
-        trailingControl={<AssistantModelSelector value={modelPreference} onChange={onModelPreferenceChange} disabled={chat.busy} compact />} />
+      <AssistantComposer compact voiceScope={{ organizationId, classId: selectedClass?.id }} inputRef={composerRef} value={chat.input} onChangeText={chat.setInput} busy={chat.busy} onSend={() => { void chat.send(); }} />
     </View>
     <AssistantHistory open={Boolean(historyOpen)} {...history} onRetry={() => { void history.refresh(); }} onBack={onCloseHistory}
       onNew={() => { history.newConversation(); chat.restore({ messages: [], input: "" }); onCloseHistory(); }}

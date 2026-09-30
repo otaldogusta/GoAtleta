@@ -86,10 +86,10 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                   key={`${slot.key}-${lesson.classId}`}
                   style={{
                     paddingHorizontal: compact ? 14 : 18,
-                    paddingVertical: compact ? 10 : 13,
+                    paddingVertical: 10,
                     borderBottomWidth: 1,
                     borderBottomColor: colors.borderSubtle,
-                    gap: compact ? 8 : 10,
+                    gap: 6,
                   }}
                 >
                   <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
@@ -99,8 +99,8 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                     {lesson.gender ? <ClassGenderBadge gender={lesson.gender} size="sm" /> : null}
                   </View>
 
-                  <View style={{ gap: 10 }}>
-                    <Text style={{ color: colors.textPrimary, fontSize: compact ? 17 : 19, fontWeight: "900" }} numberOfLines={1}>
+                  <View style={{ gap: 4 }}>
+                    <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>
                       {lesson.className}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

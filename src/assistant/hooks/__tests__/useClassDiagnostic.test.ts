@@ -67,3 +67,15 @@ test("late replies do not populate a different class or erase newly typed text",
   expect(hook.result.current.input).toBe("");
   expect(hook.result.current.messages).toEqual([]);
 });
+
+test("sends the current stage context separately and preserves it for retry", async () => {
+  const { result } = renderHook(() => useClassDiagnostic("org", "raposas"));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => result.current.setInput("Essa carga combina com a turma?"));
+  request.mockRejectedValueOnce(new Error("Sem conexão"));
+  const planningContext = { step: "Modelo de carga", summary: "Linear, intensidade 3–6" };
+  await act(async () => { await result.current.send(planningContext); });
+  expect(request.mock.calls.at(-1)[2]).toMatchObject({ content: "Essa carga combina com a turma?", planningContext });
+  await act(async () => { await result.current.retry(); });
+  expect(request.mock.calls.at(-1)[2].planningContext).toEqual(planningContext);
+});

@@ -1,3 +1,4 @@
+import { PlanningAssistantProvider } from "../../src/screens/periodization/PlanningAssistant";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -4398,6 +4399,7 @@ export default function PeriodizationScreen() {
   }
 
   return (
+    <PlanningAssistantProvider classId={selectedClass?.id ?? ""} organizationId={activeOrganization?.id ?? ""}>
     <SafeAreaView
       style={{
         flex: 1,
@@ -4917,6 +4919,7 @@ export default function PeriodizationScreen() {
 
         {showPeriodizationManager ? (
           <PeriodizationManagerSheet
+            competitionContext={`Modo competitivo: ${isCompetitiveMode ? "ativo" : "inativo"}. Competição: ${competitiveTargetDateInput || "sem data"}. Início: ${competitiveCycleStartDateInput || "sem data"}. Pausa em edição: ${exceptionDateInput || "sem data"}, ${exceptionReasonInput || "sem motivo"}. Exceções cadastradas: ${calendarExceptions.length}.`}
             visible={showPeriodizationManager}
             mode={periodizationManagerMode}
             initialView={periodizationManagerInitialView}
@@ -5392,5 +5395,6 @@ export default function PeriodizationScreen() {
         planReview={weekEditorPlanReview}
       />
     </SafeAreaView>
+    </PlanningAssistantProvider>
   );
 }

@@ -2856,7 +2856,7 @@ void Promise.all(
         <View ref={editContainerRef} style={{ flex: 1, minHeight: 0, gap: 12, position: "relative" }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 20 }}>
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={{ fontSize: 28, fontWeight: "800", color: colors.text }}>Editar turma</Text>
+              <Text style={{ fontSize: responsiveLayout.density.pageTitleFontSize, lineHeight: responsiveLayout.density.pageTitleLineHeight, fontWeight: "800", color: colors.text }}>Editar turma</Text>
               <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>{`${editingClass?.name || "Turma"}${editingClass?.unit ? ` · ${editingClass.unit}` : ""}`}</Text>
                 {editGender ? <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.secondaryBg }}><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{editGender === "feminino" ? "Feminino" : editGender === "masculino" ? "Masculino" : "Misto"}</Text></View> : null}

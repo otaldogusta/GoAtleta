@@ -1,5 +1,11 @@
 export const STUDENT_TABLE_MIN_CONTENT_WIDTH = 760;
 
+// Reserve the page header, filters, table heading and pagination before counting rows.
+export function resolveStudentsPageSize(viewportHeight: number, showTable: boolean) {
+  if (!showTable || !Number.isFinite(viewportHeight)) return 8;
+  return Math.max(8, Math.min(20, Math.floor((viewportHeight - 300) / 68)));
+}
+
 export type StudentsUnitPaneMode = "dropdown";
 
 export type StudentsListLayout = {

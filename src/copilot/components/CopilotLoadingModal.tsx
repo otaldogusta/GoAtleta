@@ -8,9 +8,9 @@ import { AssistantPending } from "../../assistant/components/AssistantPending";
 /** Immediate feedback while the conversation code is downloaded on first use. */
 export function CopilotLoadingModal({ onClose }: { onClose: () => void }) {
   const { colors } = useAppTheme();
-  const { height } = useWindowDimensions();
-  return <ModalSheet visible onClose={onClose} position="center" overlayZIndex={5000} backdropOpacity={0.5}
-    cardStyle={[styles.card, { backgroundColor: colors.background, borderColor: colors.border, minHeight: Math.min(560, height - 48), maxHeight: height - 36 }]}>
+  const { width, height } = useWindowDimensions();
+  return <ModalSheet visible onClose={onClose} position={width >= 600 ? "right" : "bottom"} overlayZIndex={5000} backdropOpacity={0.5}
+    cardStyle={[styles.card, { width: width >= 600 ? 360 : "100%", alignSelf: width >= 600 ? "flex-end" : "stretch", backgroundColor: colors.background, borderColor: colors.border, minHeight: Math.min(560, height - 48), maxHeight: height - 36 }]}>
     <Pressable accessibilityRole="button" accessibilityLabel="Fechar chat" onPress={onClose}
       style={[styles.close, { backgroundColor: colors.secondaryBg }]}>
       <GoAtletaIcon name="close" size={18} color={colors.text} />
