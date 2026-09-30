@@ -12,6 +12,7 @@ type Props = {
   onKeyPress?: TextInputProps["onKeyPress"];
   voiceScope: { organizationId: string; classId?: string } | undefined;
   trailingControl?: ReactNode;
+  compact?: boolean;
 };
 export function AssistantComposer(props: Props) {
   return <ScopedAssistantComposer key={`${props.voiceScope?.organizationId}:${props.voiceScope?.classId}`} {...props} />;
@@ -26,10 +27,11 @@ function ScopedAssistantComposer(props: Props) {
   const [voiceActive, setVoiceActive] = useState(false);
   const maxHeight = Platform.OS === "web" ? 84 : 136;
   const canSend = Boolean(props.value.trim()) && !props.busy && !voiceActive;
-  return <View style={[styles.row, { minHeight: props.value ? Math.max(44, inputHeight) : 44 }]}>
+  const compact = props.compact === true;
+  return <View style={[styles.row, compact && { gap: 4, alignItems: "center" }, { minHeight: compact ? 36 : props.value ? Math.max(44, inputHeight) : 44 }]}>
     {!voiceActive ? <Pressable accessibilityRole="button" accessibilityLabel="Escrever mensagem" onPress={() => inputRef.current?.focus()}
       style={[styles.secondary, { borderColor: colors.border, backgroundColor: colors.secondaryBg }]}>
-      <GoAtletaIcon name="add" size={20} color={colors.text} />
+      <GoAtletaIcon name="add" size={compact ? 16 : 20} color={colors.text} />
     </Pressable> : null}
     <TextInput ref={inputRef} accessibilityLabel="Mensagem para o assistente" placeholder="Perguntar algo..."
       placeholderTextColor={colors.muted} value={props.value} maxLength={6000}
@@ -41,13 +43,13 @@ function ScopedAssistantComposer(props: Props) {
       })}
       onContentSizeChange={event => setInputHeight(Math.max(40, Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))))}
       multiline scrollEnabled={inputHeight >= maxHeight} returnKeyType="send"
-      style={[styles.input, voiceActive && styles.hidden, { height: props.value ? inputHeight : 40, color: colors.inputText }]} />
+      style={[styles.input, compact && { minHeight: 36, fontSize: 13, paddingVertical: 8 }, voiceActive && styles.hidden, { height: props.value ? inputHeight : compact ? 36 : 40, color: colors.inputText }]} />
     {!voiceActive ? props.trailingControl : null}
-    {props.voiceScope ? <LessonVoiceInput key={`${props.voiceScope.organizationId}:${props.voiceScope.classId}`} {...props.voiceScope} disabled={Boolean(props.busy)} onActiveChange={setVoiceActive}
+    {props.voiceScope ? <LessonVoiceInput compact={compact} key={`${props.voiceScope.organizationId}:${props.voiceScope.classId}`} {...props.voiceScope} disabled={Boolean(props.busy)} onActiveChange={setVoiceActive}
       onText={text => props.onChangeText(latestValue.current ? `${latestValue.current}\n${text}` : text)} /> : null}
     {!voiceActive ? <Pressable accessibilityRole="button" accessibilityLabel="Enviar mensagem" onPress={props.onSend} disabled={!canSend}
-      style={[styles.send, { backgroundColor: colors.primaryBg, opacity: canSend ? 1 : 0.55 }]}>
-      <GoAtletaIcon name="arrowUp" size={20} color={colors.primaryText} />
+      style={[styles.send, compact && { width: 36, height: 36, borderRadius: 18 }, { backgroundColor: colors.primaryBg, opacity: canSend ? 1 : 0.55 }]}>
+      <GoAtletaIcon name="arrowUp" size={compact ? 16 : 20} color={colors.primaryText} />
     </Pressable> : null}
   </View>;
 }

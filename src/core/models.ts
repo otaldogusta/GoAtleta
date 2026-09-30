@@ -57,6 +57,9 @@ export type CompetitivePlanningMode = "adulto-competitivo";
 export type ClassCalendarExceptionKind = "no_training";
 
 export type ClassGroup = {
+  /** Read-only canonical planning context; never serialized into the classes row. */
+  pedagogicalProfile?: import("./class-pedagogical-profile").ProfileRecord;
+  pedagogicalProfileUnavailable?: boolean;
   id: string;
   name: string;
   organizationId: string;

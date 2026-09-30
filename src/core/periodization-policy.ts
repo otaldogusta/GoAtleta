@@ -3,12 +3,34 @@ import type { ClassGroup } from "./models";
 import { annualCycleOptions } from "./periodization-basics";
 export type PeriodizationLoadCurveModel = "ondulatorio" | "linear" | "blocos";
 
+export const PERIODIZATION_GAME_LEVELS = [
+  // Length is the entire court across the net. In 1x1 each side is 3 x 3 m.
+  // Net defaults use the lower end of the supplied Mini reference ranges.
+  // 1x1 is an editable app default, extrapolated from 2x2 (not in the reference).
+  { value: "1x1", label: "1x1", widthMeters: 3, lengthMeters: 6, defaultNetHeightMeters: 1.8 },
+  { value: "2x2", label: "2x2", widthMeters: 3.5, lengthMeters: 7, defaultNetHeightMeters: 1.8 },
+  { value: "3x3", label: "3x3", widthMeters: 4.5, lengthMeters: 12, defaultNetHeightMeters: 2 },
+  { value: "4x4", label: "4x4", widthMeters: 7, lengthMeters: 14, defaultNetHeightMeters: 2.1 },
+  { value: "6x6", label: "6x6", widthMeters: 9, lengthMeters: 18, defaultNetHeightMeters: 2.2 },
+] as const;
+
+export type PeriodizationGameLevel =
+  (typeof PERIODIZATION_GAME_LEVELS)[number]["value"];
+
+export type PeriodizationClassDiagnostic = {
+  gameLevel: PeriodizationGameLevel;
+  netHeightMeters: number;
+  teacherContext: string;
+  updatedAt: string;
+};
+
 export type PeriodizationPolicy = {
   schemaVersion: 1;
   loadModel: PeriodizationLoadCurveModel;
   recoveryWeeks: number;
   intensityMin: number;
   intensityMax: number;
+  classDiagnostic?: PeriodizationClassDiagnostic;
 };
 
 export type PeriodizationWeekPolicy = {
@@ -65,6 +87,27 @@ const clampInteger = (
 const isLoadModel = (value: unknown): value is PeriodizationLoadCurveModel =>
   value === "ondulatorio" || value === "linear" || value === "blocos";
 
+const isGameLevel = (value: unknown): value is PeriodizationGameLevel =>
+  PERIODIZATION_GAME_LEVELS.some((option) => option.value === value);
+
+const normalizeClassDiagnostic = (
+  value: Partial<PeriodizationClassDiagnostic> | undefined,
+): PeriodizationClassDiagnostic | undefined => {
+  if (!value || !isGameLevel(value.gameLevel)) return undefined;
+  const netHeight = Number(value.netHeightMeters);
+  return {
+    gameLevel: value.gameLevel,
+    netHeightMeters:
+      Number.isFinite(netHeight) && netHeight >= 1.5 && netHeight <= 2.5
+        ? Math.round(netHeight * 100) / 100
+        : 2.2,
+    teacherContext: String(value.teacherContext ?? "").trim().slice(0, 1200),
+    updatedAt: /^\d{4}-\d{2}-\d{2}T/.test(String(value.updatedAt ?? ""))
+      ? String(value.updatedAt)
+      : new Date(0).toISOString(),
+  };
+};
+
 export const normalizePeriodizationPolicy = (
   value?: Partial<PeriodizationPolicy> | null,
 ): PeriodizationPolicy => {
@@ -94,6 +137,7 @@ export const normalizePeriodizationPolicy = (
     ),
     intensityMin,
     intensityMax,
+    classDiagnostic: normalizeClassDiagnostic(value?.classDiagnostic),
   };
 };
 

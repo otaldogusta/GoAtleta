@@ -741,6 +741,8 @@ export const buildClassPlan = (options: {
   model: PeriodizationModel;
   sessionsPerWeek: number;
   sport: SportProfile;
+  gameLevel?: "1x1" | "2x2" | "3x3" | "4x4" | "6x6";
+  classContext?: string;
 }): ClassPlan => {
   const base = basePlans[options.ageBand] ?? basePlans["09-11"];
   const template = base[(options.weekNumber - 1) % base.length];
@@ -779,8 +781,11 @@ export const buildClassPlan = (options: {
           annualPhase.physicalFocus,
           annualPlacement.stage
         ),
-        constraints: buildAnnualStageNotes(annualPhase.notes, annualPlacement).join(" | "),
-        mvFormat: getMvFormat(options.ageBand),
+        constraints: [
+          ...buildAnnualStageNotes(annualPhase.notes, annualPlacement),
+          options.classContext?.trim() || "",
+        ].filter(Boolean).join(" | "),
+        mvFormat: options.gameLevel || getMvFormat(options.ageBand),
         warmupProfile: buildAnnualStageWarmupProfile(
           annualPhase.warmupProfile ?? annualPhase.notes[0] ?? "",
           annualPlacement
@@ -803,8 +808,8 @@ export const buildClassPlan = (options: {
     theme: template.focus,
     technicalFocus: template.focus,
     physicalFocus: getPhysicalFocus(options.ageBand),
-    constraints: template.notes[0] ?? "",
-    mvFormat: getMvFormat(options.ageBand),
+    constraints: [template.notes[0] ?? "", options.classContext?.trim() || ""].filter(Boolean).join(" | "),
+    mvFormat: options.gameLevel || getMvFormat(options.ageBand),
     warmupProfile: template.notes[1] ?? "",
     jumpTarget: getJumpTarget(options.mvLevel, options.ageBand),
     rpeTarget: getPSETarget(phase, options.sessionsPerWeek, options.sport),

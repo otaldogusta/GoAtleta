@@ -1,4 +1,6 @@
 import { buildClassContextSnapshot } from "../../../core/class-context-snapshot";
+import { resolveClassProfile } from "../../../core/profile-planning";
+import { profilePlanningGuidance } from "../../../core/class-pedagogical-profile";
 import type {
   AttendanceRecord,
   ClassCalendarException,
@@ -189,6 +191,8 @@ const buildBlueprintDecisionReasons = (params: {
 
 export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams): MonthlyPlanningBlueprint => {
   const { classGroup, monthKey, existing } = params;
+  const profile = resolveClassProfile(classGroup);
+  const profileGuidance = profilePlanningGuidance(profile?.profile);
   const nowIso = new Date().toISOString();
 
   const [yearText, monthText] = monthKey.split("-");
@@ -254,11 +258,14 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
   ];
 
   // Build macro intent combining level + calendar phase
-  const levelIntent = competitiveIntentByLevel[competitiveLevel] || competitiveIntentByLevel.beginner;
+  const levelIntent = profileGuidance.progression[0] || competitiveIntentByLevel[competitiveLevel] || competitiveIntentByLevel.beginner;
   const phaseIntent = monthIntentByCalendarPhase[calendarPhase] || monthIntentByCalendarPhase["in-season"];
   const macroIntent =
     `${levelIntent} · Fase: ${calendarPhase} · ` +
     `Carga ${periodizationPolicy.loadModel} (PSE ${periodizationPolicy.intensityMin}-${periodizationPolicy.intensityMax})` +
+    (profileGuidance.format ? ` · Jogo de referência ${profileGuidance.format}` : periodizationPolicy.classDiagnostic
+      ? ` · Jogo de referência ${periodizationPolicy.classDiagnostic.gameLevel}`
+      : "") +
     (monthlyGameSessionPolicy?.applies
       ? " · Fechamento mensal com jogo consolidado"
       : "");
@@ -268,7 +275,7 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
   });
 
   // Build pedagogical progression (4 key focuses for typical 4-5 week month)
-  const basePedagogy = pedagogicalProgressionByLevel[competitiveLevel] || pedagogicalProgressionByLevel.beginner;
+  const basePedagogy = profileGuidance.progression.length ? profileGuidance.progression : pedagogicalProgressionByLevel[competitiveLevel] || pedagogicalProgressionByLevel.beginner;
   const pedagogicalProgression = basePedagogy;
 
   // Distribute weekly themes: e.g., week 1 -> basePedagogy[0], week 2 -> basePedagogy[1], etc.
@@ -300,6 +307,7 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
           return {};
         }
       })(),
+      classProfileAdaptations: profileGuidance.adaptations,
       ...(monthlyGameSessionPolicy?.applies
         ? {
             monthlyGameSession: {
@@ -314,9 +322,11 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
         : {}),
     }),
     contextSnapshotJson: JSON.stringify({
+      pedagogicalProfile: profile,
       schemaVersion: 1,
       lineage: buildPlanningIntelligenceLineage({
         classId: classGroup.id,
+        pedagogicalProfileVersion: profile?.version,
         cycle: params.activeCycle,
         recentSessions: params.recentSessionSummaries,
         generatedAt: nowIso,

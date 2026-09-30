@@ -287,7 +287,7 @@ export function AnchoredDropdown({
   const availableBottom = windowHeight - 24;
   const top =
     defaultTop + resolvedMaxHeight > availableBottom
-      ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight)
+      ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight - 16)
       : defaultTop;
   const webGlassPanelStyle =
     Platform.OS === "web"

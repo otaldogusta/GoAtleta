@@ -96,12 +96,6 @@ const TrainingSpreadsheetImportModal = lazy(() =>
   }))
 );
 
-const toLines = (value: string) =>
-  value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
 const isManualTextActivity = (activity: TrainingPlanActivity) =>
   !activity.catalog &&
   !activity.execution &&

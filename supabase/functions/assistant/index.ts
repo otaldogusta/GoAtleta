@@ -1,4 +1,5 @@
 import { loadActivityContext } from "./activity-context.ts";
+import { handleClassProfile } from "./class-profile-handler.ts";
 import { resolveAttendanceRanking } from "./attendance-ranking.ts";
 import { streamAssistantResponse } from "./response-stream.ts";
 import { initialGreeting, routeAssistant } from "./model-router.ts";
@@ -925,6 +926,11 @@ Deno.serve(createEdgeFunction({
           "A turma informada nao pertence ao workspace ativo."
         );
       }
+    }
+
+    if (body.mode === "class_diagnostic") {
+      if (!classId || !["admin", "coach"].includes(aiContext.user.role)) return createError(403, "FORBIDDEN", "Selecione uma turma com acesso de professor.");
+      return handleClassProfile({ supabase, organizationId, classId, userId: currentUser.id, body });
     }
 
     if (body.mode === "save_class_rule") {

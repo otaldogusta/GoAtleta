@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import * as Sentry from "@sentry/react-native";
+import { getClassPedagogicalProfiles } from "./class-pedagogical-profile";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 import { resolveClassModality } from "../core/class-modality";
 import type { ClassGroup } from "../core/models";
@@ -281,12 +282,14 @@ export async function getClasses(options: { organizationId?: string | null } = {
     }));
     await writeCache(cacheKey, mapped);
     Sentry.addBreadcrumb({ category: "sqlite-query", message: "getClasses", level: "info", data: { ms: Date.now() - startedAt, rows: mapped.length } });
-    return mapped;
+    const profiles = await getClassPedagogicalProfiles(activeOrganizationId);
+    const profileByClass = new Map(profiles.map(profile => [profile.class_id, profile]));
+    return mapped.map(cls => ({ ...cls, pedagogicalProfile: profileByClass.get(cls.id) }));
   } catch (error) {
     if (isNetworkError(error)) {
       const activeOrganizationId = options.organizationId ?? (await getActiveOrganizationId());
       const cached = await readCache<ClassGroup[]>(buildClassesCacheKey(activeOrganizationId ?? null));
-      return cached ?? [];
+      return (cached ?? []).map(cls => ({ ...cls, pedagogicalProfileUnavailable: true }));
     }
     throw error;
   }
@@ -305,7 +308,9 @@ export async function getClassById(id: string, options: { organizationId?: strin
     const row = rows[0];
     if (!row) return null;
     const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+    const profiles = await getClassPedagogicalProfiles(resolvedOrganizationId, id);
     return {
+      pedagogicalProfile: profiles[0],
       id: row.id, name: row.name, organizationId: resolvedOrganizationId,
       unit: (row.unit_id ? unitMap.get(row.unit_id) : undefined) ?? canonicalizeUnitLabel(row.unit ?? null) ?? "Sem unidade",
       unitId: row.unit_id ?? "", trainingSpace: row.training_space?.trim() ?? "", colorKey: row.color_key ?? "",

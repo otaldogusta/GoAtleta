@@ -9,6 +9,7 @@ import type {
   TrainingPlan,
 
 } from "./models";
+import { resolveClassProfile } from "./class-profile-resolver";
 import {
   SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
   summarizeReportFeedbackSignals,
@@ -159,6 +160,7 @@ export const buildSessionPlanningContext = (params: {
 
   return {
     schemaVersion: SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
+    pedagogicalProfile: resolveClassProfile(params.classGroup),
     classId: params.cycleContext.classId,
     sessionDate: params.cycleContext.sessionDate,
     ageBand: params.cycleContext.ageBand,

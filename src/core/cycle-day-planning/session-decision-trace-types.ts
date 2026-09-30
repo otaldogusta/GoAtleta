@@ -47,6 +47,7 @@ export type SessionDecisionTrace = {
     phaseIntent?: SessionPhaseIntent;
   };
   influences: {
+    pedagogicalProfile?: { version: number; summary: string; profile: import("../class-pedagogical-profile").PedagogicalProfile };
     periodization: {
       used: boolean;
       technicalFocus?: string;

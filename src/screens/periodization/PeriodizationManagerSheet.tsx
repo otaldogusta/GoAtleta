@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   ScrollView,
   type StyleProp,
@@ -11,7 +11,16 @@ import {
 } from "react-native";
 
 import type { ThemeColors } from "../../ui/app-theme";
-import { radius } from "../../theme/tokens";
+import { AssistantComposer } from "../../assistant/components/AssistantComposer";
+import { AssistantMessages } from "../../assistant/components/AssistantMessages";
+import { AssistantPending } from "../../assistant/components/AssistantPending";
+import { useClassDiagnostic } from "../../assistant/hooks/useClassDiagnostic";
+import { profileDiagnosticValues } from "../../core/profile-planning";
+import { ClassProfileDetails, ClassProfileStatus } from "./components/ClassProfileDetails";
+import {
+  PERIODIZATION_GAME_LEVELS,
+  type PeriodizationGameLevel,
+} from "../../core/periodization-policy";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -21,6 +30,9 @@ import {
   PeriodizationLoadCurve,
   type PeriodizationGraphWeek,
 } from "./components/PeriodizationLoadCurve";
+import { CourtFormatGlyph, PeriodizationCourtLevelDiagram } from "./components/PeriodizationCourtLevelDiagram";
+import { PeriodizationScheduleDays } from "./components/PeriodizationScheduleDays";
+import { getCourtDimensionsLabel } from "./components/periodization-court-geometry";
 
 function ManagerSelect<T extends string | number>({ value, options, colors, onChange, label }: { value: T; options: readonly { value: T; label: string }[]; colors: ThemeColors; onChange: (value: T) => void; label: string }) {
   const triggerRef = useRef<ViewType | null>(null);
@@ -39,9 +51,9 @@ function ManagerSelect<T extends string | number>({ value, options, colors, onCh
       container={null}
       animationStyle={{}}
       zIndex={9200}
-      maxHeight={150}
+      maxHeight={180}
       nestedScrollEnabled={false}
-      showVerticalScrollIndicator={false}
+      showVerticalScrollIndicator
       portalToBodyOnWeb
       onRequestClose={() => setOpen(false)}
       interactiveRefs={[triggerRef]}
@@ -86,6 +98,9 @@ export type PeriodizationManagerDraft = {
   recoveryWeeks: number;
   intensityMin: number;
   intensityMax: number;
+  gameLevel: PeriodizationGameLevel;
+  netHeightMeters: number;
+  teacherContext: string;
 };
 
 export type PeriodizationManagerSection =
@@ -97,9 +112,13 @@ export type PeriodizationManagerSection =
 type Props = {
   visible: boolean;
   mode?: "manage" | "create-next";
+  initialView?: "settings" | "diagnostic";
   colors: ThemeColors;
   className: string;
   classSubtitle: string;
+  classId: string;
+  organizationId: string;
+  sport: string;
   initialDraft: PeriodizationManagerDraft;
   weekPlans: PeriodizationGraphWeek[];
   autoPlanCount: number;
@@ -216,6 +235,22 @@ const LOAD_MODEL_OPTIONS = [
   { value: "blocos", label: "Blocos" },
 ] as const;
 const RECOVERY_OPTIONS = [3, 4, 5] as const;
+const MANAGER_STEPS = [
+  "Turma",
+  "Nível da turma",
+  "Agenda",
+  "Modelo de carga",
+  "Competição e pausas",
+  "Revisão",
+] as const;
+const MANAGER_STEP_TITLES = [
+  "Dados da turma",
+  "Selecione o nível da turma",
+  "Organize a agenda",
+  "Defina o modelo de carga",
+  "Competição e pausas",
+  "Revise a periodização",
+] as const;
 
 function formatBrazilianDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -245,6 +280,9 @@ function draftsEqual(
     first.recoveryWeeks === second.recoveryWeeks &&
     first.intensityMin === second.intensityMin &&
     first.intensityMax === second.intensityMax &&
+    first.gameLevel === second.gameLevel &&
+    first.netHeightMeters === second.netHeightMeters &&
+    first.teacherContext.trim() === second.teacherContext.trim() &&
     [...(first.daysOfWeek ?? [])].sort().join(",") ===
       [...(second.daysOfWeek ?? [])].sort().join(",")
   );
@@ -261,34 +299,6 @@ function InputLabel({
     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
       {children}
     </Text>
-  );
-}
-
-function FieldShell({
-  colors,
-  children,
-  minWidth = 150,
-}: {
-  colors: ThemeColors;
-  children: ReactNode;
-  minWidth?: number;
-}) {
-  return (
-    <View
-      style={{
-        minHeight: 44,
-        minWidth,
-        flex: 1,
-        justifyContent: "center",
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: 10,
-        backgroundColor: colors.inputBg,
-        paddingHorizontal: 12,
-      }}
-    >
-      {children}
-    </View>
   );
 }
 
@@ -437,12 +447,202 @@ function ImpactRow({
   );
 }
 
+function PeriodizationDiagnosticStep({
+  colors,
+  compact,
+  dense,
+  classId,
+  organizationId,
+  className,
+  sport,
+  draft,
+  baseline,
+  onChange,
+  onBack,
+  onContinue,
+}: {
+  colors: ThemeColors;
+  compact: boolean;
+  dense: boolean;
+  classId: string;
+  organizationId: string;
+  className: string;
+  sport: string;
+  draft: PeriodizationManagerDraft;
+  baseline: PeriodizationManagerDraft;
+  onChange: (changes: Partial<PeriodizationManagerDraft>) => void;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const chat = useClassDiagnostic(organizationId, classId);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profile = chat.snapshot?.profile;
+  const onChangeRef = useRef(onChange);
+  useLayoutEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => {
+    if (!profile) return;
+    onChangeRef.current(profileDiagnosticValues(profile.profile, baseline));
+  }, [profile, baseline]);
+  const send = () => { void chat.send(); };
+
+  return (
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <View
+        style={{
+          flex: 1,
+          minHeight: 0,
+          flexDirection: compact ? "column" : "row",
+        }}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          style={{ flex: compact ? undefined : 2.25, minHeight: 0 }}
+          contentContainerStyle={{ padding: compact ? 14 : dense ? 16 : 26, gap: dense ? 10 : 16 }}
+        >
+          <View
+            style={{
+              height: compact ? 210 : dense ? 300 : 330,
+              borderRadius: 14,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: "#1676ac",
+            }}
+          >
+            <PeriodizationCourtLevelDiagram level={draft.gameLevel} />
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: compact ? "wrap" : "nowrap" }}>
+            {PERIODIZATION_GAME_LEVELS.map((option) => {
+              const active = option.value === draft.gameLevel;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${option.label}, ${getCourtDimensionsLabel(option.value)} no total${option.value === "1x1" ? ", 3 por 3 metros por lado" : ""}`}
+                  accessibilityState={{ selected: active }}
+                  disabled={chat.busy || chat.loading || !!chat.pending}
+                  onPress={() => {
+                    if (!active) void chat.command({ action: "selectors", gameFormat: option.value, netHeight: option.defaultNetHeightMeters });
+                  }}
+                  style={({ hovered, pressed }) => ({
+                    minHeight: dense ? 64 : 84,
+                    minWidth: compact ? "30%" : 0,
+                    flex: compact ? undefined : 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: dense ? 3 : 5,
+                    borderWidth: 1,
+                    borderColor: active ? colors.successBorder : colors.border,
+                    borderRadius: 11,
+                    backgroundColor: active
+                      ? colors.successBg
+                      : hovered || pressed
+                        ? colors.secondaryBg
+                        : colors.inputBg,
+                    paddingHorizontal: 8,
+                  })}
+                >
+                  <CourtFormatGlyph
+                    level={option.value}
+                    color={active ? colors.successText : colors.muted}
+                  />
+                  <Text style={{ color: active ? colors.successText : colors.text, fontSize: 15, fontWeight: "800" }}>
+                    {option.label}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 10 }}>
+                    {getCourtDimensionsLabel(option.value)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+              Altura da rede
+            </Text>
+            <ManagerSelect
+              label="Altura da rede"
+              value={draft.netHeightMeters}
+              options={[1.8, 2, 2.1, 2.15, 2.2, 2.24, 2.3, 2.43].map((value) => ({
+                value,
+                label: `${value.toFixed(2).replace(".", ",")} m`,
+              }))}
+              colors={colors}
+              onChange={(netHeightMeters) => { if (!chat.busy && !chat.loading && !chat.pending) void chat.command({ action: "selectors", netHeight: netHeightMeters }); }}
+            />
+          </View>
+        </ScrollView>
+
+        <View
+          style={{
+            flex: 1,
+            minHeight: compact ? 270 : 0,
+            borderTopWidth: compact ? 1 : 0,
+            borderLeftWidth: compact ? 0 : 1,
+            borderColor: colors.border,
+            padding: compact ? 14 : dense ? 16 : 20,
+            gap: dense ? 8 : 12,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Assistente</Text>
+            <Pressable accessibilityRole="button" onPress={() => setProfileOpen(true)} style={{ minHeight: 40, justifyContent: "center" }}><Text style={{ color: colors.muted, fontSize: 12 }}>Perfil da turma</Text></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, gap: 10 }}>
+            {!chat.messages.length ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}>
+                  <GoAtletaIcon name="sparkles" size={17} color={colors.text} />
+                </View>
+                <View style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.inputBg, padding: 12 }}>
+                  <Text style={{ color: colors.text, fontSize: 12, lineHeight: 18 }}>
+                    Conte o que esta turma já domina e o que precisa desenvolver.
+                    {"\n"}Relatos são salvos ao enviar, mesmo ao fechar o ciclo sem aplicar.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            <AssistantMessages messages={chat.messages} />
+            {chat.busy ? <AssistantPending label="Analisando a turma" compact /> : null}
+          </ScrollView>
+          <ClassProfileStatus diagnostic={chat} />
+          <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.inputBg, padding: compact ? 8 : 5 }}>
+            <AssistantComposer
+              compact={!compact}
+              voiceScope={{ organizationId, classId }}
+              value={chat.input}
+              onChangeText={chat.setInput}
+              busy={chat.busy || chat.loading || !!chat.pending}
+              onSend={send}
+            />
+          </View>
+        </View>
+      </View>
+      <ClassProfileDetails visible={profileOpen} onClose={() => setProfileOpen(false)} diagnostic={chat} organizationId={organizationId} classId={classId} />
+      <View style={{ minHeight: dense ? 58 : 70, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, paddingHorizontal: compact ? 14 : 24, borderTopWidth: 1, borderTopColor: colors.border }}>
+        <Pressable accessibilityRole="button" onPress={onBack} style={{ minHeight: 44, minWidth: compact ? 100 : 120, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 18 }}>
+          <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Voltar</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={onContinue} style={{ minHeight: 44, minWidth: compact ? 132 : 190, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.primaryBg, paddingHorizontal: 20 }}>
+          <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>Continuar</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export function PeriodizationManagerSheet({
   visible,
   mode = "manage",
+  initialView = "settings",
   colors,
   className,
   classSubtitle,
+  classId,
+  organizationId,
+  sport,
   initialDraft,
   weekPlans,
   autoPlanCount,
@@ -470,12 +670,17 @@ export function PeriodizationManagerSheet({
     width: number;
     height: number;
   } | null>(null);
-  const wide = width >= 1200;
   const compact = width < 760;
   const narrow = width < 980;
+  const dense = height < 800;
   const [draft, setDraft] = useState(initialDraft);
   const [savedDraft, setSavedDraft] = useState(initialDraft);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(initialView === "diagnostic" ? 2 : 1);
+  const activeStep = Number.isInteger(Number(currentStep))
+    ? Math.min(6, Math.max(1, Number(currentStep)))
+    : 1;
+  const showDiagnostic = activeStep === 2;
   const [cycleDateInput, setCycleDateInput] = useState(() => formatBrazilianDate(initialDraft.cycleStartDate));
   const wasVisibleRef = useRef(false);
   const creatingNextCycle = mode === "create-next";
@@ -529,7 +734,8 @@ export function PeriodizationManagerSheet({
     setSavedDraft(initialDraft);
     setCycleDateInput(formatBrazilianDate(initialDraft.cycleStartDate));
     setMenuOpen(false);
-  }, [initialDraft, mode, visible]);
+    setCurrentStep(initialView === "diagnostic" ? 2 : 1);
+  }, [initialDraft, initialView, visible]);
 
   const closeMenuThenRun = useCallback((action: () => void) => {
     setMenuOpen(false);
@@ -551,9 +757,9 @@ export function PeriodizationManagerSheet({
       cardStyle={{
         alignSelf: "center",
         width: "100%",
-        maxWidth: 1340,
-        height: compact ? "92%" : Math.min(height - 44, 900),
-        maxHeight: compact ? "92%" : 900,
+        maxWidth: 1180,
+        height: compact ? "92%" : Math.min(height - 44, 820),
+        maxHeight: compact ? "92%" : 820,
         minWidth: 0,
         borderRadius: compact ? 18 : 22,
         borderWidth: 1,
@@ -565,11 +771,11 @@ export function PeriodizationManagerSheet({
       <View style={{ flex: 1, width: "100%", overflow: "hidden" }}>
         <View
           style={{
-            minHeight: compact ? 64 : 88,
+            minHeight: compact || dense ? 64 : 88,
             flexDirection: "row",
             alignItems: "center",
             gap: 12,
-            paddingHorizontal: compact ? 14 : 28,
+            paddingHorizontal: compact ? 14 : dense ? 18 : 28,
             borderBottomWidth: 1,
             borderBottomColor: colors.border,
           }}
@@ -590,9 +796,11 @@ export function PeriodizationManagerSheet({
                   fontWeight: "800",
                 }}
               >
-                {creatingNextCycle ? "Criar próximo ciclo" : "Gerenciar periodização"}
+                {creatingNextCycle
+                  ? "Criar próximo ciclo"
+                  : MANAGER_STEP_TITLES[activeStep - 1]}
               </Text>
-              <View
+              {!showDiagnostic ? <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -633,19 +841,23 @@ export function PeriodizationManagerSheet({
                       ? "Ciclo ativo"
                       : "Ciclo encerrado"}
                 </Text>
-              </View>
+              </View> : null}
             </View>
             <Text
               numberOfLines={1}
               style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}
             >
-              {className} · {classSubtitle}
+              Etapa {activeStep} de 6 · {className} · {classSubtitle}
             </Text>
           </View>
 
           <View
             ref={menuTriggerRef}
-            style={{ display: creatingNextCycle ? "none" : "flex" }}
+            style={{
+              display: creatingNextCycle || showDiagnostic ? "none" : "flex",
+              flexDirection: "row",
+              alignItems: "center",
+            }}
           >
             <Pressable
               accessibilityRole="button"
@@ -684,7 +896,7 @@ export function PeriodizationManagerSheet({
             </Pressable>
           </View>
           <AnchoredDropdown
-            visible={menuOpen && !creatingNextCycle}
+            visible={menuOpen && !creatingNextCycle && !showDiagnostic}
             layout={menuLayout}
             container={null}
             animationStyle={{}}
@@ -778,14 +990,76 @@ export function PeriodizationManagerSheet({
           </Pressable>
         </View>
 
-        <ManagerBody split={wide}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            flexGrow: 1,
+            gap: 6,
+            paddingHorizontal: compact ? 14 : dense ? 18 : 28,
+            paddingVertical: dense ? 7 : 10,
+          }}
+          style={{ flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.border }}
+        >
+          {MANAGER_STEPS.map((label, index) => {
+            const step = index + 1;
+            const selected = activeStep === step;
+            return (
+              <Pressable
+                key={label}
+                accessibilityRole="button"
+                accessibilityLabel={`Etapa ${step}: ${label}`}
+                accessibilityState={{ selected }}
+                onPress={() => setCurrentStep(step)}
+                style={{
+                  minHeight: dense ? 32 : 36,
+                  flex: compact ? undefined : 1,
+                  minWidth: compact ? 118 : 0,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 7,
+                  borderRadius: 9,
+                  borderWidth: 1,
+                  borderColor: selected ? colors.successBorder : colors.border,
+                  backgroundColor: selected ? colors.successBg : "transparent",
+                  paddingHorizontal: 10,
+                }}
+              >
+                <View style={{ width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: selected ? colors.successText : colors.secondaryBg }}>
+                  <Text style={{ color: selected ? colors.background : colors.muted, fontSize: 10, fontWeight: "800" }}>{step}</Text>
+                </View>
+                <Text numberOfLines={1} style={{ color: selected ? colors.successText : colors.muted, fontSize: 10, fontWeight: selected ? "800" : "700" }}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {showDiagnostic ? (
+          <PeriodizationDiagnosticStep
+            colors={colors}
+            compact={compact}
+            dense={dense}
+            classId={classId}
+            organizationId={organizationId}
+            className={className}
+            sport={sport}
+            draft={draft}
+            baseline={initialDraft}
+            onChange={(changes) => setDraft((current) => ({ ...current, ...changes }))}
+            onBack={() => setCurrentStep(1)}
+            onContinue={() => setCurrentStep(3)}
+          />
+        ) : <>
+        <ManagerBody split={false}>
           <ManagerPane
-            scrollable={wide}
+            scrollable={false}
             containerStyle={{
-              width: wide ? "51%" : "100%",
+              width: "100%",
               maxWidth: "100%",
               minWidth: 0,
-              borderRightWidth: wide ? 1 : 0,
+              display: activeStep === 6 ? "none" : "flex",
+              borderRightWidth: 0,
               borderRightColor: colors.border,
             }}
             contentStyle={{
@@ -793,11 +1067,7 @@ export function PeriodizationManagerSheet({
               gap: compact ? 16 : 22,
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Parâmetros do ciclo
-            </Text>
-
-            {creatingNextCycle ? (
+            {creatingNextCycle && activeStep === 1 ? (
               <View
                 style={{
                   borderWidth: 1,
@@ -825,7 +1095,7 @@ export function PeriodizationManagerSheet({
               </View>
             ) : null}
 
-            <View style={{ gap: 12 }}>
+            {activeStep === 1 ? <View style={{ gap: 12 }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
                 1. Turma
               </Text>
@@ -860,118 +1130,18 @@ export function PeriodizationManagerSheet({
               <Text style={{ color: colors.muted, fontSize: 10 }}>
                 Idade e número de atletas vêm do cadastro da turma.
               </Text>
-            </View>
+            </View> : null}
 
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-
-            <View style={{ gap: 12 }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-                2. Agenda
-              </Text>
-              <View style={{ gap: 6 }}>
-                <InputLabel colors={colors}>Dias da semana</InputLabel>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {DAY_OPTIONS.map((option) => {
-                    const active = draft.daysOfWeek.includes(option.value);
-                    return (
-                      <Pressable
-                        key={option.value}
-                        onPress={() =>
-                          setDraft((current) => ({
-                            ...current,
-                            daysOfWeek: active
-                              ? current.daysOfWeek.filter(
-                                  (day) => day !== option.value,
-                                )
-                              : [...current.daysOfWeek, option.value].sort(),
-                          }))
-                        }
-                        style={{
-                          minWidth: 48,
-                          minHeight: 36,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          borderRadius: 9,
-                          borderWidth: 1,
-                          borderColor: active
-                            ? colors.successBorder
-                            : colors.border,
-                          backgroundColor: active
-                            ? colors.successBg
-                            : colors.inputBg,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: active ? colors.successText : colors.text,
-                            fontSize: 11,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-              <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <InputLabel colors={colors}>Horário de início</InputLabel>
-                  <TextInput
-                    accessibilityLabel="Horário de início"
-                    value={draft.startTime}
-                    onChangeText={(startTime) =>
-                      setDraft((current) => ({ ...current, startTime }))
-                    }
-                    placeholder="18:00"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      minHeight: 44,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                      paddingHorizontal: 12,
-                      fontSize: 12,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <InputLabel colors={colors}>Duração (min)</InputLabel>
-                  <TextInput
-                    accessibilityLabel="Duração em minutos"
-                    value={String(draft.durationMinutes)}
-                    keyboardType="number-pad"
-                    onChangeText={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        durationMinutes: Number(value.replace(/\D/g, "")) || 0,
-                      }))
-                    }
-                    style={{
-                      minHeight: 44,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                      paddingHorizontal: 12,
-                      fontSize: 12,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <InputLabel colors={colors}>Resumo</InputLabel>
-                  <FieldShell colors={colors}>
-                    <Text style={{ color: colors.text, fontSize: 11 }}>
-                      {dayLabel || "Nenhum dia"} · {draft.startTime || "--:--"}
-                      {timeEnd ? `–${timeEnd}` : ""}
-                    </Text>
-                  </FieldShell>
-                </View>
-              </View>
+            {activeStep === 3 ? <View style={{ gap: 12 }}>
+              <PeriodizationScheduleDays
+                colors={colors}
+                days={draft.daysOfWeek}
+                startTime={draft.startTime}
+                endTime={timeEnd}
+                onDaysChange={(daysOfWeek) => setDraft(current => ({ ...current, daysOfWeek }))}
+                onStartChange={(startTime) => setDraft(current => ({ ...current, startTime }))}
+                onDurationChange={(durationMinutes) => setDraft(current => ({ ...current, durationMinutes }))}
+              />
               <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
                 <View style={{ flex: 1, gap: 6 }}>
                   <InputLabel colors={colors}>Data de início</InputLabel>
@@ -1002,14 +1172,12 @@ export function PeriodizationManagerSheet({
                   <ManagerSelect label="Duração do ciclo" value={draft.cycleLengthWeeks} options={CYCLE_OPTIONS.map((option) => ({ value: option.value, label: `${option.label} · ${option.detail}` }))} colors={colors} onChange={(cycleLengthWeeks) => setDraft((current) => ({ ...current, cycleLengthWeeks }))} />
                 </View>
               </View>
-            </View>
+            </View> : null}
 
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-
-            <View style={{ gap: 12 }}>
+            {activeStep === 4 ? <View style={{ gap: 12 }}>
               <View>
                 <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-                  3. Modelo de carga
+                  4. Modelo de carga
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 10, marginTop: 3 }}>
                   Parâmetros calculados a partir do nível, da agenda e das semanas.
@@ -1050,18 +1218,16 @@ export function PeriodizationManagerSheet({
                   />
                 </View>
               </View>
-            </View>
+            </View> : null}
 
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-
-            <View style={{ gap: 10 }}>
+            {activeStep === 5 ? <View style={{ gap: 10 }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-                4. Competição, pausas e disponibilidade
+                5. Competição, pausas e disponibilidade
               </Text>
               {advancedContent}
-            </View>
+            </View> : null}
 
-            {compact ? (
+            {compact && activeStep === 5 ? (
               <View
                 style={{
                   borderWidth: 1,
@@ -1083,13 +1249,13 @@ export function PeriodizationManagerSheet({
           </ManagerPane>
 
           <ManagerPane
-            scrollable={wide}
+            scrollable={false}
             containerStyle={{
-              width: wide ? "49%" : "100%",
+              width: "100%",
               maxWidth: "100%",
               minWidth: 0,
-              display: compact ? "none" : "flex",
-              borderTopWidth: wide ? 0 : 1,
+              display: activeStep === 6 ? "flex" : "none",
+              borderTopWidth: 0,
               borderTopColor: colors.border,
             }}
             contentStyle={{
@@ -1098,7 +1264,7 @@ export function PeriodizationManagerSheet({
             }}
           >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Prévia do impacto
+              6. Revisão e impacto
             </Text>
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>
@@ -1352,7 +1518,21 @@ export function PeriodizationManagerSheet({
             borderTopColor: colors.border,
           }}
         >
-          {error || dirty || creatingNextCycle ? <View
+          {activeStep > 1 && activeStep < 6 ? <Pressable
+            accessibilityRole="button"
+            onPress={() => setCurrentStep((step) => Math.max(1, step - 1))}
+            style={{ minHeight: 44, minWidth: compact ? undefined : 120, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 18 }}
+          >
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Voltar</Text>
+          </Pressable> : null}
+          {activeStep < 6 ? <Pressable
+            accessibilityRole="button"
+            onPress={() => setCurrentStep((step) => Math.min(6, step + 1))}
+            style={{ minHeight: 46, minWidth: compact ? undefined : 190, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.primaryBg, paddingHorizontal: 20, marginLeft: narrow ? 0 : "auto" }}
+          >
+            <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>Continuar</Text>
+          </Pressable> : null}
+          {activeStep === 6 && (error || dirty || creatingNextCycle) ? <View
             style={{
               flex: 1,
               flexDirection: "row",
@@ -1391,7 +1571,7 @@ export function PeriodizationManagerSheet({
                     : "Configuração sincronizada")}
             </Text>
           </View> : null}
-          {dirty ? <Pressable
+          {activeStep === 6 && dirty ? <Pressable
             accessibilityRole="button"
             accessibilityLabel={creatingNextCycle ? "Restaurar sugestão" : "Descartar rascunho"}
             disabled={!dirty || saving}
@@ -1409,7 +1589,7 @@ export function PeriodizationManagerSheet({
               {creatingNextCycle ? "Restaurar sugestão" : "Descartar rascunho"}
             </Text>
           </Pressable> : null}
-          <Pressable
+          {activeStep === 6 ? <Pressable
             accessibilityRole="button"
             disabled={saveDisabled}
             onPress={() => void handleSave()}
@@ -1440,8 +1620,9 @@ export function PeriodizationManagerSheet({
                   ? "Criar ciclo"
                   : "Salvar e aplicar"}
             </Text>
-          </Pressable>
+          </Pressable> : null}
         </View>
+        </>}
       </View>
     </ModalSheet>
   );

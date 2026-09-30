@@ -170,6 +170,7 @@ export type PedagogicalFeedbackSignal =
   | "low_frequency";
 
 export type SessionPlanningContext = {
+  pedagogicalProfile?: import("./class-pedagogical-profile").ProfileRecord;
   schemaVersion: SessionPlanningContextSchemaVersion;
   classId: string;
   sessionDate: string;

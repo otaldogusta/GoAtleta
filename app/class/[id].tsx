@@ -1,3 +1,5 @@
+import { ClassProfileButton } from "../../src/screens/periodization/components/ClassProfileButton";
+import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { getFriendlyErrorMessage, isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
 import { trainingHistoryTitle } from "../../src/core/training-history-title";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
@@ -16,7 +18,7 @@ import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
 import { useCopilotActions, useCopilotContext } from "../../src/copilot/CopilotProvider";
 import type { CopilotAction, CopilotOperationalFact } from "../../src/copilot/types";
-import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
+import { CLASS_MODALITY_OPTIONS, isVolleyballClassModality } from "../../src/core/class-modality";
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
 import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
@@ -278,6 +280,9 @@ export default function ClassDetails() {
   } | null>(null);
   const rosterColumnsTriggerRef = useRef<View>(null);
   const [cls, setCls] = useState<ClassGroup | null>(null);
+  useEffect(() => subscribeClassProfile(profile => {
+    setCls(current => current?.id === profile.class_id && current.organizationId === profile.organization_id ? { ...current, pedagogicalProfile: profile } : current);
+  }), []);
   const [loading, setLoading] = useState(true);
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [missingContactCount, setMissingContactCount] = useState<number | null>(null);
@@ -2507,6 +2512,8 @@ export default function ClassDetails() {
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
           onBack={() => requestAttendanceAction(() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes }))}
           right={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {cls && isVolleyballClassModality(cls.modality) ? <ClassProfileButton organizationId={cls.organizationId} classId={cls.id} /> : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Editar turma"
@@ -2527,6 +2534,7 @@ export default function ClassDetails() {
             >
               <GoAtletaIcon name="pencil" size={18} color={colors.text} />
             </Pressable>
+            </View>
           }
           contentStyle={{
             paddingTop: mobileClassWorkspace ? 8 : 16,

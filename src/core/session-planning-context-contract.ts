@@ -1,3 +1,4 @@
+import type { ProfileRecord } from "./class-pedagogical-profile";
 import type {
   AppliedPedagogicalReference,
   DocumentReadOnlyActionContract,
@@ -336,6 +337,8 @@ export const parseSessionPlanningContext = (
   const periodizationPhase = stringValue(value.periodizationPhase);
   const context: SessionPlanningContext = {
     schemaVersion: SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
+    pedagogicalProfile: isRecord(value.pedagogicalProfile) && value.pedagogicalProfile.class_id === classId && isRecord(value.pedagogicalProfile.profile) && value.pedagogicalProfile.profile.schemaVersion === 1 && isRecord(value.pedagogicalProfile.profile.facts)
+      ? value.pedagogicalProfile as unknown as ProfileRecord : undefined,
     classId,
     sessionDate,
     ageBand,

@@ -64,6 +64,8 @@ import {
 } from "../../../core/session-planning-context";
 import type { ScoutingCounts, ScoutingPlanningSignal } from "../../../core/scouting";
 import type { ClassGenerationContext } from "./build-class-generation-context";
+import { applyProfileToPackage, resolveClassProfile } from "../../../core/profile-planning";
+import { profilePlanningGuidance } from "../../../core/class-pedagogical-profile";
 import { buildPedagogicalInputFromContext } from "./build-pedagogical-input-from-context";
 import { buildRecentSessionSummary } from "./build-recent-session-summary";
 
@@ -288,6 +290,9 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     recentPlans,
   });
+  const profile = resolveClassProfile(params.classGroup);
+  const profileGuidance = profilePlanningGuidance(profile?.profile);
+  if (profile) generationContext.constraints = [...generationContext.constraints, profileGuidance.rule, profileGuidance.summary];
   const activityCatalogRecommendations = recommendActivityCatalogVariants({
     primarySkill: strategy.primarySkill,
     secondarySkill: strategy.secondarySkill,
@@ -358,7 +363,7 @@ export const buildAutoPlanForCycleDay = (
   });
   const pedagogyEnvelope = toSessionPedagogyEnvelopeDiagnostics(envelope);
   const sanitizedPlan = sanitizePlanForAgeBand(
-    envelopedPlan,
+    profile ? applyProfileToPackage(applyMonthlyVolleyballGameSessionToPackage(envelopedPlan, monthlyGameSessionPolicy), params.classGroup) : envelopedPlan,
     params.classGroup.ageBand,
     generationContext.developmentStage
   );
@@ -366,7 +371,7 @@ export const buildAutoPlanForCycleDay = (
     cycleContext,
     baseStrategy: strategyDecision.baseStrategy,
     strategy,
-    fingerprint: finalFingerprints.exactFingerprint,
+    fingerprint: profile ? `${finalFingerprints.exactFingerprint}:profile-${profile.version}` : finalFingerprints.exactFingerprint,
     structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     dominantBlockAdjusted: strategyDecision.dominantBlockAdjusted,
@@ -395,6 +400,10 @@ export const buildAutoPlanForCycleDay = (
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,
   });
+  if (profile) decisionTrace.influences.pedagogicalProfile = {
+    version: profile.version, summary: profileGuidance.summary, profile: profile.profile,
+  };
+  if (profile) decisionTrace.teacherFacingSummary = `Perfil da turma v${profile.version}: ${profileGuidance.rule || profileGuidance.summary} ${decisionTrace.teacherFacingSummary}`;
 
   return {
     recentSessions,
@@ -403,7 +412,7 @@ export const buildAutoPlanForCycleDay = (
     strategy,
     overrideAdjusted: strategyDecision.overrideAdjusted,
     overrideInfluence: strategyDecision.overrideInfluence,
-    fingerprint: finalFingerprints.exactFingerprint,
+    fingerprint: profile ? `${finalFingerprints.exactFingerprint}:profile-${profile.version}` : finalFingerprints.exactFingerprint,
     structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
@@ -414,10 +423,7 @@ export const buildAutoPlanForCycleDay = (
     readinessState,
     adaptiveEnvelope,
     coachGuidance,
-    package: applyMonthlyVolleyballGameSessionToPackage(
-      sanitizedPlan.package,
-      monthlyGameSessionPolicy
-    ),
+    package: profile ? sanitizedPlan.package : applyMonthlyVolleyballGameSessionToPackage(sanitizedPlan.package, monthlyGameSessionPolicy),
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,
     monthlyGameSessionPolicy,

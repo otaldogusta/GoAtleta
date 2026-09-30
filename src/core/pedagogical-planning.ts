@@ -2,7 +2,7 @@ import { parseAgeBandRange } from "./age-band";
 import { inferSkillsFromText, progressionPlanToDraft, volleyballLessonPlanToDraft } from "./ai-operations";
 import { isVolleyballClassModality } from "./class-modality";
 import type { ClassGroup, Student, VolleyballSkill } from "./models";
-import type { SessionPlanningContext } from "./session-planning-context";
+import type { SessionPlanningContext } from "./session-planning-context-types";
 import {
   buildNextSessionProgression,
   buildNextVolleyballLessonPlan,

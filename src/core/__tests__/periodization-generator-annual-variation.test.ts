@@ -35,4 +35,24 @@ describe("periodization-generator annual variation", () => {
     expect(firstWeekOfPhase.constraints).toContain("Microciclo");
     expect(laterWeekOfSamePhase.constraints).toContain("Microciclo");
   });
+
+  it("uses the diagnosed game level instead of inferring it only from age", () => {
+    const plan = buildClassPlan({
+      classId: "class_1",
+      ageBand: "09-11",
+      startDate: "2026-03-23",
+      weekNumber: 1,
+      source: "AUTO",
+      mvLevel: "MV2",
+      cycleLength: 48,
+      model: "formacao",
+      sessionsPerWeek: 2,
+      sport: "voleibol",
+      gameLevel: "6x6",
+      classContext: "Priorizar cobertura e transição.",
+    });
+
+    expect(plan.mvFormat).toBe("6x6");
+    expect(plan.constraints).toContain("Priorizar cobertura e transição.");
+  });
 });

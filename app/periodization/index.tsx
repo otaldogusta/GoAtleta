@@ -1,3 +1,4 @@
+import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -662,6 +663,8 @@ export default function PeriodizationScreen() {
   const [periodizationManagerMode, setPeriodizationManagerMode] = useState<
     "manage" | "create-next"
   >("manage");
+  const [periodizationManagerInitialView, setPeriodizationManagerInitialView] =
+    useState<"settings" | "diagnostic">("settings");
   const [sectionOpen, setSectionOpen] = usePersistedState<
     Record<SectionKey, boolean>
   >(
@@ -703,6 +706,9 @@ export default function PeriodizationScreen() {
     useState(false);
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  useEffect(() => subscribeClassProfile(profile => {
+    setClasses(current => current.map(cls => cls.id === profile.class_id && cls.organizationId === profile.organization_id ? { ...cls, pedagogicalProfile: profile } : cls));
+  }), []);
   const [classesLoadState, setClassesLoadState] = useState<
     "loading" | "ready" | "error"
   >("loading");
@@ -1427,6 +1433,11 @@ export default function PeriodizationScreen() {
       recoveryWeeks: managerPeriodizationPolicy.recoveryWeeks,
       intensityMin: managerPeriodizationPolicy.intensityMin,
       intensityMax: managerPeriodizationPolicy.intensityMax,
+      gameLevel: managerPeriodizationPolicy.classDiagnostic?.gameLevel ?? "3x3",
+      netHeightMeters:
+        managerPeriodizationPolicy.classDiagnostic?.netHeightMeters ?? 2.2,
+      teacherContext:
+        managerPeriodizationPolicy.classDiagnostic?.teacherContext ?? "",
     }),
     [
       cycleLength,
@@ -3487,6 +3498,12 @@ export default function PeriodizationScreen() {
           activePeriodizationPolicy.recoveryWeeks,
         intensityMin,
         intensityMax,
+        classDiagnostic: {
+          gameLevel: managerDraft?.gameLevel ?? activePeriodizationPolicy.classDiagnostic?.gameLevel ?? "3x3",
+          netHeightMeters: managerDraft?.netHeightMeters ?? activePeriodizationPolicy.classDiagnostic?.netHeightMeters ?? 2.2,
+          teacherContext: managerDraft?.teacherContext ?? activePeriodizationPolicy.classDiagnostic?.teacherContext ?? "",
+          updatedAt: new Date().toISOString(),
+        },
       });
 
       const cycleYear =
@@ -4312,10 +4329,15 @@ export default function PeriodizationScreen() {
     ) => {
       closeAllPickers();
       setPeriodizationManagerMode(mode);
+      setPeriodizationManagerInitialView(
+        mode === "manage" && !isPeriodizationConfigured && !activeCycle
+          ? "diagnostic"
+          : "settings",
+      );
       setPeriodizationSetupError("");
       setShowPeriodizationManager(true);
     },
-    [closeAllPickers],
+    [activeCycle, closeAllPickers, isPeriodizationConfigured],
   );
 
   const renderLegacyPeriodizationTabs: boolean = false;
@@ -4897,9 +4919,13 @@ export default function PeriodizationScreen() {
           <PeriodizationManagerSheet
             visible={showPeriodizationManager}
             mode={periodizationManagerMode}
+            initialView={periodizationManagerInitialView}
             colors={colors}
             className={classNameLabel}
             classSubtitle={`${normalizeText(selectedClass?.ageBand || "idade não definida")} · ${normalizeText(classGenderLabel)}`}
+            classId={selectedClass?.id ?? ""}
+            organizationId={selectedClass?.organizationId ?? activeOrganization?.id ?? ""}
+            sport={selectedClass?.modality || "volleyball"}
             initialDraft={managerInitialDraft}
             weekPlans={weekPlans}
             autoPlanCount={

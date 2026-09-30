@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { subscribeClassProfile } from "../../../api/class-pedagogical-profile";
 
 import type {
   AttendanceRecord,
@@ -248,6 +249,9 @@ const buildWeeklyItemsWithCalendar = (
 
 export function useMonthlyPlans(classId: string, monthKey: string) {
   const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
+  useEffect(() => subscribeClassProfile(profile => {
+    setSelectedClass(current => current?.id === profile.class_id && current.organizationId === profile.organization_id ? { ...current, pedagogicalProfile: profile } : current);
+  }), []);
   const [activeCycle, setActiveCycle] = useState<PlanningCycle | null>(null);
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
   const [calendarExceptions, setCalendarExceptions] = useState<

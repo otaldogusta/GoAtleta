@@ -8,12 +8,12 @@ import { useAppTheme } from "../../../ui/app-theme";
 import { checkLessonAudioAvailability, transcribeLessonAudio } from "../../../api/lesson-audio";
 import { radius, typography } from "../../../theme/tokens";
 
-type Props = { organizationId: string; classId?: string; disabled: boolean; onText: (text: string) => void; onActiveChange?: (active: boolean) => void };
+type Props = { organizationId: string; classId?: string; compact?: boolean; disabled: boolean; onText: (text: string) => void; onActiveChange?: (active: boolean) => void };
 const formatElapsed = (durationMillis: number) => {
   const totalSeconds = Math.max(0, Math.floor(durationMillis / 1000));
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
 };
-export default function LessonVoiceRecorder({ organizationId, classId, disabled, onText, onActiveChange }: Props) {
+export default function LessonVoiceRecorder({ organizationId, classId, compact, disabled, onText, onActiveChange }: Props) {
   const { colors } = useAppTheme();
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, 250);
@@ -139,9 +139,9 @@ export default function LessonVoiceRecorder({ organizationId, classId, disabled,
     </> : busy ? <View style={styles.pending}><AssistantPending label={pendingLabel} /></View> : null}
     {!busy ? <Pressable accessibilityRole="button" accessibilityLabel={busy ? "Transcrevendo áudio" : state.isRecording ? `Concluir gravação, ${Math.floor(state.durationMillis / 1000)} segundos` : "Gravar mensagem de voz"}
       disabled={busy || (disabled && !state.isRecording)}
-      style={[styles.control, state.isRecording && styles.stopControl, { backgroundColor: state.isRecording ? colors.primaryBg : colors.secondaryBg, borderColor: state.isRecording ? colors.primaryBg : colors.border, opacity: busy || disabled ? 0.55 : 1 }]}
+      style={[styles.control, compact && !active && { width: 36, height: 36, borderRadius: 18 }, state.isRecording && styles.stopControl, { backgroundColor: state.isRecording ? colors.primaryBg : colors.secondaryBg, borderColor: state.isRecording ? colors.primaryBg : colors.border, opacity: busy || disabled ? 0.55 : 1 }]}
       onPress={() => { void (state.isRecording ? stop() : start()); }}>
-      <GoAtletaIcon name={busy ? "hourglass" : state.isRecording ? "stopRecording" : "microphone"} size={20} color={state.isRecording ? colors.primaryText : colors.text} />
+      <GoAtletaIcon name={busy ? "hourglass" : state.isRecording ? "stopRecording" : "microphone"} size={compact && !active ? 16 : 20} color={state.isRecording ? colors.primaryText : colors.text} />
     </Pressable> : null}
     {error ? <View style={[styles.error, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text>

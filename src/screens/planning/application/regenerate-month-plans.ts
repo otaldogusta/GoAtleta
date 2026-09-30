@@ -8,6 +8,7 @@ import type {
   SessionLog,
   Student,
 } from "../../../core/models";
+import { applyProfileToWeeklyPlan } from "../../../core/profile-planning";
 import type { StudentPlanningContextInput } from "./build-unified-planning-context";
 import { resolveLearningObjectives } from "../../../core/pedagogy/objective-language";
 import {
@@ -191,7 +192,7 @@ export const regenerateMonthPlans = async (
   if (foreignCyclePlan) {
     throw new Error("Há um plano semanal vinculado a outro ciclo neste mês.");
   }
-  let monthlyPlans = filteredMonthlyPlans.map((plan) => ({
+  let monthlyPlans: ClassPlan[] = filteredMonthlyPlans.map((plan) => ({
     ...plan,
     cycleId: resolvedCycleId,
   }));
@@ -272,7 +273,7 @@ export const regenerateMonthPlans = async (
       exceptions: params.calendarExceptions,
       monthKey,
     }).sessions.length;
-    const regeneratedWeekly = {
+    const regeneratedWeekly = applyProfileToWeeklyPlan({
       ...regenerateWeeklyPlanFromBlueprint({
         existing: weekPlan,
         blueprint,
@@ -281,7 +282,7 @@ export const regenerateMonthPlans = async (
         weeklySessions,
       }),
       cycleId: resolvedCycleId,
-    };
+    }, classGroup);
 
     await updateClassPlan(regeneratedWeekly, { organizationId });
     monthlyPlans[i] = regeneratedWeekly;

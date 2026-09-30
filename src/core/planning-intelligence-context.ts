@@ -10,6 +10,7 @@ export type PlanningIntelligenceLineage = {
   classId: string;
   cycleId: string | null;
   policyVersion: number;
+  pedagogicalProfileVersion?: number;
   monthlyBlueprintId: string | null;
   monthlyBlueprintVersion: number | null;
   weeklyPlanId: string | null;
@@ -23,6 +24,7 @@ export const buildPlanningIntelligenceLineage = (params: {
   cycle?: PlanningCycle | null;
   cycleId?: string | null;
   policyVersion?: number | null;
+  pedagogicalProfileVersion?: number;
   blueprint?: MonthlyPlanningBlueprint | null;
   weeklyPlan?: ClassPlan | null;
   recentSessions?: RecentSessionSummary[] | null;
@@ -33,6 +35,7 @@ export const buildPlanningIntelligenceLineage = (params: {
   cycleId: params.cycle?.id ?? params.cycleId ?? null,
   policyVersion:
     params.cycle?.policyVersion ?? params.policyVersion ?? 1,
+  pedagogicalProfileVersion: params.pedagogicalProfileVersion,
   monthlyBlueprintId: params.blueprint?.id ?? null,
   monthlyBlueprintVersion: params.blueprint?.generationVersion ?? null,
   weeklyPlanId: params.weeklyPlan?.id ?? null,

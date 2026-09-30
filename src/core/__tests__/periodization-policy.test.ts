@@ -44,6 +44,28 @@ describe("periodization policy", () => {
     });
   });
 
+  it("preserves the teacher-confirmed class diagnostic", () => {
+    const serialized = serializePeriodizationPolicy({
+      loadModel: "ondulatorio",
+      recoveryWeeks: 4,
+      intensityMin: 3,
+      intensityMax: 6,
+      classDiagnostic: {
+        gameLevel: "6x6",
+        netHeightMeters: 2.2,
+        teacherContext: "Já joga na quadra inteira e precisa avançar a transição.",
+        updatedAt: "2026-09-28T18:00:00.000Z",
+      },
+    });
+
+    expect(parsePeriodizationPolicy(serialized).classDiagnostic).toEqual({
+      gameLevel: "6x6",
+      netHeightMeters: 2.2,
+      teacherContext: "Já joga na quadra inteira e precisa avançar a transição.",
+      updatedAt: "2026-09-28T18:00:00.000Z",
+    });
+  });
+
   it("uses a configured recovery week instead of silently ignoring it", () => {
     const week = resolvePeriodizationWeekPolicy({
       policy: normalizePeriodizationPolicy({

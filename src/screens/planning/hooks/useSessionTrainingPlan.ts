@@ -70,7 +70,7 @@ export function useSessionTrainingPlan({
                 existingPlan?.pedagogy?.decisionTrace ||
                 existingPlan?.pedagogy?.generationExplanation
             ));
-        if (existingPlan && !isReplaceableAutomaticPlan) {
+        if (existingPlan && (!isReplaceableAutomaticPlan || classGroup.pedagogicalProfile)) {
           setPlan(existingPlan);
           setLessonDate(event.date);
           return existingPlan;

@@ -1,5 +1,17 @@
 # Continuidade — 16/09/2026
 
+## Perfil pedagógico inteligente — publicação de 29/09/2026
+
+Pacote autorizado para `main`. O diagnóstico da turma passa a ser um perfil pedagógico persistente, versionado e auditável, compartilhado pelo assistente e pelos geradores mensal, semanal e diário. Relatos são salvos independentemente das configurações do ciclo; planos existentes só mudam após revisão explícita.
+
+- Perfil canônico isolado por organização e turma, com revisões, origem, autor, histórico, idempotência, controle de concorrência, desfazer e RLS.
+- Diagnóstico compacto em seis etapas, acesso a **Perfil da turma**, quadras proporcionais por formato, altura de rede coerente e agenda no padrão do editor de turma.
+- Para as Raposas, o perfil vigente registra 6x6, até três quiques opcionais por rally, manchete/toque após o quique, proibição de dois contatos consecutivos pela mesma pessoa e três contatos não obrigatórios.
+- O perfil influencia objetivos, progressões, regras adaptadas e critérios de observação; cada plano guarda a versão usada. Alterações futuras geram revisão seletiva, sem sobrescrever aulas realizadas ou edições manuais.
+- Migração `20260929025310_class_pedagogical_profiles.sql` aplicada e alinhada no projeto remoto. Função Edge `assistant` ativa na versão 86 com JWT verificado.
+- Validação de publicação: `build:verified` aprovado com 524 suítes Jest / 2.894 testes, 7 suítes PostgreSQL isoladas, typecheck, lint sem avisos, escopo de organização, arquitetura, performance de release e export web de 117 rotas. Smoke autenticado do perfil das Raposas concluído no localhost antes do fechamento.
+- Screenshots, logs, `artifacts/` e `test-results/` permanecem apenas locais e não devem acompanhar o commit.
+
 ## Publicação de turmas e assistente — 21/09/2026
 
 Pacote autorizado para `main`, com o editor moderno de turma compartilhado entre detalhe e listagem, correções de presença/relatório de aula e evolução do assistente. Os arquivos locais de QA em `artifacts/` e `test-results/` não fazem parte da publicação.

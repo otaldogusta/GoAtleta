@@ -1,4 +1,5 @@
 import { buildCompetitiveClassPlan } from "../../core/competitive-periodization";
+import { applyProfileToWeeklyPlan } from "../../core/profile-planning";
 import type {
     ClassCalendarException,
     ClassCompetitiveProfile,
@@ -321,6 +322,8 @@ export const buildAutoWeekPlan = (
         model: params.periodizationModel,
         sessionsPerWeek: params.weeklySessions,
         sport: params.sportProfile,
+        gameLevel: normalizePeriodizationPolicy(params.periodizationPolicy).classDiagnostic?.gameLevel,
+        classContext: normalizePeriodizationPolicy(params.periodizationPolicy).classDiagnostic?.teacherContext,
       });
 
   if (!plan) return null;
@@ -552,5 +555,5 @@ export const buildAutoWeekPlan = (
   });
   plan.weeklyIntegratedContextJson = JSON.stringify(integratedCtx);
 
-  return plan;
+  return applyProfileToWeeklyPlan(plan, selectedClass);
 };

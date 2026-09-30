@@ -11,12 +11,12 @@ class AudioBoundary extends Component<{ children: ReactNode; fallback: ReactNode
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-export function LessonVoiceInput(props: { organizationId: string; classId?: string; disabled: boolean; onText: (text: string) => void; onActiveChange?: (active: boolean) => void }) {
+export function LessonVoiceInput(props: { organizationId: string; classId?: string; compact?: boolean; disabled: boolean; onText: (text: string) => void; onActiveChange?: (active: boolean) => void }) {
   const { colors } = useAppTheme();
   const fallback = <Pressable accessibilityRole="button" accessibilityLabel="Microfone indisponível. Você pode digitar." disabled
-    style={[styles.fallback, { borderColor: colors.border }]}><GoAtletaIcon name="microphone" size={20} color={colors.muted} /></Pressable>;
+    style={[styles.fallback, props.compact && { width: 36, height: 36, borderRadius: 18 }, { borderColor: colors.border }]}><GoAtletaIcon name="microphone" size={props.compact ? 16 : 20} color={colors.muted} /></Pressable>;
   const loading = <Pressable accessibilityRole="button" accessibilityLabel="Carregando microfone" disabled
-    style={[styles.fallback, { borderColor: colors.border }]}><GoAtletaIcon name="microphone" size={20} color={colors.muted} /></Pressable>;
+    style={[styles.fallback, props.compact && { width: 36, height: 36, borderRadius: 18 }, { borderColor: colors.border }]}><GoAtletaIcon name="microphone" size={props.compact ? 16 : 20} color={colors.muted} /></Pressable>;
   if (Platform.OS !== "web" && !requireOptionalNativeModule("ExpoAudio")) {
     return fallback;
   }

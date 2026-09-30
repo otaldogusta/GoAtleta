@@ -34,7 +34,9 @@ import {
 import { summarizeLessonActivity } from "../../../pdf/summarize-lesson-activity";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
 import type { WeekSessionPreview } from "../../periodization/application/build-week-session-preview";
-import { serializeLessonBlocks } from "./daily-lesson-blocks";
+import { serializeLessonBlocks, buildFallbackLessonBlocks } from "./daily-lesson-blocks";
+import { resolveClassProfile } from "../../../core/profile-planning";
+import { profilePlanningGuidance } from "../../../core/class-pedagogical-profile";
 
 const DAILY_OVERRIDE_FIELDS = [
   "title",
@@ -1280,6 +1282,21 @@ export const buildAutoDailyLessonPlan = (
         },
       }
     : regularRendered;
+  const pedagogicalProfile = resolveClassProfile(context?.classGroup);
+  const profileGuidance = profilePlanningGuidance(pedagogicalProfile?.profile);
+  if (pedagogicalProfile) {
+    if (profileGuidance.format) {
+      const focus = profileGuidance.priorities[0] || weeklyPlan.specificObjective || "organização e continuidade";
+      rendered.title = `${profileGuidance.format} · ${monthlyGamePolicy?.applies ? "Jogo consolidado do mês" : focus}`;
+      rendered.mainPart = [
+        `Organize equipes em ${profileGuidance.format}, com rodízio para garantir participação.`,
+        monthlyGamePolicy?.applies ? "Mantenha o jogo contínuo, sem treino técnico isolado." : `Observe ${focus}. Se necessário, use uma tarefa curta em grupo reduzido para esse objetivo e retorne ao ${profileGuidance.format}.`,
+        ...profileGuidance.adaptations,
+        "Mantenha as restrições individuais, pausas e carga previstas. Observe a continuidade e as decisões, sem exigir domínio ainda não confirmado.",
+      ].join(" ");
+    }
+    rendered.observations = [rendered.observations, `Perfil da turma v${pedagogicalProfile.version}.`, profileGuidance.summary].filter(Boolean).join("\n");
+  }
   const alignmentCheck = checkLessonAlignmentWithPeriodization({
     weeklyPlan: {
       id: weeklyPlan.id,
@@ -1313,6 +1330,7 @@ export const buildAutoDailyLessonPlan = (
     weeklyPlan.generationContextSnapshotJson
   );
   const contextSnapshot = {
+    pedagogicalProfile,
     schemaVersion: 1,
     source: "daily-generator-v5-teacher-language",
     profile,
@@ -1483,6 +1501,7 @@ export const regenerateDailyLessonPlanFromWeek = (params: {
 
   return {
     ...merged,
+    blocksJson: serializeLessonBlocks(buildFallbackLessonBlocks({ warmup: merged.warmup, mainPart: merged.mainPart, cooldown: merged.cooldown, durationMinutes: context?.durationMinutes })),
     sessionComponents: existing.sessionComponents ?? auto.sessionComponents,
     sessionEnvironment: existing.sessionEnvironment ?? auto.sessionEnvironment,
     sessionPrimaryComponent:

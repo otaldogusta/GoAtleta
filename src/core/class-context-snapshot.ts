@@ -1,9 +1,11 @@
 import type { AttendanceRecord, ClassGroup, DecisionReason, SessionLog, Student } from "./models";
 import type { PlannedSession } from "./session-calendar-engine";
+import { resolveClassProfile } from "./profile-planning";
 
 export type RosterDensityProfile = "small" | "medium" | "large" | "unknown";
 
 export type ClassContextSnapshot = {
+  pedagogicalProfile?: import("./class-pedagogical-profile").ProfileRecord;
   schemaVersion: 1;
   classId: string;
   generatedAt: string;
@@ -213,6 +215,7 @@ export const buildClassContextSnapshot = (params: {
 
   return {
     schemaVersion: 1,
+    pedagogicalProfile: resolveClassProfile(params.classGroup),
     classId: params.classGroup.id,
     generatedAt: params.generatedAt ?? new Date().toISOString(),
     profile: {

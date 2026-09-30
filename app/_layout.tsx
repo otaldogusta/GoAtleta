@@ -1048,7 +1048,6 @@ select:focus-visible {
 input,
 textarea {
   -webkit-tap-highlight-color: transparent;
-  border-radius: 0px !important;
 }
 html,
 body,
@@ -1078,7 +1077,6 @@ textarea:-webkit-autofill:active {
   filter: none !important;
   -webkit-appearance: none;
   appearance: none;
-  border-radius: 0px !important;
 }
 html, body {
   scrollbar-width: thin;

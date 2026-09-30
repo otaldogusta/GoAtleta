@@ -1,3 +1,4 @@
+import { ProfilePlanReview } from "./components/ProfilePlanReview";
 import { useActionSignal } from "../../hooks/use-action-signal";
 import { Suspense, lazy, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1161,6 +1162,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
       style={{ paddingHorizontal: layout.gutter }}
     >
       <View ref={containerRef} onLayout={onLayout} style={{ gap: 0, borderTopWidth: layout.usesWorkspaceShell ? 1 : 0, borderTopColor: colors.border }}>
+        {monthly.selectedClass?.pedagogicalProfile && !monthly.isHistoricalCycle ? <ProfilePlanReview key={monthly.selectedClass.id} classGroup={monthly.selectedClass} events={monthly.agendaEvents} students={monthly.students ?? []} calendarExceptions={monthly.calendarExceptions} sessionLogs={monthly.recentSessionLogs} onApplied={() => void reloadMonthly()} /> : null}
         {!dense ? (
           <View style={{ paddingVertical: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>

@@ -17,6 +17,6 @@ describe("global web input focus", () => {
     expect(focusRule).not.toContain("select:focus-visible");
     expect(layout).toContain("select:focus-visible {");
     expect(focusRule).not.toMatch(/border(?:-color)?:/);
-    expect(layout).toContain("border-radius: 0px !important");
+    expect(layout).not.toMatch(/border-radius:\s*0(?:px)?\s*!important/);
   });
 });

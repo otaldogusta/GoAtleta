@@ -17,7 +17,7 @@ import {
 } from "./client";
 import type { ExerciseRow, TrainingPlanRow } from "./row-types";
 
-const mapTrainingPlanRow = (row: TrainingPlanRow): TrainingPlan => ({
+export const mapTrainingPlanRow = (row: TrainingPlanRow): TrainingPlan => ({
   id: row.id,
   classId: row.classid,
   title: row.title,
@@ -81,7 +81,7 @@ const buildTrainingPlanBasePayload = (
   pedagogy: plan.pedagogy ?? null,
 });
 
-const buildTrainingPlanVersionedPayload = (
+export const buildTrainingPlanVersionedPayload = (
   plan: TrainingPlan,
   organizationId: string | null
 ) => ({
