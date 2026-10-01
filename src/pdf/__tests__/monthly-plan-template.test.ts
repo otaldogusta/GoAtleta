@@ -30,7 +30,7 @@ describe("monthlyPlanHtml", () => {
 
     expect(html).not.toContain("o fundamento da aula");
     expect(html).not.toContain(">-<");
-    expect(html).toContain('data-field="title"');
+    expect(html).toContain('data-field="document-week"');
     expect(html).toContain('data-field="generalObjective"');
     expect(html).toContain('data-field="block-activities-Aquecimento"');
   });

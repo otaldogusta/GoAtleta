@@ -1,4 +1,5 @@
 import { useUndoHistory } from "../../../hooks/use-undo-history";
+import { editLessonDocumentText } from "../application/edit-lesson-document-text";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -301,9 +302,16 @@ export function ClassPlanPreviewModal({
     if (isDirty) onDraftChange?.(workingPlan);
   }, [isDirty, onDirtyChange, onDraftChange, workingPlan]);
 
+  // Parent context updates may recreate the same source object while typing.
+  // Only changed source values should rebuild the iframe and its editable DOM.
+  const periodizationSourceKey = JSON.stringify(periodizationSource ?? null);
+  const pdfPeriodizationSource = useMemo(
+    () => JSON.parse(periodizationSourceKey) as SessionPlanPeriodizationSource | undefined,
+    [periodizationSourceKey]
+  );
   const pdfData = useMemo(
-    () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName, periodizationSource }),
-    [classGroup, coachName, lessonDate, pdfPlan, periodizationSource]
+    () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName, periodizationSource: pdfPeriodizationSource ?? undefined }),
+    [classGroup, coachName, lessonDate, pdfPlan, pdfPeriodizationSource]
   );
   const fileName = useMemo(() => {
     const date = lessonDate || pdfPlan.applyDate || "aula";
@@ -528,7 +536,15 @@ export function ClassPlanPreviewModal({
           directEditSnapshotCapturedRef.current = true;
         }
 
-        if (field === "title") {
+        if (field.startsWith("document-")) {
+          const nextPlan = editLessonDocumentText(workingPlanRef.current, field.slice("document-".length), text);
+          if (nextPlan !== workingPlanRef.current) {
+            workingPlanRef.current = nextPlan;
+            setWorkingPlan(nextPlan);
+            setIsDirty(true);
+            setPdfStatusLabel("Alterações não salvas");
+          }
+        } else if (field === "title") {
           updatePlanTitle(text);
         } else if (field === "generalObjective") {
           updatePdfContentField("generalObjective", text);

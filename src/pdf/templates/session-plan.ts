@@ -61,6 +61,7 @@ export type SessionPlanPdfData = {
   notes?: string;
   blocks: SessionBlock[];
   coachName?: string;
+  documentText?: Record<string, string>;
   preserveEmptyFields?: boolean;
   periodizationSource?: SessionPlanPeriodizationSource;
 };
@@ -195,6 +196,7 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
     lessons: [
       {
         id: "session-plan",
+        documentText: data.documentText,
         weekLabel,
         dateLabel: asText(data?.dateLabel) || "-",
         timeLabel: asText(data?.timeLabel) || "-",

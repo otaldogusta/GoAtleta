@@ -1,4 +1,5 @@
 import { normalizeDisplayText } from "../../utils/text-normalization";
+import { lessonDocumentText } from "../lesson-document-text";
 
 export type MonthlyLessonPlanBlockRow = {
   period: "Aquecimento" | "Parte principal" | "Volta à calma";
@@ -35,6 +36,7 @@ export type MonthlyLessonPlanItem = {
   blocks: MonthlyLessonPlanBlockRow[];
   observations?: string;
   preserveEmptyFields?: boolean;
+  documentText?: Record<string, string>;
 };
 
 export type MonthlyPlanPdfData = {
@@ -96,6 +98,8 @@ const lessonCardHtmlWithProfessor = (
   const emptyValue = lesson.preserveEmptyFields ? "" : "-";
   const editAttr = (field: string, extra = "") =>
     editable ? ` contenteditable="true" data-field="${field}" class="pdf-editable-cell"${extra ? ` ${extra}` : ""}` : "";
+  const documentValue = (key: string, fallback: string) => esc(lessonDocumentText(lesson.documentText, key, fallback));
+  const documentAttr = (key: string) => editAttr(`document-${key}`);
 
   const getBlockKey = (period: string) =>
     period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
@@ -107,13 +111,13 @@ const lessonCardHtmlWithProfessor = (
       return block.period === "Volta à calma"
         ? `
         <tr class="block-row block-cooldown">
-          <th class="label-cell period">Volta à calma:</th>
+          <th class="label-cell period"${documentAttr("periodCooldown")}>${documentValue("periodCooldown", "Volta à calma:")}</th>
           <td colspan="3"${editAttr(`block-activities-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.activities || block.description, emptyValue)}</td>
         </tr>
       `
         : `
         <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}">
-          <td class="period"${bKeyAttr ? ` ${bKeyAttr}` : ""}>${esc(block.period)}</td>
+          <td class="period"${documentAttr(blockKey === "warmup" ? "periodWarmup" : "periodMain")}${bKeyAttr ? ` ${bKeyAttr}` : ""}>${documentValue(blockKey === "warmup" ? "periodWarmup" : "periodMain", block.period)}</td>
           <td class="activities"${editAttr(`block-activities-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.activities, emptyValue)}</td>
           <td class="time"${editAttr(`block-time-${block.period}`, bKeyAttr)}>${esc(block.time || emptyValue)}</td>
           <td class="description"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.description, emptyValue)}</td>
@@ -134,67 +138,71 @@ const lessonCardHtmlWithProfessor = (
         </colgroup>
         <tbody>
           <tr class="title-row">
-            <th class="title" colspan="4">PLANO DE AULA — ESCOLINHA VÔLEI</th>
+            <th class="title" colspan="4"${documentAttr("documentTitle")}>${documentValue("documentTitle", "PLANO DE AULA — ESCOLINHA VÔLEI")}</th>
           </tr>
           <tr class="field-row">
-            <th class="label-cell">Professor:</th>
-            <td class="value-cell">${esc(professorName)}</td>
-            <th class="label-cell label-secondary">Turma:</th>
-            <td class="value-cell value-class">${esc(className)}${ageGroup ? ` (${esc(ageGroup)} anos${genderLabel ? `, ${esc(genderLabel)}` : ""})` : ""}</td>
+            <th class="label-cell"${documentAttr("labelProfessor")}>${documentValue("labelProfessor", "Professor:")}</th>
+            <td class="value-cell"${documentAttr("professor")}>${documentValue("professor", professorName)}</td>
+            <th class="label-cell label-secondary"${documentAttr("labelClass")}>${documentValue("labelClass", "Turma:")}</th>
+            <td class="value-cell value-class"${documentAttr("class")}>${documentValue("class", `${className}${ageGroup ? ` (${ageGroup} anos${genderLabel ? `, ${genderLabel}` : ""})` : ""}`)}</td>
           </tr>
           <tr class="field-row">
-            <th class="label-cell">Semana:</th>
-            <td class="value-cell"${lesson.preserveEmptyFields ? editAttr("title") : ""} colspan="3">${esc(lesson.weekLabel)}</td>
+            <th class="label-cell"${documentAttr("labelWeek")}>${documentValue("labelWeek", "Semana:")}</th>
+            <td class="value-cell"${documentAttr("week")} colspan="3">${documentValue("week", lesson.weekLabel)}</td>
           </tr>
           <tr class="field-row">
-            <th class="label-cell">Data:</th>
-            <td class="value-cell">${esc(lesson.dateLabel)}</td>
-            <th class="label-cell label-secondary">Horário:</th>
-            <td class="value-cell">${esc(lesson.timeLabel || "-")}</td>
+            <th class="label-cell"${documentAttr("labelDate")}>${documentValue("labelDate", "Data:")}</th>
+            <td class="value-cell"${documentAttr("date")}>${documentValue("date", lesson.dateLabel)}</td>
+            <th class="label-cell label-secondary"${documentAttr("labelTime")}>${documentValue("labelTime", "Horário:")}</th>
+            <td class="value-cell"${documentAttr("time")}>${documentValue("time", lesson.timeLabel || "-")}</td>
           </tr>
           ${lesson.periodizationSource ? `
           <tr class="field-row periodization-row">
-            <th class="label-cell">Periodização:</th>
-            <td class="value-cell" colspan="3">
+            <th class="label-cell"${documentAttr("labelPeriodization")}>${documentValue("labelPeriodization", "Periodização:")}</th>
+            <td class="value-cell" colspan="3"${documentAttr("periodization")}>
+              ${lesson.documentText?.periodization !== undefined ? documentValue("periodization", "") : `
               <strong>${esc(lesson.periodizationSource.weekLabel)}</strong>
               <span class="periodization-separator"> · </span>${esc(lesson.periodizationSource.phaseLabel)}
               <span class="periodization-separator"> · </span><strong>Foco:</strong> ${esc(lesson.periodizationSource.focusLabel)}
               <span class="periodization-separator"> · </span><strong>Carga:</strong> ${esc(lesson.periodizationSource.loadLabel)}
               <span class="periodization-separator"> · </span><strong>Papel:</strong> ${esc(lesson.periodizationSource.roleLabel)}
+              `}
             </td>
           </tr>
           ` : ""}
           ${lesson.periodizationSource && (lesson.periodizationSource.classLevelLabel || lesson.periodizationSource.objectiveLabel || lesson.periodizationSource.loadModelLabel) ? `
           <tr class="field-row periodization-row">
-            <th class="label-cell">Contexto:</th>
-            <td class="value-cell" colspan="3">
+            <th class="label-cell"${documentAttr("labelContext")}>${documentValue("labelContext", "Contexto:")}</th>
+            <td class="value-cell" colspan="3"${documentAttr("context")}>
+              ${lesson.documentText?.context !== undefined ? documentValue("context", "") : `
               ${lesson.periodizationSource.classLevelLabel ? `<strong>Nível:</strong> ${esc(lesson.periodizationSource.classLevelLabel)}` : ""}
               ${lesson.periodizationSource.objectiveLabel ? `<span class="periodization-separator"> · </span><strong>Objetivo:</strong> ${esc(lesson.periodizationSource.objectiveLabel)}` : ""}
               ${lesson.periodizationSource.loadModelLabel ? `<span class="periodization-separator"> · </span><strong>Modelo:</strong> ${esc(lesson.periodizationSource.loadModelLabel)}` : ""}
+              `}
             </td>
           </tr>
           ` : ""}
           <tr class="content-row">
-            <th class="label-cell">Objetivo geral:</th>
+            <th class="label-cell"${documentAttr("labelGeneralObjective")}>${documentValue("labelGeneralObjective", "Objetivo geral:")}</th>
             <td class="value-cell"${editAttr("generalObjective", 'data-section="pedagogy"')} colspan="3">${esc(lesson.generalObjective)}</td>
           </tr>
           <tr class="content-row specific-row">
-            <th class="label-cell">Objetivo específico:</th>
+            <th class="label-cell"${documentAttr("labelSpecificObjective")}>${documentValue("labelSpecificObjective", "Objetivo específico:")}</th>
             <td class="value-cell"${editAttr("specificObjective", 'data-section="pedagogy"')} colspan="3">${specificObjectiveHtml(lesson.specificObjective)}</td>
           </tr>
           <tr class="content-row situation-row">
-            <th class="label-cell">Situação-problema:</th>
+            <th class="label-cell"${documentAttr("labelSituationProblem")}>${documentValue("labelSituationProblem", "Situação-problema:")}</th>
             <td class="value-cell situation-value"${editAttr("situationProblem", 'data-section="pedagogy"')} colspan="3">${esc(lesson.situationProblem || emptyValue)}</td>
           </tr>
           <tr class="table-header-row">
-            <th>Período</th>
-            <th>Atividades</th>
-            <th>Tempo</th>
-            <th>Descrição / condução da situação-problema</th>
+            <th${documentAttr("columnPeriod")}>${documentValue("columnPeriod", "Período")}</th>
+            <th${documentAttr("columnActivities")}>${documentValue("columnActivities", "Atividades")}</th>
+            <th${documentAttr("columnTime")}>${documentValue("columnTime", "Tempo")}</th>
+            <th${documentAttr("columnDescription")}>${documentValue("columnDescription", "Descrição / condução da situação-problema")}</th>
           </tr>
           ${rows}
           <tr class="observations-row">
-            <th class="label-cell">Observações:</th>
+            <th class="label-cell"${documentAttr("labelObservations")}>${documentValue("labelObservations", "Observações:")}</th>
             <td${editAttr("observations", 'data-section="pedagogy"')} colspan="3">${esc(lesson.observations || "")}</td>
           </tr>
         </tbody>

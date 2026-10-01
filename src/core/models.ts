@@ -638,6 +638,8 @@ export type TrainingPlanPedagogy = {
   sessionObjectiveSource?: "generated" | "auto_from_plan" | "manual";
   preserveEmptyFields?: boolean;
   lessonPlanObservations?: string;
+  /** Text edited in the lesson document, without changing class or schedule records. */
+  lessonDocumentText?: Record<string, string>;
   learningObjectives?: {
     general: string;
     specific: string[];

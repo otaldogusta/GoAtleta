@@ -139,6 +139,7 @@ export const buildClassPlanPdfData = ({
     unitLabel: hasAssignedClass ? normalizeDisplayText(classGroup.unit) : "",
     genderLabel: hasAssignedClass ? formatGender(classGroup.gender) : "",
     coachName: normalizeDisplayText(coachName ?? ""),
+    documentText: plan.pedagogy?.lessonDocumentText,
     dateLabel: formatDateLabel(lessonDate),
     timeLabel: hasAssignedClass ? formatTimeLabel(classGroup.startTime, totalDuration) : "",
     weekLabel: periodization?.weekNumber ? `SEMANA ${String(periodization.weekNumber).padStart(2, "0")}` : "",

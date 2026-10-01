@@ -1,4 +1,5 @@
 import React from "react";
+import { lessonDocumentText } from "./lesson-document-text";
 import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { MonthlyLessonPlanItem, MonthlyPlanPdfData } from "./templates/monthly-plan";
@@ -226,15 +227,15 @@ function FieldRow({
   return (
     <View style={[styles.row, styles.fieldRow]}>
       <View style={[styles.cell, styles.fieldCell, styles.labelCell, styles.fieldLabel]}>
-        <Text style={styles.labelText}>{leftLabel}:</Text>
+        <Text style={styles.labelText}>{leftLabel}</Text>
       </View>
-      <View style={[styles.cell, styles.fieldCell, rightLabel ? styles.pairValue : styles.fieldValue, ...(rightLabel ? [] : [styles.lastCell])] as any}>
+      <View style={[styles.cell, styles.fieldCell, rightLabel !== undefined ? styles.pairValue : styles.fieldValue, ...(rightLabel !== undefined ? [] : [styles.lastCell])] as any}>
         <Text style={styles.text}>{leftValue || emptyValue}</Text>
       </View>
-      {rightLabel ? (
+      {rightLabel !== undefined ? (
         <>
           <View style={[styles.cell, styles.fieldCell, styles.labelCell, styles.secondaryLabel]}>
-            <Text style={styles.labelText}>{rightLabel}:</Text>
+            <Text style={styles.labelText}>{rightLabel}</Text>
           </View>
           <View style={[styles.cell, styles.fieldCell, styles.rightPairValue, styles.lastCell]}>
             <Text style={styles.text}>{rightValue || emptyValue}</Text>
@@ -250,7 +251,7 @@ function ContentRow({ label, value, situation = false, specific = false, preserv
   return (
     <View style={[styles.row, styles.contentRow, ...(specific ? [styles.specificRow] : []), ...(situation ? [styles.situationRow] : [])] as any}>
       <View style={[styles.cell, styles.labelCell, styles.fieldLabel, ...(situation ? [styles.situationLabel] : [])] as any}>
-        <Text style={styles.labelText}>{label}:</Text>
+        <Text style={styles.labelText}>{label}</Text>
       </View>
       <View style={[styles.cell, styles.fullValue, styles.lastCell]}>
         {specific ? (
@@ -266,41 +267,44 @@ function ContentRow({ label, value, situation = false, specific = false, preserv
 function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanItem; data: MonthlyPlanPdfData; pageLabel: string }) {
   const preserveEmpty = lesson.preserveEmptyFields === true;
   const emptyValue = preserveEmpty ? "" : "-";
+  const doc = (key: string, fallback: string) => lessonDocumentText(lesson.documentText, key, fallback);
   return (
     <>
       {pageLabel ? <Text style={styles.pageLabel}>{pageLabel}</Text> : null}
       <View style={styles.table}>
       <View style={styles.row}>
         <View style={styles.titleCell}>
-          <Text style={styles.title}>PLANO DE AULA — ESCOLINHA VÔLEI</Text>
+          <Text style={styles.title}>{doc("documentTitle", "PLANO DE AULA — ESCOLINHA VÔLEI")}</Text>
         </View>
       </View>
 
       <FieldRow
-        leftLabel="Professor"
-        leftValue={data.professorName}
-        rightLabel="Turma"
-        rightValue={`${data.className}${data.ageGroup ? ` (${data.ageGroup} anos${data.genderLabel ? `, ${data.genderLabel}` : ""})` : ""}`}
-        preserveEmpty={preserveEmpty}
+        leftLabel={doc("labelProfessor", "Professor:")}
+        leftValue={doc("professor", data.professorName)}
+        rightLabel={doc("labelClass", "Turma:")}
+        rightValue={doc("class", `${data.className}${data.ageGroup ? ` (${data.ageGroup} anos${data.genderLabel ? `, ${data.genderLabel}` : ""})` : ""}`)}
+        preserveEmpty={preserveEmpty || Boolean(lesson.documentText)}
       />
-      <FieldRow leftLabel="Semana" leftValue={lesson.weekLabel} preserveEmpty={preserveEmpty} />
-      <FieldRow leftLabel="Data" leftValue={lesson.dateLabel} rightLabel="Horário" rightValue={lesson.timeLabel || emptyValue} preserveEmpty={preserveEmpty} />
-      <ContentRow label="Objetivo geral" value={lesson.generalObjective} preserveEmpty={preserveEmpty} />
-      <ContentRow label="Objetivo específico" value={lesson.specificObjective} specific preserveEmpty={preserveEmpty} />
-      <ContentRow label="Situação-problema" value={lesson.situationProblem || emptyValue} situation preserveEmpty={preserveEmpty} />
+      <FieldRow leftLabel={doc("labelWeek", "Semana:")} leftValue={doc("week", lesson.weekLabel)} preserveEmpty={preserveEmpty || lesson.documentText?.week === ""} />
+      <FieldRow leftLabel={doc("labelDate", "Data:")} leftValue={doc("date", lesson.dateLabel)} rightLabel={doc("labelTime", "Horário:")} rightValue={doc("time", lesson.timeLabel || emptyValue)} preserveEmpty={preserveEmpty || Boolean(lesson.documentText)} />
+      {lesson.periodizationSource ? <ContentRow label={doc("labelPeriodization", "Periodização:")} value={doc("periodization", `${lesson.periodizationSource.weekLabel} · ${lesson.periodizationSource.phaseLabel} · Foco: ${lesson.periodizationSource.focusLabel} · Carga: ${lesson.periodizationSource.loadLabel} · Papel: ${lesson.periodizationSource.roleLabel}`)} preserveEmpty /> : null}
+      {lesson.periodizationSource && (lesson.periodizationSource.classLevelLabel || lesson.periodizationSource.objectiveLabel || lesson.periodizationSource.loadModelLabel) ? <ContentRow label={doc("labelContext", "Contexto:")} value={doc("context", [lesson.periodizationSource.classLevelLabel ? `Nível: ${lesson.periodizationSource.classLevelLabel}` : "", lesson.periodizationSource.objectiveLabel ? `Objetivo: ${lesson.periodizationSource.objectiveLabel}` : "", lesson.periodizationSource.loadModelLabel ? `Modelo: ${lesson.periodizationSource.loadModelLabel}` : ""].filter(Boolean).join(" · "))} preserveEmpty /> : null}
+      <ContentRow label={doc("labelGeneralObjective", "Objetivo geral:")} value={lesson.generalObjective} preserveEmpty={preserveEmpty || Boolean(lesson.documentText)} />
+      <ContentRow label={doc("labelSpecificObjective", "Objetivo específico:")} value={lesson.specificObjective} specific preserveEmpty={preserveEmpty || Boolean(lesson.documentText)} />
+      <ContentRow label={doc("labelSituationProblem", "Situação-problema:")} value={lesson.situationProblem || emptyValue} situation preserveEmpty={preserveEmpty || Boolean(lesson.documentText)} />
 
       <View style={styles.row}>
         <View style={[styles.cell, styles.tableHeaderCell, styles.periodCell]}>
-          <Text style={styles.tableHeaderText}>Período</Text>
+          <Text style={styles.tableHeaderText}>{doc("columnPeriod", "Período")}</Text>
         </View>
         <View style={[styles.cell, styles.tableHeaderCell, styles.activitiesCell]}>
-          <Text style={styles.tableHeaderText}>Atividades</Text>
+          <Text style={styles.tableHeaderText}>{doc("columnActivities", "Atividades")}</Text>
         </View>
         <View style={[styles.cell, styles.tableHeaderCell, styles.timeCell]}>
-          <Text style={styles.tableHeaderText}>Tempo</Text>
+          <Text style={styles.tableHeaderText}>{doc("columnTime", "Tempo")}</Text>
         </View>
         <View style={[styles.cell, styles.tableHeaderCell, styles.descriptionCell, styles.lastCell]}>
-          <Text style={styles.tableHeaderText}>Descrição / condução da situação-problema</Text>
+          <Text style={styles.tableHeaderText}>{doc("columnDescription", "Descrição / condução da situação-problema")}</Text>
         </View>
       </View>
 
@@ -308,7 +312,7 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
         if (block.period === "Volta à calma") {
           return <View key={`${lesson.id}-${block.period}`} style={[styles.row, styles.cooldownBlockRow]} wrap={false}>
             <View style={[styles.cell, styles.labelCell, styles.periodCell, styles.centeredCell]}>
-              <Text style={[styles.text, styles.bold]}>Volta à calma:</Text>
+              <Text style={[styles.text, styles.bold]}>{doc("periodCooldown", "Volta à calma:")}</Text>
             </View>
             <View style={[styles.cell, styles.fullValue, styles.lastCell, styles.centeredCell]}>
               <Text style={styles.text}>{block.activities || block.description || emptyValue}</Text>
@@ -327,7 +331,7 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
               wrap={false}
             >
               <View style={[styles.cell, styles.periodCell, styles.centeredCell]}>
-                <Text style={[styles.text, styles.bold]}>{itemIndex === 0 ? block.period : ""}</Text>
+                <Text style={[styles.text, styles.bold]}>{itemIndex === 0 ? doc(block.period === "Aquecimento" ? "periodWarmup" : "periodMain", block.period) : ""}</Text>
               </View>
               <View style={[styles.cell, styles.activitiesCell, styles.centeredCell]}>
                 <Text style={styles.text}>{item.activity || emptyValue}</Text>
@@ -348,7 +352,7 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
             wrap={false}
           >
             <View style={[styles.cell, styles.periodCell, styles.centeredCell]}>
-              <Text style={[styles.text, styles.bold]}>{block.period}</Text>
+              <Text style={[styles.text, styles.bold]}>{doc(block.period === "Aquecimento" ? "periodWarmup" : "periodMain", block.period)}</Text>
             </View>
             <View style={[styles.cell, styles.activitiesCell, styles.centeredCell]}>
               <MultilineText value={block.activities || emptyValue} />
@@ -364,7 +368,7 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
 
       <View style={[styles.row, styles.observationsRow, styles.lastRow]}>
         <View style={[styles.cell, styles.labelCell, styles.fieldLabel]}>
-          <Text style={styles.labelText}>Observações:</Text>
+          <Text style={styles.labelText}>{doc("labelObservations", "Observações:")}</Text>
         </View>
         <View style={[styles.cell, styles.fullValue, styles.lastCell]}>
           <Text style={styles.text}>{lesson.observations || ""}</Text>
