@@ -10,6 +10,7 @@ Este é o índice canônico dos documentos do projeto. Use esta página como pon
 | Configurar outra máquina e continuar o trabalho | [workstations.md](operations/workstations.md) |
 | Ver prioridades de produto | [ROADMAP.md](../ROADMAP.md) |
 | Acompanhar mudanças entregues | [CHANGELOG.md](../CHANGELOG.md) |
+| Alinhar funcionalidades, entregas e pendências por tela | [Checklist HTML do produto](product/goatleta-checklist.html) |
 | Rodar checklist antes de deploy | [production.md](operations/production.md) |
 | Entender fronteiras e regras de arquitetura/performance | [architecture-hygiene.md](architecture-hygiene.md) |
 | Design System e layout web | [ui/README.md](ui/README.md) |
