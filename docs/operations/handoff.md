@@ -13,6 +13,13 @@ Validação do conjunto: 5 suítes / 33 testes focados, typecheck:app, lint dos 
 Todas as células da tabela do PDF podem ser editadas diretamente, incluindo identificação, semana/data/horário, periodização/contexto, título e rótulos. Textos de apresentação ficam em `pedagogy.lessonDocumentText` no plano; não alteram cadastro, agenda ou configurações do ciclo. A prévia e o renderer do PDF baixado usam os mesmos textos. Campo vazio é preservado; chaves são limitadas e valores escapados no HTML. O fluxo existente de salvar/desfazer/descartar continua valendo.
 
 Estabilizado o objeto de origem da periodização para impedir reconstrução do iframe quando a conversa recebe o rascunho durante a digitação. Validação: 14 testes focados, tipos, lint, org-scope e diff-check; smoke autenticado confirmou 37/37 células editáveis, texto preservado, salvar habilitado e descarte sem gravação. Incluído na sincronização da branch em 01/10/2026; sem publicação adicional.
+## Checklist do produto — 01/10/2026
+
+- Inventário navegável em `docs/product/goatleta-checklist.html`, indexado em `docs/README.md`: 28 módulos, 269 itens e 116 arquivos de rota no snapshot inicial.
+- Dados e geração em `docs/product/build_inventory.py`; apresentação em `inventory-template.html`. Regenerar na raiz com `python docs/product/build_inventory.py` após atualizar os itens afetados.
+- `AGENTS.md` exige manutenção junto às entregas, sem novo pedido. Notas pessoais ficam no navegador e podem ser exportadas/importadas; não são sincronizadas pelo Git.
+- Busca, filtros, marcações e persistência após recarregar conferidos no navegador local. Fontes verificadas pelo gerador e diff sem erros. Esta entrega documental não altera o aplicativo, banco ou configuração remota; os gates do app e produção não foram reexecutados.
+- Commit/push e PR autorizados nesta sessão, em branch `codex/product-checklist`. Status efetivo fica no GitHub; este registro não certifica deploy ou merge.
 
 ## Assistente unificado e densidade — 30/09/2026
 

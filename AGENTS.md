@@ -17,6 +17,15 @@
 - Before publishing, use the release level of the ladder. The normal release baseline is focused tests, `npm run typecheck:app`, `npm run check:org-scope`, `git diff --check`, `npm run build`, and an authenticated smoke test of the affected flow on `localhost:8081`.
 - Treat a successful build or preview as a validation gate, not as proof that production is complete. Report the deployment target, URL, status, commit, and any pending production gate.
 
+## Checklist do produto — atualização obrigatória
+
+- Em toda tarefa que implemente, altere ou remova funcionalidades, ou confirme uma entrega/pendência, atualizar os itens afetados do checklist sem esperar novo pedido do usuário.
+- Editar os dados em `docs/product/build_inventory.py` e regenerar `docs/product/goatleta-checklist.html` com `python docs/product/build_inventory.py`, executado na raiz. Ajustes de apresentação ficam em `docs/product/inventory-template.html`; não editar apenas o HTML gerado.
+- Manter fontes verificáveis e distinguir código existente, entrega documentada, pendência explícita, ponto a conferir e proposta futura. Registrar somente a validação realmente executada; não presumir publicação nem encerrar pendências históricas sem evidência.
+- Preservar títulos/identidade dos itens existentes quando possível, para manter marcações e notas pessoais. Não incluir dados de alunos, credenciais ou artefatos privados.
+- Antes do commit de cada entrega, conferir que o inventário inclui as alterações da mesma branch e que o snapshot foi regenerado. O checklist e suas fontes devem acompanhar o commit; uma cópia em outra branch ou worktree não cumpre esta regra.
+- Atualizar apenas o módulo afetado e conferir a geração; não ampliar a investigação ou executar checks gerais só para atualizar o inventário. Perguntas sem mudança de estado não exigem regeneração. Se a atualização estiver bloqueada, informar a pendência no fechamento.
+
 ## Production and data safety
 
 - Never add, change, remove, print, or commit production secrets or environment-variable values. Any production environment change requires explicit authorization and an impact check.
