@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "max_primary": 6,
+  "core": [
+    "goatleta-architecture",
+    "goatleta-security",
+    "goatleta-database",
+    "goatleta-data-model",
+    "goatleta-design-system",
+    "goatleta-testing",
+    "goatleta-periodization",
+    "goatleta-volleyball-domain",
+    "goatleta-courtside-ux",
+    "goatleta-feature-workflow"
+  ],
+  "trusted": {
+    "supabase:supabase": "Persistência e autorização Supabase existente",
+    "playwright-cli": "Exercício do fluxo web",
+    "expo": "Skill pertinente do plugin Expo; resolver o nome disponível no turno",
+    "react-native-best-practices": "Diagnóstico de desempenho RN",
+    "vercel-react-native-skills": "Implementação específica RN",
+    "vercel-composition-patterns": "Composição de componentes",
+    "gh-fix-ci": "Checks do GitHub Actions",
+    "gh-address-comments": "Comentários de PR",
+    "skill-creator": "Autoria e manutenção de skills"
+  },
+  "rules": [
+    {
+      "area": "authorization",
+      "terms": [
+        "isolamento",
+        "workspace",
+        "organizacao",
+        "rls",
+        "permissao",
+        "permissoes",
+        "autorizacao",
+        "login",
+        "convite",
+        "autenticacao"
+      ],
+      "skills": [
+        "goatleta-security",
+        "goatleta-database",
+        "goatleta-testing",
+        "supabase:supabase"
+      ]
+    },
+    {
+      "area": "data-model",
+      "terms": [
+        "campo",
+        "ficha",
+        "atleta",
+        "entidade",
+        "vinculo",
+        "historico",
+        "modelo de dados",
+        "scouting",
+        "workspace"
+      ],
+      "skills": [
+        "goatleta-data-model"
+      ]
+    },
+    {
+      "area": "database",
+      "terms": [
+        "migration",
+        "migracao",
+        "tabela",
+        "rpc",
+        "sql",
+        "supabase",
+        "banco de dados",
+        "novo campo",
+        "adicionar campo",
+        "adicione campo"
+      ],
+      "skills": [
+        "goatleta-database",
+        "goatleta-data-model",
+        "goatleta-security",
+        "goatleta-testing",
+        "supabase:supabase"
+      ]
+    },
+    {
+      "area": "planning",
+      "terms": [
+        "aula do dia",
+        "periodizacao",
+        "planejamento",
+        "ciclo"
+      ],
+      "skills": [
+        "goatleta-periodization",
+        "goatleta-architecture",
+        "goatleta-testing"
+      ]
+    },
+    {
+      "area": "volleyball",
+      "terms": [
+        "scouting",
+        "voleibol",
+        "rotacao",
+        "fundamento"
+      ],
+      "skills": [
+        "goatleta-volleyball-domain",
+        "goatleta-testing"
+      ]
+    },
+    {
+      "area": "ui",
+      "terms": [
+        "tela",
+        "componente",
+        "layout",
+        "interface",
+        "botao",
+        "cor",
+        "texto",
+        "copy",
+        "espacamento",
+        "acessibilidade",
+        "rotulo"
+      ],
+      "skills": [
+        "goatleta-design-system",
+        "goatleta-courtside-ux"
+      ]
+    },
+    {
+      "area": "architecture",
+      "terms": [
+        "nova feature",
+        "funcionalidade",
+        "refatorar",
+        "arquitetura",
+        "novo campo",
+        "novo componente",
+        "nova tela",
+        "adicionar campo",
+        "adicione campo"
+      ],
+      "skills": [
+        "goatleta-architecture",
+        "goatleta-testing"
+      ]
+    },
+    {
+      "area": "web-test",
+      "terms": [
+        "playwright",
+        "e2e web",
+        "fluxo web",
+        "navegador"
+      ],
+      "skills": [
+        "goatleta-testing",
+        "playwright-cli"
+      ]
+    },
+    {
+      "area": "native",
+      "terms": [
+        "expo",
+        "android",
+        "ios",
+        "nativo",
+        "native"
+      ],
+      "skills": [
+        "goatleta-design-system",
+        "goatleta-courtside-ux",
+        "expo"
+      ]
+    },
+    {
+      "area": "performance",
+      "terms": [
+        "fps",
+        "memoria",
+        "renderizacoes",
+        "bundle",
+        "performance",
+        "desempenho"
+      ],
+      "skills": [
+        "goatleta-testing",
+        "react-native-best-practices"
+      ]
+    },
+    {
+      "area": "composition",
+      "terms": [
+        "composicao",
+        "api de componentes"
+      ],
+      "skills": [
+        "goatleta-architecture",
+        "vercel-composition-patterns"
+      ]
+    },
+    {
+      "area": "ci",
+      "terms": [
+        "github actions",
+        "checks do pr",
+        "falha no ci",
+        "ci falhando"
+      ],
+      "skills": [
+        "goatleta-testing",
+        "gh-fix-ci"
+      ]
+    },
+    {
+      "area": "review-comments",
+      "terms": [
+        "comentarios do pr",
+        "comentarios de revisao"
+      ],
+      "skills": [
+        "gh-address-comments"
+      ]
+    },
+    {
+      "area": "documents",
+      "terms": [
+        "ingestao de documentos",
+        "documento pedagogico",
+        "reconciliar documento"
+      ],
+      "skills": [
+        "goatleta-document-intelligence"
+      ]
+    }
+  ],
+  "cosmetic_terms": [
+    "cor",
+    "texto",
+    "copy",
+    "espacamento",
+    "rotulo"
+  ],
+  "behavior_terms": [
+    "falha",
+    "bug",
+    "isolamento",
+    "rls",
+    "permissao",
+    "migration",
+    "rpc",
+    "validacao",
+    "comportamento",
+    "novo campo",
+    "corrija",
+    "corrigir",
+    "adicionar",
+    "adicione",
+    "adicionar campo",
+    "adicionar tabela",
+    "alterar permissao",
+    "remover",
+    "excluir",
+    "criar",
+    "implementar",
+    "corrigir falha",
+    "migracao",
+    "persistencia",
+    "salvar"
+  ]
+}

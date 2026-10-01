@@ -1,0 +1,611 @@
+{
+  "version": 1,
+  "reviewed_on": "2026-10-01",
+  "scope": "local_readiness_not_model_benchmark",
+  "cases": [
+    {
+      "case_id": "GA-001",
+      "base_commit": "b0474852843f76817c7e9169b461817474a77b4a",
+      "acceptance": "Negar leitura e escrita entre organizações; preservar acesso autorizado aos ciclos.",
+      "required_runtime": "PostgreSQL descartável + fixtures de duas organizações; testar grants e RPC diretamente.",
+      "reference_changed_files": 1,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~56.0.9",
+        "react-native": "0.85.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-002",
+      "base_commit": "ae76baa212778178b17454cfd60e3a660cf56f53",
+      "acceptance": "Abrir lista, detalhe e criação de scouting com a turma e sessão corretas; tratar identificador inválido.",
+      "required_runtime": "Expo/Jest do commit-base + smoke das rotas em backend isolado.",
+      "reference_changed_files": 4,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-003",
+      "base_commit": "9606009fa0e2e4ae4bcc929f04fc701ea58d030e",
+      "acceptance": "Exibir e abrir ação rápida de scouting sem perder contexto da turma ou demais ações.",
+      "required_runtime": "Expo web/mobile; verificar navegação e alvo do botão.",
+      "reference_changed_files": 1,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-004",
+      "base_commit": "62c99f12192f185df58059b235f38db2ccc01673",
+      "acceptance": "Preservar campos, validação e persistência ao extrair relatório; evitar estado duplicado.",
+      "required_runtime": "Jest de componentes + interação de relatório; confirmar mocks de persistência.",
+      "reference_changed_files": 3,
+      "test_paths_changed_in_reference": [
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-005",
+      "base_commit": "e916adf122e304112f45cf983448147d9cbbdca9",
+      "acceptance": "Preservar placar, entradas e navegação ao extrair scouting; manter contratos do componente.",
+      "required_runtime": "Jest de sessão/componentes + smoke de scouting.",
+      "reference_changed_files": 3,
+      "test_paths_changed_in_reference": [
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-006",
+      "base_commit": "10c8e3138cb1cbbf3f84de6006de6ef64916d713",
+      "acceptance": "Ações inferiores continuam visíveis e clicáveis acima do CTA, inclusive viewport curto.",
+      "required_runtime": "Expo com viewport móvel e desktop; evidência visual necessária.",
+      "reference_changed_files": 1,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-007",
+      "base_commit": "5509ae673000120be854625533234e6dfe7d3d02",
+      "acceptance": "Salvar, carregar e editar relatório mantém comportamento; erro não elimina conteúdo digitado.",
+      "required_runtime": "Jest do hook + integração local de persistência sem backend remoto.",
+      "reference_changed_files": 2,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-008",
+      "base_commit": "125ccfa30f0b850f191752e51b4f408420c089ad",
+      "acceptance": "Conversão preserva blocos, duração e explicação pedagógica; lidar com campos opcionais ausentes.",
+      "required_runtime": "Testes de função pura TypeScript + fixtures pedagógicas revisadas.",
+      "reference_changed_files": 3,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~55.0.15",
+        "react-native": "0.83.4",
+        "jest": "^29.7.0",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-009",
+      "base_commit": "07de0c1959c6fa7084d2f89bf87ae7b14726b84c",
+      "acceptance": "Rerender sem alteração preserva identidade das datas; mudança de entrada atualiza as datas.",
+      "required_runtime": "Jest/React para contrato de memoização; calendário com valores limítrofes.",
+      "reference_changed_files": 1,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-010",
+      "base_commit": "0ab149441beeb6cbb0432eeb04a64a68e71fb2d9",
+      "acceptance": "Troca de organização descarta requisição antiga; dashboard preserva sucesso, vazio e erro.",
+      "required_runtime": "Jest dos loaders/hooks e isolamento de requisições com respostas fora de ordem.",
+      "reference_changed_files": 11,
+      "test_paths_changed_in_reference": [
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "src/screens/coordination/application/__tests__/coordination-radar.test.ts",
+        "src/screens/coordination/application/__tests__/load-coordination-dashboard.test.ts",
+        "src/screens/coordination/hooks/__tests__/useCoordinationDashboard.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-011",
+      "base_commit": "83bfe6e706aa0fed842748b0d646c2498c781afb",
+      "acceptance": "Atleta altera somente a própria foto; outro usuário não escreve; avatar privado é atualizado.",
+      "required_runtime": "SQL local de autorização + Storage isolado ou mock declarado; testes de cache da foto.",
+      "reference_changed_files": 8,
+      "test_paths_changed_in_reference": [
+        "src/api/__tests__/student-photo-storage.test.ts",
+        "src/hooks/__tests__/use-student-profile-photo.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/api/__tests__/student-photo-storage.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-012",
+      "base_commit": "65d451fb7e28d015d53a0c5c6c406eee83a2d79b",
+      "acceptance": "Convite válido conclui cadastro; convite expirado ou de outra identidade não concede acesso.",
+      "required_runtime": "Jest + Deno dos contratos presentes + fluxo local de convite com backend descartável.",
+      "reference_changed_files": 12,
+      "test_paths_changed_in_reference": [
+        "src/api/__tests__/staff-invite.test.ts",
+        "src/auth/__tests__/signup-input-focus-contract.test.ts",
+        "src/screens/auth/__tests__/signup-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/auth/__tests__/signup-input-focus-contract.test.ts",
+        "src/screens/auth/__tests__/signup-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-013",
+      "base_commit": "a94bc8f385b151e10882c99ebaa56843b83694d4",
+      "acceptance": "Chamada direta sem vínculo não libera perfil; convite mantém isolamento entre organizações.",
+      "required_runtime": "SQL/Edge isolados + testes negativos Auth e smoke de onboarding; tarefa ampla.",
+      "reference_changed_files": 39,
+      "test_paths_changed_in_reference": [
+        "src/auth/__tests__/role-provider.test.ts",
+        "src/auth/__tests__/staff-invite-link.test.ts",
+        "src/dev/__tests__/profile-preview-access.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-signup-form.test.ts",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "src/screens/coordination/__tests__/coordination-screen-state.test.ts",
+        "src/ui/__tests__/error-messages.test.ts",
+        "src/ui/__tests__/profile-switch-options.test.ts",
+        "src/ui/__tests__/web-input-focus.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/auth/__tests__/role-provider.test.ts",
+        "src/screens/coordination/__tests__/coordination-screen-state.test.ts",
+        "src/ui/__tests__/error-messages.test.ts",
+        "src/ui/__tests__/profile-switch-options.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-014",
+      "base_commit": "f5dd9a6853b3a2e1ebd80c5865ebf2792de7414d",
+      "acceptance": "Foco e digitação mantêm campo visível com teclado; rolagem não oculta ação de salvar.",
+      "required_runtime": "Emulador/dispositivo e Expo da época; browser isolado não comprova teclado nativo.",
+      "reference_changed_files": 2,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-015",
+      "base_commit": "eb1ce72bda5490ede31888f0304228337875b8f9",
+      "acceptance": "Troca de conta elimina dados e papel anteriores; OAuth chega à organização correta.",
+      "required_runtime": "Jest Auth/Organization + fluxo local com dois usuários fictícios; tarefa ampla.",
+      "reference_changed_files": 48,
+      "test_paths_changed_in_reference": [
+        "src/auth/__tests__/auth-signout.test.ts",
+        "src/auth/__tests__/oauth-post-login.test.ts",
+        "src/copilot/__tests__/lesson-context.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/ui/__tests__/native-sidebar-mobile.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/copilot/__tests__/lesson-context.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/ui/__tests__/native-sidebar-mobile.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-016",
+      "base_commit": "1601d8d09d3c1d4180535b208bf209e921de96a8",
+      "acceptance": "Atleta abre e fecha menu no mobile; ação continua acessível com leitor e alvo de toque.",
+      "required_runtime": "Jest do componente + smoke mobile sem credenciais de produção.",
+      "reference_changed_files": 2,
+      "test_paths_changed_in_reference": [
+        "src/screens/student/__tests__/student-home-menu.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-017",
+      "base_commit": "f1d31f7d5c237ad0bad6ac47d9335ce41b8ea50a",
+      "acceptance": "Jest deixa de descobrir teste Deno; teste continua descoberto e executável no Deno.",
+      "required_runtime": "Jest --listTests + Deno; confirmar permissões e revisar script antes de executar.",
+      "reference_changed_files": 2,
+      "test_paths_changed_in_reference": [
+        "supabase/functions/_shared/__tests__/meta-whatsapp-webhook-handler.test.ts",
+        "supabase/functions/_shared/meta-whatsapp-webhook-handler.deno.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "supabase/functions/_shared/__tests__/meta-whatsapp-webhook-handler.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-018",
+      "base_commit": "666d6835ff618e781ba620e6866ce2f724dad7c3",
+      "acceptance": "Normalizar dígitos confirmados com sinal +; preservar telefone já normalizado e negar não confirmado.",
+      "required_runtime": "Node 22 com strip-types, sem dependências; harness avaliador calibrado offline.",
+      "reference_changed_files": 2,
+      "test_paths_changed_in_reference": [
+        "src/auth/__tests__/phone-verification.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/auth/__tests__/phone-verification.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "EVALUATOR_CALIBRATED_OFFLINE",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-019",
+      "base_commit": "cc2bc6fd158423d93152e03000f5cb0575289cb4",
+      "acceptance": "Destino do hook é extraído do payload correto; payload ausente/malformado falha sem enviar mensagem.",
+      "required_runtime": "Deno com provedor de SMS mockado; nenhuma chamada de WhatsApp/SMS real.",
+      "reference_changed_files": 3,
+      "test_paths_changed_in_reference": [
+        "supabase/functions/_shared/__tests__/whatsapp-auth-provider.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "supabase/functions/_shared/__tests__/whatsapp-auth-provider.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-020",
+      "base_commit": "8e3755f8d2118f43bf1ec0a9d042676e370a0d15",
+      "acceptance": "Harness espera servidor final; warnings esperados são assertados sem esconder warnings inesperados.",
+      "required_runtime": "Docker PostgreSQL descartável + harness revisado + Jest focado.",
+      "reference_changed_files": 5,
+      "test_paths_changed_in_reference": [
+        "src/auth/__tests__/session-storage.test.ts",
+        "supabase/functions/_shared/__tests__/ai-periodization-context.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/auth/__tests__/session-storage.test.ts",
+        "supabase/functions/_shared/__tests__/ai-periodization-context.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-021",
+      "base_commit": "2912274260e8aa3a2751761cbe22f5f29010d550",
+      "acceptance": "Reprodução/pausa e exportação preservam atores, posições e etapas; regras 5x1 permanecem coerentes.",
+      "required_runtime": "Jest de quadra/exportação + browser/canvas; não sobrescrever desenhos reais.",
+      "reference_changed_files": 15,
+      "test_paths_changed_in_reference": [
+        "src/components/visual-court/__tests__/court-export-utils.test.ts",
+        "src/components/visual-court/__tests__/visual-tech-route.test.ts",
+        "src/core/__tests__/visual-court-editor.test.ts",
+        "src/core/__tests__/visual-court.test.ts"
+      ],
+      "changed_test_paths_already_in_base": [
+        "src/components/visual-court/__tests__/visual-tech-route.test.ts",
+        "src/core/__tests__/visual-court-editor.test.ts",
+        "src/core/__tests__/visual-court.test.ts"
+      ],
+      "historical_dependencies": {
+        "expo": "~57.0.18",
+        "react-native": "0.86.3",
+        "jest": "^29.7.0",
+        "typescript": "~6.0.3"
+      },
+      "historical_test_commands": {
+        "test": "jest --passWithNoTests",
+        "test:sql": "node scripts/validation/run-sql-tests.mjs",
+        "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
+        "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit"
+      },
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-022",
+      "base_commit": "4086b1841a67a93b3edfe9c94a58c1d4a33276f1",
+      "acceptance": "Limites ACWR persistem por turma em plataformas existentes; turma vizinha não é alterada.",
+      "required_runtime": "SQLite nativo/web e SQL local histórico; fixtures por turma.",
+      "reference_changed_files": 6,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~54.0.30",
+        "react-native": "0.81.5",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {},
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-023",
+      "base_commit": "128b2144814a1def0e73b3984ed502828393c4b7",
+      "acceptance": "Versões de migrations são aceitas pelo CLI; renomeação não muda SQL nem simula aplicação remota.",
+      "required_runtime": "Supabase CLI somente inspeção/local; conferir histórico antes de qualquer aplicação.",
+      "reference_changed_files": 9,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~54.0.31",
+        "react-native": "0.81.5",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {},
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    },
+    {
+      "case_id": "GA-024",
+      "base_commit": "d1725297b023c3e4952f5ab1e44f8bbb76c94bb2",
+      "acceptance": "Última edição salva reaparece na turma/data correta; falha de gravação não é exibida como sucesso.",
+      "required_runtime": "Persistência SQLite histórica + telas de sessão/relatório com fixtures.",
+      "reference_changed_files": 5,
+      "test_paths_changed_in_reference": [],
+      "changed_test_paths_already_in_base": [],
+      "historical_dependencies": {
+        "expo": "~54.0.30",
+        "react-native": "0.81.5",
+        "typescript": "~5.9.2"
+      },
+      "historical_test_commands": {},
+      "state": "STATIC_REVIEW_RUNTIME_PENDING",
+      "paid_replay_executed": false
+    }
+  ]
+}

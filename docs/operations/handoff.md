@@ -1,4 +1,73 @@
-# Continuidade — 16/09/2026
+# Continuidade — 01/10/2026
+
+## Publicação do pacote Engineer e alinhamento central — 01/10/2026
+
+Gustavo autorizou publicar o pacote e alinhar a main. Escopo: skills locais, governança/manifesto, ferramentas e testes Engineer, documentação e checklist; sem mudança funcional do app ou banco. O [checklist](../product/goatleta-checklist.html#alinhamento) é a entrada central para acompanhar validações, decisões e pendências. Caches Python, chaves, capturas e runs privadas permanecem ignorados. A autorização de publicação não libera novas sessões pagas.
+
+Validação de publicação: 164 testes focados (158 Python + 6 Node), typecheck:app e check:org-scope aprovados. Build web aprovado com dois workers (`npm run build -- --max-workers 2`), além de encoding, marca, diff e 849 registros do manifesto. A primeira tentativa de build foi interrompida por pressão de memória. O check de encoding agora ignora `.tmp`, como os demais diretórios temporários; a serialização de um escape no lockfile foi normalizada com igualdade JSON conferida, sem alterar os patches. Smoke do checklist em localhost confirmado; não há fluxo autenticado do app alterado neste pacote.
+
+
+## Runtime visual local validado — 01/10/2026
+
+UI_RUNTIME_READY com captura real do `/login`, 18 artefatos, Node 24/Playwright/Chromium e teardown concluído em container sem rede. UI-001 ganhou evidência **local**, não uma sessão de agente. Galeria privada em `.tmp/engineer-ui-local/review.html`; 126 testes PASS. Gustavo aprovou explicitamente **apenas a aparência das seis imagens**; recibo com hashes em `human-appearance-review.json`. Revisão completa/UI_UX_GATE permanece UNVERIFIED; 1 erro de recurso por cenário sem origem identificada, zero exceções JavaScript. Detalhes e limites em `docs/operations/engineer/ui-runtime-validation.md`. Run 005b e UI-001 remotas continuam bloqueadas, sem nova autorização de gasto.
+
+## Engineer vNext local — 01/10/2026
+
+Pedido atual: Multi-Agent + UI/UX/Motion, **sem chamadas pagas e sem executar os pilotos**. Implementação, contratos e limitações em `docs/operations/engineer/vnext.md`; pacotes finais em `vnext-runs.json`. 005b `a8e3c193250a4a13990b0b1e99e36636` (preflight core local READY, 26 testes); UI-001 `b1b2f6a0a19f404889c5a87835c5765e` (UI_UNVERIFIED). Ambos sem sessão. Coordinator com cerca de 26 KB de contexto atribuído; partição instrucional, não isolamento entre papéis. Quinto perfil UI/UX Motion apenas local. Na preparação inicial, imagem/harness ainda não tinham sido executados; a seção de runtime visual acima registra a validação real posterior. `create --live` de vNext bloqueia antes da API. Preservar histórico Run 005 e todos os gates; não usar pacotes intermediários desta preparação como pilotos adicionais.
+
+## Run 005 encerrada — 01/10/2026
+
+Auditoria posterior, totalmente offline: o trace comprova total agregado **715.514**, incluindo especialista; 980.203 era dupla contagem e foi corrigido. Coordinator direto 450.825, especialista 264.689. BUDGET_GATE permanece. Os traces também contêm wait_for_agents com agent_ids vazio: não apenas metadado omitido; WAIT_TARGET_NOT_PROVEN explicitado sem aprovar o gate. Budget prioriza session_usage e relata fallback conservador; relatório preserva chamadas de espera não atribuídas. 85 testes locais PASS (40 controlador, 23 controles, 22 launch). Sem nova sessão/rede/inferência nesta auditoria. Custo anterior observado US$ 1,91 não foi consultado novamente. Histórico detalha fórmulas, spans e limitações; não usar a antiga soma 980.203 como total.
+
+Gustavo registrou confirmação financeira humana; somente Run 005 foi executada. Sessão `sess_0f214fc00155dd84006abe8e41207c819ea24b3c403c55e5b1`, pacote `1c143e38ca0141e589f6b08056a822f5`: root concluído em 123s, um especialista concluído em 66s, 26 testes cada, zero writes, atestação PASS, container removido, sessão idle. Incorporação revisada e confirmada, mas gate estrito FAIL_MULTI_AGENT por waits sem recipient_agent_ids; não inventar destinatários. BUDGET_GATE por tokens excedidos (715.514 root/sessão, 264.689 especialista; soma conservadora 980.203). Projeto mostrava US$ 1,91 contabilizado de US$ 10 no painel, sujeito a atualização. Não iniciar outras runs nem repetir esta. Relatório detalhado em engineer-run-history.md. Corrigidos ack vazio de eventos e coleta separada de histórico do subagente; 40 testes controlador PASS. Traces e provas locais preservados. Próximo trabalho possível é diagnóstico offline dos metadados de espera/custo; nenhuma nova inferência está autorizada.
+
+## Configuração remota do Engineer — 01/10/2026
+
+Executor concluído após confirmação: chave de ambiente `Go Atleta Engineer executor`, tracking `key_NdRvPWcBxNqQP73U`, Active no projeto dedicado, salva como `OPENAI_EXECUTOR_API_KEY` no mesmo `.tmp/engineer-dedicated.env`. Launcher agora seleciona esse arquivo para o project_id dedicado e falha se faltar uma chave; preserva DPAPI do projeto antigo e restaura variáveis após execução. Doctor: duas chaves PRESENT, quatro PASS_READ, Docker/imagem/CLI PASS; conexão do executor ainda NOT_TESTED e finanças manuais. Nova Run 005 `1c143e38ca0141e589f6b08056a822f5`, perfis persistentes reais, read-only, um Test Review, platform-hard-limit US$ 10 **somente preparada**, preflight READY com 26 testes. Nenhuma sessão criada. Próximo gate exclusivo de Gustavo: `python scripts/goatleta-engineer.py confirm-platform-budget --project-hard-limit-usd 10`; não executar nem digitar por ele. Após recibo válido, executar somente essa Run 005 e fazer teardown/atestação/traces/revisão qualitativa. Não iniciar Run 006. Registros abaixo preservam etapas anteriores.
+
+Atualização: chave controller criada pelo conector criptografado no projeto dedicado e salva, após autorização do destino, em `.tmp/engineer-dedicated.env` (`OPENAI_API_KEY`, ignorado pelo Git). Não imprimir esse arquivo. Os quatro agentes foram criados e registrados em `engineer/agents.json`; doctor online confirmou PASS_READ para todos. Docker, imagem e CLI PASS. Corrigida falsa divergência CRLF no doctor; 21 testes launch aprovados. Executor permanece MISSING; formulário de criação `Go Atleta Engineer executor` preparado no Chrome, ainda não submetido. Navegador do Codex apresentou timeout. Nenhuma sessão paga, recibo financeiro, compra, commit, push ou deploy. Launcher DPAPI anterior continua apontando às credenciais do projeto antigo: não usá-lo para ativar o novo projeto sem configurar o carregamento dedicado.
+
+Projeto dedicado criado sob autorização: `proj_r74GbuEXeHueUaVasyOi5EW8`, Go Atleta Engineer. Hard limit mensal US$ 10 salvo e confirmado na interface (não apenas alerta). Saldo organizacional US$ 12,62 e auto-reload OFF conferidos; nenhuma compra. Registry atualizado somente com project_id. Quatro agentes ainda sem IDs; novas credenciais e executor pendentes, credenciais antigas preservadas. Run 005 não iniciada e nenhuma confirmação financeira humana criada. Próximo passo é seleção segura da chave pelo OpenAI Developers e destino local confirmado. A confirmação humana de possível excedente continua necessária antes de ativar platform-hard-limit. Não executar confirm-platform-budget pelo usuário. As seções anteriores abaixo são históricas.
+
+## Agent Launch Pack — 01/10/2026
+
+Suporte local a agentes persistentes e dois modos financeiros implementado. `engineer/agents.json` tem quatro IDs e project_id nulos: nenhum agente/projeto/chave foi criado remotamente. Perfis Markdown continuam canônicos. `agents-register` é dry-run por padrão; `--live` futuro registra/cria definições com projeto explícito, comparação de perfil e proteção contra duplicação ambígua.
+
+Modo strict segue padrão US$ 5 e bloqueado. Modo platform-hard-limit exige nova preparação e confirmação humana interativa do projeto/valor, auto-reload OFF e possível excedente; recibo vence em 24h. Não executar confirm-platform-budget em nome de Gustavo. Implementar a opção não autoriza ativá-la. Imagem enviada mostrou saldo US$ 12,62 e auto-reload OFF, não hard limit do projeto; nenhuma compra efetuada.
+
+Run 005 atual preparada: `dd7b05a8ce1a49a29f72e934f6d41a44`, persistent IDs ainda ausentes, strict, read-only e preflight com 26 testes PASS. Nenhuma sessão criada. Doctor offline verificou Docker/imagem/Codex e presença das credenciais antigas, sem validar permissões no novo projeto. 118 testes: 98 anteriores + 20 novos. Relatório agora inclui coordenação baseada em itens/turns, custo real desconhecido e `run-summary.md`. [Sequência manual, contratos e limitações](engineer-launch-pack.md). Sem commit, push, deploy ou Supabase.
+
+## Benchmark offline — 01/10/2026
+
+Usuário reafirmou o bloqueio financeiro estrito: continuar somente localmente, sem novas sessões pagas. Run 005 permanece bloqueada. Revisados os 24 casos, com rubrica específica e dependências históricas em `engineer/benchmark-readiness.json`; 11 patches não alteram testes reconhecidos no catálogo, o que não prova ausência de testes no repositório.
+
+GA-018 calibrado sem rede/chaves no Docker: baseline falha nos três cenários esperados (7/10), referência histórica passa 10/10. Harness avaliador em `scripts/validation/engineer-phone-regression.mjs`. Não é execução de modelo nem avanço do benchmark pago. [Critérios, lacunas e evidência](engineer-benchmark-readiness.md). Checklist atualizado; sem commit, push ou deploy.
+
+## Engineer supervisionado — 01/10/2026
+
+24 casos históricos em 12 áreas catalogados com commits-base/referência e hashes; nenhum replay pago novo. Gateway `validate-candidate → review → decide → integrate` exige decisão humana vinculada ao diff/testes, recusa baseline concorrente e mantém backup. Agentes não podem preencher aprovação em nome de Gustavo. Montagem gravável por arquivo testada no Docker; proteção diferente da atestação final. 98 testes offline aprovados.
+
+Traces das quatro sessões anteriores exportados com as permissões existentes, privados em `.tmp`. Política de tokens/comandos/turns observada ao reconciliar, timeout do executor em 300s. Usuário autorizou até US$ 5 para piloto; como não há teto financeiro garantido no contrato consultado, Run 005 `0288729eb85a4353aec6c3b6fbc59122` ficou preparada/preflight READY e `BUDGET_GATE`, sem sessão paga. Não usar a preparação superseded sem teto. Não remover o cap nem iniciar lote para contornar o gate. [Estado, comandos e limites](engineer-supervision.md).
+
+## Go Atleta Engineer — 01/10/2026
+
+Runtime v1 com Python 3.12/Node 22 e preflight bloqueante antes da API. Perfil router inclui código, testes, configuração e índice portátil; imagem separada do bundle. 76 testes locais e smoke Docker aprovados. Usar `goatleta-engineer-runtime:v1` e resolver seu ID imutável antes do preflight. Instruções em [goatleta-engineer.md](goatleta-engineer.md).
+
+Runs reais concluídas: 002 leitura + 23 testes, zero alterações (74s); 003 uma frase + 23 testes (42s); 004 validação max_primary + 26 testes (52s), exatamente dois arquivos. Atestações PASS e todos os containers removidos. Candidatos revisados, baselines conferidos e mudanças integradas localmente. [Histórico e evidências](engineer-run-history.md). O relatório automático mantém revisão humana pendente; não existe gateway de aprovação implementado.
+
+Credenciais DPAPI fora do repositório; usar `scripts/goatleta-engineer-local.ps1`, sem imprimir valores. Controlador expira em 02/10/2026. Checklist regenerado. Sem commit, push, deploy ou alteração no runtime do produto.
+
+## Governança de skills — 01/10/2026
+
+Camadas Core Go Atleta, trusted engineering e catálogo auxiliar registradas em [skill-governance.md](skill-governance.md). Precedência local e revisão de helpers em `AGENTS.md`. `scripts/explain-skill-selection.py` oferece recomendações limitadas e explicáveis; métricas de uso real são opcionais via `--record-used` e ficam em `.tmp/skill-selection/`, sem texto de tarefas. Validação ampliada: 21 testes do roteador, matriz de 16 cenários e oito regressões dos helpers; corrigidos os falsos enquadramentos de campo textual e copy de login, além do aviso de divisão em etapas. Evidências em [skill-governance-validation.md](skill-governance-validation.md). Não houve nova instalação. Regras heurísticas precisam ser confirmadas no código; não são interceptador de execução do Codex.
+
+## Skills de desenvolvimento — 01/10/2026
+
+Instalação ampliada concluída por solicitação do usuário: 194/194 entradas disponíveis, 853 raízes resolvidas, 849 skills fixadas por hash e quatro instalações existentes preservadas. Os dois helpers GitHub foram corrigidos e têm oito regressões offline. [Relatório atual](skills-package-review.md), inventário e manifesto em `docs/operations/`; reprodução por `scripts/install-reviewed-skills.py`. Marca pública **Go Atleta** e seleção contextual reforçadas em `AGENTS.md`. Sem dependências do app, push ou deploy.
+
+Complemento: adicionada `goatleta-feature-workflow`, totalizando dez skills novas. `AGENTS.md` exige seleção por impacto e impede carregar o catálogo inteiro; matriz em `agent-skills.md`. A avaliação independente de triagem dos três exemplos e um controle de microajuste foram concluídos e registrados em [agent-skills-evaluation.md](agent-skills-evaluation.md). Uma rodada contaminada foi descartada e repetida. Seleção/investigação observadas; implementação e testes reais ainda dependem de requisitos concretos e execução.
+
+Nove skills específicas adicionadas em `.agents/skills/`, com roteamento em `AGENTS.md`, preservando as nove skills existentes em `.codex/skills/`. Catálogo, versões externas, reinstalação em outra máquina e limites de validação em [agent-skills.md](agent-skills.md). Expo oficial e Playwright instalados nesta máquina; Supabase já disponível. Arquivos locais, sem commit/push. O worktree ainda exige dependências/configuração para executar o aplicativo; esta entrega valida as skills, não os fluxos E2E.
 
 ## Assistente unificado e densidade — 30/09/2026
 

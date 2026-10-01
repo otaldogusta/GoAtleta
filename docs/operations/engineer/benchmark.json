@@ -1,0 +1,876 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "GA-001",
+      "category": "rls",
+      "task": "Proteger ciclos de planejamento por autorização e organização.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "b0474852843f76817c7e9169b461817474a77b4a",
+      "reference_commit": "4b4258bb350958138c1a8817f5399513d8bc80ca",
+      "reference_diff_sha256": "c2acfe723e27c248a948216e29f6886f119eb8f70c0ad11453e7c5f375c97dd2",
+      "reference_files": [
+        "supabase/migrations/20260609133801_secure_planning_cycles_rls.sql"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-002",
+      "category": "scouting",
+      "task": "Restaurar navegação para análise e sessões de scouting da turma.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "ae76baa212778178b17454cfd60e3a660cf56f53",
+      "reference_commit": "f06622beea741702bd41f8d9fd4978caf76ca6b4",
+      "reference_diff_sha256": "6028936c7ab204e9ce482c2aa81d795da3ff3aa0032b61c187245d451e222ea7",
+      "reference_files": [
+        "app/class/[id].tsx",
+        "app/class/[id]/scouting.tsx",
+        "app/class/[id]/scouting/[scoutingSessionId].tsx",
+        "app/class/[id]/scouting/new.tsx"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-003",
+      "category": "scouting",
+      "task": "Restaurar a ação rápida de scouting na turma.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "9606009fa0e2e4ae4bcc929f04fc701ea58d030e",
+      "reference_commit": "ae76baa212778178b17454cfd60e3a660cf56f53",
+      "reference_diff_sha256": "65c6d7ae97b4b116f00e1a2cd953b391dfdc7917faaea6349a3c520c671f6b70",
+      "reference_files": [
+        "app/class/[id].tsx"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-004",
+      "category": "reports",
+      "task": "Extrair a aba de relatório preservando comportamento e contratos.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "62c99f12192f185df58059b235f38db2ccc01673",
+      "reference_commit": "3193257ef4c674bb3f4d6f2feab0e73bad9de57e",
+      "reference_diff_sha256": "be74b9f92ee797bcc4def9b45de1a4e904690c923c593f04f0d9de094b200366",
+      "reference_files": [
+        "app/class/[id]/session.tsx",
+        "src/screens/session/components/SessionReportTab.tsx",
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "test_evidence_paths": [
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-005",
+      "category": "architecture",
+      "task": "Extrair a aba de scouting da tela de sessão.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "e916adf122e304112f45cf983448147d9cbbdca9",
+      "reference_commit": "62c99f12192f185df58059b235f38db2ccc01673",
+      "reference_diff_sha256": "7f9f7972a11b7e7cf401ddb2d753da3fe99fbb2dbf4ba79aff08e47a5c37717f",
+      "reference_files": [
+        "app/class/[id]/session.tsx",
+        "src/screens/session/components/SessionScoutingTab.tsx",
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "test_evidence_paths": [
+        "src/screens/session/components/__tests__/SessionTrainingUiComponents.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-006",
+      "category": "ui",
+      "task": "Manter ações de periodização acessíveis acima do botão flutuante.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "10c8e3138cb1cbbf3f84de6006de6ef64916d713",
+      "reference_commit": "215a896754f0f6652afc359fd42e838efcac23b5",
+      "reference_diff_sha256": "21356d6e8a318850de9c864c76808ada911d53e2e73632fc56b86b7a43fbda0a",
+      "reference_files": [
+        "src/screens/periodization/OverviewTab.tsx"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-007",
+      "category": "refactoring",
+      "task": "Extrair o hook de relatório da sessão sem alterar persistência.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "5509ae673000120be854625533234e6dfe7d3d02",
+      "reference_commit": "cc6aadbaec0600c4476c54abc60cc6d2b62be793",
+      "reference_diff_sha256": "92297706488e1a8c4baebd9fb17125eb89235562768951ee01b74bedf5bcda63",
+      "reference_files": [
+        "app/class/[id]/session.tsx",
+        "src/screens/session/hooks/useSessionReport.ts"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-008",
+      "category": "periodization",
+      "task": "Extrair conversão de pacote pedagógico para plano de treino.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "125ccfa30f0b850f191752e51b4f408420c089ad",
+      "reference_commit": "5509ae673000120be854625533234e6dfe7d3d02",
+      "reference_diff_sha256": "cde0f74713de172f4cd0aff7b1760689f40ae1323c3c09ddce308ec4c95da924",
+      "reference_files": [
+        "app/class/[id]/session.tsx",
+        "src/screens/session/application/build-persisted-generation-explanation.ts",
+        "src/screens/session/application/convert-pedagogical-package-to-training-plan.ts"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-009",
+      "category": "bug",
+      "task": "Preservar memoização das datas da turma.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "07de0c1959c6fa7084d2f89bf87ae7b14726b84c",
+      "reference_commit": "132074b1f8fc66464c4afdc4314c52c12d3c7dac",
+      "reference_diff_sha256": "f5a91b7d537c33ae89a8c2445712ed1a11640983acf508046d7611fe63ff6e9b",
+      "reference_files": [
+        "app/class/[id].tsx"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-010",
+      "category": "architecture",
+      "task": "Isolar carregamento do dashboard de coordenação e escopo de requisições.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "0ab149441beeb6cbb0432eeb04a64a68e71fb2d9",
+      "reference_commit": "27d32c58bdd0aaff7187ee1c9422d86a03428eed",
+      "reference_diff_sha256": "714eb3acab079281cec515a7ada214240631a487f116078678a37fae5d3fe8ff",
+      "reference_files": [
+        "app/coordination.tsx",
+        "docs/audits/2026-09-05-coordination-data-boundary.md",
+        "src/screens/coordination/ClassRadarPanel.tsx",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "src/screens/coordination/application/__tests__/coordination-radar.test.ts",
+        "src/screens/coordination/application/__tests__/load-coordination-dashboard.test.ts",
+        "src/screens/coordination/application/coordination-radar.ts",
+        "src/screens/coordination/application/load-coordination-dashboard.ts",
+        "src/screens/coordination/application/load-coordination-insights.ts",
+        "src/screens/coordination/hooks/__tests__/useCoordinationDashboard.test.ts",
+        "src/screens/coordination/hooks/useCoordinationDashboard.ts"
+      ],
+      "test_evidence_paths": [
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "src/screens/coordination/application/__tests__/coordination-radar.test.ts",
+        "src/screens/coordination/application/__tests__/load-coordination-dashboard.test.ts",
+        "src/screens/coordination/hooks/__tests__/useCoordinationDashboard.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-011",
+      "category": "security",
+      "task": "Permitir atualização da própria foto do atleta com isolamento e atualização do avatar privado.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "83bfe6e706aa0fed842748b0d646c2498c781afb",
+      "reference_commit": "8f8810db97256fe278da2637c608aeac6e4cd8b0",
+      "reference_diff_sha256": "dc8ba82c9d8e199e2471b1c536d409f960ebc13f9316a8aa13e050bbb40a9bd6",
+      "reference_files": [
+        "app/profile.tsx",
+        "app/student-home.tsx",
+        "src/api/__tests__/student-photo-storage.test.ts",
+        "src/api/student-photo-storage.ts",
+        "src/api/student-self-photo.ts",
+        "src/hooks/__tests__/use-student-profile-photo.test.ts",
+        "src/hooks/use-student-profile-photo.ts",
+        "supabase/migrations/20260905031805_student_self_photo_update.sql"
+      ],
+      "test_evidence_paths": [
+        "src/api/__tests__/student-photo-storage.test.ts",
+        "src/hooks/__tests__/use-student-profile-photo.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-012",
+      "category": "security",
+      "task": "Concluir onboarding pelo convite de professor mantendo autorização.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "65d451fb7e28d015d53a0c5c6c406eee83a2d79b",
+      "reference_commit": "5187dfa5470453c7ba1919978e5a4af00a0bf32c",
+      "reference_diff_sha256": "04e3e76ce129e72e8c5464f944288bcdd7ede9900ec2621bdfb23593bcddbfed",
+      "reference_files": [
+        "app/staff-invite.tsx",
+        "docs/ui/design-qa.md",
+        "src/api/__tests__/staff-invite.test.ts",
+        "src/api/staff-invite.ts",
+        "src/auth/__tests__/signup-input-focus-contract.test.ts",
+        "src/screens/auth/SignupScreen.tsx",
+        "src/screens/auth/__tests__/signup-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/coordination/CoordinationPeopleWorkspace.tsx",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts",
+        "supabase/functions/accept-staff-invite/index.ts"
+      ],
+      "test_evidence_paths": [
+        "src/api/__tests__/staff-invite.test.ts",
+        "src/auth/__tests__/signup-input-focus-contract.test.ts",
+        "src/screens/auth/__tests__/signup-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-013",
+      "category": "security",
+      "task": "Proteger onboarding de convite de professor e acesso ao perfil.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "a94bc8f385b151e10882c99ebaa56843b83694d4",
+      "reference_commit": "6043e8b6f53a1f9f5feb135b02246a4220ba617e",
+      "reference_diff_sha256": "33a316d2ec9f5dfd31e3117d2a6b22a3fd8008629d0544139fbc05441e12fad6",
+      "reference_files": [
+        "app/_layout.tsx",
+        "app/coordination.tsx",
+        "app/pending.tsx",
+        "app/profile.tsx",
+        "app/staff-invite.tsx",
+        "deno.lock",
+        "docs/ui/design-qa.md",
+        "src/api/invite-errors.ts",
+        "src/api/staff-invite.ts",
+        "src/auth/__tests__/role-provider.test.ts",
+        "src/auth/__tests__/staff-invite-link.test.ts",
+        "src/auth/auth.tsx",
+        "src/auth/role.tsx",
+        "src/auth/staff-invite-link.ts",
+        "src/copilot/CopilotProvider.tsx",
+        "src/dev/__tests__/profile-preview-access.test.ts",
+        "src/dev/profile-preview-access.ts",
+        "src/hooks/use-effective-profile.ts",
+        "src/providers/OrganizationProvider.tsx",
+        "src/screens/auth/StaffInviteSignupForm.tsx",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-signup-form.test.ts",
+        "src/screens/coordination/CoordinationPeopleWorkspace.tsx",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "src/screens/coordination/__tests__/coordination-screen-state.test.ts",
+        "src/screens/coordination/coordination-screen-state.ts",
+        "src/ui/WebSidebar.tsx",
+        "src/ui/__tests__/error-messages.test.ts",
+        "src/ui/__tests__/profile-switch-options.test.ts",
+        "src/ui/__tests__/web-input-focus.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts",
+        "src/ui/error-messages.ts",
+        "src/ui/profile-switch-options.ts",
+        "supabase/config.toml",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts",
+        "supabase/functions/_shared/staff-invite-auth.ts",
+        "supabase/functions/accept-staff-invite/index.ts",
+        "supabase/functions/claim-trainer-invite/index.ts",
+        "supabase/functions/create-trainer-invite/index.ts"
+      ],
+      "test_evidence_paths": [
+        "src/auth/__tests__/role-provider.test.ts",
+        "src/auth/__tests__/staff-invite-link.test.ts",
+        "src/dev/__tests__/profile-preview-access.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/auth/__tests__/staff-invite-signup-form.test.ts",
+        "src/screens/coordination/__tests__/coordination-access-contract.test.ts",
+        "src/screens/coordination/__tests__/coordination-screen-state.test.ts",
+        "src/ui/__tests__/error-messages.test.ts",
+        "src/ui/__tests__/profile-switch-options.test.ts",
+        "src/ui/__tests__/web-input-focus.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts",
+        "supabase/functions/_shared/__tests__/staff-invite-auth.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-014",
+      "category": "ui",
+      "task": "Manter campos do relatório visíveis acima do teclado.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "f5dd9a6853b3a2e1ebd80c5865ebf2792de7414d",
+      "reference_commit": "ca4f74796823fa019365bbbf60c7d5b91b2af3ff",
+      "reference_diff_sha256": "9d0101b75714b9637d4389ed8a014bffc222c15b53b470d32bd3063502024099",
+      "reference_files": [
+        "app/class/[id]/session.tsx",
+        "src/screens/session/components/SessionReportTab.tsx"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-015",
+      "category": "bug",
+      "task": "Estabilizar troca de conta OAuth sem reutilizar contexto da organização anterior.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "eb1ce72bda5490ede31888f0304228337875b8f9",
+      "reference_commit": "710613397ac1a67e0424c57da7de21ddb1323f3c",
+      "reference_diff_sha256": "d27ed2ce4e683a1ed0c39515a5c6dc5097cb537518a8522940e9883cd47a5927",
+      "reference_files": [
+        "app/_layout.tsx",
+        "app/absence-notices.tsx",
+        "app/assistant/index.tsx",
+        "app/calendar.tsx",
+        "app/class/[id].tsx",
+        "app/classes/index.tsx",
+        "app/coordination.tsx",
+        "app/events/[id].tsx",
+        "app/events/index.tsx",
+        "app/evidence/index.tsx",
+        "app/index.tsx",
+        "app/nfc-attendance.tsx",
+        "app/notifications/index.tsx",
+        "app/periodization/index.tsx",
+        "app/profile.tsx",
+        "app/regulation-history.tsx",
+        "app/reports/trainer.tsx",
+        "app/staff-invite.tsx",
+        "app/students/index.tsx",
+        "app/training/index.tsx",
+        "src/auth/MemberPermissionBoundary.tsx",
+        "src/auth/__tests__/auth-signout.test.ts",
+        "src/auth/__tests__/oauth-post-login.test.ts",
+        "src/auth/auth-signout.ts",
+        "src/auth/auth.tsx",
+        "src/auth/oauth-post-login.ts",
+        "src/components/navigation/AnimatedBottomTabs.tsx",
+        "src/copilot/CopilotProvider.tsx",
+        "src/copilot/__tests__/lesson-context.test.ts",
+        "src/copilot/components/CopilotLessonChat.tsx",
+        "src/copilot/components/CopilotScreenChat.tsx",
+        "src/copilot/lesson-context.tsx",
+        "src/hooks/use-effective-profile.ts",
+        "src/providers/OrganizationProvider.tsx",
+        "src/providers/organization-context.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/screens/family/CoordinationFamilyAccessScreen.tsx",
+        "src/screens/finance/CoordinationFinanceDashboard.tsx",
+        "src/screens/finance/CoordinationFinanceSettings.tsx",
+        "src/screens/finance/CoordinationReceivables.tsx",
+        "src/screens/finance/CoordinationTuitionSetup.tsx",
+        "src/screens/home/HomeProfessor.tsx",
+        "src/screens/home/components/AdminHomeHeader.tsx",
+        "src/screens/student/StudentAthleteHome.tsx",
+        "src/ui/NativeSidebar.tsx",
+        "src/ui/WebSidebar.tsx",
+        "src/ui/__tests__/native-sidebar-mobile.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts"
+      ],
+      "test_evidence_paths": [
+        "src/auth/__tests__/auth-signout.test.ts",
+        "src/auth/__tests__/oauth-post-login.test.ts",
+        "src/copilot/__tests__/lesson-context.test.ts",
+        "src/screens/auth/__tests__/staff-invite-screen.test.ts",
+        "src/ui/__tests__/native-sidebar-mobile.test.ts",
+        "src/ui/__tests__/web-sidebar-profile-menu.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-016",
+      "category": "ui",
+      "task": "Restaurar abertura do menu lateral do atleta no mobile.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "1601d8d09d3c1d4180535b208bf209e921de96a8",
+      "reference_commit": "fdcc73e0c926d90313a9cb703462e8157506cee3",
+      "reference_diff_sha256": "ceaf8c4ed4f7d086a17e33501e31bf8ec25d8709c05785041063aa35883fa933",
+      "reference_files": [
+        "src/screens/student/StudentAthleteHome.tsx",
+        "src/screens/student/__tests__/student-home-menu.test.ts"
+      ],
+      "test_evidence_paths": [
+        "src/screens/student/__tests__/student-home-menu.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-017",
+      "category": "tests",
+      "task": "Isolar teste Deno do webhook para não ser executado pelo Jest.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "f1d31f7d5c237ad0bad6ac47d9335ce41b8ea50a",
+      "reference_commit": "77d34e61df502388870b2cc795a51d6df27da5f7",
+      "reference_diff_sha256": "5cbd1b86d117f673edd5766bcadbe6ec196a50996f69dc00059b5f62f7fa4c92",
+      "reference_files": [
+        "supabase/functions/_shared/__tests__/meta-whatsapp-webhook-handler.test.ts",
+        "supabase/functions/_shared/meta-whatsapp-webhook-handler.deno.test.ts"
+      ],
+      "test_evidence_paths": [
+        "supabase/functions/_shared/__tests__/meta-whatsapp-webhook-handler.test.ts",
+        "supabase/functions/_shared/meta-whatsapp-webhook-handler.deno.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-018",
+      "category": "bug",
+      "task": "Normalizar formato do telefone confirmado.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "666d6835ff618e781ba620e6866ce2f724dad7c3",
+      "reference_commit": "1f83fa5d70bd9eb9fc114566342c6dbd87e675fd",
+      "reference_diff_sha256": "d1f2ae7487d974976a4787e7c0b778cebd42d5455878a3e876bd2e7b0cb08812",
+      "reference_files": [
+        "src/auth/__tests__/phone-verification.test.ts",
+        "src/auth/phone-verification.ts"
+      ],
+      "test_evidence_paths": [
+        "src/auth/__tests__/phone-verification.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-019",
+      "category": "bug",
+      "task": "Ler corretamente o destino de telefone no payload do hook de SMS.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "cc2bc6fd158423d93152e03000f5cb0575289cb4",
+      "reference_commit": "6a6c81963ee49cebc9732e649def58ba8d23af70",
+      "reference_diff_sha256": "8452df43f17028d3f492ec5b47a56d47908732eb7987c04e5b29f1b8d9b488ba",
+      "reference_files": [
+        "supabase/functions/_shared/__tests__/whatsapp-auth-provider.test.ts",
+        "supabase/functions/_shared/whatsapp-auth-provider.ts",
+        "supabase/functions/whatsapp-auth-hook/index.ts"
+      ],
+      "test_evidence_paths": [
+        "supabase/functions/_shared/__tests__/whatsapp-auth-provider.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-020",
+      "category": "tests",
+      "task": "Esperar o servidor PostgreSQL final no harness e tornar avisos esperados verificáveis.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "8e3755f8d2118f43bf1ec0a9d042676e370a0d15",
+      "reference_commit": "0ab149441beeb6cbb0432eeb04a64a68e71fb2d9",
+      "reference_diff_sha256": "2cd2539b9afa6ee2ecdca6d62ec6aee2108a6deb1ad964b768b826ecaf197785",
+      "reference_files": [
+        "docs/audits/2026-09-05-release-typecheck-recovery.md",
+        "scripts/validation/README.md",
+        "scripts/validation/docker-postgres.mjs",
+        "src/auth/__tests__/session-storage.test.ts",
+        "supabase/functions/_shared/__tests__/ai-periodization-context.test.ts"
+      ],
+      "test_evidence_paths": [
+        "src/auth/__tests__/session-storage.test.ts",
+        "supabase/functions/_shared/__tests__/ai-periodization-context.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-021",
+      "category": "volleyball",
+      "task": "Refinar etapas e exportação do fluxo de quadra visual 5x1.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "2912274260e8aa3a2751761cbe22f5f29010d550",
+      "reference_commit": "1f7d05098d450ef3063364c45275584726d5f18d",
+      "reference_diff_sha256": "15c19499a88d34e86b9cba542d00f6315be25c65767c1ff77a6e387a06f54670",
+      "reference_files": [
+        "package-lock.json",
+        "package.json",
+        "src/components/visual-court/CourtEditorWorkspace.tsx",
+        "src/components/visual-court/__tests__/court-export-utils.test.ts",
+        "src/components/visual-court/__tests__/visual-tech-route.test.ts",
+        "src/components/visual-court/court-export-utils.ts",
+        "src/components/visual-court/court-export.tsx",
+        "src/components/visual-court/court-export.web.tsx",
+        "src/components/visual-court/useCourtEditor.ts",
+        "src/core/__tests__/visual-court-editor.test.ts",
+        "src/core/__tests__/visual-court.test.ts",
+        "src/core/presets/5x1-reception.goatleta.json",
+        "src/core/visual-court-editor.ts",
+        "src/core/visual-court.ts",
+        "src/types/gifenc.d.ts"
+      ],
+      "test_evidence_paths": [
+        "src/components/visual-court/__tests__/court-export-utils.test.ts",
+        "src/components/visual-court/__tests__/visual-tech-route.test.ts",
+        "src/core/__tests__/visual-court-editor.test.ts",
+        "src/core/__tests__/visual-court.test.ts"
+      ],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-022",
+      "category": "periodization",
+      "task": "Persistir limites ACWR por turma nas camadas de dados existentes.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "4086b1841a67a93b3edfe9c94a58c1d4a33276f1",
+      "reference_commit": "5324615244df0b7ee6724d26408827e6f391b0f9",
+      "reference_diff_sha256": "80890f513a724bc643393b695ea207d17eda2e63c0a71c76e74d0626157740dc",
+      "reference_files": [
+        "app/periodization/index.tsx",
+        "src/core/models.ts",
+        "src/db/seed.ts",
+        "src/db/sqlite.ts",
+        "src/db/sqlite.web.ts",
+        "supabase/migrations/20260115_add_acwr_limits_classes.sql"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-023",
+      "category": "migrations",
+      "task": "Normalizar versões das migrations para compatibilidade com Supabase CLI.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "128b2144814a1def0e73b3984ed502828393c4b7",
+      "reference_commit": "365c9ad66e942add15264c5f596f7febece17aae",
+      "reference_diff_sha256": "721b872ad26334bf06aea78e934ca5c355fcd4f93fef4792e4556d41a2bf157f",
+      "reference_files": [
+        "README.md",
+        "supabase/migrations/2026010601_create_scouting_logs.sql",
+        "supabase/migrations/20260106_create_scouting_logs.sql",
+        "supabase/migrations/2026011301_add_client_id_scouting_logs.sql",
+        "supabase/migrations/2026011302_add_mode_scouting_logs.sql",
+        "supabase/migrations/20260113_add_client_id_scouting_logs.sql",
+        "supabase/migrations/20260113_add_mode_scouting_logs.sql",
+        "supabase/migrations/2026011501_add_acwr_limits_classes.sql",
+        "supabase/migrations/20260115_add_acwr_limits_classes.sql"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    },
+    {
+      "id": "GA-024",
+      "category": "reports",
+      "task": "Persistir e recuperar a última edição do registro de sessão.",
+      "task_source": "reconstructed_from_commit_not_original_ticket",
+      "base_commit": "d1725297b023c3e4952f5ab1e44f8bbb76c94bb2",
+      "reference_commit": "89d6c126195d4d1ef710e52cb077612a5a701763",
+      "reference_diff_sha256": "3671fbb7f50413f4ba5e37e3e5a3f25e605b5a05781c0eb96e618760c697f42a",
+      "reference_files": [
+        "app/class/[id]/attendance.tsx",
+        "app/class/[id]/log.tsx",
+        "app/class/[id]/session.tsx",
+        "app/students/index.tsx",
+        "src/db/seed.ts"
+      ],
+      "test_evidence_paths": [],
+      "state": "CURATED_NOT_EXECUTED",
+      "runtime_profile": "requires_case_specific_preflight",
+      "graders": [
+        "scope",
+        "tests",
+        "regressions",
+        "semantic_review",
+        "human_correction"
+      ],
+      "acceptance": [
+        "Satisfazer o objetivo preservando contratos do commit base.",
+        "Revisar regressões e segurança com critérios específicos antes da run.",
+        "Não exigir igualdade textual com o patch histórico."
+      ]
+    }
+  ],
+  "remote_runs": 0,
+  "oracle_policy": "Reference commit and patch stay evaluator-side; never send to implementation agent.",
+  "limitations": "Not original tickets; task criteria and runtime require review before paid execution."
+}

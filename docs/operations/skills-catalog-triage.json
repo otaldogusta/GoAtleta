@@ -1,0 +1,3486 @@
+{
+  "date": "2026-10-01",
+  "catalog_entries": 194,
+  "counts": {
+    "Disponivel": 194
+  },
+  "meaning": "Adequação ao Go Atleta; não é ranking universal nem auditoria de segurança de 194 pacotes.",
+  "entries": [
+    {
+      "name": "Agent Skills",
+      "slug": "addy-agent-skills",
+      "catalog_url": "https://agenticskills.io/skills/addy-agent-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "api-and-interface-design",
+        "browser-testing-with-devtools",
+        "ci-cd-and-automation",
+        "code-review-and-quality",
+        "code-simplification",
+        "constraint-driven-development",
+        "context-engineering",
+        "debugging-and-error-recovery",
+        "deprecation-and-migration",
+        "documentation-and-adrs",
+        "doubt-driven-development",
+        "frontend-ui-engineering",
+        "git-workflow-and-versioning",
+        "idea-refine",
+        "incremental-implementation",
+        "interview-me",
+        "observability-and-instrumentation",
+        "performance-optimization",
+        "planning-and-task-breakdown",
+        "security-and-hardening",
+        "shipping-and-launch",
+        "source-driven-development",
+        "spec-driven-development",
+        "test-driven-development",
+        "using-agent-skills"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Agents SDK",
+      "slug": "agents-sdk",
+      "catalog_url": "https://agenticskills.io/skills/agents-sdk",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "agents-sdk"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "AI Research Skills",
+      "slug": "ai-research-skills",
+      "catalog_url": "https://agenticskills.io/skills/ai-research-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "autoresearch",
+        "implementing-llms-litgpt",
+        "mamba-architecture",
+        "nanogpt",
+        "rwkv-architecture",
+        "distributed-llm-pretraining-torchtitan",
+        "huggingface-tokenizers",
+        "sentencepiece",
+        "axolotl",
+        "llama-factory",
+        "peft-fine-tuning",
+        "unsloth",
+        "nnsight-remote-interpretability",
+        "pyvene-interventions",
+        "sparse-autoencoder-training",
+        "transformer-lens-interpretability",
+        "nemo-curator",
+        "ray-data",
+        "grpo-rl-training",
+        "miles-rl-training",
+        "openrlhf-training",
+        "simpo-training",
+        "slime-rl-training",
+        "torchforge-rl-training",
+        "fine-tuning-with-trl",
+        "verl-rl-training",
+        "constitutional-ai",
+        "llamaguard",
+        "nemo-guardrails",
+        "prompt-guard",
+        "huggingface-accelerate",
+        "deepspeed",
+        "training-llms-megatron",
+        "pytorch-fsdp2",
+        "zechenzhangagi-pytorch-lightning",
+        "ray-train",
+        "lambda-labs-gpu-cloud",
+        "modal-serverless-gpu",
+        "skypilot-multi-cloud-orchestration",
+        "awq-quantization",
+        "quantizing-models-bitsandbytes",
+        "optimizing-attention-flash",
+        "gguf-quantization",
+        "gptq",
+        "hqq-quantization",
+        "ml-training-recipes",
+        "evaluating-code-models",
+        "evaluating-llms-harness",
+        "nemo-evaluator-sdk",
+        "llama-cpp",
+        "sglang",
+        "tensorrt-llm",
+        "serving-llms-vllm",
+        "mlflow",
+        "experiment-tracking-swanlab",
+        "tensorboard",
+        "weights-and-biases",
+        "evolving-ai-agents",
+        "autogpt-agents",
+        "crewai-multi-agent",
+        "langchain",
+        "llamaindex",
+        "chroma",
+        "faiss",
+        "pinecone",
+        "qdrant-vector-search",
+        "sentence-transformers",
+        "dspy",
+        "guidance",
+        "instructor",
+        "outlines",
+        "langsmith-observability",
+        "phoenix-observability",
+        "audiocraft-audio-generation",
+        "blip-2-vision-language",
+        "clip",
+        "evaluating-cosmos-policy",
+        "llava",
+        "fine-tuning-serving-openpi",
+        "fine-tuning-openvla-oft",
+        "segment-anything-model",
+        "stable-diffusion-image-generation",
+        "whisper",
+        "knowledge-distillation",
+        "long-context",
+        "model-merging",
+        "model-pruning",
+        "moe-training",
+        "speculative-decoding",
+        "academic-plotting",
+        "ml-paper-writing",
+        "presenting-conference-talks",
+        "systems-paper-writing",
+        "brainstorming-research-ideas",
+        "creative-thinking-for-research",
+        "ara-compiler",
+        "ara-research-manager",
+        "ara-rigor-reviewer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Algorithmic Art",
+      "slug": "algorithmic-art",
+      "catalog_url": "https://agenticskills.io/skills/algorithmic-art",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "algorithmic-art"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Analytics Tracking",
+      "slug": "analytics-tracking",
+      "catalog_url": "https://agenticskills.io/skills/analytics-tracking",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "analytics"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Animate",
+      "slug": "animate",
+      "catalog_url": "https://agenticskills.io/skills/animate",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "animate"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Anthropic Design Plugin",
+      "slug": "anthropic-design",
+      "catalog_url": "https://agenticskills.io/skills/anthropic-design",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "accessibility-review",
+        "design-critique",
+        "design-handoff",
+        "design-system",
+        "research-synthesis",
+        "user-research",
+        "ux-copy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Audit Website",
+      "slug": "audit-website",
+      "catalog_url": "https://agenticskills.io/skills/audit-website",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "audit-website"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "AWS Skills",
+      "slug": "aws-skills",
+      "catalog_url": "https://agenticskills.io/skills/aws-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "aws-agentic-ai",
+        "aws-mcp-setup",
+        "aws-cost-operations",
+        "aws-cdk-development",
+        "aws-sst-development",
+        "aws-serverless-eda"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Developer CLI Deployment",
+      "slug": "azd-deployment",
+      "catalog_url": "https://agenticskills.io/skills/azd-deployment",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "azure-deploy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure App Service",
+      "slug": "azure-app-service",
+      "catalog_url": "https://agenticskills.io/skills/azure-app-service",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-app-service"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Blob Storage",
+      "slug": "azure-blob-storage",
+      "catalog_url": "https://agenticskills.io/skills/azure-blob-storage",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-blob-storage"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Cognitive Search",
+      "slug": "azure-cognitive-search",
+      "catalog_url": "https://agenticskills.io/skills/azure-cognitive-search",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-cognitive-search"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Container Apps",
+      "slug": "azure-container-apps",
+      "catalog_url": "https://agenticskills.io/skills/azure-container-apps",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-container-apps"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Cosmos DB",
+      "slug": "azure-cosmos-db",
+      "catalog_url": "https://agenticskills.io/skills/azure-cosmos-db",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-cosmos-db"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Databricks",
+      "slug": "azure-databricks",
+      "catalog_url": "https://agenticskills.io/skills/azure-databricks",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-databricks"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure DevOps",
+      "slug": "azure-devops",
+      "catalog_url": "https://agenticskills.io/skills/azure-devops",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-devops"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Functions",
+      "slug": "azure-functions",
+      "catalog_url": "https://agenticskills.io/skills/azure-functions",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-functions"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Key Vault",
+      "slug": "azure-key-vault",
+      "catalog_url": "https://agenticskills.io/skills/azure-key-vault",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-key-vault"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Kubernetes Service",
+      "slug": "azure-kubernetes-service",
+      "catalog_url": "https://agenticskills.io/skills/azure-kubernetes-service",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-kubernetes-service"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Machine Learning",
+      "slug": "azure-machine-learning",
+      "catalog_url": "https://agenticskills.io/skills/azure-machine-learning",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-machine-learning"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Monitor",
+      "slug": "azure-monitor",
+      "catalog_url": "https://agenticskills.io/skills/azure-monitor",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-monitor"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Pipelines",
+      "slug": "azure-pipelines",
+      "catalog_url": "https://agenticskills.io/skills/azure-pipelines",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-pipelines"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure SQL Database",
+      "slug": "azure-sql-database",
+      "catalog_url": "https://agenticskills.io/skills/azure-sql-database",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-sql-database"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Azure Static Web Apps",
+      "slug": "azure-static-web-apps",
+      "catalog_url": "https://agenticskills.io/skills/azure-static-web-apps",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "azure-static-web-apps"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Beautiful Prose",
+      "slug": "beautiful-prose",
+      "catalog_url": "https://agenticskills.io/skills/beautiful-prose",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "beautiful-prose"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Better Auth Best Practices",
+      "slug": "better-auth",
+      "catalog_url": "https://agenticskills.io/skills/better-auth",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "better-auth-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Brainstorming",
+      "slug": "brainstorming",
+      "catalog_url": "https://agenticskills.io/skills/brainstorming",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "brainstorming"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Brand Guidelines",
+      "slug": "brand-guidelines",
+      "catalog_url": "https://agenticskills.io/skills/brand-guidelines",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Aplica identidade da Anthropic; incompatível com a marca Go Atleta.",
+      "upstream": {
+        "repo": "anthropics/skills",
+        "path": "skills/brand-guidelines",
+        "ref": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "brand-guidelines"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Build Awwwards-Quality Sites",
+      "slug": "build-awwwards-quality-sites",
+      "catalog_url": "https://agenticskills.io/skills/build-awwwards-quality-sites",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "build-awwwards-quality-sites"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Building Secure Contracts",
+      "slug": "building-secure-contracts",
+      "catalog_url": "https://agenticskills.io/skills/building-secure-contracts",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "algorand-vulnerability-scanner",
+        "audit-prep-assistant",
+        "cairo-vulnerability-scanner",
+        "code-maturity-assessor",
+        "cosmos-vulnerability-scanner",
+        "guidelines-advisor",
+        "secure-workflow-guide",
+        "solana-vulnerability-scanner",
+        "substrate-vulnerability-scanner",
+        "token-integration-analyzer",
+        "ton-vulnerability-scanner"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "GitHub Workflows (gh CLI)",
+      "slug": "callstack-github",
+      "catalog_url": "https://agenticskills.io/skills/callstack-github",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "github-actions"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Canvas Design",
+      "slug": "canvas-design",
+      "catalog_url": "https://agenticskills.io/skills/canvas-design",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "canvas-design"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Claude API",
+      "slug": "claude-api",
+      "catalog_url": "https://agenticskills.io/skills/claude-api",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "claude-api"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "D3.js Visualizations",
+      "slug": "claude-d3js-skill",
+      "catalog_url": "https://agenticskills.io/skills/claude-d3js-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "d3-viz"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Scientific Skills",
+      "slug": "claude-scientific-skills",
+      "catalog_url": "https://agenticskills.io/skills/claude-scientific-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "13c-metabolic-flux",
+        "adaptyv",
+        "aeon",
+        "alphagenome",
+        "analytical-method-validation",
+        "anndata",
+        "arbor",
+        "arboreto",
+        "astropy",
+        "autoskill",
+        "benchling-integration",
+        "bgpt-paper-search",
+        "bids",
+        "biopython",
+        "bioservices",
+        "bulk-rnaseq",
+        "cantera",
+        "cellprofiler",
+        "cellxgene-census",
+        "cirq",
+        "citation-management",
+        "clinical-decision-support",
+        "clinical-reports",
+        "cobrapy",
+        "consciousness-council",
+        "dask",
+        "database-lookup",
+        "datalad",
+        "datamol",
+        "deepchem",
+        "deepspot-m",
+        "deeptools",
+        "depmap",
+        "dhdna-profiler",
+        "diffdock",
+        "dnanexus-integration",
+        "k-dense-ai-docx",
+        "esm",
+        "etetoolkit",
+        "exa-search",
+        "experimental-design",
+        "exploratory-data-analysis",
+        "fictiv",
+        "flowio",
+        "flowkit",
+        "fluidsim",
+        "folklore-variant-evidence",
+        "generate-image",
+        "geniml",
+        "genomic-coordinates",
+        "genomic-intelligence",
+        "geomaster",
+        "geopandas",
+        "get-available-resources",
+        "gget",
+        "ginkgo-cloud-lab",
+        "glycoengineering",
+        "gtars",
+        "histolab",
+        "hugging-science",
+        "hypogenic",
+        "hypothesis-generation",
+        "imaging-data-commons",
+        "infographics",
+        "iso-standards-readiness",
+        "lab-hardware-cad",
+        "labarchive-integration",
+        "lamindb",
+        "latchbio-integration",
+        "latex-posters",
+        "liteparse",
+        "literature-review",
+        "mageck",
+        "marine-carbonate-chemistry",
+        "markdown-mermaid-writing",
+        "market-research-reports",
+        "markitdown",
+        "matchms",
+        "matlab",
+        "matplotlib",
+        "medchem",
+        "modal",
+        "molecular-dynamics",
+        "molfeat",
+        "ncats-arax",
+        "networkx",
+        "neurokit2",
+        "neuropixels-analysis",
+        "nextflow",
+        "nmrglue",
+        "nwb-conversion",
+        "omero-integration",
+        "onekgpd",
+        "ontology-term-resolution",
+        "open-notebook",
+        "openpiv",
+        "opentrons-integration",
+        "optimize-for-gpu",
+        "pacsomatic",
+        "paper-lookup",
+        "paperclip",
+        "paperzilla",
+        "parallel-web",
+        "pathml",
+        "pathogen-variant-surveillance",
+        "pathway-enrichment",
+        "k-dense-ai-pdf",
+        "peer-review",
+        "pennylane",
+        "phylogenetics",
+        "pi-agent",
+        "pkpd-modeling",
+        "polars-bio",
+        "polars",
+        "pptx-posters",
+        "k-dense-ai-pptx",
+        "primekg",
+        "primer-design",
+        "protocolsio-integration",
+        "pufferlib",
+        "pybamm",
+        "pycalphad",
+        "pydeseq2",
+        "pydicom",
+        "pyhealth",
+        "pylabrobot",
+        "pymatgen",
+        "pymc",
+        "pymoo",
+        "pyopenms",
+        "pysam",
+        "pytdc",
+        "pytorch-lightning",
+        "pyzotero",
+        "qiime2-amplicon",
+        "qiskit",
+        "qutip",
+        "rdkit",
+        "relion",
+        "relsa-severity-assessment",
+        "research-grants",
+        "research-lookup",
+        "rowan",
+        "scanpy",
+        "scholar-evaluation",
+        "scientific-brainstorming",
+        "scientific-critical-thinking",
+        "scientific-schematics",
+        "scientific-slides",
+        "scientific-visualization",
+        "scientific-writing",
+        "scikit-bio",
+        "scikit-learn",
+        "scikit-survival",
+        "scvelo",
+        "scvi-tools",
+        "seaborn",
+        "shap",
+        "simpy",
+        "stable-baselines3",
+        "statistical-analysis",
+        "statistical-power",
+        "statsmodels",
+        "sympy",
+        "tamarind",
+        "tellurium",
+        "tiledbvcf",
+        "timesfm-forecasting",
+        "torch-geometric",
+        "torchdrug",
+        "transformers",
+        "treatment-plans",
+        "umap-learn",
+        "uncertainty-and-units",
+        "usfiscaldata",
+        "vaex",
+        "venue-templates",
+        "waypoint-bio",
+        "what-if-oracle",
+        "k-dense-ai-xlsx",
+        "zarr-python"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Claude SEO",
+      "slug": "claude-seo",
+      "catalog_url": "https://agenticskills.io/skills/claude-seo",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "seo-ahrefs",
+        "seo-image-gen",
+        "seo-bing",
+        "seo-dataforseo",
+        "seo-firecrawl",
+        "seo-matomo",
+        "seo-profound",
+        "seo-seranking",
+        "seo-unlighthouse",
+        "seo-agentic",
+        "seo-audit",
+        "seo-backlinks",
+        "seo-cluster",
+        "seo-competitor-pages",
+        "seo-content-brief",
+        "seo-content",
+        "agricidaniel-seo-dataforseo",
+        "seo-drift",
+        "seo-ecommerce",
+        "seo-flow",
+        "seo-geo",
+        "seo-google",
+        "seo-hreflang",
+        "agricidaniel-seo-image-gen",
+        "seo-images",
+        "seo-local",
+        "seo-maps",
+        "seo-page",
+        "seo-plan",
+        "seo-programmatic",
+        "seo-schema",
+        "seo-sitemap",
+        "seo-sxo",
+        "seo-technical",
+        "seo"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "ClawSec",
+      "slug": "clawsec",
+      "catalog_url": "https://agenticskills.io/skills/clawsec",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "clawsec-clawhub-checker"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "ClickHouse Agent Skills",
+      "slug": "clickhouse-agent-skills",
+      "catalog_url": "https://agenticskills.io/skills/clickhouse-agent-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "chdb-datastore",
+        "chdb-sql",
+        "clickhouse-architecture-advisor",
+        "clickhouse-best-practices",
+        "clickhouse-js-node-coding",
+        "clickhouse-js-node-rowbinary",
+        "clickhouse-js-node-troubleshooting",
+        "clickhouse-managed-postgres-rca",
+        "clickstack-otel-collector",
+        "infra-clickhouse",
+        "infra-postgres"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Cloudflare Commands",
+      "slug": "cloudflare-commands",
+      "catalog_url": "https://agenticskills.io/skills/cloudflare-commands",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "cloudflare"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Cloudflare Deploy",
+      "slug": "cloudflare-deploy",
+      "catalog_url": "https://agenticskills.io/skills/cloudflare-deploy",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "cloudflare-deploy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Cloudflare Durable Objects",
+      "slug": "cloudflare-durable-objects",
+      "catalog_url": "https://agenticskills.io/skills/cloudflare-durable-objects",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "durable-objects"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Cloudflare Web Perf",
+      "slug": "cloudflare-web-perf",
+      "catalog_url": "https://agenticskills.io/skills/cloudflare-web-perf",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "web-perf"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Cloudflare Wrangler",
+      "slug": "cloudflare-wrangler",
+      "catalog_url": "https://agenticskills.io/skills/cloudflare-wrangler",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "wrangler"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Code Review",
+      "slug": "code-review",
+      "catalog_url": "https://agenticskills.io/skills/code-review",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Checklist geral válido, mas introduz pouco frente a workflow, testes, revisão React e segurança já disponíveis.",
+      "upstream": {
+        "repo": "getsentry/skills",
+        "path": "skills/code-review",
+        "ref": "d18b7aa8ba878354e5c348310230e652f7690f9c"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "code-review"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Composition Patterns",
+      "slug": "composition-patterns",
+      "catalog_url": "https://agenticskills.io/skills/composition-patterns",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Complementa o projeto; commit e arquivos fixados no manifesto; ressalvas de uso no relatório.",
+      "upstream": {
+        "repo": "vercel-labs/agent-skills",
+        "path": "skills/composition-patterns",
+        "ref": "063bee94c3f4df8453406c830b0a7df0f2860278"
+      },
+      "initial_decision": "Instalada",
+      "installed_skills": [
+        "vercel-composition-patterns"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Content Research Writer",
+      "slug": "content-research-writer",
+      "catalog_url": "https://agenticskills.io/skills/content-research-writer",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "content-research-writer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Content Strategy",
+      "slug": "content-strategy",
+      "catalog_url": "https://agenticskills.io/skills/content-strategy",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "content-strategy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Copy Editing",
+      "slug": "copy-editing",
+      "catalog_url": "https://agenticskills.io/skills/copy-editing",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "copy-editing"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Copywriting",
+      "slug": "copywriting",
+      "catalog_url": "https://agenticskills.io/skills/copywriting",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "copywriting"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Create Auth",
+      "slug": "create-auth",
+      "catalog_url": "https://agenticskills.io/skills/create-auth",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "create-auth"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Deep Research",
+      "slug": "deep-research",
+      "catalog_url": "https://agenticskills.io/skills/deep-research",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "deep-research"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Deploy to Vercel",
+      "slug": "deploy-to-vercel",
+      "catalog_url": "https://agenticskills.io/skills/deploy-to-vercel",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "deploy-to-vercel"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Designer Skills Collection",
+      "slug": "designer-skills",
+      "catalog_url": "https://agenticskills.io/skills/designer-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "owl-listener-design-critique",
+        "design-debt-audit",
+        "design-impact-reporting",
+        "design-qa-checklist",
+        "design-review-process",
+        "design-sprint-plan",
+        "handoff-spec",
+        "team-workflow",
+        "version-control-strategy",
+        "affinity-diagram",
+        "behavioural-analytics",
+        "card-sort-analysis",
+        "diary-study-plan",
+        "empathy-map",
+        "interview-script",
+        "jobs-to-be-done",
+        "journey-map",
+        "qual-quant-triangulation",
+        "research-repository",
+        "summarize-interview",
+        "survey-design",
+        "usability-test-plan",
+        "user-persona",
+        "accessibility-audit",
+        "component-spec",
+        "design-system-governance",
+        "design-token",
+        "documentation-template",
+        "icon-system",
+        "localization-design",
+        "motion-system",
+        "naming-convention",
+        "pattern-library",
+        "theming-system",
+        "case-study",
+        "design-negotiation",
+        "design-rationale",
+        "design-system-adoption",
+        "design-token-audit",
+        "presentation-deck",
+        "ux-writing",
+        "animation-principles",
+        "conversational-ux",
+        "doherty-threshold",
+        "error-handling-ux",
+        "feedback-patterns",
+        "fitts-law",
+        "form-design",
+        "gesture-patterns",
+        "hicks-law",
+        "interfaces-that-feel",
+        "jakobs-law",
+        "loading-states",
+        "micro-interaction-spec",
+        "millers-law",
+        "navigation-patterns",
+        "onboarding-design",
+        "peak-end-rule",
+        "search-ux",
+        "serial-position-effect",
+        "state-machine",
+        "teslers-law",
+        "zeigarnik-effect",
+        "a-b-test-design",
+        "accessibility-test-plan",
+        "click-test-plan",
+        "concept-selection",
+        "heuristic-evaluation",
+        "parallel-concepts",
+        "prototype-strategy",
+        "test-scenario",
+        "user-flow-diagram",
+        "wireframe-spec",
+        "aesthetic-usability",
+        "color-system",
+        "dark-mode-design",
+        "data-visualization",
+        "illustration-style",
+        "law-of-closure",
+        "law-of-common-region",
+        "law-of-continuity",
+        "law-of-figure-ground",
+        "law-of-proximity",
+        "law-of-similarity",
+        "layout-grid",
+        "platform-conventions",
+        "readable-measure",
+        "responsive-design",
+        "spacing-system",
+        "typography-scale",
+        "visual-hierarchy",
+        "von-restorff-effect",
+        "business-design",
+        "competitive-analysis",
+        "owl-listener-content-strategy",
+        "design-brief",
+        "design-principles",
+        "experience-map",
+        "information-architecture",
+        "metrics-definition",
+        "north-star-vision",
+        "opportunity-framework",
+        "service-blueprint",
+        "stakeholder-alignment",
+        "critique-affordance",
+        "critique-brand-consistency",
+        "critique-color",
+        "critique-composition",
+        "critique-information-density",
+        "critique-typography",
+        "critique-visual-hierarchy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Differential Review",
+      "slug": "differential-review",
+      "catalog_url": "https://agenticskills.io/skills/differential-review",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "differential-review"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Dispatching Parallel Agents",
+      "slug": "dispatching-parallel-agents",
+      "catalog_url": "https://agenticskills.io/skills/dispatching-parallel-agents",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "dispatching-parallel-agents"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Doc Co-Authoring",
+      "slug": "doc-coauthoring",
+      "catalog_url": "https://agenticskills.io/skills/doc-coauthoring",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "doc-coauthoring"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "DOCX",
+      "slug": "docx",
+      "catalog_url": "https://agenticskills.io/skills/docx",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "docx"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET Core Skills",
+      "slug": "dotnet",
+      "catalog_url": "https://agenticskills.io/skills/dotnet",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "csharp-refactoring",
+        "setup-local-sdk"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET AI",
+      "slug": "dotnet-ai",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-ai",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "technology-selection"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "ASP.NET Core",
+      "slug": "dotnet-aspnet",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-aspnet",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "convert-blazor-server-to-webapp",
+        "dotnet-webapi"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET Data",
+      "slug": "dotnet-data",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-data",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "create-datadriven-aspnetcore",
+        "optimizing-ef-core-queries"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET Diagnostics",
+      "slug": "dotnet-diag",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-diag",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "analyzing-dotnet-performance",
+        "android-tombstone-symbolication",
+        "apple-crash-symbolication",
+        "clr-activation-debugging",
+        "dotnet-trace-collect",
+        "dump-collect",
+        "microbenchmarking"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET MAUI",
+      "slug": "dotnet-maui",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-maui",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "dotnet-maui-doctor",
+        "maui-app-lifecycle",
+        "maui-collectionview",
+        "maui-data-binding",
+        "maui-dependency-injection",
+        "maui-safe-area",
+        "maui-shell-navigation",
+        "maui-theming"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET MSBuild",
+      "slug": "dotnet-msbuild",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-msbuild",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "binlog-failure-analysis",
+        "binlog-generation",
+        "build-parallelism",
+        "build-perf-baseline",
+        "build-perf-diagnostics",
+        "check-bin-obj-clash",
+        "copy-to-output-directory",
+        "directory-build-organization",
+        "eval-performance",
+        "extension-points",
+        "including-generated-files",
+        "incremental-build",
+        "item-management",
+        "msbuild-antipatterns",
+        "msbuild-modernization",
+        "property-patterns",
+        "resolve-project-references",
+        "target-authoring"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET NuGet",
+      "slug": "dotnet-nuget",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-nuget",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "convert-to-cpm"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET Template Engine",
+      "slug": "dotnet-template-engine",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-template-engine",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "template-authoring",
+        "template-comparison",
+        "template-discovery",
+        "template-instantiation",
+        "template-smart-defaults",
+        "template-validation"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET Test",
+      "slug": "dotnet-test",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-test",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "assertion-quality",
+        "code-testing-agent",
+        "code-testing-extensions",
+        "coverage-analysis",
+        "crap-score",
+        "detect-static-dependencies",
+        "filter-syntax",
+        "find-untested-sources",
+        "generate-testability-wrappers",
+        "grade-tests",
+        "migrate-static-to-wrapper",
+        "mtp-hot-reload",
+        "platform-detection",
+        "run-tests",
+        "scaffold-dotnet-test-project",
+        "test-analysis-extensions",
+        "test-anti-patterns",
+        "test-gap-analysis",
+        "test-smell-detection",
+        "test-tagging",
+        "testability-obstacle",
+        "writing-mstest-tests"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": ".NET Upgrade",
+      "slug": "dotnet-upgrade",
+      "catalog_url": "https://agenticskills.io/skills/dotnet-upgrade",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "dotnet-aot-compat",
+        "migrate-dotnet10-to-dotnet11",
+        "migrate-dotnet8-to-dotnet9",
+        "migrate-dotnet9-to-dotnet10",
+        "migrate-nullable-references",
+        "thread-abort-migration"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Email Marketing Bible",
+      "slug": "email-marketing-bible",
+      "catalog_url": "https://agenticskills.io/skills/email-marketing-bible",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "email-marketing-bible"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Emil Design Engineering",
+      "slug": "emil-design-eng",
+      "catalog_url": "https://agenticskills.io/skills/emil-design-eng",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "emil-design-eng"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Emil Kowalski's Design Skills",
+      "slug": "emilkowalski-skills",
+      "catalog_url": "https://agenticskills.io/skills/emilkowalski-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "animate-expo",
+        "animate",
+        "animation-vocabulary",
+        "apple-design",
+        "ask-sonner",
+        "emil-design-eng",
+        "find-animation-opportunities",
+        "improve-animations",
+        "mobile-native",
+        "pick-ui-library",
+        "prototype",
+        "review-animations",
+        "write-swift"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Executing Plans",
+      "slug": "executing-plans",
+      "catalog_url": "https://agenticskills.io/skills/executing-plans",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "executing-plans"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Expo App Design",
+      "slug": "expo-app-design",
+      "catalog_url": "https://agenticskills.io/skills/expo-app-design",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "expo-native-ui"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Expo Deployment",
+      "slug": "expo-deployment",
+      "catalog_url": "https://agenticskills.io/skills/expo-deployment",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "eas-app-stores"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Figma",
+      "slug": "figma",
+      "catalog_url": "https://agenticskills.io/skills/figma",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "figma"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Figma Implement Design",
+      "slug": "figma-implement-design",
+      "catalog_url": "https://agenticskills.io/skills/figma-implement-design",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "figma-implement-design"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Find Bugs",
+      "slug": "find-bugs",
+      "catalog_url": "https://agenticskills.io/skills/find-bugs",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Revisão completa por arquivo e checklist amplo sobrepõem Codex Security; base do diff por branch padrão exige cuidado em worktree detached.",
+      "upstream": {
+        "repo": "getsentry/skills",
+        "path": "skills/find-bugs",
+        "ref": "d18b7aa8ba878354e5c348310230e652f7690f9c"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "find-bugs"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Find Skills",
+      "slug": "find-skills",
+      "catalog_url": "https://agenticskills.io/skills/find-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "find-skills"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Firecrawl CLI",
+      "slug": "firecrawl-cli",
+      "catalog_url": "https://agenticskills.io/skills/firecrawl-cli",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "firecrawl"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Frontend Design",
+      "slug": "frontend-design",
+      "catalog_url": "https://agenticskills.io/skills/frontend-design",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "frontend-design"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Frontend Slides",
+      "slug": "frontend-slides",
+      "catalog_url": "https://agenticskills.io/skills/frontend-slides",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "zarazhangrui-frontend-slides",
+        "frontend-slides"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "GEO Optimizer",
+      "slug": "geo-optimizer",
+      "catalog_url": "https://agenticskills.io/skills/geo-optimizer",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "geo-optimizer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "GEO SEO Skills",
+      "slug": "geo-seo-claude",
+      "catalog_url": "https://agenticskills.io/skills/geo-seo-claude",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "geo",
+        "geo-audit",
+        "geo-brand-mentions",
+        "geo-citability",
+        "geo-compare",
+        "geo-content",
+        "geo-crawlers",
+        "geo-llmstxt",
+        "geo-platform-optimizer",
+        "geo-proposal",
+        "geo-prospect",
+        "geo-report-pdf",
+        "geo-report",
+        "geo-schema",
+        "geo-technical",
+        "geo-update"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "GH Address Comments",
+      "slug": "gh-address-comments",
+      "catalog_url": "https://agenticskills.io/skills/gh-address-comments",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Reprodução offline: resolve PR pelo head repository do fork; leitura adicional mostrou limites de paginação. Não instalar como pronto.",
+      "upstream": {
+        "repo": "openai/skills",
+        "path": "skills/.curated/gh-address-comments",
+        "ref": "49f948faa9258a0c61caceaf225e179651397431"
+      },
+      "initial_decision": "Pendente de correção",
+      "installed_skills": [
+        "gh-address-comments"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "GH Fix CI",
+      "slug": "gh-fix-ci",
+      "catalog_url": "https://agenticskills.io/skills/gh-fix-ci",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Reprodução offline: fetch_checks descarta JSON válido quando gh retorna exit code 1. Manter pendente de correção upstream/adaptação.",
+      "upstream": {
+        "repo": "openai/skills",
+        "path": "skills/.curated/gh-fix-ci",
+        "ref": "49f948faa9258a0c61caceaf225e179651397431"
+      },
+      "initial_decision": "Pendente de correção",
+      "installed_skills": [
+        "gh-fix-ci"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Hugging Face CLI",
+      "slug": "hugging-face-cli",
+      "catalog_url": "https://agenticskills.io/skills/hugging-face-cli",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "hf-cli"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Hugging Face Datasets",
+      "slug": "hugging-face-datasets",
+      "catalog_url": "https://agenticskills.io/skills/hugging-face-datasets",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "huggingface-datasets"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Hugging Face Evaluation",
+      "slug": "hugging-face-evaluation",
+      "catalog_url": "https://agenticskills.io/skills/hugging-face-evaluation",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "huggingface-community-evals"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Hugging Face Model Trainer",
+      "slug": "hugging-face-model-trainer",
+      "catalog_url": "https://agenticskills.io/skills/hugging-face-model-trainer",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "huggingface-llm-trainer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Hugging Face TrackIO",
+      "slug": "hugging-face-trackio",
+      "catalog_url": "https://agenticskills.io/skills/hugging-face-trackio",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "huggingface-trackio"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Humanizer",
+      "slug": "humanizer",
+      "catalog_url": "https://agenticskills.io/skills/humanizer",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "humanizer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "ImageGen",
+      "slug": "imagegen",
+      "catalog_url": "https://agenticskills.io/skills/imagegen",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "imagegen"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Impeccable",
+      "slug": "impeccable",
+      "catalog_url": "https://agenticskills.io/skills/impeccable",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "impeccable"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Interface Review",
+      "slug": "interface-review",
+      "catalog_url": "https://agenticskills.io/skills/interface-review",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": {
+        "repo": "jakubkrehel/skills",
+        "path": "skills/interface-review",
+        "ref": "267330e1adfc66a718fb65fa6918c1f06d0a689e"
+      },
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "interface-review"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Internal Comms",
+      "slug": "internal-comms",
+      "catalog_url": "https://agenticskills.io/skills/internal-comms",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "internal-comms"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "iOS Simulator Skill",
+      "slug": "ios-simulator-skill",
+      "catalog_url": "https://agenticskills.io/skills/ios-simulator-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "ios-simulator-skill"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Jakub Krehel's Interface Skills",
+      "slug": "jakub-krehel-skills",
+      "catalog_url": "https://agenticskills.io/skills/jakub-krehel-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "better-accessibility",
+        "better-colors",
+        "better-interface",
+        "better-layout",
+        "better-typography",
+        "better-ui",
+        "better-writing",
+        "break",
+        "explain-interface",
+        "interface-review",
+        "variant"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Jupyter Notebook",
+      "slug": "jupyter-notebook",
+      "catalog_url": "https://agenticskills.io/skills/jupyter-notebook",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "jupyter-notebook"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Kreuzberg",
+      "slug": "kreuzberg",
+      "catalog_url": "https://agenticskills.io/skills/kreuzberg",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "batch-extraction",
+        "chunking",
+        "extracting-keywords",
+        "extracting-tables",
+        "extracting-with-ocr",
+        "picking-a-format",
+        "xberg"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Landing Page Design",
+      "slug": "landing-page-design",
+      "catalog_url": "https://agenticskills.io/skills/landing-page-design",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "landing-page-design"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Last 30 Days",
+      "slug": "last30days",
+      "catalog_url": "https://agenticskills.io/skills/last30days",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "last30days"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Launch Strategy",
+      "slug": "launch-strategy",
+      "catalog_url": "https://agenticskills.io/skills/launch-strategy",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "launch"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Linear",
+      "slug": "linear",
+      "catalog_url": "https://agenticskills.io/skills/linear",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "linear"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Loki Mode",
+      "slug": "loki-mode",
+      "catalog_url": "https://agenticskills.io/skills/loki-mode",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "checkpoint-mode",
+        "prompt-optimization",
+        "asklokesh-loki-mode",
+        "loki-seal",
+        "loki-mode"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Marketing Ideas",
+      "slug": "marketing-ideas",
+      "catalog_url": "https://agenticskills.io/skills/marketing-ideas",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "marketing-ideas"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Marketing Psychology",
+      "slug": "marketing-psychology",
+      "catalog_url": "https://agenticskills.io/skills/marketing-psychology",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "marketing-psychology"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Marketing Skills",
+      "slug": "marketing-skills",
+      "catalog_url": "https://agenticskills.io/skills/marketing-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "ab-testing",
+        "ad-creative",
+        "ads",
+        "ai-seo",
+        "analytics",
+        "aso",
+        "attribution",
+        "churn-prevention",
+        "co-marketing",
+        "cold-email",
+        "community-marketing",
+        "competitor-profiling",
+        "competitors",
+        "content-strategy",
+        "copy-editing",
+        "copywriting",
+        "cro",
+        "customer-research",
+        "directory-submissions",
+        "emails",
+        "events",
+        "free-tools",
+        "image",
+        "influencer-marketing",
+        "launch",
+        "lead-magnets",
+        "marketing-council",
+        "marketing-ideas",
+        "marketing-loops",
+        "marketing-plan",
+        "marketing-psychology",
+        "offers",
+        "onboarding",
+        "paywalls",
+        "popups",
+        "pricing",
+        "product-marketing",
+        "programmatic-seo",
+        "prospecting",
+        "public-relations",
+        "referrals",
+        "revops",
+        "sales-enablement",
+        "schema",
+        "coreyhaines31-seo-audit",
+        "signup",
+        "site-architecture",
+        "sms",
+        "social",
+        "video"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "MCP Builder",
+      "slug": "mcp-builder",
+      "catalog_url": "https://agenticskills.io/skills/mcp-builder",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": {
+        "repo": "anthropics/skills",
+        "path": "skills/mcp-builder",
+        "ref": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4"
+      },
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "mcp-builder"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Microsoft Foundry",
+      "slug": "microsoft-foundry",
+      "catalog_url": "https://agenticskills.io/skills/microsoft-foundry",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "microsoft-foundry"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Microsoft Foundry Classic",
+      "slug": "microsoft-foundry-classic",
+      "catalog_url": "https://agenticskills.io/skills/microsoft-foundry-classic",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "microsoft-foundry-classic"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Microsoft Foundry Local",
+      "slug": "microsoft-foundry-local",
+      "catalog_url": "https://agenticskills.io/skills/microsoft-foundry-local",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "microsoft-foundry-local"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Microsoft Foundry Tools",
+      "slug": "microsoft-foundry-tools",
+      "catalog_url": "https://agenticskills.io/skills/microsoft-foundry-tools",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "microsoft-foundry-tools"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Modern Python",
+      "slug": "modern-python",
+      "catalog_url": "https://agenticskills.io/skills/modern-python",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "modern-python"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "NanoBanana PPT Skills",
+      "slug": "nanobanana-ppt-skills",
+      "catalog_url": "https://agenticskills.io/skills/nanobanana-ppt-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "nanobanana-ppt-skills"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Netlify Deploy",
+      "slug": "netlify-deploy",
+      "catalog_url": "https://agenticskills.io/skills/netlify-deploy",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "netlify-deploy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Notion Knowledge Capture",
+      "slug": "notion-knowledge-capture",
+      "catalog_url": "https://agenticskills.io/skills/notion-knowledge-capture",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "notion-knowledge-capture"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Nutrient Agent Skill",
+      "slug": "nutrient-agent-skill",
+      "catalog_url": "https://agenticskills.io/skills/nutrient-agent-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "nutrient-document-processing"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "OpenAI Docs",
+      "slug": "openai-docs",
+      "catalog_url": "https://agenticskills.io/skills/openai-docs",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "openai-docs"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "OpenAI PDF",
+      "slug": "openai-pdf",
+      "catalog_url": "https://agenticskills.io/skills/openai-pdf",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "pdf"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Page CRO",
+      "slug": "page-cro",
+      "catalog_url": "https://agenticskills.io/skills/page-cro",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "cro"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "PDF",
+      "slug": "pdf",
+      "catalog_url": "https://agenticskills.io/skills/pdf",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "anthropics-pdf"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Planning With Files",
+      "slug": "planning-with-files",
+      "catalog_url": "https://agenticskills.io/skills/planning-with-files",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "planning-with-files"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Platform Design Skills",
+      "slug": "platform-design-skills",
+      "catalog_url": "https://agenticskills.io/skills/platform-design-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "android-design-guidelines",
+        "ios-design-guidelines",
+        "ipados-design-guidelines",
+        "macos-design-guidelines",
+        "tvos-design-guidelines",
+        "visionos-design-guidelines",
+        "watchos-design-guidelines",
+        "web-design-guidelines"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Playwright Skill",
+      "slug": "playwright-skill",
+      "catalog_url": "https://agenticskills.io/skills/playwright-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "playwright-skill"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Postgres",
+      "slug": "postgres",
+      "catalog_url": "https://agenticskills.io/skills/postgres",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "postgres"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "PPTX",
+      "slug": "pptx",
+      "catalog_url": "https://agenticskills.io/skills/pptx",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "pptx"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Pricing Strategy",
+      "slug": "pricing-strategy",
+      "catalog_url": "https://agenticskills.io/skills/pricing-strategy",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "pricing"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Product Marketing Context",
+      "slug": "product-marketing-context",
+      "catalog_url": "https://agenticskills.io/skills/product-marketing-context",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "product-marketing"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Programmatic SEO",
+      "slug": "programmatic-seo",
+      "catalog_url": "https://agenticskills.io/skills/programmatic-seo",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "programmatic-seo"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Property-Based Testing",
+      "slug": "property-based-testing",
+      "catalog_url": "https://agenticskills.io/skills/property-based-testing",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Complementa o projeto; commit e arquivos fixados no manifesto; ressalvas de uso no relatório.",
+      "upstream": {
+        "repo": "trailofbits/skills",
+        "path": "plugins/property-based-testing/skills/property-based-testing",
+        "ref": "82fe8226252622fa807643bdca1710901198553a"
+      },
+      "initial_decision": "Instalada",
+      "installed_skills": [
+        "property-based-testing"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "PyPICT Skill",
+      "slug": "pypict-skill",
+      "catalog_url": "https://agenticskills.io/skills/pypict-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "pict-test-designer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "React Best Practices",
+      "slug": "react-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/react-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "vercel-react-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "React Native Best Practices",
+      "slug": "react-native-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/react-native-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Complementa o projeto; commit e arquivos fixados no manifesto; ressalvas de uso no relatório.",
+      "upstream": {
+        "repo": "callstackincubator/agent-skills",
+        "path": "skills/react-native-best-practices",
+        "ref": "61e6e7dfdf3a8ee862254c200d751fcb1fb863dc"
+      },
+      "initial_decision": "Instalada",
+      "installed_skills": [
+        "react-native-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "React Native Brownfield Migration",
+      "slug": "react-native-brownfield-migration",
+      "catalog_url": "https://agenticskills.io/skills/react-native-brownfield-migration",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "react-native-brownfield-migration"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "GitHub Actions for React Native",
+      "slug": "react-native-github-actions",
+      "catalog_url": "https://agenticskills.io/skills/react-native-github-actions",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "github-actions"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "React Native Skills",
+      "slug": "react-native-skills",
+      "catalog_url": "https://agenticskills.io/skills/react-native-skills",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Complementa o projeto; commit e arquivos fixados no manifesto; ressalvas de uso no relatório.",
+      "upstream": {
+        "repo": "vercel-labs/agent-skills",
+        "path": "skills/react-native-skills",
+        "ref": "063bee94c3f4df8453406c830b0a7df0f2860278"
+      },
+      "initial_decision": "Instalada",
+      "installed_skills": [
+        "vercel-react-native-skills"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "React View Transitions",
+      "slug": "react-view-transitions",
+      "catalog_url": "https://agenticskills.io/skills/react-view-transitions",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "vercel-react-view-transitions"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Receiving Code Review",
+      "slug": "receiving-code-review",
+      "catalog_url": "https://agenticskills.io/skills/receiving-code-review",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "receiving-code-review"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Recursive Decomposition",
+      "slug": "recursive-decomposition",
+      "catalog_url": "https://agenticskills.io/skills/recursive-decomposition",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "recursive-decomposition"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Remotion Best Practices",
+      "slug": "remotion-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/remotion-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "remotion-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Render Deploy",
+      "slug": "render-deploy",
+      "catalog_url": "https://agenticskills.io/skills/render-deploy",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "render-deploy"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Requesting Code Review",
+      "slug": "requesting-code-review",
+      "catalog_url": "https://agenticskills.io/skills/requesting-code-review",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "requesting-code-review"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Resend Agent Skills",
+      "slug": "resend-skills",
+      "catalog_url": "https://agenticskills.io/skills/resend-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "resend"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Sanity Best Practices",
+      "slug": "sanity-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/sanity-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "sanity-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Schema Markup",
+      "slug": "schema-markup",
+      "catalog_url": "https://agenticskills.io/skills/schema-markup",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "schema"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Security Best Practices",
+      "slug": "security-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/security-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "security-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Security Threat Model",
+      "slug": "security-threat-model",
+      "catalog_url": "https://agenticskills.io/skills/security-threat-model",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "security-threat-model"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Semgrep Rule Creator",
+      "slug": "semgrep-rule-creator",
+      "catalog_url": "https://agenticskills.io/skills/semgrep-rule-creator",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "semgrep-rule-creator"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Sentry Skill",
+      "slug": "sentry-skill",
+      "catalog_url": "https://agenticskills.io/skills/sentry-skill",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Útil para observabilidade, mas requer CLI/login; entrada atual recomenda instalador Bash remoto. Reservar integração apropriada a Windows e não autenticar nesta tarefa.",
+      "upstream": {
+        "repo": "openai/skills",
+        "path": "skills/.curated/sentry",
+        "ref": "49f948faa9258a0c61caceaf225e179651397431"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "sentry"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "SEO & AEO Best Practices",
+      "slug": "seo-aeo-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/seo-aeo-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "seo-aeo-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "SEO Audit",
+      "slug": "seo-audit",
+      "catalog_url": "https://agenticskills.io/skills/seo-audit",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "coreyhaines31-seo-audit"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "SEOmator SEO Audit",
+      "slug": "seomator-seo-audit",
+      "catalog_url": "https://agenticskills.io/skills/seomator-seo-audit",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "seo-skills-seo-audit"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "shadcn/ui",
+      "slug": "shadcn",
+      "catalog_url": "https://agenticskills.io/skills/shadcn",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "shadcn"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Skill Creator",
+      "slug": "skill-creator",
+      "catalog_url": "https://agenticskills.io/skills/skill-creator",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "anthropics-skill-creator"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Skill Seekers",
+      "slug": "skill-seekers",
+      "catalog_url": "https://agenticskills.io/skills/skill-seekers",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "skill-builder"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Slack GIF Creator",
+      "slug": "slack-gif-creator",
+      "catalog_url": "https://agenticskills.io/skills/slack-gif-creator",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "slack-gif-creator"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Social Content",
+      "slug": "social-content",
+      "catalog_url": "https://agenticskills.io/skills/social-content",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "social"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Social Media Skills",
+      "slug": "social-media-skills",
+      "catalog_url": "https://agenticskills.io/skills/social-media-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "analytics-dashboard",
+        "content-matrix",
+        "gemini-carousel",
+        "gemini-infographic",
+        "graphic-designer",
+        "hook-generator",
+        "newsletter-voice",
+        "niche-research",
+        "pinned-comment",
+        "post-formatter",
+        "post-scorer",
+        "post-writer",
+        "profile-optimizer",
+        "quote-post",
+        "reels-scripting",
+        "voice-builder",
+        "youtube-thumbnail"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Static Analysis",
+      "slug": "static-analysis",
+      "catalog_url": "https://agenticskills.io/skills/static-analysis",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "codeql",
+        "sarif-parsing",
+        "semgrep"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Subagent-Driven Development",
+      "slug": "subagent-driven-development",
+      "catalog_url": "https://agenticskills.io/skills/subagent-driven-development",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "subagent-driven-development"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Supabase Postgres Best Practices",
+      "slug": "supabase-postgres",
+      "catalog_url": "https://agenticskills.io/skills/supabase-postgres",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "supabase-postgres-best-practices"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "SwiftUI Expert Skill",
+      "slug": "swiftui-expert-skill",
+      "catalog_url": "https://agenticskills.io/skills/swiftui-expert-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "swiftui-expert-skill"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Systematic Debugging",
+      "slug": "systematic-debugging",
+      "catalog_url": "https://agenticskills.io/skills/systematic-debugging",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Boa investigação de causa, mas depende de outras skills Superpowers e impõe fases/testes a qualquer correção; aproveitar conceitos sem instalar o pacote.",
+      "upstream": {
+        "repo": "obra/superpowers",
+        "path": "skills/systematic-debugging",
+        "ref": "8ca22dba9a94f28898bbce59f2537ff4d87c747d"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "systematic-debugging"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Tailwind Design System",
+      "slug": "tailwind-design-system",
+      "catalog_url": "https://agenticskills.io/skills/tailwind-design-system",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "tailwind-design-system"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Taste Skill",
+      "slug": "taste-skill",
+      "catalog_url": "https://agenticskills.io/skills/taste-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "design-taste-frontend"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Terraform Code Generation",
+      "slug": "terraform-code-generation",
+      "catalog_url": "https://agenticskills.io/skills/terraform-code-generation",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "terraform-style-guide"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Terraform Module Generation",
+      "slug": "terraform-module-generation",
+      "catalog_url": "https://agenticskills.io/skills/terraform-module-generation",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "refactor-module"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Terraform Provider Development",
+      "slug": "terraform-provider-development",
+      "catalog_url": "https://agenticskills.io/skills/terraform-provider-development",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "provider-resources"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Terraform Skill",
+      "slug": "terraform-skill",
+      "catalog_url": "https://agenticskills.io/skills/terraform-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "terraform-skill"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Test-Driven Development",
+      "slug": "test-driven-development",
+      "catalog_url": "https://agenticskills.io/skills/test-driven-development",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Impõe apagar código escrito antes do teste e pede permissão para exceções; incompatível com preservação de trabalho e escada proporcional.",
+      "upstream": {
+        "repo": "obra/superpowers",
+        "path": "skills/test-driven-development",
+        "ref": "8ca22dba9a94f28898bbce59f2537ff4d87c747d"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "obra-test-driven-development"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Theme Factory",
+      "slug": "theme-factory",
+      "catalog_url": "https://agenticskills.io/skills/theme-factory",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "theme-factory"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Three.js Skills",
+      "slug": "threejs-skills",
+      "catalog_url": "https://agenticskills.io/skills/threejs-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "threejs-animation",
+        "threejs-fundamentals",
+        "threejs-geometry",
+        "threejs-interaction",
+        "threejs-lighting",
+        "threejs-loaders",
+        "threejs-materials",
+        "threejs-postprocessing",
+        "threejs-shaders",
+        "threejs-textures"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Tinybird Best Practices",
+      "slug": "tinybird-best-practices",
+      "catalog_url": "https://agenticskills.io/skills/tinybird-best-practices",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "tinybird"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "UI Skills",
+      "slug": "ui-skills",
+      "catalog_url": "https://agenticskills.io/skills/ui-skills",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "baseline-ui",
+        "create-design-md",
+        "fixing-accessibility",
+        "fixing-metadata",
+        "fixing-motion-performance",
+        "improve-ui",
+        "ui-skills-root"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "UI/UX Pro Max",
+      "slug": "ui-ux-pro-max",
+      "catalog_url": "https://agenticskills.io/skills/ui-ux-pro-max",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "ui-ux-pro-max"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Upgrading Expo",
+      "slug": "upgrading-expo",
+      "catalog_url": "https://agenticskills.io/skills/upgrading-expo",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "expo-upgrade"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Upgrading React Native",
+      "slug": "upgrading-react-native",
+      "catalog_url": "https://agenticskills.io/skills/upgrading-react-native",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "upgrading-react-native"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Using Git Worktrees",
+      "slug": "using-git-worktrees",
+      "catalog_url": "https://agenticskills.io/skills/using-git-worktrees",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "using-git-worktrees"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Using Neon",
+      "slug": "using-neon",
+      "catalog_url": "https://agenticskills.io/skills/using-neon",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "neon-postgres"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Using Superpowers",
+      "slug": "using-superpowers",
+      "catalog_url": "https://agenticskills.io/skills/using-superpowers",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Acionamento em toda conversa e limiar de 1% ampliam carga e conflitam com seleção proporcional.",
+      "upstream": {
+        "repo": "obra/superpowers",
+        "path": "skills/using-superpowers",
+        "ref": "8ca22dba9a94f28898bbce59f2537ff4d87c747d"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "using-superpowers"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Variant Analysis",
+      "slug": "variant-analysis",
+      "catalog_url": "https://agenticskills.io/skills/variant-analysis",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "variant-analysis"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Varlock",
+      "slug": "varlock-claude-skill",
+      "catalog_url": "https://agenticskills.io/skills/varlock-claude-skill",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "varlock"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Vercel CLI with Tokens",
+      "slug": "vercel-cli-with-tokens",
+      "catalog_url": "https://agenticskills.io/skills/vercel-cli-with-tokens",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "vercel-cli-with-tokens"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Verification Before Completion",
+      "slug": "verification-before-completion",
+      "catalog_url": "https://agenticskills.io/skills/verification-before-completion",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Princípio útil já coberto; obrigações universais duplicam a escada e podem repetir checks sem necessidade.",
+      "upstream": {
+        "repo": "obra/superpowers",
+        "path": "skills/verification-before-completion",
+        "ref": "8ca22dba9a94f28898bbce59f2537ff4d87c747d"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "verification-before-completion"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Web Artifacts Builder",
+      "slug": "web-artifacts-builder",
+      "catalog_url": "https://agenticskills.io/skills/web-artifacts-builder",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "web-artifacts-builder"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Web Design Engineer",
+      "slug": "web-design-engineer",
+      "catalog_url": "https://agenticskills.io/skills/web-design-engineer",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Pode servir a marketing/protótipos, mas não adotar linguagem visual ou stack paralela ao design system do produto.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "web-design-engineer"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Web Design Guidelines",
+      "slug": "web-design-guidelines",
+      "catalog_url": "https://agenticskills.io/skills/web-design-guidelines",
+      "status": "Disponivel",
+      "review_depth": "Leitura dirigida do conteúdo upstream; sem auditoria exaustiva de todos os recursos",
+      "reason": "Diretriz externa exige submit habilitado até iniciar requisição, em conflito com auth do projeto; revisão web já tem skills locais.",
+      "upstream": {
+        "repo": "vercel-labs/agent-skills",
+        "path": "skills/web-design-guidelines",
+        "ref": "063bee94c3f4df8453406c830b0a7df0f2860278"
+      },
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "vercel-labs-web-design-guidelines"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Web App Testing",
+      "slug": "webapp-testing",
+      "catalog_url": "https://agenticskills.io/skills/webapp-testing",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "webapp-testing"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "WordPress Block Development",
+      "slug": "wordpress-block-development",
+      "catalog_url": "https://agenticskills.io/skills/wordpress-block-development",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "wp-block-development"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "WordPress Block Themes",
+      "slug": "wordpress-block-themes",
+      "catalog_url": "https://agenticskills.io/skills/wordpress-block-themes",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Tecnologia, provedor ou plataforma diferente da stack Expo/React Native, Supabase e Vercel; não implica baixa qualidade.",
+      "upstream": null,
+      "initial_decision": "Fora do escopo atual",
+      "installed_skills": [
+        "wp-block-themes"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "Writing Plans",
+      "slug": "writing-plans",
+      "catalog_url": "https://agenticskills.io/skills/writing-plans",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Outra camada de processo/orquestração sobre o workflow local; revisão detalhada necessária antes de habilitar.",
+      "upstream": null,
+      "initial_decision": "Não instalar neste pacote",
+      "installed_skills": [
+        "writing-plans"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "X Article Publisher",
+      "slug": "x-article-publisher",
+      "catalog_url": "https://agenticskills.io/skills/x-article-publisher",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Sem necessidade concreta que justifique nova skill agora; revisar upstream e dependências antes de instalar.",
+      "upstream": null,
+      "initial_decision": "Reserva",
+      "installed_skills": [
+        "x-article-publisher"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    },
+    {
+      "name": "XLSX",
+      "slug": "xlsx",
+      "catalog_url": "https://agenticskills.io/skills/xlsx",
+      "status": "Disponivel",
+      "review_depth": "Metadados do catálogo; sem auditoria do conteúdo completo",
+      "reason": "Skill/plugin atual ou equivalente já cobre a finalidade; não duplicar distribuição.",
+      "upstream": null,
+      "initial_decision": "Coberta pelo ambiente",
+      "installed_skills": [
+        "xlsx"
+      ],
+      "installation": "All mapped skill roots are installed or preserved from an existing installation."
+    }
+  ],
+  "initial_counts": {
+    "Reserva": 84,
+    "Fora do escopo atual": 61,
+    "Não instalar neste pacote": 20,
+    "Instalada": 4,
+    "Coberta pelo ambiente": 23,
+    "Pendente de correção": 2
+  },
+  "installation_summary": {
+    "catalog_entries": 194,
+    "resolved_skill_roots": 853,
+    "hash_locked_skills": 849,
+    "preserved_existing": 4,
+    "pending_installations": 0
+  }
+}

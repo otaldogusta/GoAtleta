@@ -1,0 +1,7 @@
+{
+  "coordinator": {"max_files": 12, "max_bytes": 120000},
+  "implementation": {"max_files": 30, "max_bytes": 400000},
+  "test-review": {"max_files": 15, "max_bytes": 200000},
+  "security-review": {"max_files": 15, "max_bytes": 200000},
+  "ui-ux-motion-review": {"max_files": 20, "max_bytes": 250000}
+}

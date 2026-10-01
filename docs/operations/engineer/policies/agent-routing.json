@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "max_specialists": 3,
+  "max_primary_skills": 6,
+  "ui_terms": ["tela", "screen", "layout", "visual", "typography", "tipografia", "accessibility", "acessibilidade", "responsive", "responsivo", "button", "botão", "formulário", "modal", "bottom sheet", "ux"],
+  "motion_terms": ["animação", "animacao", "animation", "transition", "transição", "gesture", "gesto", "reanimated", "haptic", "spring", "timing", "microinteração", "motion"],
+  "security_terms": ["rls", "auth", "login", "storage", "permissão", "permissao", "convite", "token", "isolamento"],
+  "skill_aliases": {"goatleta-courtside-accessibility": "goatleta-courtside-ux", "react-native-skills": "vercel-react-native-skills", "expo-app-design": "expo-native-ui"},
+  "note": "Aliases explícitos, não identidades upstream equivalentes. TSX sozinho é indício, não gatilho. Mudança visual de login só aciona segurança se tocar autenticação/permissões."
+}

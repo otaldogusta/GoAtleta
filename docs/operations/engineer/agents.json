@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "project_id": "proj_r74GbuEXeHueUaVasyOi5EW8",
+  "project_name": "Go Atleta Engineer",
+  "agents": {
+    "coordinator": {
+      "id": "agent_97b25f943535495e950f5385ae82a8e61eac4e052dc24eb3b3",
+      "profile_sha256": "303754dc176ede11ebe0f53436a939c203c940190bd238d738b865899aea5154"
+    },
+    "implementation": {
+      "id": "agent_900e14f2ec9a4cb69b447223aa1532613acdb398fd0143ac8a",
+      "profile_sha256": "da4a68312bd9be265db6e533c4066be5f618659ae037f03687554d0c8e1f26cd"
+    },
+    "security-review": {
+      "id": "agent_87719e16143d4d9f9663ce528e08e544322e67023bda4b9bae",
+      "profile_sha256": "1b38c09707ec0a2ef166846efcad507b15ce929a9b2df07b669a2ade9e553a4f"
+    },
+    "test-review": {
+      "id": "agent_eb3da8b766434f85a6943502bc1dabcc8f2322f83c54496797",
+      "profile_sha256": "bb298131445e7050efffc3c575660e0b7d5f2c0e701accd3513c6c89c225a693"
+    }
+  }
+}

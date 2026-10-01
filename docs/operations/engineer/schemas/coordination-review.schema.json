@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:go-atleta:engineer:coordination-review",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "history_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "root_item_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "specialist_item_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "incorporated": {
+      "type": "boolean"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "history_sha256",
+    "root_item_id",
+    "specialist_item_ids",
+    "incorporated",
+    "rationale"
+  ]
+}

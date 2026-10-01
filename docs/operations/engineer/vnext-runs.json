@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "remote_execution_authorized": false,
+  "runs": {
+    "005b": {
+      "directory": ".tmp/engineer-runs/a8e3c193250a4a13990b0b1e99e36636",
+      "state": "PREPARED_ONLY",
+      "session_id": null,
+      "specialists": [
+        "test-review"
+      ],
+      "context": {
+        "coordinator": {
+          "files_available": 5,
+          "bytes_available": 26194,
+          "skills_available": []
+        },
+        "test-review": {
+          "files_available": 10,
+          "bytes_available": 83671,
+          "skills_available": [
+            "goatleta-testing"
+          ]
+        }
+      },
+      "preflight": "READY_CORE_26_TESTS",
+      "acceptance": {
+        "max_coordinator_direct_tokens_exclusive": 300000,
+        "max_session_aggregate_tokens_exclusive": 500000,
+        "coordination": "PASS_MULTI_AGENT_REVIEWED",
+        "writes": 0,
+        "attestation": "PASS"
+      }
+    },
+    "UI-001": {
+      "directory": ".tmp/engineer-runs/b1b2f6a0a19f404889c5a87835c5765e",
+      "state": "PREPARED_ONLY",
+      "session_id": null,
+      "specialists": [
+        "ui-ux-motion-review"
+      ],
+      "context": {
+        "coordinator": {
+          "files_available": 5,
+          "bytes_available": 26004,
+          "skills_available": []
+        },
+        "ui-ux-motion-review": {
+          "files_available": 13,
+          "bytes_available": 83106,
+          "skills_available": [
+            "goatleta-courtside-ux",
+            "goatleta-design-system"
+          ]
+        }
+      },
+      "preflight": "UI_RUNTIME_NOT_BUILT",
+      "acceptance": {
+        "UI_UX_GATE": "PASS_OR_PASS_WITH_FINDINGS",
+        "viewports": [
+          "mobile-small",
+          "tablet",
+          "desktop"
+        ],
+        "writes": 0
+      },
+      "local_infrastructure": {
+        "state": "UI_RUNTIME_READY",
+        "capture": "CAPTURED",
+        "artifacts": 18,
+        "appearance": "APPROVED_BY_USER",
+        "UI_UX_GATE": "UNVERIFIED",
+        "remote_session_created": false
+      }
+    }
+  }
+}

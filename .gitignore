@@ -104,3 +104,7 @@ testvoleiapp
 # One-off generators containing production QA snapshots
 /tools/build_e2e_report.py
 /tools/build_e2e_workbook.mjs
+
+# Python tooling caches
+__pycache__/
+*.py[cod]

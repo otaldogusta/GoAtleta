@@ -1,0 +1,6 @@
+{
+  "url": "http://localhost:8081/login",
+  "readySelector": "input",
+  "steps": [{"action": "focus", "selector": "input >> nth=0"}],
+  "scope": "Auditoria visual estática da tela existente, sem credenciais, envio ou alteração funcional. Movimento interativo permanece não verificado."
+}
