@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View, type ViewStyle } from "react-native";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+import Svg, { Circle, G, Path, Rect } from "react-native-svg";
 import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { createWebPortal } from "../../ui/web-portal";
 import { radius, spacing } from "../../theme/tokens";
+
+import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
 
 export type CourtActionIcon = GoAtletaIconName | "repeatOne" | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtArea" | "courtText";
 export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIcon; color: string; size?: number }) {
@@ -16,10 +18,10 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
   let drawing: ReactNode;
   switch (name) {
     case "courtArrow": drawing = <Path d="M4 20 20 4M11 4h9v9" />; break;
-    case "courtBall": drawing = <><Circle cx="12" cy="12" r="9" /><Path d="M3 12c5-4 12-4 18 0M7 4c5 3 8 9 7 17M19 6c-5 1-10 7-11 14" /></>; break;
-    case "courtCone": drawing = <><Path d="M5 19 10 4h4l5 15M3 20h18M8 10h8M6 16h12" /></>; break;
-    case "courtTarget": drawing = <><Circle cx="12" cy="12" r="9" /><Circle cx="12" cy="12" r="5" /><Circle cx="12" cy="12" r="1" /></>; break;
-    case "courtLadder": drawing = <><Path d="M6 3v18M18 3v18M6 5h12M6 10h12M6 15h12M6 20h12" /></>; break;
+    case "courtBall": drawing = <G transform="translate(12 12) scale(0.9)"><CourtVolleyballGlyph ink={color} /></G>; break;
+    case "courtCone": drawing = <><Path d="M6 18 10.4 4.2q.5-1.2 1.6-1.2t1.6 1.2L18 18Z" fill={color} fillOpacity={0.12} /><Path d="M8.4 10h7.2M6.8 15h10.4" /><Rect x="3" y="18" width="18" height="3" rx="1.5" /></>; break;
+    case "courtTarget": drawing = <><Circle cx="12" cy="12" r="8" /><Circle cx="12" cy="12" r="4" /><Circle cx="12" cy="12" r="1" fill={color} /><Path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>; break;
+    case "courtLadder": drawing = <><Path d="M7 3 4 21M17 3l3 18M6.5 6h11M6 10h12M5.3 14h13.4M4.7 18h14.6" /><Path d="M7 3h10M4 21h16" opacity={0.45} /></>; break;
     case "courtCurve": drawing = <><Path d="M3 19C3 6 11 4 20 7M15 3l5 4-4 5" /></>; break;
     case "courtArea": drawing = <Rect x="3" y="5" width="18" height="14" rx="3" fill={color} fillOpacity={0.12} strokeDasharray="3 3" />; break;
     case "courtText": drawing = <Path d="M4 5h16M12 5v15M8 20h8M4 5v3M20 5v3" />; break;

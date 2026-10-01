@@ -77,6 +77,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const [topPinned, setTopPinned] = useState(false);
   const [bottomPinned, setBottomPinned] = useState(false);
   const [bottomOpen, setBottomOpen] = useState(false);
+  const [fabColorsOpen, setFabColorsOpen] = useState(false);
   const [panel, setPanel] = useState<"properties" | "library" | "export" | "tools" | "settings" | "step" | "players" | null>(null);
   const [motionMode, setMotionMode] = useState<"free" | "straight">("free");
   const [tool, setTool] = useState<CourtTool>("select");
@@ -112,6 +113,8 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const [onlyLesson, setOnlyLesson] = useState(false);
   const [busy, setBusy] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
+  const [newBoardOpen, setNewBoardOpen] = useState(false);
+  const [boardName, setBoardName] = useState("");
   const [multi, setMulti] = useState(false);
   const [team, setTeam] = useState<"A" | "B">("A");
   const [substitute, setSubstitute] = useState(false);
@@ -157,7 +160,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const metadata = (changes: Partial<NonNullable<CourtVisualPayload["editor"]>>) => edit(p => ({ ...p, editor: { ...p.editor!, ...changes } }));
   const selectStep = (i: number) => { resetPlayback(); setSelected([]); editor.selectStep(i); };
   const mutateStep = (result: EditorSnapshot) => { resetPlayback(); setSelected([]); commit(() => result.payload, result.stepIndex); };
-  const select = (ids: string[]) => { if (ids.length && width >= 768) setPanel("properties"); else if (panel === "properties") setPanel(null); setSelected(ids); };
+  const select = (ids: string[]) => { setFabColorsOpen(false); if (panel === "properties") setPanel(null); setSelected(ids); };
   const remove = () => { edit(p => deleteSelection(p, stepIndex, selected)); setSelected([]); };
   const duplicate = () => { const result = duplicateSelection(payload, stepIndex, selected); edit(() => result.payload); setSelected(result.selected); };
   const selectAll = () => setSelected([...(step.visibleActorIds ?? payload.actors.map(a => a.id)), ...frameDrawings(payload, stepIndex).map(d => d.id)]);
@@ -173,11 +176,11 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     setSelected(result.selected);
     editor.setNotice("Seleção colada nesta etapa.");
   };
-  const move = (ids: string[], delta: CourtPoint, path?: CourtPoint[]) => { edit(p => moveSelection(p, stepIndex, ids, delta, tool === "animate", path)); if (tool === "animate") setProgress(1); };
+  const move = (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicateDrag = false) => { if (duplicateDrag) { const result = duplicateSelection(payload, stepIndex, ids, delta); edit(() => result.payload); setSelected(result.selected); return; } edit(p => moveSelection(p, stepIndex, ids, delta, tool === "animate", path)); if (tool === "animate") setProgress(1); };
   const draw = (d: CourtDrawing) => { edit(p => changeDrawings(p, stepIndex, [...frameDrawings(p, stepIndex), d])); setSelected([d.id]); if (["text", "ball", "cone", "target", "ladder"].includes(d.kind)) setTool("select"); };
   const addPlayer = (point: CourtPoint) => {
     const id = editorId();
-    const a = { id, role: "athlete" as const, label: String(payload.actors.length + 1), number: payload.actors.length + 1, color: team === "A" ? "#19c87b" : "#4389ff", initialPosition: point };
+    const a = { id, role: "athlete" as const, representation: "person" as const, label: "", color: team === "A" ? "#19c87b" : "#4389ff", initialPosition: point };
     edit(p => ({ ...p, actors: [...p.actors, a], editor: { ...p.editor!, actorMeta: { ...p.editor!.actorMeta, [id]: { team } } }, timeline: { steps: p.timeline.steps.map((s, i) => ({ ...s, actorPositions: i === stepIndex ? { ...s.actorPositions, [id]: point } : s.actorPositions, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)), ...(i === stepIndex ? [id] : [])] })) } }));
     setSelected([id]); setTool("select");
   };
@@ -206,7 +209,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.("input,textarea,[contenteditable=true]")) return;
-      if (e.key === "Escape") { setExitOpen(false); setTopPinned(false); setBottomPinned(false); setPanel(null); setTopOpen(false); setBottomOpen(false); keyboard.current.stop(); return; }
+      if (e.key === "Escape") { setFabColorsOpen(false); setNewBoardOpen(false); setExitOpen(false); setTopPinned(false); setBottomPinned(false); setPanel(null); setTopOpen(false); setBottomOpen(false); setTool("select"); setSelected([]); keyboard.current.stop(); return; }
       if ((e.ctrlKey || e.metaKey) && ["s", "z", "y", "a", "c", "v"].includes(e.key.toLowerCase())) {
         e.preventDefault(); keyboard.current.stop();
         if (e.key.toLowerCase() === "s") void keyboard.current.save();
@@ -258,15 +261,17 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <CourtSwitchRow key={label} label={label} value={value} onChange={onChange} />;
   const toolGrid = (items: [CourtTool, string, CourtActionIcon][]) => <View style={styles.wrap}>{items.map(([id, label, icon]) => <CourtActionButton key={id} label={label} icon={icon} tile onAdd={() => {
       stop();
+      if (["ball", "cone", "target", "ladder"].includes(id)) { setSelected([]); if (id === "cone") setColor("#f97316"); setTool(id); setPanel(null); return; }
       const kind = id as CourtDrawing["kind"];
       const point = { x: 0.5, y: 0.7 };
       const points = kind === "curve" ? [point, { x: 0.35, y: 0.6 }, { x: 0.55, y: 0.52 }] : ["arrow", "pen", "area"].includes(kind) ? [point, { x: 0.65, y: 0.55 }] : [point];
       draw({ id: editorId(), kind, points, color, dashed, size: 32, rotation: 0, ...(kind === "text" ? { text: "Anotação" } : {}) });
       setTool("select");
       setPanel(null);
-    }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id} onPress={() => { stop(); setTool(id); }} />)}</View>;
+    }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id} onPress={() => { stop(); setSelected([]); if (id === "cone") setColor("#f97316"); setTool(id); if (["ball", "cone", "target", "ladder"].includes(id)) setPanel(null); }} />)}</View>;
   const field = (label: string, value: string, onChange: (value: string) => void, multiline = false) => <View style={{ gap: 6 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text><View style={{ backgroundColor: colors.inputBg, borderRadius: 12, minHeight: 50, paddingHorizontal: 14 }}><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} style={{ color: ink, minHeight: multiline ? 70 : 50, borderRadius: 0, fontSize: 14 }} /></View></View>;
   const heading = (label: string) => <Text style={{ color: ink, fontWeight: "700", fontSize: 15, marginTop: 10 }}>{label}</Text>;
+  const openBlankBoard = async () => { const board = newCourtBoard("Nova quadra"); board.actors = []; board.editor!.actorMeta = {}; board.timeline.steps[0].actorPositions = {}; await openPayload(board); setNewBoardOpen(false); };
   const openPayload = async (p: CourtVisualPayload, documentId?: string | null) => { try { stop(); await editor.open(p, documentId); setSelected([]); setPanel(null); } catch { editor.setError("Não foi possível guardar a cópia local. Exporte antes de trocar."); } };
   const runExport = async (kind: "png" | "gif" | "pdf" | "json") => { stop(); setBusy(true); try { await exportCourt(payload, stepIndex, kind); editor.setNotice("Exportação concluída."); } catch (e) { editor.setError(e instanceof Error ? e.message : "Falha ao exportar."); } finally { setBusy(false); } };
   const importFile = async () => { try {
@@ -295,7 +300,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const root = <View style={[styles.root, Platform.OS === "web" ? { position: "fixed" } as never : null]}>
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
       <View style={{ flex: 1 }} onPointerMove={focusCourt} onPointerDown={focusCourt} onPointerLeave={restoreControls} onTouchMove={focusCourt}>
-      <VisualCourtCanvas payload={payload} stepIndex={stepIndex} landscape={landscape} selected={selected} multiple={multi} onSelect={select} onMove={move} onDraw={draw} onAddPlayer={addPlayer} tool={tool} motionMode={motionMode} color={color} dashed={dashed} grid={grid} half={half} plain={plain} progress={progress} zoom={zoom} pan={pan} onPan={setPan} onZoom={setZoom} disabled={playing || busy || editor.saving} />
+      <VisualCourtCanvas payload={payload} stepIndex={stepIndex} landscape={landscape} selected={selected} multiple={multi} onSelect={select} onMove={move} onDraw={draw} onAddPlayer={addPlayer} playerPreviewColor={team === "A" ? "#19c87b" : "#4389ff"} tool={tool} motionMode={motionMode} color={color} dashed={dashed} grid={grid} half={half} plain={plain} progress={progress} zoom={zoom} pan={pan} onPan={setPan} onZoom={setZoom} disabled={playing || busy || editor.saving} selectionActions={!playing && !panel ? <View style={{ width: 54, height: 170 }}>{([{ label: "Editar propriedades da seleção", icon: "pencil", run: () => setPanel("properties") }, { label: "Duplicar seleção", icon: "copy", run: duplicate }, { label: "Excluir seleção", icon: "trash", run: remove }, { label: "Escolher cor", icon: "color" as const, run: () => setFabColorsOpen(open => !open) }, ...(object && ["ladder", "cone", "target", "text"].includes(object.kind) ? [{ label: "Alternar vertical, horizontal e as duas diagonais", icon: "repeat" as const, run: () => changeObject({ rotation: object.rotation === 0 ? 45 : object.rotation === 45 ? 90 : object.rotation === 90 ? 135 : 0 }) }] : [])] as const).map((item, index) => <View key={item.icon}><Pressable accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={item.icon === "color" ? { expanded: fabColorsOpen } : undefined} onPress={item.run} style={({ hovered, pressed }) => ({ position: "absolute", left: index === 0 || index === (object && ["ladder", "cone", "target", "text"].includes(object.kind) ? 4 : 3) ? 18 : 0, top: index * 34, width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: surface, opacity: hovered || pressed ? 0.8 : 1 })}>{item.icon === "color" ? <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: actor?.color ?? object?.color ?? color, borderWidth: 1, borderColor: "#ffffff99" }} /> : <GoAtletaIcon name={item.icon} size={16} color={ink} />}</Pressable>{item.icon === "color" && fabColorsOpen ? <View style={{ position: "absolute", left: 54, top: index * 34 - 34, width: 112, flexDirection: "row", flexWrap: "wrap", gap: 4, padding: 8, borderRadius: 12, backgroundColor: surface }}>{[...COLORS, "#f97316"].map(value => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Aplicar cor ${value}`} accessibilityState={{ selected: value === (actor?.color ?? object?.color) }} onPress={() => { if (actor) changeActor({ color: value }); else changeObject({ color: value }); setFabColorsOpen(false); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: value, borderWidth: value === (actor?.color ?? object?.color) ? 2 : 1, borderColor: "#ffffff99" }} />)}</View> : null}</View>)}</View> : undefined} />
       </View>
 
       <View onPointerEnter={restoreControls} onPointerDown={() => setTopPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !topPinned) setTopOpen(false); }} style={[controlFade, styles.top, { top: insets.top, backgroundColor: surface, maxHeight: height * 0.45, width: topOpen ? Math.min(width, 900) : undefined }]}>
@@ -304,19 +309,20 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
           <View style={{ flex: 1, minWidth: 120 }}><Text numberOfLines={1} style={{ color: ink, fontSize: 16, fontWeight: "700" }}>{effectiveTitle}</Text><Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>{editor.cls.name} · {editor.saving ? "Salvando…" : editor.dirty ? editor.draftStatus || "Alterações locais" : "Versão salva"}</Text></View>
           {action("Biblioteca", "exercises", () => setPanel("library"))}
           {action("Exportar", "share", () => setPanel("export"))}
-          {action("Salvar versão", "save", () => void editor.save(), true, editor.saving || !editor.dirty, !compact)}
+          {action("Nova quadra", "add", () => { setBoardName(/^(Nova jogada|Novo sistema|Nova quadra)$/i.test(payload.editor!.title.trim()) ? "" : payload.editor!.title); setNewBoardOpen(true); }, false, editor.saving, !compact)}
+          <Pressable accessibilityRole="button" accessibilityLabel="Salvar versão" disabled={editor.saving || !editor.dirty} onPress={() => void editor.save()} style={({ hovered, pressed }) => ({ minHeight: 44, paddingHorizontal: compact ? 12 : 16, borderRadius: 12, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: editor.saving || !editor.dirty ? 0.55 : hovered || pressed ? 0.9 : 1 })}>{editor.saving ? <ActivityIndicator size="small" color={colors.primaryText} /> : null}<Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "700" }}>{editor.saving ? "Salvando…" : "Salvar versão"}</Text></Pressable>
           {action("Recolher cabeçalho", "chevronUp", () => { setTopPinned(false); setTopOpen(false); })}
         </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar cabeçalho" onPress={() => { setTopPinned(true); setTopOpen(true); }} style={styles.handle}><GoAtletaIcon name="chevronDown" size={18} color={ink} /></Pressable>}
       </View>
 
       <View onPointerEnter={restoreControls} style={[controlFade, styles.tools, { top: toolsTop + (toolsSpace - toolsHeight) / 2, left: insets.left + 10, maxHeight: toolsHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 2, padding: 3 }}>
-          {TOOLS.map(t => action(t.label, t.icon, () => { stop(); setTool(t.id); if (t.id === "ball" || t.id === "cone" || t.id === "animate") setPanel("tools"); else if (t.id === "player") setPanel("players"); }, tool === t.id, false, false, t.id === "ball" ? "ball" : undefined))}
+          {TOOLS.map(t => action(t.label, t.icon, () => { stop(); setSelected([]); if (t.id === "cone") setColor("#f97316"); setTool(t.id); if (t.id === "ball" || t.id === "cone" || t.id === "animate") setPanel("tools"); else if (t.id === "player") setPanel(null); }, tool === t.id, false, false, t.id === "ball" ? "ball" : undefined))}
           {action("Mais ferramentas", "dashboard", () => setPanel("tools"))}
           {action("Apagar seleção", "trash", remove, false, !selected.length)}
         </ScrollView>
       </View>
-      <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { left: insets.left + 12, top: insets.top + (topOpen ? 72 : 14), backgroundColor: surface }]}>
+      <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { left: insets.left + 12, top: insets.top + (width >= 768 ? 8 : topOpen ? 72 : 14), backgroundColor: surface }]}>
         {action("Desfazer", "restore", () => { stop(); editor.undo(); }, false, !editor.canUndo)}{action("Refazer", "arrowForward", () => { stop(); editor.redo(); }, false, !editor.canRedo)}
       </View>
       <View onPointerEnter={restoreControls} style={[controlFade, styles.propertyTrigger, { right: insets.right + 12, top: insets.top + 14, backgroundColor: surface }]}>{action("Configurações da quadra", "management", () => setPanel(panel === "settings" ? null : "settings"), panel === "settings")}</View>
@@ -386,8 +392,9 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
           </View> : null}
           {panel === "properties" ? <>
             {actor ? <>
+              {toggle("Representar como bolinha", (actor.representation ?? payload.editor?.actorRepresentation ?? "circle") === "circle", enabled => changeActor({ representation: enabled ? "circle" : "person" }))}
               {field("Rótulo do jogador", actor.label, label => changeActor({ label }))}
-              {field("Número", String(actor.number ?? ""), value => changeActor({ number: Math.min(99, Math.max(0, Number(value) || 0)) }))}
+              {field("Número", String(actor.number ?? ""), value => changeActor({ number: value.trim() ? Math.min(99, Math.max(0, Number(value) || 0)) : undefined }))}
               <View style={styles.wrap}>{ROLES.map(([role, label]) => action(label, "profile", () => {
                 const appearance = {
                   setter: { label: "Lv", color: "#28d78b" },
@@ -436,6 +443,8 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
             {heading("Orientação")}
             <View style={{ flexDirection: "row", padding: 3, borderRadius: 12, backgroundColor: colors.inputBg }}>{([["auto", "Auto"], ["landscape", "Horizontal"], ["portrait", "Vertical"]] as const).map(([id, label]) => <Pressable key={id} accessibilityRole="button" accessibilityLabel={`Orientação ${label}`} accessibilityState={{ selected: orientation === id }} onPress={() => setOrientation(id)} style={{ flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 9, backgroundColor: orientation === id ? colors.primaryBg : "transparent" }}><Text style={{ color: orientation === id ? colors.primaryText : colors.muted, fontSize: 11, fontWeight: "600" }}>{label}</Text></Pressable>)}</View>
             {heading("Auxílios de edição")}
+            {toggle("Mostrar números", payload.editor!.showActorNumbers !== false, showActorNumbers => metadata({ showActorNumbers }))}
+            {toggle("Representar com bonequinhos", payload.editor!.actorRepresentation === "person", enabled => metadata({ actorRepresentation: enabled ? "person" : "circle" }))}
             {toggle("Grade e encaixe", grid, setGrid)}
             {toggle("Seleção múltipla", multi, setMulti)}
             {heading("Camadas visíveis")}
@@ -463,7 +472,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
             <Text style={{ color: colors.muted, fontSize: 12 }}>Selecione uma equipe para ver seus jogadores.</Text>
             <View style={styles.wrap}>{["A", "B"].map(t => <CourtActionButton key={t} label={`Equipe ${t}`} icon="students" tile active={team === t} onPress={() => { setTeam(t as "A" | "B"); }} />)}</View>
             <Text style={{ color: colors.muted, fontSize: 12 }}>{landscape ? "Lado A: esquerda · Lado B: direita" : "Lado A: abaixo da rede · Lado B: acima da rede"}</Text>
-            {action(`Adicionar à equipe ${team}`, "addStudent", () => { stop(); setTool("player"); editor.setNotice(`Clique ou toque na quadra para posicionar um jogador da equipe ${team}.`); }, tool === "player", false, true)}
+            {action(`Adicionar à equipe ${team}`, "addStudent", () => { stop(); setSelected([]); setPanel(null); setTool("player"); editor.setNotice(`Clique ou toque na quadra para posicionar um jogador da equipe ${team}.`); }, tool === "player", false, true)}
             {tool === "player" ? <>
               <Text accessibilityLiveRegion="polite" style={{ color: ink, fontSize: 12 }}>Clique ou toque na quadra para posicionar o jogador da equipe {team}.</Text>
               {action("Cancelar adição", "close", () => setTool("select"), false, false, true)}
@@ -538,6 +547,15 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
           </> : null}
         </ScrollView>
       </View> : null}
+      {newBoardOpen ? <View style={styles.exitOverlay}><View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, padding: 24, borderRadius: 20, gap: 18, width: 380, maxWidth: "95%" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: ink, fontWeight: "700", fontSize: 20 }}>Nova quadra</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancelar nova quadra" disabled={editor.saving} onPress={() => setNewBoardOpen(false)} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="close" size={20} color={colors.muted} /></Pressable></View>
+
+        <View style={{ backgroundColor: colors.inputBg, borderRadius: 12, minHeight: 50, paddingHorizontal: 14 }}><TextInput accessibilityLabel="Nome da configuração" placeholder="Nome" placeholderTextColor={colors.muted} value={boardName} onChangeText={setBoardName} style={{ color: ink, minHeight: 50, borderRadius: 0, fontSize: 14 }} /></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Salvar e abrir nova" disabled={editor.saving || !boardName.trim()} onPress={() => { void editor.save(boardName.trim()).then(saved => { if (saved) void openBlankBoard(); }); }} style={({ hovered, pressed }) => ({ minHeight: 48, borderRadius: 12, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: editor.saving || !boardName.trim() ? 0.55 : hovered || pressed ? 0.9 : 1 })}>
+          {editor.saving ? <ActivityIndicator size="small" color={colors.primaryText} /> : null}<Text style={{ color: colors.primaryText, fontSize: 14, fontWeight: "700" }}>{editor.saving ? "Salvando…" : "Salvar e abrir nova"}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Abrir nova com cópia local" disabled={editor.saving} onPress={() => void openBlankBoard()} style={({ hovered }) => ({ minHeight: 40, alignItems: "center", justifyContent: "center", opacity: editor.saving ? 0.55 : 1 })}><Text style={{ color: colors.muted, fontSize: 12 }}>Abrir nova com cópia local</Text></Pressable>
+      </View></View> : null}
       {exitOpen ? <View style={styles.exitOverlay}><View style={{ backgroundColor: surface, padding: 22, borderRadius: 16, gap: 12, maxWidth: 340 }}><Text style={{ color: ink, fontWeight: "700", fontSize: 17 }}>Sair da quadra?</Text><Text style={{ color: colors.muted }}>Há alterações ainda não salvas na turma. O rascunho fica neste dispositivo.</Text>{action("Continuar editando", "pencil", () => setExitOpen(false), false, false, true)}{action("Salvar e sair", "save", () => { void editor.save().then(saved => { if (saved) onBack(); }); }, true, editor.saving, true)}{action("Sair com rascunho local", "chevronBack", () => { void editor.preserveDraft().then(saved => { if (saved) onBack(); else setExitOpen(false); }); }, false, false, true)}</View></View> : null}
     </>}
   </View>;

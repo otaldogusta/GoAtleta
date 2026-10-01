@@ -131,9 +131,10 @@ export function useCourtEditor(classId: string) {
     setActiveDocumentId(documentId ?? null);
     setSavedSignature(""); setError(""); setNotice("Cópia aberta para edição. O original foi preservado.");
   };
-  const save = async () => {
+  const save = async (title?: string) => {
     if (!cls?.organizationId || savingRef.current) return false;
-    const snapshot = current.current;
+    const currentSnapshot = current.current;
+    const snapshot = title ? { ...currentSnapshot, payload: { ...currentSnapshot.payload, editor: { ...currentSnapshot.payload.editor!, title: title.trim() } } } : currentSnapshot;
     if (JSON.stringify(snapshot.payload) === savedSignature) return true;
     const run = generation.current;
     savingRef.current = true;
@@ -146,6 +147,7 @@ export function useCourtEditor(classId: string) {
       const saved = await saveTechnicalVisual({ id: updateId, classId, organizationId: cls.organizationId, sourceKind: "free", sourceId, title: snapshot.payload.editor!.title.trim() || "Jogada", payload: snapshot.payload });
       if (run !== generation.current) return;
       if (!saved) throw new Error("Não foi possível salvar. Seu rascunho permanece no dispositivo.");
+      if (title) setHistory(h => h.present.payload === currentSnapshot.payload ? { ...h, present: snapshot } : h);
       setDocuments(list => [saved, ...list.filter(document => document.id !== saved.id)]);
       activeDocumentRef.current = saved.id;
       setActiveDocumentId(saved.id);

@@ -2,6 +2,8 @@ import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "reac
 import { actorPoint, frameDrawings, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
 
+import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
+
 export const COURT_FLOOR = "#1676ac";
 export const scenePoint = (p: CourtPoint, landscape: boolean) => landscape ? { x: (1 - p.y) * 1800, y: p.x * 900 } : { x: p.x * 900, y: p.y * 1800 };
 export const fromScenePoint = (p: CourtPoint, landscape: boolean): CourtPoint => landscape ? { x: p.y / 900, y: 1 - p.x / 1800 } : { x: p.x / 900, y: p.y / 1800 };
@@ -34,16 +36,18 @@ function DrawObject({ drawing: d, landscape }: { drawing: CourtDrawing; landscap
     </> : <G transform={`rotate(${d.rotation || 0} ${first.x} ${first.y})`}>
       {d.kind === "text" ? <SvgText x={first.x} y={first.y} fill={d.color} fontSize={size} fontWeight="600" textAnchor="middle">{d.text || "Anotação"}</SvgText> : null}
       {d.kind === "ball" ? <G transform={`translate(${first.x} ${first.y}) scale(${size * 0.085})`}>
-        <Circle r={10} fill="#ffe16a" stroke="#ffffff" strokeWidth={0.65} />
-        {[0, 120, 240].map(rotation => <G key={rotation} transform={`rotate(${rotation})`}>
-          <Path d="M0 0 C-1 -4 -5 -7 -8.66 -5 A10 10 0 0 1 0 -10 C4 -7 4 -3 0 0Z" fill="#226ac4" />
-          <Path d="M0 0 C-1 -4 -5 -7 -8.66 -5 M0 0 C4 -3 4 -7 0 -10 M-1.5 -1.8 C0 -4 0 -7 -2.8 -9.6" fill="none" stroke="#173b70" strokeWidth={0.35} strokeLinecap="round" />
-        </G>)}
-        <Circle cx={-3.3} cy={-4.2} r={2.5} fill="#fff" opacity={0.18} />
+        <CourtVolleyballGlyph />
       </G> : null}
-      {d.kind === "cone" ? <Polygon points={`${first.x},${first.y - size} ${first.x - size * 0.7},${first.y + size * 0.5} ${first.x + size * 0.7},${first.y + size * 0.5}`} fill={d.color} stroke="#fff" strokeWidth={2} /> : null}
-      {d.kind === "target" ? <><Circle cx={first.x} cy={first.y} r={size} fill="none" stroke={d.color} strokeWidth={5} /><Circle cx={first.x} cy={first.y} r={size / 2} fill="none" stroke={d.color} strokeWidth={3} /></> : null}
-      {d.kind === "ladder" ? <><Rect x={first.x - size / 2} y={first.y - size * 2} width={size} height={size * 4} fill="none" stroke={d.color} strokeWidth={4} />{[0, 1, 2, 3, 4].map(i => <Line key={i} x1={first.x - size / 2} x2={first.x + size / 2} y1={first.y + (i - 2) * size} y2={first.y + (i - 2) * size} stroke={d.color} strokeWidth={4} />)}</> : null}
+      {d.kind === "cone" ? <G transform={`translate(${first.x} ${first.y}) scale(${size / 24})`}>
+        <Path d="M -14 10 L -3 -21 Q 0 -27 3 -21 L 14 10 Z" fill={d.color} stroke="#10213880" strokeWidth={1.5} strokeLinejoin="round" />
+        <Path d="M -6 -10 H 6 M -10 1 H 10" fill="none" stroke="#fff" strokeOpacity={0.85} strokeWidth={4} />
+        <Rect x={-17} y={8} width={34} height={5} rx={2.5} fill={d.color} stroke="#10213880" strokeWidth={1.5} />
+      </G> : null}
+      {d.kind === "target" ? <><Circle cx={first.x} cy={first.y} r={size} fill={d.color} fillOpacity={0.12} stroke={d.color} strokeWidth={4} /><Circle cx={first.x} cy={first.y} r={size / 2} fill="none" stroke={d.color} strokeWidth={3} /><Circle cx={first.x} cy={first.y} r={size / 9} fill={d.color} /></> : null}
+      {d.kind === "ladder" ? <G>
+        {[-1, 1].map(side => <Rect key={side} x={first.x + side * size * 0.62 - size * 0.07} y={first.y - size * 2} width={size * 0.14} height={size * 4} rx={size * 0.06} fill="#263445" />)}
+        {[-1.65, -0.825, 0, 0.825, 1.65].map(offset => <Rect key={offset} x={first.x - size * 0.65} y={first.y + offset * size - size * 0.08} width={size * 1.3} height={size * 0.16} rx={size * 0.05} fill={d.color} stroke="#10213880" strokeWidth={1.5} />)}
+      </G> : null}
     </G>}
   </G>;
 }
@@ -105,10 +109,14 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
     {!hide.includes("movements") ? (step.trajectories ?? step.transitions)?.filter(t => previewIds?.includes(t.actorId) ? previewMotion : progress !== 0).map(t => <DrawObject key={t.id} landscape={landscape} drawing={{ id: t.id, kind: "arrow", points: motionTrail(t.points, previewIds?.includes(t.actorId) ? 1 : progress ?? 1, 55), color: t.color ?? "#fff", dashed: true, size: 28, rotation: 0 }} />) : null}
     {!hide.includes("actors") ? displayActors(p, stepIndex, progress).map(a => {
       const pt = scenePoint(previewIds?.includes(a.id) ? actorPoint(p, stepIndex, a.id) : a.point, landscape);
+      const person = (a.representation ?? p.editor?.actorRepresentation) === "person";
       return <G key={a.id}>
         {selected.includes(a.id) ? <Circle cx={pt.x} cy={pt.y} r={61} fill="none" stroke="#fff" strokeWidth={4} /> : null}
-        <Circle cx={pt.x} cy={pt.y} r={52} fill={a.color ?? "#19c87b"} stroke="#ffffff55" strokeWidth={2} />
-        <SvgText x={pt.x} y={pt.y + 14} fontFamily="Arial" fontWeight="700" fontSize={37} fill={a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText>
+        {person ? <G>
+          <Circle cx={pt.x} cy={pt.y - 35} r={16} fill={a.color ?? "#19c87b"} stroke="#10213880" strokeWidth={2} />
+          <Path transform={`translate(${pt.x} ${pt.y})`} d="M -12 -13 Q -20 -13 -24 -4 L -34 15 Q -37 22 -30 25 Q -24 27 -21 20 L -15 7 L -15 24 L -19 45 Q -20 53 -12 53 Q -6 53 -5 46 L 0 25 L 5 46 Q 6 53 12 53 Q 20 53 19 45 L 15 24 L 15 7 L 21 20 Q 24 27 30 25 Q 37 22 34 15 L 24 -4 Q 20 -13 12 -13 Z" fill={a.color ?? "#19c87b"} stroke="#10213880" strokeWidth={2} strokeLinejoin="round" />
+        </G> : <Circle cx={pt.x} cy={pt.y} r={52} fill={a.color ?? "#19c87b"} stroke="#ffffff55" strokeWidth={2} />}
+        {p.editor?.showActorNumbers !== false || !/^\d+$/.test(String(a.label || a.number || "")) ? <SvgText x={pt.x} y={pt.y + (person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={person ? 25 : 37} fill={a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
         {p.editor?.actorMeta[a.id]?.locked ? <Circle cx={pt.x + 39} cy={pt.y - 39} r={7} fill="#fff" /> : null}
       </G>;
     }) : null}

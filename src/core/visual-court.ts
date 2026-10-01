@@ -56,6 +56,7 @@ export type CourtVisualActor = {
   id: string;
   label: string;
   number?: number;
+  representation?: "circle" | "person";
   role: CourtVisualActorRole;
   color?: string;
   baseColor?: string;

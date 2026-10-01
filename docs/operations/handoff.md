@@ -1,5 +1,19 @@
 # Continuidade — 16/09/2026
 
+## Sincronização de continuidade — 01/10/2026
+
+Base conferida com `origin/main` em `924970c8`, sem divergência antes dos novos commits. Todo o trabalho pendente desta sessão foi separado em PDF integralmente editável e refinamentos da quadra visual, na branch `codex/planning-assistant-density`. Sincronização em branch não integra nem publica em `main`.
+
+Quadra: ações em arco com animação, paleta, rotação nas duas diagonais, duplicação por Alt + arraste, prévia de colocação de materiais/jogadores, jogadores novos sem número e representação de pessoa, novos cones laranja, desenho dos materiais refinado e bola vetorial baseada em referência Higgsfield. Nova quadra permite nomear/salvar a configuração atual antes de iniciar outra. Dados e organização das quadras existentes preservados. Skill de UI atualizada para evitar textos redundantes.
+
+Validação do conjunto: 5 suítes / 33 testes focados, typecheck:app, lint dos arquivos alterados, org-scope, perf-hygiene e diff-check passaram. Conferência visual do desenho da bola e edição do PDF ocorreu no localhost durante implementação. O servidor foi reiniciado em 01/10 e respondeu HTTP 200; nova inspeção automatizada do navegador foi bloqueada por política de URL, portanto não certifica smoke autenticado novo. Não houve build de release, migração, publicação de Edge Function ou deploy nesta sincronização. Capturas, referência gerada, credenciais e rascunhos locais permanecem fora do Git.
+
+## Edição integral do documento de aula — ajuste local posterior
+
+Todas as células da tabela do PDF podem ser editadas diretamente, incluindo identificação, semana/data/horário, periodização/contexto, título e rótulos. Textos de apresentação ficam em `pedagogy.lessonDocumentText` no plano; não alteram cadastro, agenda ou configurações do ciclo. A prévia e o renderer do PDF baixado usam os mesmos textos. Campo vazio é preservado; chaves são limitadas e valores escapados no HTML. O fluxo existente de salvar/desfazer/descartar continua valendo.
+
+Estabilizado o objeto de origem da periodização para impedir reconstrução do iframe quando a conversa recebe o rascunho durante a digitação. Validação: 14 testes focados, tipos, lint, org-scope e diff-check; smoke autenticado confirmou 37/37 células editáveis, texto preservado, salvar habilitado e descarte sem gravação. Incluído na sincronização da branch em 01/10/2026; sem publicação adicional.
+
 ## Assistente unificado e densidade — 30/09/2026
 
 Pacote preparado para commit/push em branch `codex/`, sem merge em `main` ou deploy de produção. Inclui revisão de densidade, editor de periodização compacto e conversa contextual compartilhada entre chatbot, planejamento e modais. Ver `planning-assistant-local.md` e `../ui/DENSITY_AUDIT.md` para escopo e evidências.

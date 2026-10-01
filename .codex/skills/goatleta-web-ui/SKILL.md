@@ -29,6 +29,7 @@ description: Criar, revisar ou refatorar interfaces responsivas do GoAtleta, inc
 - Em formulários com vários cards que compõem um único rascunho, usar uma única `FloatingSaveBar`, visível assim que houver mudanças, independentemente do card aberto. Não duplicar botões de salvar por seção. Operações independentes, como verificar e-mail e alterar senha, mantêm ações próprias.
 - Ações assíncronas aguardam a Promise real, mostram progresso imediato, bloqueiam repetição e preservam contexto em falha. Usar `ConfirmDialog`/`Button` existentes; não capturar erros em alertas invisíveis na web.
 - Não repetir atribuição à IA quando um marcador visual já estabelece o contexto.
+- Evitar texto óbvio ou redundante em diálogos compactos: quando o contexto já identifica um campo único, usar um placeholder curto e manter o nome acessível sem duplicar um rótulo visual. Não preencher nomes genéricos como "Nova jogada" como se fossem escolhas da pessoa; começar vazio ou preservar um nome personalizado existente. Remover explicações que apenas repetem a ação do botão. Manter rótulos visíveis quando necessários para distinguir campos ou compreender consequências.
 - Manter componentes de domínio sem consultas diretas; receber dados e callbacks por props.
 
 ## Validação
