@@ -1919,9 +1919,8 @@ function TrainingWorkspace() {
               }
               contentStyle={{
                 width: "100%",
-                maxWidth: responsiveLayout.supportsDenseGrid ? 1600 : 1440,
                 alignSelf: "center",
-                paddingTop: responsiveLayout.isMobile ? 8 : 12,
+                paddingTop: 8,
                 paddingBottom: 8,
               }}
             />

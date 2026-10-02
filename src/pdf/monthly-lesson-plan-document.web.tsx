@@ -1,3 +1,4 @@
+import { formatMonthlyLessonPlanText } from "./templates/monthly-plan";
 import React from "react";
 import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
@@ -376,7 +377,7 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
 }
 
 export function MonthlyLessonPlanDocument({ data }: { data: MonthlyPlanPdfData }) {
-  const lessons = data.lessons.length ? data.lessons : [null];
+  const lessons = data.lessons.length ? data.lessons.map(formatMonthlyLessonPlanText) : [null];
 
   return (
     <Document title={`Plano mensal - ${data.monthLabel}`}>

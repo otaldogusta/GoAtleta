@@ -596,7 +596,7 @@ export function NotificationsCenterScreen({
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ResponsivePage style={{ flex: 1 }} gap={0}>
+      <ResponsivePage style={{ flex: 1, maxWidth: undefined, paddingHorizontal: 16 }} gap={0}>
         <ScreenPageHeader
           title="Notificações"
           subtitle={headerSubtitle}

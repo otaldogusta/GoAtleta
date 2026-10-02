@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { ActivityIndicator, Text, View } from "react-native";
+import { useEffect } from "react";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
 import { brandPalette, radius } from "../theme/tokens";
@@ -10,6 +11,11 @@ import { useBootstrap } from "./BootstrapProvider";
 export function BootstrapGate({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
   const { ready, loading, error, retry } = useBootstrap();
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      document.documentElement.dataset.goatletaReactMounted = "true";
+    }
+  }, []);
 
   if (loading && !ready) {
     return (
@@ -32,17 +38,6 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
             color={colors.text}
           />
           <Text style={{ color: colors.text, fontWeight: "600" }}>{ptBR.loading.generic}</Text>
-          {__DEV__ ? (
-            <View style={{ marginTop: 12, maxWidth: 520 }}>
-              <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 6 }}>
-                Debug: bootstrap progress
-              </Text>
-              { }
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                {(globalThis as any).__BOOTSTRAP_LOGS ? (globalThis as any).__BOOTSTRAP_LOGS.slice(-5).join(' \n') : ''}
-              </Text>
-            </View>
-          ) : null}
         </View>
       </View>
     );

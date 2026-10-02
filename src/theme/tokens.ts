@@ -65,6 +65,17 @@ export const typography = {
   },
 } as const;
 
+/** Compact operational header, approved against the Turmas screen. */
+export const pageHeaderMetrics = {
+  height: 38,
+  fontSize: 12,
+  lineHeight: 18,
+  iconSize: 18,
+  backSize: 38,
+  gap: 12,
+  breadcrumbGap: 8,
+} as const;
+
 export const spacing = {
   xs: 8,
   sm: 12,

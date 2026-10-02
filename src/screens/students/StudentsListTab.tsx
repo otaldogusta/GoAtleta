@@ -689,7 +689,7 @@ export const StudentsListTab = memo(function StudentsListTab({
         <View
           style={{
             gap: 8,
-            paddingHorizontal: compactFilters ? 0 : 18,
+            paddingHorizontal: compactFilters ? 0 : 12,
             paddingVertical: 10,
             borderBottomWidth: StyleSheet.hairlineWidth,
             borderBottomColor: colors.borderSubtle ?? colors.border,

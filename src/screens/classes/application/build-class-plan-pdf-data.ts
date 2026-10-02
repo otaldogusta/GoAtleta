@@ -1,3 +1,4 @@
+import { formatPedagogicalDisplayText } from "../../../core/pedagogy/plan-display-text";
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { resolveTrainingPlanBlock } from "../../../core/training-plan-blocks";
 import type {
@@ -143,13 +144,13 @@ export const buildClassPlanPdfData = ({
     timeLabel: hasAssignedClass ? formatTimeLabel(classGroup.startTime, totalDuration) : "",
     weekLabel: periodization?.weekNumber ? `SEMANA ${String(periodization.weekNumber).padStart(2, "0")}` : "",
     title: normalizeDisplayText(plan.title),
-    generalObjective: normalizeDisplayText(
+    generalObjective: formatPedagogicalDisplayText(
       learningObjectives?.general || plan.pedagogy?.sessionObjective || plan.pedagogy?.objective?.description || ""
     ),
-    specificObjective: normalizeDisplayText(specificObjective),
-    weeklyFocus: normalizeDisplayText(weeklyFocus),
-    pedagogicalRule: normalizeDisplayText(learningObjectives?.pedagogicalGuidelines?.[0] ?? ""),
-    notes: normalizeDisplayText(plan.pedagogy?.lessonPlanObservations ?? ""),
+    specificObjective: formatPedagogicalDisplayText(specificObjective),
+    weeklyFocus: formatPedagogicalDisplayText(weeklyFocus),
+    pedagogicalRule: formatPedagogicalDisplayText(learningObjectives?.pedagogicalGuidelines?.[0] ?? ""),
+    notes: formatPedagogicalDisplayText(plan.pedagogy?.lessonPlanObservations ?? ""),
     totalTime:
       warmupMinutes === undefined && mainMinutes === undefined && cooldownMinutes === undefined
         ? ""

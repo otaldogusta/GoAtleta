@@ -20,7 +20,8 @@ def add(title, route, source, text):
 add('Alunos · diretório e perfil', '/students', 'app/students/index.tsx', """
 code|Listagem e resumo|Lista, linhas, resumo e estados vazios.|src/screens/students/components/StudentsListSection.tsx
 code|Busca de alunos|Busca normalizada em camada de aplicação.|src/screens/students/application/student-search.ts
-code|Filtros de turma e modalidade|Controles próprios para o diretório.|src/screens/students/components/StudentDirectoryFilterBar.tsx
+code|Filtros do diretório|Busca, turma, status e acesso com controles de 42 px como Turmas; sem caixa externa ou padding duplicado. Conferidos localmente em 8081, incluindo abertura do seletor.|src/screens/students/components/StudentDirectoryFilterBar.tsx
+code|Ações compactas do cabeçalho|Adicionar atleta e Exportar e sincronizar com 40 px de altura; ícone, espaçamento e padding da ação principal iguais a Turmas. Medidas conferidas em 8081.|app/students/index.tsx
 code|Status do cadastro|Badge de situação no diretório.|src/screens/students/components/StudentDirectoryStatusBadge.tsx
 code|Status de acesso ao app|Distinto do estado do cadastro.|src/screens/students/components/StudentLoginAccessStatus.tsx
 code|Cadastro e pré-cadastro|Hooks e formulário próprios.|src/screens/students/hooks/useSavePreRegistration.ts
@@ -65,6 +66,7 @@ code|Revogar e compartilhar convite|Fluxo com confirmação e regra de compartil
 verify|Destinatário e abertura externa|Conferir telefone inválido, ausência de responsável e cancelamento. Nenhuma mensagem foi enviada.
 """)
 add('Turmas · editor e equipe', '/classes', 'docs/operations/handoff.md', """
+code|Confirmar plano sem periodização|Montar plano pede escolha antes de gerar e salvar quando não há semana para a data: plano básico ou configurar periodização. Fechar não gera plano.|src/screens/classes/application/confirm-plan-without-periodization.ts
 code|Listagem de turmas|Entradas por papel reutilizam a base.|app/classes/index.tsx
 code|Workspace da turma|Entrada principal do detalhe.|app/class/[id].tsx
 code|Alunos da turma|Rota de elenco.|app/class/[id]/students.tsx
@@ -86,6 +88,7 @@ recorded|Validação de 29/09|Handoff registra suíte e smoke autenticado; não 
 verify|Rastreabilidade na jornada|Conferir versão do perfil usada no plano e efeito de uma nova revisão.
 """)
 add('Planejamento · planos e importação', '/prof/planning', 'app/prof/planning.tsx', """
+code|Linguagem pedagógica pt-BR|Acentos e blocos legíveis compartilhados entre geração, exibição e PDFs de aula/mensal; apresentação de registros antigos sem regravar histórico.|src/core/pedagogy/plan-display-text.ts
 code|Planejamento da turma e mês|Rotas específicas.|app/class/[id]/planning/[month].tsx
 code|Criação de sessão|Conteúdo de modal próprio.|src/screens/training/components/TrainingSessionCreateModalContent.tsx
 code|Detalhes do plano|Modal específico.|src/screens/training/components/TrainingPlanDetailsModalContent.tsx
@@ -136,6 +139,9 @@ verify|Aparelho físico e persistência|API disponível não comprova leitura de
 """)
 add('Quadra visual · editor tático', '/class/[id]/visual-tech', 'docs/operations/handoff.md', """
 code|Workspace e canvas|Editor em componentes próprios.|src/components/visual-court/CourtEditorWorkspace.tsx
+code|Animação com menu compacto|Botão Animar movimento expande Livre/Reto junto à barra lateral; escolha fecha o menu sem abrir o painel de ferramentas.|src/components/visual-court/CourtEditorWorkspace.tsx
+code|Ações junto ao objeto e representação|Implementação de 902f697a recuperada no ambiente local: editar, duplicar, excluir e cor junto à seleção; bonequinhos, números opcionais e materiais refinados, preservando a quadra existente.|src/components/visual-court/CourtSelectionActions.tsx
+recorded|Conferência local da quadra recuperada|84 testes focados, tipos e escopo passaram; seleção com ações junto ao boneco conferida no localhost:8081. Sem publicação.
 code|Etapas e reprodução|Timeline e controles próprios.|src/components/visual-court/VisualCourtTimelineControls.tsx
 code|Exportadores por plataforma|Módulos web e nativo separados.|src/components/visual-court/court-export.web.tsx
 recorded|Jogadores, banco e materiais|Ferramentas agrupadas e propriedades por contexto.
@@ -160,6 +166,7 @@ code|Visão individual|Entrada student-scouting.|app/student-scouting.tsx
 verify|Métricas e encerramento|Conferir coleta, edição e consolidação no fluxo real.
 """)
 add('Assistente · conversa e contexto', '/assistant', 'docs/operations/planning-assistant-local.md', """
+code|Assistente oculto em convites|Botão e painel bloqueados nas rotas públicas de convite, mesmo com sessão ativa; fechamento ao entrar nessas rotas.|src/copilot/route-visibility.ts
 code|Tela dedicada|Entradas gerais e por papel.|app/assistant/index.tsx
 code|Contexto do planejamento|Builder específico.|src/screens/periodization/application/planning-assistant-context.ts
 code|Contexto do copilot de treino|Função própria.|src/screens/training/application/planning-copilot-context.ts
@@ -262,6 +269,17 @@ code|Regulamentação|Fontes e histórico.|app/regulation-history.tsx
 verify|Reconciliação dos números|Comparar com chamadas, turmas e período antes de certificar métricas.
 """)
 add('Coordenação e administração', '/coord/dashboard', 'app/coord/dashboard.tsx', """
+recorded|Validação do pacote de interface para release 02/10/2026|Marca, encoding, JWT, escopo, assets, arquitetura, performance, lint sem avisos e tipos aprovados. Suíte completa: 538 suites passaram; a expectativa antiga de padding da suite restante foi corrigida e seus 9 testes passaram no rerun. Sete suites SQL offline e build web com 117 rotas aprovados. Breadcrumb turma → Turmas conferido autenticado no localhost:8081. Ativação em produção depende do deploy Git.
+code|Cabeçalho compacto compartilhado|Breadcrumbs inline clicáveis, fonte 12/18 px e voltar de 38 px. Linha de ações de 40 px, inset superior de 8 px e horizontal de 16 px nas telas da Coordenação; subtítulo abaixo sem deslocar botões.|src/components/ui/ScreenPageHeader.tsx
+code|Carregamento discreto de seção|Spinner com mensagem curta e sem shimmer, compartilhado por Notificações, Planejamento e demais seções; refresh sem duplicar indicadores.|src/components/ui/SectionLoadingState.tsx
+recorded|Conferência do cabeçalho compacto|Breadcrumbs, alinhamento de ações/subtítulo e carregamento cobertos por testes focados; tipos passaram. Posição e fonte iguais conferidas em Turmas, Atletas, Coordenação, Financeiro, Eventos, NFC, Notificações, Periodização, Regulamentos e Planejamento no 8081. Financeiro móvel sem overflow horizontal.|src/components/ui/__tests__/ScreenPageHeader.test.ts
+code|Gestão com densidade compacta|Resumo de 64 px no desktop, linhas de equipe próximas de 50 px, hover e seleção no mesmo contorno com espaço interno e altura estável, detalhes em trilho de 360 px e colunas sem corte lateral; mockup local demonstrativo.|src/screens/coordination/CoordinationPeopleWorkspace.tsx
+recorded|Conferência da gestão compacta|9 testes focados e tipos passaram; seleção e proporções conferidas em 1440, 834 e 390 px no localhost:8081.|src/screens/coordination/CoordinationPeopleWorkspace.tsx
+code|Seleção opcional da equipe|Novo clique na pessoa selecionada limpa os detalhes; sem seleção automática, o painel lateral fica livre no desktop. Aviso redundante de acesso administrativo removido da visualização.|src/screens/coordination/CoordinationPeopleWorkspace.tsx
+code|Perfil da equipe separado do acesso|Perfil completo da pessoa com identidade, vínculos e atividade recente disponível; avatar e capa iguais ao mockup aprovado, ações à direita no responsivo e scroll com largura estável. Gestão abre painel lateral com abas Turmas e Permissões, rascunho preservado e salvar somente com alterações.|src/screens/coordination/StaffProfilePage.tsx
+code|Página de perfil centrada na pessoa|Mockup integrado à gestão e ao perfil próprio de professor/coordenação. Avatar próprio abre menu existente de câmera/galeria; Editar perfil reutiliza dados pessoais e salvamento existentes. Outros membros têm somente ações administrativas autorizadas. Sem contagens ou histórico ilustrativos.|app/profile.tsx
+recorded|Conferência do perfil com abas|13 testes focados, tipos, escopo organizacional, arquitetura e performance passaram. Localhost:8081: perfil próprio, menu de foto, dados pessoais, perfil de colega, abas de acesso e descarte de rascunho conferidos; celular 390 sem overflow. Sem salvar dados ou permissões reais.|src/screens/coordination/CoordinationPeopleWorkspace.tsx
+pending|Novos dados sociais do perfil|Biografia, capa personalizada, contagens de atletas/aulas e foto de colegas precisam de contrato de dados e autorização próprios. Câmera física e gravação real não exercitadas nesta conferência.|src/screens/coordination/StaffProfilePage.tsx
 code|Dashboard e insights|Loader próprio.|src/screens/coordination/application/load-coordination-dashboard.ts
 code|Radar de turmas|Painel específico.|src/screens/coordination/ClassRadarPanel.tsx
 code|Auditoria|Painel específico.|src/screens/coordination/AuditPanel.tsx
@@ -274,6 +292,8 @@ code|Plataforma e acessos|Entradas próprias.|app/platform/accesses.tsx
 verify|Matriz de permissões|Conferir equipe, atleta, família e administrador com contas de QA.
 """)
 add('Autenticação e onboarding', '/login', 'app/login.tsx', """
+code|Carregamento sem diagnóstico técnico|Tela inicial mostra indicador e Carregando; logs de bootstrap permanecem no console, sem texto de debug na interface.|src/bootstrap/BootstrapGate.tsx
+code|Indicador desde o HTML inicial|Carregando visível antes do JavaScript, com passagem para o BootstrapGate após montar e respeito a movimento reduzido.|app/+html.tsx
 code|Boas-vindas|Rota dedicada.|app/welcome.tsx
 code|Login|Entrada de autenticação.
 code|Cadastro|Tela e rota próprias.|src/screens/auth/SignupScreen.tsx
@@ -282,7 +302,7 @@ code|Recuperar senha|Rota com testes existentes.|app/reset-password.tsx
 code|Callback|Retorno de autenticação.|app/auth-callback.tsx
 code|Onboarding|Entrada específica.|app/onboarding.tsx
 code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
-code|Convite familiar por token|Rota específica.|app/family-invite/[token].tsx
+code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
 code|Convite de equipe|Entrada própria.|app/staff-invite.tsx
 code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.

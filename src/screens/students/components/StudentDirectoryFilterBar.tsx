@@ -50,18 +50,6 @@ function FilterSelect({
   const { colors } = useAppTheme();
   return (
     <View ref={triggerRef} collapsable={false} style={styles.selectSlot}>
-      <Text
-        pointerEvents="none"
-        style={[
-          styles.selectLegend,
-          {
-            color: colors.muted,
-            backgroundColor: colors.backgroundSubtle,
-          },
-        ]}
-      >
-        {label}
-      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value}`}
@@ -76,6 +64,9 @@ function FilterSelect({
           },
         ]}
       >
+        <Text style={[styles.selectLegend, { color: colors.muted }]}>
+          {label}
+        </Text>
         <Text numberOfLines={1} style={[styles.selectValue, { color: colors.text }]}>
           {value}
         </Text>
@@ -237,12 +228,7 @@ export function StudentDirectoryFilterBar({
 
   return (
     <>
-      <View
-        style={[
-          styles.desktopBar,
-          { borderColor: colors.border, backgroundColor: colors.backgroundSubtle },
-        ]}
-      >
+      <View style={styles.desktopBar}>
         <View style={styles.desktopSearch}>{searchField}</View>
         <FilterSelect
           label="Turma"
@@ -324,20 +310,15 @@ export function StudentDirectoryFilterBar({
 
 const styles = StyleSheet.create({
   desktopBar: {
-    minHeight: 72,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.card,
     flexDirection: "row",
-    alignItems: "stretch",
-    gap: 12,
+    alignItems: "center",
+    gap: 10,
   },
   desktopSearch: { flex: 1.15, minWidth: 150 },
   mobileBar: { flexDirection: "row", alignItems: "center", gap: 10 },
   mobileSearch: { flex: 1, minWidth: 0 },
   search: {
-    minHeight: 48,
-    height: "100%",
+    height: 42,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.internal,
     paddingHorizontal: 12,
@@ -348,7 +329,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     minWidth: 0,
-    minHeight: 46,
+    minHeight: 40,
     paddingVertical: 0,
     borderWidth: 0,
     borderRadius: 0,
@@ -357,34 +338,25 @@ const styles = StyleSheet.create({
   selectSlot: {
     flex: 1,
     minWidth: 0,
-    position: "relative",
-    paddingTop: 7,
   },
   selectLegend: {
-    position: "absolute",
-    top: 0,
-    left: 12,
-    zIndex: 2,
-    paddingHorizontal: 5,
-    fontSize: 10,
-    fontWeight: "700",
-    lineHeight: 14,
+    fontSize: 11,
+    lineHeight: 16,
+    flexShrink: 0,
   },
   select: {
-    flex: 1,
-    minHeight: 48,
+    height: 42,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.internal,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingTop: 5,
   },
   selectValue: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "800" },
   clearButton: {
     minWidth: 132,
-    minHeight: 48,
+    height: 42,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.internal,
     paddingHorizontal: 15,
@@ -395,7 +367,7 @@ const styles = StyleSheet.create({
   },
   clearText: { fontSize: 12, fontWeight: "800" },
   mobileFilterButton: {
-    minHeight: 48,
+    height: 42,
     paddingHorizontal: 14,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.internal,

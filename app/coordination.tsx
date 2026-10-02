@@ -1369,7 +1369,7 @@ function CoordinationScreenContent() {
           flex: 1,
           minHeight: 0,
           paddingHorizontal: pageHorizontalGutter,
-          paddingTop: 12,
+          paddingTop: 0,
           gap: 12,
         }}
       >

@@ -607,17 +607,16 @@ export default function RegulationHistoryScreen() {
         horizontalBleed={0}
         contentStyle={{
           width: "100%",
-          maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2,
           alignSelf: "center",
-          paddingHorizontal: responsiveLayout.gutter,
+          paddingHorizontal: 16,
           boxSizing: "border-box",
         }}
         right={isAdmin ? (
           <Pressable
             onPress={openCreate}
-            style={{ borderRadius: 999, borderWidth: 1, borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, paddingHorizontal: 16, paddingVertical: 10 }}
+            style={{ height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, paddingHorizontal: 13 }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Nova fonte</Text>
+            <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>Nova fonte</Text>
           </Pressable>
         ) : null}
       />

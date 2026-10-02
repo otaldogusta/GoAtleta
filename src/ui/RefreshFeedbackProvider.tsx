@@ -32,7 +32,6 @@ export function RefreshFeedbackProvider({ children }: { children: ReactNode }) {
       {feedback.refreshing ? (
         <View pointerEvents="none" accessibilityLabel="Atualizando conteúdo da tela" accessibilityState={{ busy: true }} style={{ position: "absolute", top: insets.top + 96, bottom: insets.bottom + 100, left: 0, right: 0, padding: 16, gap: 24, overflow: "hidden", backgroundColor: colors.background, zIndex: 10000 }}>
           <SectionLoadingState />
-          <SectionLoadingState />
         </View>
       ) : null}
     </RefreshFeedbackContext.Provider>

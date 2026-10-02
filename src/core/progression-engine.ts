@@ -1,3 +1,4 @@
+import { formatPedagogicalDisplayText } from "./pedagogy/plan-display-text";
 import type {
   ProgressionDimension,
   ProgressionSessionPlan,
@@ -164,7 +165,7 @@ export const buildNextSessionProgression = (
   return {
     objective:
       request.objective ||
-      `Evoluir ${request.className} em ${skills.join(", ")} com foco em ${dimension.replace("_", " ")}.`,
+      `Evoluir ${request.className} em ${skills.join(", ")} com foco em ${formatPedagogicalDisplayText(dimension.replace("_", " "))}.`,
     progressionDimension: dimension,
     warmup: [
       profile === "fundamental"
@@ -173,7 +174,7 @@ export const buildNextSessionProgression = (
       `Sequência técnica guiada de baixa complexidade focando ${skillSummary[0]}.`,
     ],
     technicalTactical: [
-      `Drill principal com progressão por ${dimension.replace("_", " ")} para ${skills.join(" + ")}.`,
+      `Drill principal com progressão por ${formatPedagogicalDisplayText(dimension.replace("_", " "))} para ${skills.join(" + ")}.`,
       profile === "fundamental"
         ? "Feedback curto com demonstração prática e reforço positivo."
         : "Bloco de correção por feedback curto (1 ponto forte + 1 ajuste por atleta).",
@@ -290,7 +291,7 @@ export const buildNextVolleyballLessonPlan = (
         notes:
           profile === "fundamental"
             ? "Exploração guiada com reforço positivo e ajustes simples."
-            : `Progressão orientada por ${dimension.replace("_", " ")}.`,
+            : `Progressão orientada por ${formatPedagogicalDisplayText(dimension.replace("_", " "))}.`,
       },
       {
         type: "game_conditioned",

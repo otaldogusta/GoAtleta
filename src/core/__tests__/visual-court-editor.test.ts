@@ -2,6 +2,15 @@ import { buildEditable5x1ReceptionPreset, buildRotation5x1Preset, normalizeCourt
 import { addBlankStep, actorPoint, changeDrawings, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, reorderStepToIndex, upgradeCourtEditor } from "../visual-court-editor";
 
 describe("court editor document commands", () => {
+  it("duplicates at the drag offset without moving the original", () => {
+    const payload = newCourtBoard();
+    const actor = payload.actors[0];
+    const before = JSON.stringify(payload);
+    const result = duplicateSelection(payload, 0, [actor.id], { x: 0.1, y: 0.05 });
+    expect(actorPoint(result.payload, 0, result.selected[0])).toEqual({ x: actor.initialPosition.x + 0.1, y: actor.initialPosition.y + 0.05 });
+    expect(actorPoint(result.payload, 0, actor.id)).toEqual(actor.initialPosition);
+    expect(JSON.stringify(payload)).toBe(before);
+  });
   it("snaps both axes to the same half-metre spacing", () => {
     const snapped = snapCourtPoint({ x: 0.14, y: 0.14 });
     expect(snapped.x * 9).toBe(1.5);

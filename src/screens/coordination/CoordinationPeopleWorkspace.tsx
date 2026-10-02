@@ -50,6 +50,7 @@ import { brandPalette, radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
+import { AnimatedSegmentedTabs } from "../../ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
 import { useConfirmUndo } from "../../ui/confirm-undo";
@@ -90,6 +91,7 @@ import {
   resolveInviteLifecycleStatus,
 } from "./application/invite-lifecycle";
 import { useInviteClock } from "./application/use-invite-clock";
+import { StaffProfilePage } from "./StaffProfilePage";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "activity";
 type PeopleSortKey = "name" | "role" | "classes" | "attendance" | "lastAccess";
@@ -620,7 +622,7 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const { session } = useAuth();
   const router = useRouter();
-  const { assistantSection, assistantVisit, accessRequestId } = useLocalSearchParams<{ assistantSection?: string; assistantVisit?: string; accessRequestId?: string }>();
+  const { assistantSection, assistantVisit, accessRequestId, memberProfile } = useLocalSearchParams<{ memberProfile?: string; assistantSection?: string; assistantVisit?: string; accessRequestId?: string }>();
   const pageScrollRef = useRef<ScrollView | null>(null);
   const sectionNodes = useRef<Partial<Record<SecondaryModuleKey, ViewType | null>>>({});
   const modulesOffset = useRef(0);
@@ -631,7 +633,7 @@ export function CoordinationPeopleWorkspace({
   const { showSaveToast } = useSaveToast();
   const { height, width } = useWindowDimensions();
   const responsiveLayout = useResponsiveLayout("dashboard");
-  const supportsSplitLayout = responsiveLayout.supportsSplitView;
+  const supportsSplitLayout = responsiveLayout.supportsSplitView && width >= 1200;
   const compact = responsiveLayout.isMobile;
   const splitAccessModal = resolveAccessModalLayout(width) === "split";
   const groupedOrganizationClasses = useMemo(
@@ -672,6 +674,7 @@ export function CoordinationPeopleWorkspace({
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
+  const [accessSection, setAccessSection] = useState<"classes" | "permissions">("classes");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteAudience>("professor");
   const [invitePermissionKeys, setInvitePermissionKeys] = useState<MemberPermissionKey[]>(() => [
@@ -757,9 +760,9 @@ export function CoordinationPeopleWorkspace({
   }, [pendingInvites]);
 
   useEffect(() => {
-    if (selectedMemberId && members.some((member) => member.userId === selectedMemberId)) return;
+    if (!selectedMemberId || members.some((member) => member.userId === selectedMemberId)) return;
     Promise.resolve().then(() => {
-      setSelectedMemberId(members[0]?.userId ?? null);
+      setSelectedMemberId(null);
     });
   }, [members, selectedMemberId]);
 
@@ -832,7 +835,7 @@ export function CoordinationPeopleWorkspace({
   );
 
   const selectedMember =
-    members.find((member) => member.userId === selectedMemberId) ?? members[0] ?? null;
+    members.find((member) => member.userId === selectedMemberId) ?? null;
   const selectedClasses = selectedMember
     ? classesByUser.get(selectedMember.userId) ?? []
     : [];
@@ -1002,11 +1005,12 @@ export function CoordinationPeopleWorkspace({
     ]).start();
   };
 
-  const openEdit = async (member: OrgMember) => {
+  const openEdit = async (member: OrgMember, section: "classes" | "permissions" = "classes") => {
     const requestId = editPermissionRequestRef.current + 1;
     editPermissionRequestRef.current = requestId;
     const initialRole = member.roleLevel >= 50 ? 50 : member.roleLevel >= 10 ? 10 : 5;
     setModalMember(member);
+    setAccessSection(section);
     setEditRole(initialRole);
     setEditClassIds([]);
     setEditPermissionKeys([]);
@@ -1608,8 +1612,27 @@ export function CoordinationPeopleWorkspace({
     return null;
   };
 
+  const profileMember = members.find(item => item.userId === memberProfile && item.organizationId === organizationId);
+
   return (
     <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}>
+      {profileMember ? <StaffProfilePage
+        key={`${organizationId}:${profileMember.userId}`}
+        name={profileMember.displayName}
+        role={roleLabel(profileMember.roleLevel)}
+        organizationName={organizationName}
+        email={profileMember.email}
+        joinedAt={profileMember.createdAt}
+        lastAccess={formatMemberLastAccess(profileMember.lastAccessAt)}
+        classes={organizationClasses.filter(item => (classesByUser.get(profileMember.userId) ?? []).some(head => head.classId === item.id))}
+        activity={recentActivity.filter(item => item.actorUserId === profileMember.userId).map((item, index) => ({ id: `${item.occurredAt}:${index}`, title: item.kind === "attendance" ? "Chamada registrada" : "Relatório registrado", detail: `${item.className} · ${item.unit}`, date: new Date(item.occurredAt).toLocaleString("pt-BR") }))}
+        onBack={() => router.setParams({ memberProfile: "" })}
+        ownProfile={profileMember.userId === session?.user.id}
+        onEditProfile={profileMember.userId === session?.user.id ? () => router.push("/coord/profile?edit=personal") : undefined}
+        onEditPhoto={profileMember.userId === session?.user.id ? () => router.push("/coord/profile?edit=photo") : undefined}
+        onManageAccess={() => void openEdit(profileMember)}
+        onMessage={() => openMessage(profileMember)}
+      /> : <>
       <ScreenPageHeader
         title="Coordenação"
         subtitle={`${organizationName} • ${new Date().toLocaleDateString("pt-BR", {
@@ -1618,18 +1641,9 @@ export function CoordinationPeopleWorkspace({
           year: "numeric",
         })}`}
         onBack={() => router.push("/coord/dashboard")}
-        horizontalBleed={pageHorizontalGutter}
-        style={
-          Platform.OS === "web" && compact
-            ? {
-                marginLeft: -pageHorizontalGutter,
-                marginRight: -pageHorizontalGutter,
-                paddingLeft: pageHorizontalGutter,
-                paddingRight: pageHorizontalGutter,
-              }
-            : undefined
-        }
-        contentStyle={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}
+        horizontalBleed={0}
+        style={{ marginLeft: -pageHorizontalGutter, marginRight: -pageHorizontalGutter }}
+        contentStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 0 }}
       />
 
       <ScrollView
@@ -1652,7 +1666,7 @@ export function CoordinationPeopleWorkspace({
           borderWidth: 1,
           borderColor: border,
           backgroundColor: panel,
-          paddingVertical: compact ? 9 : 12,
+          paddingVertical: compact ? 9 : 8,
           paddingHorizontal: compact ? 8 : 12,
           flexDirection: "row",
         }}
@@ -1671,10 +1685,11 @@ export function CoordinationPeopleWorkspace({
             style={{
               flex: 1,
               minWidth: 0,
-              minHeight: compact ? 72 : 78,
+              minHeight: compact ? 72 : 48,
+              flexDirection: compact ? "column" : "row",
               justifyContent: "center",
               alignItems: "center",
-              gap: compact ? 3 : 5,
+              gap: compact ? 3 : 12,
               paddingHorizontal: compact ? 3 : 8,
               borderLeftWidth: index > 0 ? 1 : 0,
               borderLeftColor: border,
@@ -1682,13 +1697,14 @@ export function CoordinationPeopleWorkspace({
           >
             <GoAtletaIcon
               name={icon as GoAtletaIconName}
-              size={compact ? 18 : 20}
+              size={18}
               color={colors.muted}
             />
+            <View style={{ gap: 2, alignItems: compact ? "center" : "flex-start", flexShrink: 1 }}>
             <Text
               style={{
                 color: colors.text,
-                fontSize: compact ? 18 : 20,
+                fontSize: 18,
                 lineHeight: compact ? 21 : 24,
                 fontWeight: "800",
                 textAlign: "center",
@@ -1700,19 +1716,20 @@ export function CoordinationPeopleWorkspace({
               numberOfLines={2}
               style={{
                 color: colors.muted,
-                fontSize: compact ? 9 : 11,
+                fontSize: compact ? 9 : 12,
                 lineHeight: compact ? 11 : 14,
                 textAlign: "center",
               }}
             >
               {label}
             </Text>
+            </View>
           </View>
         ))}
       </View>
 
       <View onLayout={event => { modulesOffset.current = event.nativeEvent.layout.y; }} style={{ flexDirection: supportsSplitLayout ? "row" : "column", alignItems: "flex-start", gap: 12 }}>
-        <View style={{ width: supportsSplitLayout ? "61%" : "100%", minWidth: 0, gap: 7 }}>
+        <View style={{ flex: supportsSplitLayout ? 1 : undefined, width: supportsSplitLayout ? undefined : "100%", minWidth: 0, gap: 8 }}>
           <View
             style={{
               borderRadius: radius.internal,
@@ -1724,10 +1741,10 @@ export function CoordinationPeopleWorkspace({
           >
             <Pressable
               onPress={() => setPeopleExpanded((current) => !current)}
-              style={{ padding: 15, flexDirection: "row", alignItems: "center", gap: 12 }}
+              style={{ minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 }}
             >
               <GoAtletaIcon name="align" size={18} color={colors.muted} />
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", flex: 1 }}>
                 Equipe
               </Text>
               <GoAtletaIcon
@@ -1741,11 +1758,11 @@ export function CoordinationPeopleWorkspace({
               <>
                 <View
                   style={{
-                    paddingHorizontal: 14,
-                    paddingBottom: 12,
+                    paddingHorizontal: 12,
+                    paddingBottom: 8,
                     flexDirection: "row",
                     flexWrap: "wrap",
-                    gap: 10,
+                    gap: 8,
                   }}
                 >
                   <View
@@ -1758,7 +1775,8 @@ export function CoordinationPeopleWorkspace({
                       backgroundColor: colors.inputBg,
                       flexDirection: "row",
                       alignItems: "center",
-                      paddingHorizontal: 12,
+                      paddingHorizontal: 14,
+                      minHeight: 44,
                     }}
                   >
                     <TextInput
@@ -1766,7 +1784,7 @@ export function CoordinationPeopleWorkspace({
                       onChangeText={setSearch}
                       placeholder="Buscar pessoas..."
                       placeholderTextColor={colors.placeholder}
-                      style={{ color: colors.inputText, flex: 1, paddingVertical: 10 }}
+                      style={{ color: colors.inputText, flex: 1, minHeight: 44, fontSize: 14, borderRadius: 0, paddingVertical: 8 }}
                     />
                     <GoAtletaIcon name="search" size={17} color={colors.muted} />
                   </View>
@@ -1790,14 +1808,14 @@ export function CoordinationPeopleWorkspace({
                 </View>
 
                 {!compact ? (
-                  <View style={{ paddingHorizontal: 18, paddingVertical: 8, flexDirection: "row" }}>
+                  <View style={{ paddingHorizontal: 16, paddingVertical: 4, flexDirection: "row" }}>
                     {(
                       [
-                        ["PESSOA", "name", 1.35],
+                        ["PESSOA", "name", 1.6],
                         ["FUNÇÃO", "role", 1],
-                        ["TURMAS", "classes", 0.8],
-                        ["CHAMADAS PENDENTES", "attendance", 1.05],
-                        ["ÚLTIMO ACESSO", "lastAccess", 0.9],
+                        ["TURMAS", "classes", 0.7],
+                        ["CHAMADAS", "attendance", 0.7],
+                        ["ÚLTIMO ACESSO", "lastAccess", 1.1],
                       ] as const
                     ).map(([label, key, flex]) => (
                       <Pressable
@@ -1871,36 +1889,45 @@ export function CoordinationPeopleWorkspace({
                       <View
                         key={member.userId}
                         style={{
-                          marginHorizontal: 12,
+                          marginHorizontal: 8,
                           marginBottom: 1,
                           borderRadius: radius.internal,
-                          borderWidth: selected ? 1 : 0,
-                          borderColor: selected ? colors.successBorder : "transparent",
-                          backgroundColor: selected ? colors.successBg : panel,
-                          paddingHorizontal: 10,
-                          paddingVertical: 10,
+                          backgroundColor: panel,
+                          paddingHorizontal: 8,
+                          paddingVertical: compact ? 8 : 3,
+                          minHeight: compact ? 60 : 50,
                           flexDirection: "row",
                           alignItems: "center",
                         }}
                       >
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={`Selecionar ${displayLabel}`}
+                          accessibilityLabel={`${selected ? "Desselecionar" : "Selecionar"} ${displayLabel}`}
                           accessibilityState={{ selected }}
-                          onPress={() => setSelectedMemberId(member.userId)}
+                          onPress={() => setSelectedMemberId((current) => current === member.userId ? null : member.userId)}
+                          suppressWebHoverFeedback={selected}
+                          disableWebPressScale
                           style={{
                             flex: 1,
                             minWidth: 0,
+                            minHeight: 44,
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            marginRight: 4,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: selected ? colors.successBorder : "transparent",
+                            backgroundColor: selected ? colors.successBg : undefined,
                             flexDirection: "row",
                             alignItems: "center",
                           }}
                         >
                           <View
                             style={{
-                              flex: compact ? 1 : 1.35,
+                              flex: compact ? 1 : 1.6,
                               flexDirection: "row",
                               alignItems: "center",
-                              gap: 10,
+                              gap: 8,
                             }}
                           >
                             <View
@@ -1926,7 +1953,7 @@ export function CoordinationPeopleWorkspace({
                             <View style={{ flex: 1, minWidth: 0, gap: compact ? 3 : 0 }}>
                               <Text
                                 numberOfLines={1}
-                                style={{ color: colors.text, fontWeight: "700" }}
+                                style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}
                               >
                                 {displayLabel}
                               </Text>
@@ -1962,13 +1989,13 @@ export function CoordinationPeopleWorkspace({
                               <Text style={{ color: colors.text, flex: 1, fontSize: 12 }}>
                                 {roleLabel(member.roleLevel)}
                               </Text>
-                              <Text style={{ color: colors.text, flex: 0.8, fontSize: 12 }}>
+                              <Text style={{ color: colors.text, flex: 0.7, fontSize: 12 }}>
                                 {assigned.length ? `${assigned.length} turmas` : "—"}
                               </Text>
                               <Text
                                 style={{
                                   color: attendanceCount ? colors.warningText : colors.muted,
-                                  flex: 1.05,
+                                  flex: 0.7,
                                   fontSize: 12,
                                 }}
                               >
@@ -1976,7 +2003,7 @@ export function CoordinationPeopleWorkspace({
                               </Text>
                               <View
                                 style={{
-                                  flex: 0.9,
+                                  flex: 1.1,
                                   flexDirection: "row",
                                   alignItems: "center",
                                   gap: 6,
@@ -2003,7 +2030,7 @@ export function CoordinationPeopleWorkspace({
                         <MemberActionMenu
                           member={member}
                           viewportHeight={height}
-                          onEdit={(value) => void openEdit(value)}
+                          onEdit={(value) => router.setParams({ memberProfile: value.userId })}
                           onMessage={openMessage}
                           onDeactivate={openDeactivateMember}
                         />
@@ -2131,45 +2158,47 @@ export function CoordinationPeopleWorkspace({
 
         <View
           style={{
-            width: supportsSplitLayout ? "39%" : "100%",
+            width: supportsSplitLayout ? 360 : "100%",
+            minHeight: supportsSplitLayout && !selectedMember ? 320 : undefined,
+            display: !supportsSplitLayout && !selectedMember ? "none" : "flex",
             minWidth: 0,
             borderRadius: radius.internal,
             borderWidth: 1,
             borderColor: border,
             backgroundColor: panel,
-            padding: 18,
-            gap: 18,
+            padding: 12,
+            gap: 12,
           }}
         >
           {selectedMember ? (
             <>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 13 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View
                   style={{
-                    width: 58,
-                    height: 58,
-                    borderRadius: 29,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
                     backgroundColor: colors.primaryBg,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
-                  <Text style={{ color: colors.primaryText, fontSize: 18, fontWeight: "800" }}>
+                  <Text style={{ color: colors.primaryText, fontSize: 14, fontWeight: "700" }}>
                     {initials(selectedMember.displayName)}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
                     {getMemberDisplayLabel(selectedMember, session?.user.id)}
                   </Text>
-                  <Text style={{ color: colors.muted }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {formatMemberLastAccess(selectedMember.lastAccessAt)}
                   </Text>
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Editar perfil e permissões de ${selectedMember.displayName}`}
-                  onPress={() => void openEdit(selectedMember)}
+                  accessibilityLabel={`Ver perfil de ${selectedMember.displayName}`}
+                  onPress={() => router.setParams({ memberProfile: selectedMember.userId })}
                   style={{
                     minHeight: 44,
                     borderRadius: radius.internal,
@@ -2184,31 +2213,31 @@ export function CoordinationPeopleWorkspace({
                 >
                   <GoAtletaIcon name="edit" size={15} color={colors.text} />
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                    Editar perfil e permissões
+                    Perfil
                   </Text>
                 </Pressable>
               </View>
 
-              <View style={{ borderTopWidth: 1, borderTopColor: border, paddingTop: 18, gap: 18 }}>
+              <View style={{ borderTopWidth: 1, borderTopColor: border, paddingTop: 12, gap: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ color: colors.muted, width: 110 }}>Função</Text>
-                  <Text style={{ color: colors.text }}>{roleLabel(selectedMember.roleLevel)}</Text>
+                  <Text style={{ color: colors.muted, width: 80, fontSize: 12 }}>Função</Text>
+                  <Text style={{ color: colors.text, fontSize: 14 }}>{roleLabel(selectedMember.roleLevel)}</Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ color: colors.muted, width: 110 }}>Turmas atribuídas</Text>
+                  <Text style={{ color: colors.muted, width: 80, fontSize: 12 }}>Turmas</Text>
                   <View style={{ flex: 1 }}>
                     <OverflowSummary labels={selectedClasses.map((item) => item.className)} />
                   </View>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Ver todas as turmas de ${selectedMember.displayName}`}
-                    onPress={() => void openEdit(selectedMember)}
+                    onPress={() => void openEdit(selectedMember, "classes")}
                   >
                     <Text style={{ color: colors.infoText, fontSize: 12 }}>Ver todas</Text>
                   </Pressable>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ color: colors.muted, width: 110 }}>Permissões</Text>
+                  <Text style={{ color: colors.muted, width: 80, fontSize: 12 }}>Permissões</Text>
                   <View style={{ flex: 1 }}>
                     {selectedPermissionsLoading ? (
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -2227,23 +2256,15 @@ export function CoordinationPeopleWorkspace({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Ver todas as permissões de ${selectedMember.displayName}`}
-                    onPress={() => void openEdit(selectedMember)}
+                    onPress={() => void openEdit(selectedMember, "permissions")}
                   >
                     <Text style={{ color: colors.infoText, fontSize: 12 }}>Ver todas</Text>
                   </Pressable>
                 </View>
-                {selectedMember.roleLevel >= 50 ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <GoAtletaIcon name="shield" size={17} color={colors.text} />
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      O acesso administrativo próprio não pode ser removido.
-                    </Text>
-                  </View>
-                ) : null}
               </View>
 
-              <View style={{ borderTopWidth: 1, borderTopColor: border, paddingTop: 18, gap: 14 }}>
-                <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
+              <View style={{ borderTopWidth: 1, borderTopColor: border, paddingTop: 12, gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
                   Chamadas para cobrar {selectedAttendance.length}
                 </Text>
                 {selectedAttendance.length ? (
@@ -2307,8 +2328,8 @@ export function CoordinationPeopleWorkspace({
                 )}
               </View>
 
-              <View style={{ borderTopWidth: 1, borderTopColor: border, paddingTop: 18, gap: 12 }}>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Comunicação</Text>
+              <View style={{ borderTopWidth: 1, borderTopColor: border, paddingTop: 12, gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Comunicação</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
                     Gere e copie uma mensagem para enviar no WhatsApp.
@@ -2330,12 +2351,11 @@ export function CoordinationPeopleWorkspace({
                 </View>
               </View>
             </>
-          ) : (
-            <Text style={{ color: colors.muted }}>Nenhum membro selecionado.</Text>
-          )}
+          ) : null}
         </View>
       </View>
       </ScrollView>
+      </>}
 
       <ModalSheet
         visible={modalMode === "invite"}
@@ -2714,12 +2734,13 @@ export function CoordinationPeopleWorkspace({
       <ModalSheet
         visible={modalMode === "edit" && Boolean(modalMember)}
         onClose={requestCloseEditModal}
-        position="center"
+        position="right"
         cardStyle={{
-          width: compact ? Math.max(0, width - 32) : splitAccessModal ? 980 : 760,
+          width: compact ? Math.max(0, width - 32) : 500,
+          alignSelf: "flex-end",
           maxWidth: "100%",
-          height: splitAccessModal ? undefined : stackedAccessModalHeight,
-          maxHeight: splitAccessModal ? "90%" : stackedAccessModalHeight,
+          height: stackedAccessModalHeight,
+          maxHeight: stackedAccessModalHeight,
           flexDirection: "column",
           padding: 0,
           overflow: "hidden",
@@ -2727,8 +2748,8 @@ export function CoordinationPeopleWorkspace({
       >
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: border, flexDirection: "row" }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-              Perfil e permissões
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+              Gerenciar acesso
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>
               {modalMember?.displayName}
@@ -2751,10 +2772,12 @@ export function CoordinationPeopleWorkspace({
             <GoAtletaIcon name="close" size={22} color={colors.text} />
           </Pressable>
         </View>
+        <AnimatedSegmentedTabs tabs={[{ id: "classes", label: "Turmas" }, { id: "permissions", label: "Permissões" }]} activeTab={accessSection} onChange={setAccessSection} style={{ marginHorizontal: 18, marginTop: 12 }} />
         <ScrollView
-          style={splitAccessModal ? undefined : { flex: 1, minHeight: 0 }}
+          style={{ flex: 1, minHeight: 0 }}
           contentContainerStyle={{ padding: 18, gap: 18 }}
         >
+          <>
           <View style={{ gap: 8 }}>
             <Text style={{ color: colors.text, fontWeight: "800" }}>Função</Text>
             <DropdownButton
@@ -2781,7 +2804,7 @@ export function CoordinationPeopleWorkspace({
               gap: 16,
             }}
           >
-            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 8, display: accessSection === "classes" ? "flex" : "none" }}>
               <View
                 style={{
                   minHeight: 22,
@@ -2811,7 +2834,7 @@ export function CoordinationPeopleWorkspace({
               </View>
               <ScrollView
                 style={{
-                  height: splitAccessModal ? 330 : 220,
+                  height: Math.max(220, height - 340),
                   borderWidth: 1,
                   borderColor: border,
                   borderRadius: radius.internal,
@@ -2952,13 +2975,13 @@ export function CoordinationPeopleWorkspace({
                 )}
               </ScrollView>
             </View>
-            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 8, display: accessSection === "permissions" ? "flex" : "none" }}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>
                 Permissões ({editPermissionKeys.length})
               </Text>
               <View
                 style={{
-                  height: splitAccessModal ? 330 : 220,
+                  height: Math.max(220, height - 340),
                   borderWidth: 1,
                   borderColor: border,
                   borderRadius: radius.internal,
@@ -3031,9 +3054,11 @@ export function CoordinationPeopleWorkspace({
               </View>
             </View>
           </View>
+          </>
         </ScrollView>
         <View
           style={{
+            display: isEditDirty ? "flex" : "none",
             flexShrink: 0,
             padding: 16,
             borderTopWidth: 1,

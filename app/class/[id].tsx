@@ -1,3 +1,4 @@
+import { confirmPlanWithoutPeriodization } from "../../src/screens/classes/application/confirm-plan-without-periodization";
 import { ClassProfileButton } from "../../src/screens/periodization/components/ClassProfileButton";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { getFriendlyErrorMessage, isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
@@ -1966,12 +1967,37 @@ export default function ClassDetails() {
     setAppliedPlan(null);
   }, [appliedPlan, cls, selectedLessonDateKey]);
 
+  const handleOpenPlanning = useCallback(() => {
+    const targetClassId = cls?.id ?? id;
+    router.push({
+      pathname: "/class/[id]/periodization",
+      params: {
+        id: targetClassId,
+        classId: targetClassId,
+        month: selectedLessonDateKey?.slice(0, 7),
+        unit: cls?.unit ?? "",
+        backTo: targetClassId ? `/class/${targetClassId}` : "",
+      },
+    });
+  }, [cls, id, router, selectedLessonDateKey]);
+
   const handleGeneratePlan = useCallback(async () => {
     if (!cls || !selectedLessonDateKey || isGeneratingPlan) return;
-    void preloadClassPlanPreviewModal();
     setIsGeneratingPlan(true);
     try {
-      const [students, recentPlans, classPlans, calendarExceptions] = await Promise.all([
+      const classPlans = await getClassPlansByClass(cls.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+      const currentClassPlan = resolveClassPlanForSessionDate(classPlans, selectedLessonDateKey);
+      const shouldGenerate = await confirmPlanWithoutPeriodization({
+        hasPeriodization: Boolean(currentClassPlan),
+        confirm: confirmDialog,
+        onConfigure: handleOpenPlanning,
+      });
+      if (!shouldGenerate) return;
+      void preloadClassPlanPreviewModal();
+
+      const [students, recentPlans, calendarExceptions] = await Promise.all([
         getStudentsByClass(cls.id),
         getTrainingPlans({
           classId: cls.id,
@@ -1979,14 +2005,10 @@ export default function ClassDetails() {
           orderBy: "createdat_desc",
           limit: 12,
         }),
-        getClassPlansByClass(cls.id, {
-          organizationId: cls.organizationId ?? null,
-        }),
         getClassCalendarExceptions(cls.id, {
           organizationId: cls.organizationId ?? null,
         }),
       ]);
-      const currentClassPlan = resolveClassPlanForSessionDate(classPlans, selectedLessonDateKey);
       const currentDailyLessonPlan = currentClassPlan ? await getDailyLessonPlanByWeekAndDate(currentClassPlan.id, selectedLessonDateKey) : null;
       const documentSupport = await retrieveDocumentSupportForPlan({
         classGroup: cls,
@@ -2055,7 +2077,7 @@ export default function ClassDetails() {
     } finally {
       setIsGeneratingPlan(false);
     }
-  }, [cls, isGeneratingPlan, selectedLessonDateKey, showSaveToast, setIsGeneratingPlan]);
+  }, [cls, confirmDialog, handleOpenPlanning, isGeneratingPlan, selectedLessonDateKey, showSaveToast, setIsGeneratingPlan]);
 
   if (loading) {
     return <ScreenLoadingState />;
@@ -2473,20 +2495,6 @@ export default function ClassDetails() {
     }
   };
 
-  const handleOpenPlanning = () => {
-    const targetClassId = cls?.id ?? id;
-    router.push({
-      pathname: "/class/[id]/periodization",
-      params: {
-        id: targetClassId,
-        classId: targetClassId,
-        month: selectedLessonDateKey?.slice(0, 7),
-        unit: cls?.unit ?? "",
-        backTo: targetClassId ? `/class/${targetClassId}` : "",
-      },
-    });
-  };
-
   const handleOpenVisualTech = () => {
     if (!cls) return;
     router.push({
@@ -2509,6 +2517,7 @@ export default function ClassDetails() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScreenPageHeader
           title={className}
+          onBreadcrumbNavigate={requestAttendanceAction}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
           onBack={() => requestAttendanceAction(() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes }))}
           right={

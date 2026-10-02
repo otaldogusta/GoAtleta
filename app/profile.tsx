@@ -1,8 +1,10 @@
+import { StaffProfilePage } from "../src/screens/coordination/StaffProfilePage";
+import { listClassStaffByClassIds } from "../src/api/class-responsibles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { canUseProfilePreview } from "../src/dev/profile-preview-access";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, usePathname, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { registerPendingEditsNavigation } from "../src/navigation/pending-edits-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -563,6 +565,11 @@ export default function ProfileScreen() {
     setEnabled: setBiometricsEnabled,
   } = useBiometricLock();
   const router = useRouter();
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const [staffSettings, setStaffSettings] = useState(false);
+  const [staffClassIds, setStaffClassIds] = useState<string[]>([]);
+  const [staffClassesLoading, setStaffClassesLoading] = useState(true);
+  const [staffClassesError, setStaffClassesError] = useState(false);
   const pendingNavigationHandler = useRef<((navigate: () => void) => void) | null>(null);
   const pendingRefreshHandler = useRef<((refresh: () => void) => void) | null>(null);
   useFocusEffect(useCallback(() => registerPendingEditsNavigation((navigate, reason) => {
@@ -770,7 +777,41 @@ export default function ProfileScreen() {
   const selectedProfilePreview: ProfilePreviewId =
     routeProfilePreview ?? (devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview);
 
-  const profileClassesOrganizationId = student?.organizationId || activeOrganization?.id;
+  const staffProfile = selectedProfilePreview === "professor" || selectedProfilePreview === "admin";
+  const profileClassesOrganizationId = staffProfile ? activeOrganization?.id : student?.organizationId || activeOrganization?.id;
+  useEffect(() => {
+    if (!staffProfile || !edit) return;
+    let alive = true;
+    Promise.resolve().then(() => {
+      if (!alive) return;
+      if (edit === "photo") setShowPhotoSheet(true);
+      else { setProfessionalExpandedSection(edit === "personal" ? "personal" : "account"); setStaffSettings(true); }
+      router.setParams({ edit: "" });
+    });
+    return () => { alive = false; };
+  }, [edit, staffProfile, router]);
+  useEffect(() => {
+    let alive = true;
+    const organizationId = activeOrganization?.id;
+    const userId = session?.user.id;
+    Promise.resolve().then(async () => {
+      if (!alive) return;
+      setStaffClassIds([]);
+      setStaffClassesError(false);
+      setStaffClassesLoading(true);
+      if (!staffProfile || !organizationId || !userId || loadingClasses) return;
+      try {
+        const rows = await listClassStaffByClassIds({ organizationId, classIds: classes.map(item => item.id) });
+        if (alive) setStaffClassIds(rows.filter(item => item.userId === userId).map(item => item.classId));
+      } catch {
+        if (alive) setStaffClassesError(true);
+      } finally {
+        if (alive) setStaffClassesLoading(false);
+      }
+    });
+    return () => { alive = false; };
+  }, [activeOrganization?.id, session?.user.id, staffProfile, classes, loadingClasses]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -2460,8 +2501,7 @@ export default function ProfileScreen() {
     </>
   );
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+  const settingsContent = (
       <ScrollView
         style={Platform.OS === "web" && responsiveLayout.usesWorkspaceShell
           ? ({ overflowY: "scroll" } as any)
@@ -3214,8 +3254,8 @@ export default function ProfileScreen() {
         ) : (
         <ResponsivePage variant="dashboard" gap={20} style={{ paddingBottom: 32 }}>
           <BackTitleHeader
-            title="Perfil"
-            onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
+            title={staffProfile ? "Configurações do perfil" : "Perfil"}
+            onBack={() => staffProfile ? leaveMobileProfile(() => setStaffSettings(false)) : navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
           />
 
           <ResponsiveGrid columns={{ compact: "1", split: "4/8" }} gap={24}>
@@ -4223,7 +4263,8 @@ export default function ProfileScreen() {
         </ResponsivePage>
         )}
       </ScrollView>
-      <FloatingSaveBar
+  );
+  const profileSaveBar = (<FloatingSaveBar
         bottom={responsiveLayout.isMobile ? insets.bottom + 104 : 18}
         visible={Boolean(
             isStudentMobileProfile
@@ -4245,7 +4286,31 @@ export default function ProfileScreen() {
         disabled={savingMobileProfile || athleteModalities.saving || (athleteModalities.dirty && athleteModalities.loading) || (mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors)}
         loading={savingMobileProfile || athleteModalities.saving}
         loadingLabel="Salvando..."
-      />
+      />);
+  const closeStaffSettings = () => leaveMobileProfile(() => setStaffSettings(false));
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      {staffProfile ? <StaffProfilePage
+        key={`${activeOrganization?.id}:${session?.user.id}`}
+        name={displayName}
+        role={profileDisplay.label}
+        organizationName={activeOrganization?.name ?? "Go Atleta"}
+        email={session?.user.email}
+        photoUri={photoUri}
+        classes={classes.filter(item => item.organizationId === activeOrganization?.id && staffClassIds.includes(item.id))}
+        loading={loadingClasses || staffClassesLoading}
+        error={staffClassesError}
+        ownProfile
+        onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
+        onEditPhoto={() => setShowPhotoSheet(true)}
+        onEditProfile={() => { setProfessionalExpandedSection("personal"); setStaffSettings(true); }}
+        onSettings={() => { setProfessionalExpandedSection("account"); setStaffSettings(true); }}
+      /> : settingsContent}
+      {staffProfile ? <ModalSheet visible={staffSettings} onClose={closeStaffSettings} position="right" cardStyle={{ alignSelf: "flex-end", width: responsiveLayout.isMobile ? "100%" : 900, maxWidth: "100%", height: "94%", padding: 0, backgroundColor: colors.background }}>
+        {settingsContent}
+        {profileSaveBar}
+      </ModalSheet> : null}
+      {!staffProfile ? profileSaveBar : null}
       <Modal
         visible={googleMenuOpen && Boolean(googleMenuAnchor)}
         animationType="none"
@@ -4868,6 +4933,8 @@ export default function ProfileScreen() {
       >
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar opções de foto"
             onPress={() => setShowPhotoSheet(false)}
             style={{
               width: 36,

@@ -9,6 +9,8 @@ export type CourtEditorMetadata = {
   folder: string;
   tags: string;
   favorite: boolean;
+  showActorNumbers?: boolean;
+  actorRepresentation?: "circle" | "person";
   actorMeta: Record<string, { team?: "A" | "B"; locked?: boolean; studentId?: string }>;
   drawings: Record<string, CourtDrawing[]>;
   hiddenLayers: string[];
@@ -150,17 +152,17 @@ export function deleteSelection(p: CourtVisualPayload, index: number, ids: strin
     trajectories: (s.trajectories ?? s.transitions)?.filter(t => !ids.includes(t.actorId) || p.editor?.actorMeta[t.actorId]?.locked), transitions: undefined }));
   return changeDrawings(next, index, frameDrawings(next, index).filter(d => !ids.includes(d.id) || d.locked));
 }
-export function duplicateSelection(p: CourtVisualPayload, index: number, ids: string[]) {
+export function duplicateSelection(p: CourtVisualPayload, index: number, ids: string[], offset: CourtPoint = { x: 0.06, y: 0.03 }) {
   let next = p;
   const selected: string[] = [];
   for (const a of p.actors.filter(a => ids.includes(a.id))) {
     const id = editorId(); selected.push(id);
     const point = actorPoint(p, index, a.id);
-    const clone = { ...a, id, initialPosition: limitPoint({ x: point.x + 0.06, y: point.y + 0.03 }) };
+    const clone = { ...a, id, initialPosition: limitPoint({ x: point.x + offset.x, y: point.y + offset.y }) };
     next = { ...next, actors: [...next.actors, clone], editor: { ...next.editor!, actorMeta: { ...next.editor!.actorMeta, [id]: { ...next.editor!.actorMeta[a.id], locked: false } } } };
     next = { ...next, timeline: { steps: next.timeline.steps.map((s, i) => ({ ...s, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)), ...(i === index ? [id] : [])], actorPositions: i === index ? { ...s.actorPositions, [id]: clone.initialPosition } : s.actorPositions })) } };
   }
-  const clones = frameDrawings(p, index).filter(d => ids.includes(d.id)).map(d => { const id = editorId(); selected.push(id); return { ...d, id, locked: false, points: d.points.map(pt => limitPoint({ x: pt.x + 0.06, y: pt.y + 0.03 })) }; });
+  const clones = frameDrawings(p, index).filter(d => ids.includes(d.id)).map(d => { const id = editorId(); selected.push(id); return { ...d, id, locked: false, points: d.points.map(pt => limitPoint({ x: pt.x + offset.x, y: pt.y + offset.y })) }; });
   return { payload: changeDrawings(next, index, [...frameDrawings(next, index), ...clones]), selected };
 }
 export function duplicateStep(p: CourtVisualPayload, index: number): EditorSnapshot {

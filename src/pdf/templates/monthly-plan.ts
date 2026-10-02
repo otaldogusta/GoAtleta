@@ -1,3 +1,4 @@
+import { formatPedagogicalDisplayText as text } from "../../core/pedagogy/plan-display-text";
 import { normalizeDisplayText } from "../../utils/text-normalization";
 
 export type MonthlyLessonPlanBlockRow = {
@@ -49,6 +50,31 @@ export type MonthlyPlanPdfData = {
   totalSessions: number;
   lessons: MonthlyLessonPlanItem[];
 };
+
+// Presentation only: preserve identifiers, dates, names and the saved lesson.
+export function formatMonthlyLessonPlanText(lesson: MonthlyLessonPlanItem): MonthlyLessonPlanItem {
+  return {
+    ...lesson,
+    generalObjective: text(lesson.generalObjective),
+    specificObjective: text(lesson.specificObjective),
+    situationProblem: lesson.situationProblem == null ? lesson.situationProblem : text(lesson.situationProblem),
+    observations: lesson.observations == null ? lesson.observations : text(lesson.observations),
+    periodizationSource: lesson.periodizationSource ? {
+      ...lesson.periodizationSource,
+      phaseLabel: text(lesson.periodizationSource.phaseLabel),
+      focusLabel: text(lesson.periodizationSource.focusLabel),
+      roleLabel: text(lesson.periodizationSource.roleLabel),
+    } : lesson.periodizationSource,
+    blocks: lesson.blocks.map((block) => ({
+      ...block,
+      activities: text(block.activities),
+      description: text(block.description),
+      items: block.items?.map((item) => ({
+        ...item, activity: text(item.activity), description: text(item.description),
+      })),
+    })),
+  };
+}
 
 const asText = (value: unknown) => {
   if (typeof value === "string") return normalizeDisplayText(value);
@@ -204,7 +230,7 @@ const lessonCardHtmlWithProfessor = (
 };
 
 export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?: boolean }) => {
-  const pagesHtml = data.lessons
+  const pagesHtml = data.lessons.map(formatMonthlyLessonPlanText)
     .map(
       (lesson, index) => `
         <div class="page">
@@ -223,7 +249,7 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
     .join("");
 
   return `
-  <html>
+  <html lang="pt-BR">
     <head>
       <meta charset="utf-8" />
       <style>

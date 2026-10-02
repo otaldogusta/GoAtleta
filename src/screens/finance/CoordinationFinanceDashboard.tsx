@@ -2261,7 +2261,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
             accessibilityLabel={`Selecionar mês. ${formatFinanceMonthLabel(selectedMonth)}`}
             onPress={openMonthPicker}
             style={{
-              minHeight: 42,
+              height: 40,
               minWidth: responsiveLayout.isMobile ? 116 : 172,
               maxWidth: responsiveLayout.isMobile ? 124 : undefined,
               borderRadius: radius.card,
@@ -2363,11 +2363,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
         contentStyle={{
           width: "100%",
           minWidth: 0,
-          maxWidth:
-            responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2,
           alignSelf: "center",
-          paddingHorizontal: responsiveLayout.gutter,
-          paddingTop: Platform.OS === "web" ? 12 : 8,
+          paddingHorizontal: 16,
+          paddingTop: 8,
           paddingBottom: 0,
           gap: 10,
         }}

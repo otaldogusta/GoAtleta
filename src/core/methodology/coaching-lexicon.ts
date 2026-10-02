@@ -1,3 +1,5 @@
+import { formatPedagogicalDisplayText } from "../pedagogy/plan-display-text";
+
 export const coachingLexiconNormalize = {
   plataforma: "manchete",
   contato_plataforma: "manchete",
@@ -160,13 +162,13 @@ const orderedBannedTerms = Object.entries(bannedUiTerms)
   .map(([from, to]) => ({ pattern: buildReplacementPattern(from), to }));
 
 export const toVisibleCoachingText = (value: string) => {
-  let result = String(value ?? "").trim();
+  let result = formatPedagogicalDisplayText(value);
   orderedBannedTerms.forEach(({ pattern, to }) => {
     result = result.replace(pattern, to);
   });
   return result
     .replace(/\bmanchete estavel\b/gi, "base estável na manchete")
     .replace(/\bmanter a continuidade\b/gi, transicaoLexicon.continuity)
-    .replace(/\s{2,}/g, " ")
+    .replace(/[^\S\r\n]{2,}/g, " ")
     .trim();
 };

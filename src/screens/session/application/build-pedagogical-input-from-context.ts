@@ -1,3 +1,4 @@
+import { formatPedagogicalDisplayText } from "../../../core/pedagogy/plan-display-text";
 import type { ClassGroup, Student } from "../../../core/models";
 import {
     buildPedagogicalPlan,
@@ -17,7 +18,7 @@ type BuildPedagogicalInputFromContextParams = {
 };
 
 const uniqueStrings = (values: (string | null | undefined)[]) =>
-  [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+  [...new Set(values.map((value) => formatPedagogicalDisplayText(value)).filter(Boolean))];
 
 const skillLabel: Record<ClassGenerationContext["primarySkill"], string> = {
   passe: "passe",
@@ -26,32 +27,32 @@ const skillLabel: Record<ClassGenerationContext["primarySkill"], string> = {
   saque: "saque",
   defesa: "defesa",
   bloqueio: "bloqueio",
-  transicao: "transicao",
+  transicao: "transição",
 };
 
 const progressionLabel: Record<ClassGenerationContext["progressionDimensionTarget"], string> = {
-  consistencia: "consistencia",
-  precisao: "precisao",
-  pressao_tempo: "pressao de tempo",
-  oposicao: "oposicao",
-  tomada_decisao: "tomada de decisao",
-  transferencia_jogo: "transferencia para o jogo",
+  consistencia: "consistência",
+  precisao: "precisão",
+  pressao_tempo: "pressão de tempo",
+  oposicao: "oposição",
+  tomada_decisao: "tomada de decisão",
+  transferencia_jogo: "transferência para o jogo",
 };
 
 const phaseIntentLabel: Record<ClassGenerationContext["phaseIntent"], string> = {
-  exploracao_fundamentos: "exploracao de fundamentos",
-  estabilizacao_tecnica: "estabilizacao tecnica",
-  aceleracao_decisao: "aceleracao de decisao",
-  transferencia_jogo: "transferencia para o jogo",
-  pressao_competitiva: "pressao competitiva",
+  exploracao_fundamentos: "exploração de fundamentos",
+  estabilizacao_tecnica: "estabilização técnica",
+  aceleracao_decisao: "aceleração de decisão",
+  transferencia_jogo: "transferência para o jogo",
+  pressao_competitiva: "pressão competitiva",
 };
 
 const pedagogicalIntentLabel: Record<ClassGenerationContext["pedagogicalIntent"], string> = {
-  decision_making: "tomada de decisao",
+  decision_making: "tomada de decisão",
   game_reading: "leitura de jogo",
-  team_organization: "organizacao coletiva",
-  technical_adjustment: "ajuste tecnico",
-  pressure_adaptation: "adaptacao a pressao",
+  team_organization: "organização coletiva",
+  technical_adjustment: "ajuste técnico",
+  pressure_adaptation: "adaptação à pressão",
 };
 
 const loadIntentLabel: Record<ClassGenerationContext["weeklyLoadIntent"], string> = {
@@ -76,26 +77,26 @@ const buildGenerationObjectiveFromContext = (context: ClassGenerationContext) =>
       : null,
   ].filter(Boolean);
 
-  return `${parts.join(", ")}.`;
+  return formatPedagogicalDisplayText(`${parts.join(", ")}.`);
 };
 
 const buildContextConstraints = (context: ClassGenerationContext) =>
   uniqueStrings([
     ...context.constraints,
-    `Skill principal: ${skillLabel[context.primarySkill]}.`,
-    context.secondarySkill ? `Skill secundaria: ${skillLabel[context.secondarySkill]}.` : null,
-    `Intencao da fase: ${phaseIntentLabel[context.phaseIntent]}.`,
+    `Fundamento principal: ${skillLabel[context.primarySkill]}.`,
+    context.secondarySkill ? `Fundamento secundário: ${skillLabel[context.secondarySkill]}.` : null,
+    `Intenção da fase: ${phaseIntentLabel[context.phaseIntent]}.`,
     `Carga esperada da semana: ${loadIntentLabel[context.weeklyLoadIntent]}.`,
-    `Progressao alvo: ${progressionLabel[context.progressionDimensionTarget]}.`,
-    context.mustProgressFrom ? `Progressao obrigatoria: ${context.mustProgressFrom}.` : null,
+    `Progressão alvo: ${progressionLabel[context.progressionDimensionTarget]}.`,
+    context.mustProgressFrom ? `Progressão obrigatória: ${context.mustProgressFrom}.` : null,
     context.mustAvoidRepeating.length
       ? `Evitar repetir ${context.mustAvoidRepeating.join(" | ")}.`
       : null,
     context.allowedDrillFamilies.length
-      ? `Favorecer familias: ${context.allowedDrillFamilies.join(", ")}.`
+      ? `Favorecer famílias: ${context.allowedDrillFamilies.join(", ")}.`
       : null,
     context.forbiddenDrillFamilies.length
-      ? `Evitar familias: ${context.forbiddenDrillFamilies.join(", ")}.`
+      ? `Evitar famílias: ${context.forbiddenDrillFamilies.join(", ")}.`
       : null,
   ]);
 
@@ -170,14 +171,14 @@ const buildContextDimensionGuidelines = (
     ...(dimensionGuidelines ?? []),
     ...buildCoachGuidanceConstraints(sessionPlanningContext),
     ...buildDocumentSupportGuidelines(sessionPlanningContext),
-    `Sessao orientada por ${phaseIntentLabel[context.phaseIntent]} com carga ${loadIntentLabel[context.weeklyLoadIntent]}.`,
-    `Skill principal ${skillLabel[context.primarySkill]} com progressao ${progressionLabel[context.progressionDimensionTarget]}.`,
+    `Sessão orientada por ${phaseIntentLabel[context.phaseIntent]} com carga ${loadIntentLabel[context.weeklyLoadIntent]}.`,
+    `Fundamento principal ${skillLabel[context.primarySkill]} com progressão ${progressionLabel[context.progressionDimensionTarget]}.`,
     context.secondarySkill
       ? `Apoio complementar em ${skillLabel[context.secondarySkill]}.`
       : null,
     context.mustProgressFrom ? `Encadear a partir de ${context.mustProgressFrom}.` : null,
     context.mustAvoidRepeating.length
-      ? `Nao repetir: ${context.mustAvoidRepeating.join(" | ")}.`
+      ? `Não repetir: ${context.mustAvoidRepeating.join(" | ")}.`
       : null,
   ]);
 

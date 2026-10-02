@@ -1073,11 +1073,12 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
       <ScrollView
         scrollEnabled={!embedded}
         nestedScrollEnabled
-        contentContainerStyle={{ padding: embedded ? 0 : 16, paddingBottom: embedded ? 0 : 30 }}
+        contentContainerStyle={{ paddingHorizontal: embedded ? 0 : 16, paddingBottom: embedded ? 0 : 30 }}
         stickyHeaderIndices={embedded ? undefined : [0]}
       >
         {embedded ? null : <ScreenPageHeader
           title="Presença NFC"
+          contentStyle={{ paddingHorizontal: 0 }}
           subtitle={organizationLabel}
           onBack={() => {
             void stopScanning().finally(() => navigateBackOrReplace({ router, fallback: scopedRoutes.home }));

@@ -1,3 +1,4 @@
+import { formatPedagogicalDisplayText } from "../pedagogy/plan-display-text";
 import type {
   ClassGroup,
   ClassPlan,
@@ -445,8 +446,8 @@ const resolveRepeatGuards = (recentSessions: RecentSessionSummary[]) => {
     blockRepeatCount >= 2 && latestSession.dominantBlock
       ? `bloco ${latestSession.dominantBlock.replace(/_/g, " ")}`
       : null,
-    fingerprintRepeatCount >= 2 && latestSession.fingerprint ? `fingerprint ${latestSession.fingerprint}` : null,
-  ]).slice(0, 3);
+    fingerprintRepeatCount >= 2 && latestSession.fingerprint ? "a mesma sequência de atividades" : null,
+  ]).map(formatPedagogicalDisplayText).slice(0, 3);
 };
 
 const resolveProgressionAnchor = (recentSessions: RecentSessionSummary[]) => {
@@ -459,7 +460,7 @@ const resolveProgressionAnchor = (recentSessions: RecentSessionSummary[]) => {
     latestSession.dominantBlock?.replace(/_/g, " "),
   ]).join(" / ");
 
-  return summary || latestSession.fingerprint || undefined;
+  return summary ? formatPedagogicalDisplayText(summary) : undefined;
 };
 
 const resolveClassPlanDominantBlock = (classPlan?: ClassPlan | null) => {

@@ -603,7 +603,7 @@ export default function EventsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 14 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 14 }}
         stickyHeaderIndices={[0]}
         refreshControl={
           <AppRefreshControl
@@ -623,6 +623,7 @@ export default function EventsScreen() {
       >
         <ScreenPageHeader
           title="Eventos"
+          contentStyle={{ paddingHorizontal: 0 }}
           subtitle="Agenda mensal da organização"
           onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
         >

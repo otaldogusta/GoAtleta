@@ -8,6 +8,7 @@ export default function CoordinationTabsLayout() {
   return (
     <AppShell role="coord">
       <Tabs
+        initialRouteName="dashboard"
         tabBar={(props) => <AnimatedBottomTabs {...props} role="coord" />}
         screenOptions={{
           headerShown: false,

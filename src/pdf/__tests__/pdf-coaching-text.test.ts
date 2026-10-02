@@ -28,3 +28,9 @@ describe("pdf-coaching-text", () => {
     expect(value).not.toContain("continuidade ofensiva");
   });
 });
+
+it("corrects legacy objectives without changing metadata or line breaks", () => {
+  expect(toPdfText("Clube Transicao")).toBe("Clube Transicao");
+  expect(toPdfCoachingText("Conceitual: precisao\nProcedimental: estabilizacao tecnica / main"))
+    .toBe("Conceitual: precisão\nProcedimental: estabilização técnica / parte principal");
+});

@@ -1,3 +1,4 @@
+import { formatPedagogicalDisplayText } from "../pedagogy/plan-display-text";
 import type {
   CycleDayPlanningContext,
   PedagogicalFeedbackSignal,
@@ -282,7 +283,7 @@ export const resolvePedagogicalDecisionSupport = (params: {
   const riskFlags = resolveRiskFlags(context, strategy);
   const primarySkill = skillLabel[strategy?.primarySkill ?? context.primarySkill];
   const loadIntent = strategy?.loadIntent ?? context.weeklyLoadIntent;
-  const progression = String(strategy?.progressionDimension ?? context.progressionDimensionTarget).replace(/_/g, " ");
+  const progression = formatPedagogicalDisplayText(String(strategy?.progressionDimension ?? context.progressionDimensionTarget).replace(/_/g, " "));
   const teacherFacingSummary =
     `Intenção: ${approach.primary}; ${primarySkill} com ${progression}; carga ${loadIntent}.`;
 
@@ -294,7 +295,7 @@ export const resolvePedagogicalDecisionSupport = (params: {
     },
     pedagogicalApproachIntent: approach,
     decisionRationale:
-      `A fase ${context.phaseIntent.replace(/_/g, " ")} e a carga ${loadIntent} direcionam ${primarySkill} para ${progression}.`,
+      `A fase ${formatPedagogicalDisplayText(context.phaseIntent.replace(/_/g, " "))} e a carga ${loadIntent} direcionam ${primarySkill} para ${progression}.`,
     riskFlags,
     teacherFacingSummary,
     sessionConstraintSuggestions: resolveConstraintSuggestions(context, strategy),

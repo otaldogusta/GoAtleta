@@ -1,3 +1,4 @@
+import { isCopilotPublicRoute } from "./route-visibility";
 import { CopilotLoadingModal } from "./components/CopilotLoadingModal";
 import { UnifiedAssistantProvider, UnifiedAssistantLayout } from "../assistant/UnifiedAssistantProvider";
 import { usePathname, useRouter } from "expo-router";
@@ -111,17 +112,6 @@ const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(
 
 const MAX_HISTORY_ITEMS = 12;
 const CONTEXT_COMPOSER_MIN_HEIGHT = 40;
-
-const publicRoutes = new Set([
-  "/welcome",
-  "/login",
-  "/signup",
-  "/verify-email",
-  "/reset-password",
-  "/pending",
-  "/auth-callback",
-  "/staff-invite",
-]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {
   reports: "Registros de aula",
@@ -255,6 +245,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
   const pathname = usePathname();
   const { session } = useAuth();
+  const assistantAllowed = Boolean(session) && !isCopilotPublicRoute(pathname);
   const { activeOrganizationId } = useOptionalOrganization() ?? {};
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } =
@@ -502,6 +493,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [currentSnapshot]);
 
   const open = useCallback(() => {
+    if (!assistantAllowed) return;
     const latestSnapshot =
       lastComputedSnapshotRef.current ?? currentSnapshotRef.current;
     if (latestSnapshot) {
@@ -527,7 +519,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       hasUnreadUpdates: false,
       unreadCount: 0,
     }));
-  }, [clearPendingReplyTimer, operationalContext.panel]);
+  }, [assistantAllowed, clearPendingReplyTimer, operationalContext.panel]);
 
   const close = useCallback(() => {
     clearPendingReplyTimer();
@@ -881,16 +873,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     ? categoryLabelById[activeCategoryForActions]
     : null;
   const showFab =
-    Boolean(session) &&
-    !publicRoutes.has(normalizedPath) &&
+    assistantAllowed &&
     normalizedPath !== "/" &&
     normalizedPath !== "/index" &&
     !isAssistantRoutePath(normalizedPath) &&
     normalizedPath !== "/prof/home" &&
     normalizedPath !== "/student/home" &&
     normalizedPath !== "/coord/dashboard" &&
-    !normalizedPath.startsWith("/home") &&
-    !normalizedPath.startsWith("/invite");
+    !normalizedPath.startsWith("/home");
   const fabHint = useMemo(() => {
     return resolveCopilotFabHint({
       showFab,
@@ -908,15 +898,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    const mustHideCopilot =
-      !session ||
-      publicRoutes.has(normalizedPath) ||
-      normalizedPath.startsWith("/invite");
-    if (!mustHideCopilot) return;
+    if (assistantAllowed) return;
     Promise.resolve().then(() => {
       setState((prev) => (prev.open ? { ...prev, open: false } : prev));
     });
-  }, [normalizedPath, session]);
+  }, [assistantAllowed]);
   const fabBottomOffset = resolveCopilotFabBottom(insets.bottom);
   const sheetContentBottomPadding = Math.max(
     insets.bottom + 10,
@@ -1048,12 +1034,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     [submitComposer],
   );
 
+  const panelOpen = assistantAllowed && state.open;
+
   return (
     <CopilotActionsContext.Provider value={actionsValue}>
       <CopilotDataContext.Provider value={dataValue}>
         <CopilotLessonContext.Provider value={setLesson}>
-          <UnifiedAssistantProvider key={`${session?.user.id ?? ""}:${activeOrganizationId ?? ""}`} userId={session?.user.id ?? ""} organizationId={activeOrganizationId ?? ""} snapshot={operationalContext.snapshot} lesson={lesson?.scope ?? null} open={state.open} toggle={state.open ? close : open}>
-          <UnifiedAssistantLayout open={state.open} launcher={showFab && !state.open ? (
+          <UnifiedAssistantProvider key={`${session?.user.id ?? ""}:${activeOrganizationId ?? ""}`} userId={session?.user.id ?? ""} organizationId={activeOrganizationId ?? ""} snapshot={operationalContext.snapshot} lesson={lesson?.scope ?? null} open={panelOpen} toggle={panelOpen ? close : open}>
+          <UnifiedAssistantLayout open={panelOpen} launcher={showFab && !panelOpen ? (
             <CopilotFab
               showPulse={isPulsing}
               hasBadge={shouldPulseFab}
@@ -1063,7 +1051,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               hintMessage={fabHint?.message ?? null}
               onPress={open}
             />
-          ) : null} panel={state.open ? (
+          ) : null} panel={panelOpen ? (
             <Suspense fallback={viewportWidth >= 1200 ? <View style={{ flex: 1, padding: 12, backgroundColor: colors.card }}><AssistantPending label="Abrindo conversa" compact /></View> : <CopilotLoadingModal onClose={close} />}>
               <LazyCopilotModal
                 visible

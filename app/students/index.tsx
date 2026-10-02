@@ -2326,19 +2326,19 @@ void Promise.all(
                   }
                   onPress={() => requestSwitchStudentsTab("cadastro")}
                   style={{
-                    height: 44,
-                    paddingHorizontal: windowWidth < 1040 ? 11 : 15,
+                    height: 40,
+                    paddingHorizontal: windowWidth < 1040 ? 11 : 13,
                     borderRadius: 12,
                     backgroundColor: colors.primaryBg,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 7,
+                    gap: 6,
                   }}
                 >
                   <GoAtletaIcon
                     name="add"
-                    size={17}
+                    size={16}
                     color={colors.primaryText}
                   />
                   {windowWidth >= 1040 ? (

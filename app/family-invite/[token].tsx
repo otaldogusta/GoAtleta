@@ -300,6 +300,8 @@ export default function StudentRelationshipInviteScreen() {
     );
   };
 
+  const unavailable = inviteState !== "checking" && (inviteState === "invalid" || !preview);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenBackdrop />
@@ -329,90 +331,94 @@ export default function StudentRelationshipInviteScreen() {
               ],
             }}
           >
-            <Pressable
-              accessibilityLabel="Voltar"
-              onPress={handleBack}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 19,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <GoAtletaIcon name="chevronBack" size={21} color={colors.text} />
-            </Pressable>
+            {unavailable ? (
+              <View style={{ gap: spacing.md, alignItems: "center" }}>
+                <GoAtletaIcon name="warningCircle" size={30} color={colors.dangerText} />
+                <Text style={{ color: colors.text, fontWeight: "800", textAlign: "center" }}>
+                  Convite indisponível
+                </Text>
+                <Text style={{ color: colors.muted, textAlign: "center", lineHeight: 20 }}>
+                  {message}
+                </Text>
+                <Button label="Voltar" variant="outline" onPress={handleBack} />
+              </View>
+            ) : (
+              <>
+                <Pressable
+                  accessibilityLabel="Voltar"
+                  onPress={handleBack}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <GoAtletaIcon name="chevronBack" size={21} color={colors.text} />
+                </Pressable>
 
-            <View style={{ gap: spacing.xs }}>
-              <Text
-                style={{
-                  color: colors.text,
-                  fontSize: responsive.density.pageTitleFontSize,
-                  lineHeight: responsive.density.pageTitleLineHeight,
-                  fontWeight: "900",
-                }}
-              >
-                Convite do Go Atleta
-              </Text>
-              <Text style={{ color: colors.muted, lineHeight: 20 }}>
-                Confirme o vínculo antes de acessar o portal.
-              </Text>
-            </View>
-
-            <View
-              style={{
-                borderRadius: radius.container,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                padding: responsive.density.cardPadding,
-                gap: spacing.md,
-                ...shadow.card,
-              }}
-            >
-              {inviteState === "checking" ? (
-                <Text style={{ color: colors.muted }}>Verificando convite...</Text>
-              ) : inviteState === "invalid" || !preview ? (
-                <View style={{ gap: spacing.md, alignItems: "center" }}>
-                  <GoAtletaIcon name="warningCircle" size={30} color={colors.dangerText} />
-                  <Text style={{ color: colors.text, fontWeight: "800", textAlign: "center" }}>
-                    Convite indisponível
+                <View style={{ gap: spacing.xs }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: responsive.density.pageTitleFontSize,
+                      lineHeight: responsive.density.pageTitleLineHeight,
+                      fontWeight: "900",
+                    }}
+                  >
+                    Convite do Go Atleta
                   </Text>
-                  <Text style={{ color: colors.muted, textAlign: "center", lineHeight: 20 }}>
-                    {message}
+                  <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                    Confirme o vínculo antes de acessar o portal.
                   </Text>
-                  <Button label="Voltar" variant="outline" onPress={handleBack} />
                 </View>
-              ) : (
-                <>
-                  <FamilyInviteIdentitySummary organizationName={preview.organization.name} studentName={preview.student.name} relationship={relationshipLabel(preview)} />
-                  <View style={{ height: 1, backgroundColor: colors.border }} />
-                  {message ? (
-                    <View
-                      style={{
-                        borderRadius: radius.internal,
-                        borderWidth: 1,
-                        borderColor: colors.warningBorder,
-                        backgroundColor: colors.warningBg,
-                        padding: spacing.sm,
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        gap: spacing.xs,
-                      }}
-                    >
-                      <GoAtletaIcon name="info" size={18} color={colors.warningText} />
-                      <Text style={{ color: colors.warningText, flex: 1, lineHeight: 19 }}>
-                        {message}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {renderAccessAction()}
-                </>
-              )}
-            </View>
+
+                <View
+                  style={{
+                    borderRadius: radius.container,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    padding: responsive.density.cardPadding,
+                    gap: spacing.md,
+                    ...shadow.card,
+                  }}
+                >
+                  {inviteState === "checking" ? (
+                    <Text style={{ color: colors.muted }}>Verificando convite...</Text>
+                  ) : !preview ? null : (
+                    <>
+                      <FamilyInviteIdentitySummary organizationName={preview.organization.name} studentName={preview.student.name} relationship={relationshipLabel(preview)} />
+                      <View style={{ height: 1, backgroundColor: colors.border }} />
+                      {message ? (
+                        <View
+                          style={{
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: colors.warningBorder,
+                            backgroundColor: colors.warningBg,
+                            padding: spacing.sm,
+                            flexDirection: "row",
+                            alignItems: "flex-start",
+                            gap: spacing.xs,
+                          }}
+                        >
+                          <GoAtletaIcon name="info" size={18} color={colors.warningText} />
+                          <Text style={{ color: colors.warningText, flex: 1, lineHeight: 19 }}>
+                            {message}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {renderAccessAction()}
+                    </>
+                  )}
+                </View>
+              </>
+            )}
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>

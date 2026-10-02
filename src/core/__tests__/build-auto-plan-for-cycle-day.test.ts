@@ -325,7 +325,7 @@ describe("buildAutoPlanForCycleDay", () => {
     );
     expect(result.generationContext.allowedDrillFamilies).toEqual(result.strategy.drillFamilies);
     expect(result.package.input.constraints).toContain(
-      `Skill principal: ${result.strategy.primarySkill}.`
+      `Fundamento principal: ${result.strategy.primarySkill}.`
     );
     expect(result.activityCatalogRecommendations.length).toBeGreaterThan(0);
     expect(result.activityCatalogRecommendations[0]?.variant.taxonomy.skill).toBe(
@@ -333,7 +333,7 @@ describe("buildAutoPlanForCycleDay", () => {
     );
     expect(result.activityCatalogRecommendations[0]?.reasons.length).toBeGreaterThan(0);
     expect(
-      result.package.input.constraints.some((item) => item.includes("Favorecer familias:"))
+      result.package.input.constraints.some((item) => item.includes("Favorecer famílias:"))
     ).toBe(true);
   });
 
@@ -574,7 +574,7 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.explanation.debug.overrideLearningWindowGenerations).toBe(3);
     expect(result.explanation.coachSummary).toContain("Aprendizado local do professor (forte)");
     expect(result.explanation.coachSummary).toContain("próximas 3 gerações");
-    expect(result.package.input.constraints).toContain("Skill principal: saque.");
+    expect(result.package.input.constraints).toContain("Fundamento principal: saque.");
     expect(result.package.input.periodizationPhase).toBe("base");
   });
 

@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PanResponder, Platform, View } from "react-native";
 import { CourtEditorScene, displayActors, fromScenePoint, sceneBounds, scenePoint } from "./CourtEditorScene";
-import { editorId, frameDrawings, moveSelection, snapCourtPoint, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
+import { duplicateSelection, editorId, frameDrawings, moveSelection, snapCourtPoint, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
+import { CourtSelectionActions } from "./CourtSelectionActions";
 
 export type CourtTool = "select" | "pan" | "player" | "animate" | DrawingKind;
 export type CourtEditorCanvasProps = {
   payload: CourtVisualPayload; stepIndex: number; landscape: boolean; tool: CourtTool; motionMode?: "free" | "straight"; selected: string[]; multiple?: boolean;
-  onSelect: (ids: string[]) => void; onMove: (ids: string[], delta: CourtPoint, path?: CourtPoint[]) => void; onDraw: (d: CourtDrawing) => void;
+  onSelect: (ids: string[]) => void; onMove: (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicate?: boolean) => void; onDraw: (d: CourtDrawing) => void;
   onAddPlayer: (p: CourtPoint) => void; color: string; dashed: boolean; grid: boolean; progress?: number;
   zoom: number; pan: CourtPoint; onPan: (p: CourtPoint) => void; onZoom: (zoom: number) => void; half: boolean; plain: boolean; disabled?: boolean;
+  selectionActions?: ReactNode;
+  playerPreviewColor?: string;
 };
 type Props = CourtEditorCanvasProps;
 export function CourtEditorCanvas(props: Props) {
@@ -20,8 +23,9 @@ export function CourtEditorCanvas(props: Props) {
   const layoutRef = useRef(layout);
   const [marquee, setMarquee] = useState<{ start: CourtPoint; end: CourtPoint }>();
   const [draft, setDraft] = useState<CourtDrawing>();
-  const [preview, setPreview] = useState<{ ids: string[]; delta: CourtPoint; path?: CourtPoint[] }>();
-  const gesture = useRef<{ start: CourtPoint; pixel: CourtPoint; points: CourtPoint[]; ids: string[]; pan: CourtPoint; dragged: boolean; box: boolean; base: string[] } | null>(null);
+  const [playerPreview, setPlayerPreview] = useState<CourtPoint>();
+  const [preview, setPreview] = useState<{ ids: string[]; delta: CourtPoint; path?: CourtPoint[]; duplicate?: boolean }>();
+  const gesture = useRef<{ start: CourtPoint; pixel: CourtPoint; points: CourtPoint[]; ids: string[]; pan: CourtPoint; dragged: boolean; box: boolean; base: string[]; duplicate: boolean } | null>(null);
   const geometry = (p: Props) => {
     const b = sceneBounds(p.landscape, p.half);
     return { x: b.x + b.width * (1 - 1 / p.zoom) / 2 - p.pan.x, y: b.y + b.height * (1 - 1 / p.zoom) / 2 - p.pan.y, width: b.width / p.zoom, height: b.height / p.zoom };
@@ -34,7 +38,7 @@ export function CourtEditorCanvas(props: Props) {
     const point = fromScenePoint({ x, y }, p.landscape);
     return { point: limitPoint(point), scale, scene: { x, y } };
   };
-  const begin = (pixel: CourtPoint, multiple = false) => {
+  const begin = (pixel: CourtPoint, multiple = false, duplicate = false) => {
     const p = live.current; if (p.disabled) return;
     multiple = multiple || !!p.multiple;
     let { point } = getPoint(pixel);
@@ -66,7 +70,7 @@ export function CourtEditorCanvas(props: Props) {
       if (!box) p.onSelect(ids);
     }
     if (p.grid && !["select", "animate", "pan", "pen", "area"].includes(p.tool)) point = snapCourtPoint(point);
-    gesture.current = { start: point, pixel, points: [point], ids, pan: p.pan, dragged: false, box, base: multiple ? [...p.selected] : [] };
+    gesture.current = { start: point, pixel, points: [point], ids, pan: p.pan, dragged: false, box, base: multiple ? [...p.selected] : [], duplicate: duplicate && p.tool === "select" };
   };
   const snappedDrag = (point: CourtPoint, g: NonNullable<typeof gesture.current>, p: Props) => {
     if (!p.grid || !g.ids.length || (p.tool === "animate" && p.motionMode !== "straight")) return point;
@@ -84,7 +88,7 @@ export function CourtEditorCanvas(props: Props) {
     if (["select", "animate"].includes(p.tool)) point = snappedDrag(point, g, p);
     else if (p.grid && !["pen", "area", "pan"].includes(p.tool)) point = snapCourtPoint(point);
     if (p.tool === "pan") { p.onPan({ x: g.pan.x + (pixel.x - g.pixel.x) / scale, y: g.pan.y + (pixel.y - g.pixel.y) / scale }); return; }
-    if (p.tool === "select" || p.tool === "animate") { if (p.tool === "animate") { if (p.motionMode === "straight") g.points = [g.start, point]; else if (g.points.length < 300) g.points.push(point); } setPreview({ ids: g.ids, delta: { x: point.x - g.start.x, y: point.y - g.start.y }, path: p.tool === "animate" ? g.points.map(pt => ({ x: pt.x - g.start.x, y: pt.y - g.start.y })) : undefined }); return; }
+    if (p.tool === "select" || p.tool === "animate") { if (p.tool === "animate") { if (p.motionMode === "straight") g.points = [g.start, point]; else if (g.points.length < 300) g.points.push(point); } setPreview({ ids: g.ids, duplicate: g.duplicate, delta: { x: point.x - g.start.x, y: point.y - g.start.y }, path: p.tool === "animate" ? g.points.map(pt => ({ x: pt.x - g.start.x, y: pt.y - g.start.y })) : undefined }); return; }
     if (p.tool === "player") return;
     if (["pen", "area"].includes(p.tool)) { if (g.points.length < 500) g.points.push(point); } else g.points = [g.start, point];
     setDraft({ id: "preview", kind: p.tool as DrawingKind, points: [...g.points], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
@@ -107,7 +111,7 @@ export function CourtEditorCanvas(props: Props) {
       } else if (["select", "animate"].includes(p.tool) && g.dragged && pixel) {
         let point = getPoint(pixel).point;
         point = snappedDrag(point, g, p);
-        p.onMove(g.ids, { x: point.x - g.start.x, y: point.y - g.start.y }, p.tool === "animate" ? (p.motionMode === "straight" ? [g.start, point] : [...g.points, point]).map(pt => ({ x: pt.x - g.start.x, y: pt.y - g.start.y })) : undefined);
+        p.onMove(g.ids, { x: point.x - g.start.x, y: point.y - g.start.y }, p.tool === "animate" ? (p.motionMode === "straight" ? [g.start, point] : [...g.points, point]).map(pt => ({ x: pt.x - g.start.x, y: pt.y - g.start.y })) : undefined, g.duplicate);
       } else if (p.tool === "player") p.onAddPlayer(g.start);
       else if (!["select", "animate", "pan"].includes(p.tool)) {
         const needsStroke = ["arrow", "curve", "pen", "area"].includes(p.tool);
@@ -134,7 +138,7 @@ export function CourtEditorCanvas(props: Props) {
       if (!kind) return;
       const p = live.current;
       const { point } = handlers.current.getPoint(pixel(e));
-      setDraft({ id: "material-drop-preview", kind: kind as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
+      setDraft({ id: "material-drop-preview", kind: kind as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: kind === "cone" && p.tool !== "cone" ? "#f97316" : p.color, dashed: p.dashed, size: 32, rotation: 0 });
     };
     const drop = (e: DragEvent) => {
       const kind = e.dataTransfer?.getData("application/x-goatleta-material");
@@ -143,7 +147,7 @@ export function CourtEditorCanvas(props: Props) {
       const p = live.current;
       setDraft(undefined);
       const { point } = handlers.current.getPoint(pixel(e));
-      p.onDraw({ id: editorId(), kind: kind as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
+      p.onDraw({ id: editorId(), kind: kind as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: kind === "cone" && p.tool !== "cone" ? "#f97316" : p.color, dashed: p.dashed, size: 32, rotation: 0 });
     };
     node.addEventListener("dragover", dragover);
     node.addEventListener("drop", drop);
@@ -158,15 +162,27 @@ export function CourtEditorCanvas(props: Props) {
     };
     const keyup = (e: KeyboardEvent) => { if (e.code === "Space") { space = false; if (!hand) node.style.cursor = ""; } };
     const down = (e: PointerEvent) => {
+      if ((e.target as Element)?.closest?.("#court-selection-actions")) return;
       if (e.button !== 0 || active !== null || live.current.disabled) return;
       active = e.pointerId; node.setPointerCapture(e.pointerId); e.preventDefault();
       if (space) {
         const p = live.current, b = sceneBounds(p.landscape, p.half), l = layoutRef.current;
         hand = { pixel: pixel(e), pan: { ...p.pan }, scale: Math.min(l.width / b.width, l.height / b.height) * p.zoom };
         node.style.cursor = "grabbing";
-      } else handlers.current.begin(pixel(e), e.shiftKey);
+      } else handlers.current.begin(pixel(e), e.shiftKey, e.altKey);
     };
     const move = (e: PointerEvent) => {
+      if (active === null && !live.current.disabled && live.current.tool === "player") {
+        const { point } = handlers.current.getPoint(pixel(e));
+        setPlayerPreview(live.current.grid ? snapCourtPoint(point) : point);
+        return;
+      }
+      if (active === null && !live.current.disabled && ["ball", "cone", "target", "ladder"].includes(live.current.tool)) {
+        const p = live.current;
+        const { point } = handlers.current.getPoint(pixel(e));
+        setDraft({ id: "placement-preview", kind: p.tool as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
+        return;
+      }
       if (e.pointerId !== active) return;
       e.preventDefault();
       if (hand) { const pt = pixel(e); live.current.onPan({ x: hand.pan.x + (pt.x - hand.pixel.x) / hand.scale, y: hand.pan.y + (pt.y - hand.pixel.y) / hand.scale }); }
@@ -187,12 +203,15 @@ export function CourtEditorCanvas(props: Props) {
       live.current.onZoom(zoom);
     };
     node.addEventListener("pointerdown", down); node.addEventListener("pointermove", move); node.addEventListener("pointerup", up); node.addEventListener("pointercancel", up);
+    const pointerLeave = () => { if (active === null) { setDraft(undefined); setPlayerPreview(undefined); } };
+    node.addEventListener("pointerleave", pointerLeave);
     node.addEventListener("wheel", wheel, { passive: false });
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup); window.addEventListener("blur", blur);
     return () => {
       node.removeEventListener("dragover", dragover); node.removeEventListener("drop", drop);
       node.removeEventListener("dragleave", leave); window.removeEventListener("dragend", clearDropPreview);
       node.removeEventListener("pointerdown", down); node.removeEventListener("pointermove", move); node.removeEventListener("pointerup", up); node.removeEventListener("pointercancel", up);
+      node.removeEventListener("pointerleave", pointerLeave);
       node.removeEventListener("wheel", wheel); window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("blur", blur);
     };
   }, []);
@@ -207,12 +226,30 @@ export function CourtEditorCanvas(props: Props) {
   }));
   /* eslint-enable react-hooks/refs */
   const b = geometry(props);
-  const rendered = preview?.path ? moveSelection(props.payload, props.stepIndex, preview.ids, preview.delta, true, preview.path) : preview ? (() => {
+  const rendered = preview?.duplicate ? duplicateSelection(props.payload, props.stepIndex, preview.ids, preview.delta).payload : preview?.path ? moveSelection(props.payload, props.stepIndex, preview.ids, preview.delta, true, preview.path) : preview ? (() => {
     const p = props.payload, s = p.timeline.steps[props.stepIndex];
     return { ...p, timeline: { steps: p.timeline.steps.map((step, i) => i === props.stepIndex ? { ...s, actorPositions: { ...s.actorPositions, ...Object.fromEntries(preview.ids.filter(id => !p.editor?.actorMeta[id]?.locked).map(id => { const a = s.actorPositions[id] ?? p.actors.find(a => a.id === id)?.initialPosition ?? { x: 0.5, y: 0.5 }; return [id, limitPoint({ x: a.x + preview.delta.x, y: a.y + preview.delta.y })]; })) } } : step) }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [s.id]: frameDrawings(p, props.stepIndex).map(d => preview.ids.includes(d.id) && !d.locked ? { ...d, points: d.points.map(a => limitPoint({ x: a.x + preview.delta.x, y: a.y + preview.delta.y })) } : d) } } };
   })() : props.payload;
+  const scenePayload = props.tool === "player" && playerPreview ? {
+    ...rendered,
+    actors: [...rendered.actors, { id: "cursor-player-preview", role: "athlete" as const, representation: "person" as const, label: "", color: props.playerPreviewColor ?? "#19c87b", initialPosition: playerPreview }],
+    timeline: { ...rendered.timeline, steps: rendered.timeline.steps.map((step, index) => index === props.stepIndex ? {
+      ...step, visibleActorIds: [...(step.visibleActorIds ?? rendered.actors.map(actor => actor.id)), "cursor-player-preview"],
+      actorPositions: { ...step.actorPositions, "cursor-player-preview": playerPreview },
+    } : step) },
+  } : rendered;
+  const anchors = [
+    ...displayActors(rendered, props.stepIndex, props.progress).filter(a => props.selected.includes(a.id)).map(a => a.point),
+    ...frameDrawings(rendered, props.stepIndex).filter(d => props.selected.includes(d.id)).flatMap(d => d.points),
+  ].map(point => scenePoint(point, props.landscape));
+  const scale = Math.min(layout.width / b.width, layout.height / b.height);
+  const anchorX = anchors.length ? anchors.reduce((sum, point) => sum + point.x, 0) / anchors.length : 0;
+  const anchorY = anchors.length ? Math.min(...anchors.map(point => point.y)) : 0;
+  const actionLeft = Math.max(8, Math.min(layout.width - 62, (layout.width - b.width * scale) / 2 + (anchorX - b.x) * scale - 56 * scale - 64));
+  const actionTop = Math.max(8, Math.min(layout.height - 178, (layout.height - b.height * scale) / 2 + (anchorY - b.y) * scale - 81));
   return <View ref={host} {...(Platform.OS === "web" ? {} : native.panHandlers)} onLayout={e => { const next = e.nativeEvent.layout; layoutRef.current = next; setLayout(next); }} style={{ flex: 1, backgroundColor: "#1676ac", ...(Platform.OS === "web" ? { touchAction: "none", userSelect: "none" } as object : {}) }}>
-    <View pointerEvents="none" style={{ flex: 1 }}><CourtEditorScene payload={rendered} stepIndex={props.stepIndex} landscape={props.landscape} selected={props.selected} progress={props.progress} previewIds={preview?.ids} previewMotion={!!preview?.path} draft={draft} grid={props.grid} half={props.half} plain={props.plain} viewBox={`${b.x} ${b.y} ${b.width} ${b.height}`} /></View>
+    <View pointerEvents="none" style={{ flex: 1 }}><CourtEditorScene payload={scenePayload} stepIndex={props.stepIndex} landscape={props.landscape} selected={props.selected} progress={props.progress} previewIds={preview?.ids} previewMotion={!!preview?.path} draft={draft?.id === "placement-preview" && draft.kind !== props.tool ? undefined : draft} grid={props.grid} half={props.half} plain={props.plain} viewBox={`${b.x} ${b.y} ${b.width} ${b.height}`} /></View>
     {marquee ? <View pointerEvents="none" style={{ position: "absolute", left: Math.min(marquee.start.x, marquee.end.x), top: Math.min(marquee.start.y, marquee.end.y), width: Math.abs(marquee.end.x - marquee.start.x), height: Math.abs(marquee.end.y - marquee.start.y), borderWidth: 1.5, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.14)" }} /> : null}
+    <CourtSelectionActions visible={!!anchors.length && !!props.selectionActions && !preview} left={actionLeft} top={actionTop}>{props.selectionActions}</CourtSelectionActions>
   </View>;
 }
