@@ -17,3 +17,5 @@ Resolver caminhos a partir da raiz. Esta skill organiza o trabalho; regras de do
 8. Resumir arquivos alterados, comportamento, validação executada e pendências reais. Registrar as skills efetivamente lidas/utilizadas com `--record-used`, distinguindo-as das sugeridas; o log local não guarda o texto da tarefa. Commit/push, aplicação remota e deploy seguem a autorização da tarefa; a conclusão dos checks não os autoriza. Antes de executar helpers externos novos ou alterados, aplicar a revisão de execução de `AGENTS.md`.
 
 Em microajustes, aplicar diretamente o ciclo rápido de `AGENTS.md` e a skill específica necessária. Não criar um plano longo, executar gates amplos ou acionar toda uma linha da matriz por palavra-chave.
+
+Em release, usar o executor de `docs/operations/release-validation.md`: `npm run build:verified` (checks e export) ou `npm run validate:app` (checks). Não repetir manualmente checks já aprovados pelo executor para os mesmos inputs. O cache é local, tem invalidação por conteúdo e não substitui smoke autenticado ou autorização. Falhas exigem ler o log do check e corrigir a causa; nunca fabricar recibos.

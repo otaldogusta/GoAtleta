@@ -2,6 +2,12 @@
 
 Preparação local em 01/10/2026, baseada no checkout `924970c8`. As skills orientam o Codex; não são funcionalidades carregadas automaticamente pelo assistente dentro do aplicativo.
 
+O release agora tem um executor concreto em `scripts/release/validate.cjs`,
+acionado por `validate:app` e `build:verified`: paralelismo limitado, cache local
+invalidado por conteúdo e CI que sempre executa os gates. As skills usam esse
+executor conforme a [validação de release](release-validation.md); isso não ativa
+agentes remotos nem autoriza publicação.
+
 A [governança em três camadas](skill-governance.md) define precedência local, seleção de até seis skills por etapa, explicação pelo roteador e métricas de uso real. Helpers externos exigem revisão de execução compatível com o escopo; integridade por hash não substitui essa revisão.
 
 ## Skills do repositório

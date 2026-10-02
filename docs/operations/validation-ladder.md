@@ -90,6 +90,13 @@ Antes de publicar, executar a baseline completa aplicável:
 
 Publicar exige autorização explícita e continua separado de validar.
 
+Para o pacote completo, usar `npm run build:verified`; para os checks sem export,
+`npm run validate:app`. O executor limita o paralelismo e reaproveita sucessos
+locais somente quando seus inputs permanecem idênticos. `--fresh` ignora recibos;
+o CI sempre executa os comandos. Ver [validação de release](release-validation.md).
+Registrar resultados executados/reaproveitados e fazer o smoke aplicável; o cache
+não substitui essa conferência nem autoriza publicação.
+
 ## Regras de escalada
 
 - Não subir de nível por hábito. Subir somente quando o diff revelar risco do

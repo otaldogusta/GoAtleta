@@ -4,6 +4,7 @@ process.env.EXPO_PUBLIC_USE_RN_FETCH = "1";
 
 module.exports = {
   preset: "jest-expo",
+  cacheDirectory: "<rootDir>/.tmp/validation/jest",
   testMatch: ["**/__tests__/**/*.test.ts"],
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   moduleNameMapper: {

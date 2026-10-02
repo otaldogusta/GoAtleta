@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { ESLint } = require('eslint');
 const { collectErrors, compareBaseline, buildEntries, canPassBaseline } = require('./lint-hygiene/baseline');
 
@@ -7,7 +8,26 @@ async function main() {
   const rootDir = path.resolve(__dirname, '..');
   const baselinePath = path.join(__dirname, 'lint-hygiene-baseline.json');
   const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-  const eslint = new ESLint({ cwd: rootDir });
+  const cacheContext = createHash('sha256').update(process.version);
+  // ESLint invalidates changed file contents itself. Invalidate the whole cache
+  // for dependency/config changes or file additions/removals that affect imports.
+  for (const file of ['package-lock.json', 'eslint.config.js', 'scripts/check-lint-hygiene.js']) {
+    cacheContext.update(fs.readFileSync(path.join(rootDir, file)));
+  }
+  for (const folder of ['app', 'src', 'patches']) {
+    const names = fs.readdirSync(path.join(rootDir, folder), { recursive: true }).sort();
+    cacheContext.update(JSON.stringify([folder, names]));
+    if (folder === 'patches') for (const name of names) {
+      const file = path.join(rootDir, folder, name);
+      if (fs.statSync(file).isFile()) cacheContext.update(fs.readFileSync(file));
+    }
+  }
+  const eslint = new ESLint({
+    cwd: rootDir,
+    cache: true,
+    cacheStrategy: 'content',
+    cacheLocation: path.join(rootDir, `.tmp/validation/eslint/${cacheContext.digest('hex')}.cache`),
+  });
   const results = await eslint.lintFiles(['app', 'src']);
   const errors = collectErrors(results, rootDir);
   const delta = compareBaseline(errors, baseline);

@@ -36,6 +36,7 @@
 - Classify every change with the validation ladder in `docs/operations/validation-ladder.md` before running checks. A micro UI/copy/style adjustment uses the fast loop only; do not automatically run build, organization-scope, performance, the complete viewport matrix, or a broad browser smoke for it.
 - Keep a micro-adjustment validation pass within roughly 2–5 minutes when the local environment is healthy. If an unexpected issue would exceed that budget, report it before broadening the task. Fix an adjacent issue immediately only when the current change caused it or it blocks the requested behavior; otherwise record it separately.
 - Before publishing, use the release level of the ladder. The normal release baseline is focused tests, `npm run typecheck:app`, `npm run check:org-scope`, `git diff --check`, `npm run build`, and an authenticated smoke test of the affected flow on `localhost:8081`.
+- For full release validation, use `npm run build:verified` and the bounded parallel runner described in `docs/operations/release-validation.md`. Reuse only results accepted by its content and environment checks; do not rerun passing gates manually or fabricate receipts. CI always executes every gate. Keep the authenticated smoke and publication authorization separate.
 - Treat a successful build or preview as a validation gate, not as proof that production is complete. Report the deployment target, URL, status, commit, and any pending production gate.
 
 ## Production and data safety

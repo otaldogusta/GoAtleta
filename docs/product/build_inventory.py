@@ -326,6 +326,9 @@ pending|Push de aprovação|Handoff registra entrega pendente. Permissão não p
 verify|Recebimento real|Conferir destinatário, token e aparelho controlado.
 """)
 add('Operação, segurança e entrega', 'Transversal', 'docs/operations/production.md', """
+code|Executor de validação de release|11 gates existentes com até dois processos, recibos locais por conteúdo/ambiente e build condicionado a checks aprovados; CI executa todos os gates com cache interno de ESLint/Jest.|scripts/release/validate.cjs
+recorded|Medição local do executor|Em 02/10/2026: pacote completo em 279s; repetição sem alterações em 7s com cinco resultados reaproveitados. 540 suites, 2.979 testes, sete suites SQL e export web aprovados. Teste focado adicional protege exclusão de arquivo. CI remoto ainda pendente.|docs/operations/release-validation.md
+pending|Ativação remota do executor|Implementação local; workflow e cache do GitHub Actions precisam de publicação e primeira execução real. Promoção condicionada na Vercel não foi implementada.|docs/operations/release-validation.md
 code|Escada de validação|Checks proporcionais ao risco.|docs/operations/validation-ladder.md
 recorded|Checklist atualizado por entrega|AGENTS.md exige atualizar os itens afetados sem novo pedido; perguntas sem mudança de estado dispensam regeneração.|AGENTS.md
 code|Continuidade entre máquinas|Setup, doctor e handoff versionados.|docs/operations/workstations.md
