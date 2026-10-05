@@ -86,6 +86,7 @@ verify|Revisão do editor atual|Conferir horários, vínculos e troca de profess
 """)
 add('Perfil pedagógico da turma', '/class/[id]', 'docs/operations/class-pedagogical-profile.md', """
 recorded|Diagnóstico compacto|Seis etapas e acesso ao perfil da turma.
+code|Cabeçalho operacional sem atalho duplicado|Perfil da turma permanece no fluxo do Assistente/Periodização; cabeçalho da turma mantém apenas a edição do cadastro.|app/class/[id].tsx
 recorded|Perfil persistente e versionado|Histórico, origem, autor, concorrência, idempotência, desfazer e RLS.
 recorded|Formato e condições de jogo|Quadras proporcionais, altura de rede e regras adaptadas.
 recorded|Influência nos planos|Contexto mensal, semanal e diário; versão usada fica no plano.
@@ -134,6 +135,9 @@ verify|Fechamento e reabertura|Conferir persistência do relatório e associaç�
 add('Presença · chamada, NFC e QR', '/class/[id]/attendance', 'docs/nfc/overview.md', """
 code|Chamada nativa|Rota da turma.|app/class/[id]/attendance.tsx
 code|Chamada web|Implementação por plataforma.|app/class/[id]/attendance.web.tsx
+code|Alunos elegíveis na chamada|Web e nativo compartilham o filtro: inativos e alunos com aviso de revisão por faltas não entram em chamadas sem registro. Registros já salvos na data continuam disponíveis e registros fora da lista são preservados ao salvar.|src/screens/attendance/attendance-roster.ts
+code|Menu da turma responsivo|Largura limitada à janela e altura numérica com margens de segurança; cabeçalho fixo e rolagem interna das opções.|src/screens/classes/components/ClassOperationsWorkspace.tsx
+recorded|Filtro e menu conferidos localmente|39 testes focados, tipos, escopo organizacional, ESLint, higiene de performance da rota e diff aprovados. No localhost autenticado, a chamada indicada passou de 14 para 8 elegíveis; a aluna apontada não aparece. Menu cabe em 775 e 390 px, com rolagem interna. Nenhuma chamada real foi marcada ou salva; publicação desta correção pendente.|src/screens/attendance/__tests__/embedded-attendance-roster.test.ts
 code|Frequência individual|Rota por aluno.|app/students/[id]/attendance.tsx
 code|Vínculo de tag NFC|Hook no contexto da chamada.|src/screens/attendance/use-student-nfc-binding.ts
 code|Rota NFC independente|Compatibilidade e diagnóstico.|app/nfc-attendance.tsx

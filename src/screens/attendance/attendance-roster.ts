@@ -1,4 +1,5 @@
 import type { AttendanceRecord, Student } from "../../core/models";
+import { deriveStudentInactivitySuggestions } from "../students/application/student-inactivity-suggestion";
 
 export function countMarkedAttendanceStudents(
   students: Pick<Student, "id">[],
@@ -13,11 +14,15 @@ export function countMarkedAttendanceStudents(
 export function resolveAttendanceStudentsForDate(
   students: Student[],
   records: AttendanceRecord[],
+  history: AttendanceRecord[] = [],
+  now = new Date(),
 ) {
   const recordedStudentIds = new Set(records.map((record) => record.studentId));
+  const reviews = deriveStudentInactivitySuggestions(history, 4, now);
   return students.filter(
     (student) =>
-      student.membershipStatus !== "inactive" || recordedStudentIds.has(student.id),
+      (student.membershipStatus !== "inactive" && !reviews.has(student.id)) ||
+      recordedStudentIds.has(student.id),
   );
 }
 

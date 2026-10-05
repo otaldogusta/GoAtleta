@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { TrainingPlan } from "../../../core/models";
@@ -210,13 +210,20 @@ function CompactClassNavigation({
   onSelect: (action: WorkspaceAction) => void;
   activeSection: ClassWorkspaceSection;
 }) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   return (
     <ModalSheet
       visible={visible}
       onClose={onClose}
       cardStyle={[
         styles.compactNavigationSheet,
-        { backgroundColor: colors.card, borderColor: colors.border },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          width: Math.max(0, width - insets.left - insets.right - 24),
+          maxHeight: Math.max(0, height - insets.top - insets.bottom - 32),
+        },
       ]}
       position="bottom"
       containerPadding={0}
@@ -862,13 +869,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   compactNavigationSheet: {
-    maxHeight: "78%",
-    marginHorizontal: 8,
+    maxWidth: 560,
+    marginHorizontal: 0,
     borderWidth: 1,
     borderRadius: radius.xl,
     overflow: "hidden",
   },
   compactNavigationHeader: {
+    flexShrink: 0,
     minHeight: 72,
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
@@ -899,6 +907,8 @@ const styles = StyleSheet.create({
   },
   compactNavigationScroll: {
     flexGrow: 0,
+    flexShrink: 1,
+    minHeight: 0,
   },
   compactNavigationContent: {
     paddingHorizontal: spacing.sm,

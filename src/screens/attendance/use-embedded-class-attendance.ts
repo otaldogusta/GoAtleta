@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getStudentPhotoAccessUrl } from "../../api/student-photo-storage";
 import type { AttendanceRecord, Student } from "../../core/models";
 import { useAttendanceDateGuard } from "./use-attendance-date-guard";
-import { getAttendanceByDate, getStudentsByClass, saveAttendanceRecords } from "../../db/seed";
+import { getAttendanceByClass, getAttendanceByDate, getStudentsByClass, saveAttendanceRecords } from "../../db/seed";
 import {
   countMarkedAttendanceStudents,
   mergeAttendanceRecordsPreservingOpaque,
+  resolveAttendanceStudentsForDate,
 } from "./attendance-roster";
 
 export type EmbeddedAttendanceStatus = "presente" | "faltou" | undefined;
@@ -81,9 +82,14 @@ export function useEmbeddedClassAttendance({ classId, date, enabled, onGoToday }
     setError(null);
 
     try {
-      const [nextStudents, records] = await Promise.all([getStudentsByClass(classId), getAttendanceByDate(classId, date)]);
+      const [nextStudents, records, history] = await Promise.all([
+        getStudentsByClass(classId, { includeInactive: true }),
+        getAttendanceByDate(classId, date),
+        getAttendanceByClass(classId),
+      ]);
       if (loadRequestId.current !== requestId) return;
-      const studentsWithAccessiblePhotos = await resolveEmbeddedAttendanceStudentPhotos(nextStudents);
+      const roster = resolveAttendanceStudentsForDate(nextStudents, records, history);
+      const studentsWithAccessiblePhotos = await resolveEmbeddedAttendanceStudentPhotos(roster);
       if (loadRequestId.current !== requestId) return;
 
       const nextStatus = emptyStatusMap(studentsWithAccessiblePhotos);

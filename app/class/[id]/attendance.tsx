@@ -407,15 +407,15 @@ export default function AttendanceScreen() {
           () => [] as AttendanceRecord[]
         );
         const list = await getStudentsByClass(data.id, { includeInactive: true });
+        const attendanceHistory = await attendanceHistoryPromise;
         if (alive) {
           setAllClassStudents(list);
-          setStudents(list.filter((student) => student.membershipStatus !== "inactive"));
+          setStudents(resolveAttendanceStudentsForDate(list, [], attendanceHistory));
           setHistoricalStudents([]);
           setLoadedAttendanceRecords([]);
           setIsLoadingDate(false);
           setRosterClassId(data.id);
         }
-        const attendanceHistory = await attendanceHistoryPromise;
         if (alive) {
           setInitialAttendanceHistory(attendanceHistory);
           setInitialAttendanceHistoryClassId(data.id);
@@ -582,8 +582,9 @@ export default function AttendanceScreen() {
         }, 2500);
         return;
       }
-      const attendanceRoster = resolveAttendanceStudentsForDate(allClassStudents, records);
-      const historicalRoster = attendanceRoster.filter((student) => student.membershipStatus === "inactive");
+      const attendanceRoster = resolveAttendanceStudentsForDate(allClassStudents, records, initialAttendanceHistory);
+      const currentStudentIds = new Set(students.map((student) => student.id));
+      const historicalRoster = attendanceRoster.filter((student) => !currentStudentIds.has(student.id));
       const { baseStatus, baseNotes, basePain } = buildBaseMaps(attendanceRoster);
       setHistoricalStudents(historicalRoster);
       setLoadedAttendanceRecords(records);
@@ -610,7 +611,7 @@ export default function AttendanceScreen() {
         loadMessageTimer.current = null;
       }, 2000);
     },
-    [allClassStudents, buildBaseMaps, classDays, cls, students]
+    [allClassStudents, buildBaseMaps, classDays, cls, initialAttendanceHistory, students]
   );
 
   useEffect(() => {
