@@ -4,6 +4,7 @@ import {
   buildAttendanceExportFileParts,
   buildClassRosterPdfFileName,
   canAccessAttendanceExport,
+  resolveClassRosterExportStudents,
 } from "../attendance-export";
 
 const classGroup = (id: string, name: string, unit: string): ClassGroup =>
@@ -27,6 +28,40 @@ const attendance = (
   ({ id, classId, studentId, date, status, note: "", painScore: 0, createdAt: date } as AttendanceRecord);
 
 describe("attendance operational export", () => {
+  test("exports only eligible roster students even when review students have saved history", () => {
+    const history = ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((date, index) =>
+      attendance(String(index), "class-a", "review", date, "faltou")
+    );
+    const originalHistory = history.map((record) => ({ ...record }));
+    const result = resolveClassRosterExportStudents(
+      [student("active", "Ana"), student("review", "Bia"), student("inactive", "Caio", "inactive")],
+      history,
+      new Date("2026-10-05T12:00:00"),
+    );
+    expect(result.map((item) => item.id)).toEqual(["active"]);
+    expect(history).toEqual(originalHistory);
+  });
+
+  test("includes a reviewed student again after a presence breaks the absence sequence", () => {
+    const history = ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((date, index) =>
+      attendance(String(index), "class-a", "review", date, "faltou")
+    );
+    history.push(attendance("returned", "class-a", "review", "2026-10-01", "presente"));
+    expect(resolveClassRosterExportStudents(
+      [student("review", "Bia")], history, new Date("2026-10-05T12:00:00"),
+    ).map((item) => item.id)).toEqual(["review"]);
+  });
+
+  test("includes the class weekdays alongside its name in the PDF filename", () => {
+    expect(buildClassRosterPdfFileName({
+      className: "Raposas",
+      daysLabel: "Seg e Qua",
+      monthLabel: "Outubro 2026",
+      includeAttendance: true,
+      startTime: "14:00",
+    })).toBe("Chamada - Raposas - Seg e Qua - 14h - Outubro 2026.pdf");
+  });
+
   const classes = [
     classGroup("class-a", "Águias", "Centro"),
     classGroup("class-b", "Estrelas", "Norte"),

@@ -83,7 +83,7 @@ import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
 import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
 import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
-import { buildClassRosterPdfFileName } from "../../src/screens/classes/application/attendance-export";
+import { buildClassRosterPdfFileName, resolveClassRosterExportStudents } from "../../src/screens/classes/application/attendance-export";
 import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import { retrieveDocumentSupportForPlan } from "../../src/screens/session/application/retrieve-document-support-for-plan";
 import { resolveClassPlanForSessionDate } from "../../src/screens/session/application/resolve-class-plan-for-session-date";
@@ -2172,7 +2172,11 @@ export default function ClassDetails() {
   const exportRosterPdf = async (monthValue = rosterMonthValue, options: RosterExportOptions = rosterExportOptions) => {
     if (!cls) return;
     try {
-      const list = await getStudentsByClass(cls.id, { includeInactive: true });
+      const [allStudents, records] = await Promise.all([
+        getStudentsByClass(cls.id, { includeInactive: true }),
+        getAttendanceByClass(cls.id),
+      ]);
+      const list = resolveClassRosterExportStudents(allStudents, records);
       const exportDate = new Date().toLocaleDateString("pt-BR");
       const timeParts = parseTime(classStartTime);
       const timeLabel = timeParts ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration) : classStartTime;
@@ -2184,7 +2188,6 @@ export default function ClassDetails() {
       const attendanceByStudentDay: Record<string, Record<number, "P" | "F">> = {};
       const firstAttendanceByStudent: Record<string, string> = {};
       if (options.includeAttendance) {
-        const records = await getAttendanceByClass(cls.id);
         records.forEach((record) => {
           const firstDate = firstAttendanceByStudent[record.studentId];
           if (!firstDate || record.date < firstDate) {
@@ -2294,6 +2297,7 @@ export default function ClassDetails() {
         monthLabel,
         includeAttendance: options.includeAttendance,
         startTime: classStartTime,
+        daysLabel: classDays.map((day) => dayNames[day]).filter(Boolean).join(" e "),
       });
 
       await exportPdf({

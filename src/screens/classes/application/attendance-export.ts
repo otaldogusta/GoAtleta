@@ -1,4 +1,13 @@
 import type { AttendanceRecord, ClassGroup, Student } from "../../../core/models";
+import { resolveAttendanceStudentsForDate } from "../../attendance/attendance-roster";
+
+export function resolveClassRosterExportStudents(
+  students: Student[],
+  history: AttendanceRecord[],
+  now = new Date(),
+) {
+  return resolveAttendanceStudentsForDate(students, [], history, now);
+}
 
 export type AttendanceExportDetailRow = {
   date: string;
@@ -209,6 +218,7 @@ export function buildClassRosterPdfFileName(params: {
   monthLabel: string;
   includeAttendance: boolean;
   startTime?: string | null;
+  daysLabel?: string | null;
 }) {
   const className = sanitizeDocumentFilePart(params.className) || "Turma";
   const monthLabel = sanitizeDocumentFilePart(params.monthLabel) || "Período";
@@ -217,7 +227,8 @@ export function buildClassRosterPdfFileName(params: {
     ? `${Number(timeMatch[1])}h${timeMatch[2] && timeMatch[2] !== "00" ? timeMatch[2] : ""}`
     : "";
   const documentLabel = params.includeAttendance ? "Chamada" : "Lista de chamada";
-  return [documentLabel, className, startTime, monthLabel].filter(Boolean).join(" - ") + ".pdf";
+  const daysLabel = sanitizeDocumentFilePart(params.daysLabel ?? "");
+  return [documentLabel, className, daysLabel, startTime, monthLabel].filter(Boolean).join(" - ") + ".pdf";
 }
 
 export function buildAttendanceExportFileParts(params: {
