@@ -4,6 +4,16 @@
 
 - Write **Go Atleta** (with a space) in user-facing replies, documentation, UI and reports. Preserve technical identifiers, repository paths and existing symbol names when they legitimately use `GoAtleta` or `goatleta`.
 
+## Selective technical context before edits
+
+- Start with Git status and staged/unstaged diffs; preserve existing changes and untracked artifacts, including the shared product checklist. Re-read shared files immediately before applying a small patch; do not replace them from an earlier snapshot.
+- Use `docs/context/README.md` to choose the affected module. Read that short module guide, then the relevant implementation and tests before editing. Add another module only when the change crosses its contract; do not preload every module, skill, handoff or historical report.
+- Use targeted `rg` searches and bounded reads. Follow links for the behavior being changed, not every reference recursively. A micro UI edit needs only its local flow and applicable UI rule.
+- Treat code/tests/migrations as evidence of local implementation. Dated handoffs/audits are historical evidence; roadmaps, proposals and mockups require reconciliation before becoming work. Neither proves current remote activation or grants execution permission.
+- Preserve canonical architecture, authorization, domain and UI contracts. If documentation and code disagree, inspect the affected path and record the discrepancy; do not silently convert an old proposal into a requirement or relax a safety boundary.
+- When a contract changes, update the affected `docs/context/modules/` guide and its source documentation. Keep guides short and linked; `docs/README.md` remains the general documentation index and `docs/operations/validation-ladder.md` remains the validation authority.
+- Update only affected checklist entries in `docs/product/build_inventory.py`, preserve existing titles/IDs and personal-review storage contracts, then regenerate `docs/product/goatleta-checklist.html`. Documentation-only work requires references, format, generation when affected, and diff checks; it does not require starting the app or running release gates.
+
 ## Project skills
 
 - Project-specific skills live in `.agents/skills/`; existing document-intelligence and web UI skills remain in `.codex/skills/`.
@@ -25,6 +35,7 @@
 
 - Before resuming work on another machine, read `docs/operations/workstations.md` and `docs/operations/handoff.md`, then inspect the current branch and working tree.
 - Use `npm run dev:doctor` to check local prerequisites without printing credential values.
+- Prefer worktree-local dependencies for Expo (`npm ci`). A `node_modules` junction can resolve routes from another checkout; verify the runtime sources, not only the working directory or lockfile.
 - Synchronizing work means committing and pushing the explicitly authorized files on a `codex/` branch. It does not authorize pushing `main`, merging, or production deployment.
 - Keep pending work and decisions in repository documentation; do not assume the previous machine's chat history, personal memories, credentials, or installed plugins are available.
 

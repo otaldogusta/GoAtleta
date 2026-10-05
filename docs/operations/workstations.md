@@ -12,6 +12,11 @@ npm run dev:setup
 
 O comando instala exatamente o lockfile com `npm ci`, aplica os patches do projeto e cria `.env.local` apenas se ele não existir. Na primeira execução, terminar com um aviso de configuração pendente é esperado.
 
+Em worktrees, prefira dependências próprias. Uma ligação de `node_modules` para
+outro checkout pode fazer o Expo Router carregar as rotas daquela árvore, mesmo
+com lockfile idêntico. Preserve a ligação antes de substituir e confira os arquivos
+efetivamente carregados. [Preparação e validação de 05/10](worktree-local-ready-2026-10-05.md).
+
 Preencha `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY` no `.env.local`, usando a URL e a chave pública do projeto correto. Obtenha a configuração pelo painel Supabase ou transfira o arquivo por um canal privado. Nunca use chave `service_role` no frontend. Segredos das Edge Functions continuam no Supabase; não são necessários para iniciar o frontend.
 
 ```sh

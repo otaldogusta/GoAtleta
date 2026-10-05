@@ -6,6 +6,8 @@ Este é o índice canônico dos documentos do projeto. Use esta página como pon
 
 | Objetivo | Documento |
 | --- | --- |
+| Localizar contexto técnico por módulo antes de editar | [Contexto técnico seletivo](context/README.md) |
+| Conferir implementação, evidências e pendências de produto | [Checklist compartilhado](product/goatleta-checklist.html) |
 | Entender o projeto e rodar localmente | [README.md](../README.md) |
 | Configurar outra máquina e continuar o trabalho | [workstations.md](operations/workstations.md) |
 | Ver prioridades de produto | [ROADMAP.md](../ROADMAP.md) |
@@ -47,6 +49,11 @@ Este é o índice canônico dos documentos do projeto. Use esta página como pon
 
 ## 🏛️ Histórico e Arquivo
 Documentos de backlog de sprints anteriores, checklists concluídos de PRs e propostas antigas de arquitetura foram movidos para a pasta [archive/](archive/).
+
+Handoffs, auditorias e registros datados preservam evidências daquele momento.
+Roadmaps, propostas e mockups não certificam implementação atual; confronte-os
+com o código indicado no [mapa técnico](context/README.md). Guias canônicos
+continuam como fontes de contratos, sem exigir a leitura de todo o acervo.
 
 ---
 

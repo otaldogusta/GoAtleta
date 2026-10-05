@@ -80,19 +80,19 @@ const requireUser = async (request: Request) => {
   return data.user;
 };
 
-Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
     return corsPreflight(req);
   }
 
-  if (request.method !== "POST") {
+  if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
       headers: makeJsonHeaders(req),
     });
   }
 
-  const user = await requireUser(request);
+  const user = await requireUser(req);
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -102,7 +102,7 @@ Deno.serve(async (request) => {
 
   let payload: RulesSyncAdminRequest = {};
   try {
-    payload = (await request.json()) as RulesSyncAdminRequest;
+    payload = (await req.json()) as RulesSyncAdminRequest;
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,

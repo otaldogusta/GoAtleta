@@ -146,12 +146,12 @@ describe("consultation Supabase mappers", () => {
     expect(state.executionLogs.map((item) => item.id)).toEqual(["log-1"]);
   });
 
-  test("fallback status explains migration, auth, permission and network paths", () => {
+  test("fallback supports missing schema and network but never authorization failures", () => {
     expect(
       getConsultationFallbackStatus(new Error('relation "public.consultation_profiles" does not exist'))?.reason
     ).toBe("missing_schema");
-    expect(getConsultationFallbackStatus(new Error("Supabase GET error: 401 token"))?.reason).toBe("auth");
-    expect(getConsultationFallbackStatus(new Error("row-level security policy"))?.reason).toBe("permission");
+    expect(getConsultationFallbackStatus(new Error("Supabase GET error: 401 token"))).toBeNull();
+    expect(getConsultationFallbackStatus(new Error("row-level security policy"))).toBeNull();
     expect(getConsultationFallbackStatus(new Error("Network request failed"))?.reason).toBe("network");
   });
 });

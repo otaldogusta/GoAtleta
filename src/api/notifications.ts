@@ -156,10 +156,12 @@ const buildCreatePayload = async (input: CreateNotificationInput) => {
 
 const callCreateNotificationFunction = async (
   input: CreateNotificationInput,
+  assertContextCurrent?: () => Promise<void>,
 ) => {
   const token = await getValidAccessToken();
   if (!token) throw new Error("Sessão inválida. Faça login novamente.");
 
+  await assertContextCurrent?.();
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/create-notification`,
     {
@@ -257,7 +259,9 @@ export async function getUnreadNotificationCount(
 
 export async function createNotification(
   input: CreateNotificationInput,
+  assertContextCurrent?: () => Promise<void>,
 ): Promise<AppNotification | null> {
+  await assertContextCurrent?.();
   const payload = await buildCreatePayload(input);
   if (!payload) return null;
 
@@ -276,7 +280,8 @@ export async function createNotification(
       sourceId: payload.source_id,
       metadata: payload.metadata,
       dedupe: input.dedupe,
-    });
+    }, assertContextCurrent);
+    await assertContextCurrent?.();
     notification = remoteResult.notification;
     createdNew = remoteResult.created;
   } catch (error) {
@@ -308,7 +313,7 @@ export async function createNotification(
               }
             : undefined,
         },
-      });
+      }, ...(assertContextCurrent ? [assertContextCurrent] as const : []));
     } catch {
       // Push is best-effort; the inbox notification remains available.
     }

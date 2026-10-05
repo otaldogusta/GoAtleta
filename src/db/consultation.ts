@@ -10,6 +10,12 @@ import type {
 } from "../core/consultation";
 import { markWorkoutExecutionReviewed } from "../core/consultation";
 import {
+  assertConsultationContext,
+  captureConsultationContext,
+  isConsultationContextCurrent,
+  type ConsultationContext,
+} from "./consultation-context";
+import {
   deletePrescribedWorkout as deleteLocalPrescribedWorkout,
   getConsultationLocalState as getLocalConsultationState,
   markExecutionLogReviewed as markLocalExecutionLogReviewed,
@@ -19,7 +25,6 @@ import {
   type ConsultationLocalState,
 } from "./consultation-local";
 import {
-  getActiveOrganizationId,
   isAuthError,
   isMissingRelation,
   isNetworkError,
@@ -30,10 +35,17 @@ import {
   supabasePost,
 } from "./client";
 
+export { assertConsultationContext, captureConsultationContext, captureStudentConsultationContext, isConsultationContextCurrent } from "./consultation-context";
+export type { ConsultationContext } from "./consultation-context";
 export type { ConsultationLocalState };
+export type ConsultationSnapshot = ConsultationLocalState & {
+  context: ConsultationContext;
+  persistenceStatus: ConsultationPersistenceStatus;
+};
 
 export type ConsultationPersistenceReason =
   | "supabase"
+  | "unavailable"
   | "missing_organization"
   | "missing_schema"
   | "auth"
@@ -41,7 +53,7 @@ export type ConsultationPersistenceReason =
   | "network";
 
 export type ConsultationPersistenceStatus = {
-  mode: "supabase" | "local";
+  mode: "supabase" | "local" | "unavailable";
   reason: ConsultationPersistenceReason;
   message: string;
 };
@@ -139,18 +151,23 @@ const SUPABASE_STATUS: ConsultationPersistenceStatus = {
   message: "Salvo no servidor",
 };
 
-const LOCAL_NO_ORG_STATUS: ConsultationPersistenceStatus = {
-  mode: "local",
-  reason: "missing_organization",
-  message: "Salvo localmente neste dispositivo. A organização ativa não está disponível agora.",
+const UNAVAILABLE_STATUS: ConsultationPersistenceStatus = {
+  mode: "unavailable",
+  reason: "unavailable",
+  message: "Consultoria ainda não carregada neste contexto.",
 };
 
-let lastConsultationPersistenceStatus: ConsultationPersistenceStatus = LOCAL_NO_ORG_STATUS;
+let lastPersistence: { context: ConsultationContext; status: ConsultationPersistenceStatus } | null = null;
 
-export const getLastConsultationPersistenceStatus = () => lastConsultationPersistenceStatus;
+export const getLastConsultationPersistenceStatus = (context?: ConsultationContext) => {
+  if (!lastPersistence || !isConsultationContextCurrent(lastPersistence.context)) return UNAVAILABLE_STATUS;
+  if (context && (!isConsultationContextCurrent(context) ||
+      context.organizationId !== lastPersistence.context.organizationId)) return UNAVAILABLE_STATUS;
+  return lastPersistence.status;
+};
 
-const setConsultationPersistenceStatus = (status: ConsultationPersistenceStatus) => {
-  lastConsultationPersistenceStatus = status;
+const setConsultationPersistenceStatus = (context: ConsultationContext, status: ConsultationPersistenceStatus) => {
+  lastPersistence = { context, status };
   return status;
 };
 
@@ -158,32 +175,20 @@ export const isConsultationSchemaUnavailable = (error: unknown) =>
   CONSULTATION_TABLES.some((table) => isMissingRelation(error, table));
 
 export const getConsultationFallbackStatus = (error: unknown): ConsultationPersistenceStatus | null => {
+  // Authentication/authorization failures (including identity changes) must never become local success.
+  if (isAuthError(error) || isPermissionError(error)) return null;
   if (isConsultationSchemaUnavailable(error)) {
     return {
       mode: "local",
       reason: "missing_schema",
-      message: "Salvo localmente neste dispositivo. A sincronização com o servidor ainda não está disponível.",
-    };
-  }
-  if (isAuthError(error)) {
-    return {
-      mode: "local",
-      reason: "auth",
-      message: "Salvo localmente neste dispositivo. Faça login novamente para sincronizar.",
-    };
-  }
-  if (isPermissionError(error)) {
-    return {
-      mode: "local",
-      reason: "permission",
-      message: "Salvo localmente neste dispositivo. A permissão no servidor precisa ser revisada.",
+      message: "Alteração preservada neste dispositivo. Gravação no servidor não concluída.",
     };
   }
   if (isNetworkError(error)) {
     return {
       mode: "local",
       reason: "network",
-      message: "Salvo localmente neste dispositivo. A conexão com o servidor não está disponível agora.",
+      message: "Alteração preservada neste dispositivo. Gravação no servidor não confirmada por falta de conexão.",
     };
   }
   return null;
@@ -396,64 +401,76 @@ export const buildConsultationStateFromRows = (rows: {
   executionLogs: mapWorkoutExecutionRows(rows.logs, rows.completedExercises),
 });
 
-async function getOrganizationIdOrFallback() {
-  const organizationId = await getActiveOrganizationId();
-  return organizationId?.trim() || null;
+async function requestInContext<T>(context: ConsultationContext, request: () => Promise<T>) {
+  await assertConsultationContext(context);
+  const result = await request();
+  await assertConsultationContext(context);
+  return result;
 }
 
-export async function getConsultationLocalState(): Promise<ConsultationLocalState> {
-  const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) {
-    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
-    return getLocalConsultationState();
+function assertStudentBinding(context: ConsultationContext, studentId: string) {
+  if (context.student && context.student.id !== studentId) {
+    throw new Error("O registro não pertence ao atleta desta consulta.");
   }
+}
 
+async function persistInContext<T>(
+  context: ConsultationContext,
+  remote: () => Promise<T>,
+  local: () => Promise<T>,
+) {
+  await assertConsultationContext(context);
+  let value: T;
+  let persistenceStatus = SUPABASE_STATUS;
   try {
-    const filter = orgFilter(organizationId);
-    const [profiles, workouts, exercises, logs, completedExercises] = await Promise.all([
-      supabaseGet<ConsultationProfileRow[]>(`/consultation_profiles?${filter}&select=*&order=updated_at.desc`),
-      supabaseGet<PrescribedWorkoutRow[]>(`/prescribed_workouts?${filter}&select=*&order=updated_at.desc`),
-      supabaseGet<PrescribedExerciseRow[]>(`/prescribed_exercises?${filter}&select=*&order=order_index.asc`),
-      supabaseGet<WorkoutExecutionLogRow[]>(`/workout_execution_logs?${filter}&select=*&order=completed_at.desc`),
-      supabaseGet<CompletedExerciseLogRow[]>(`/completed_exercise_logs?${filter}&select=*`),
-    ]);
-
-    setConsultationPersistenceStatus(SUPABASE_STATUS);
-    return buildConsultationStateFromRows({ profiles, workouts, exercises, logs, completedExercises });
+    value = await remote();
   } catch (error) {
-    const fallbackStatus = getConsultationFallbackStatus(error);
-    if (fallbackStatus) {
-      setConsultationPersistenceStatus(fallbackStatus);
-      return getLocalConsultationState();
-    }
-    throw error;
+    // Do not recapture a different owner after a failure or adopt an old screen's draft.
+    await assertConsultationContext(context);
+    const fallback = getConsultationFallbackStatus(error);
+    if (!fallback) throw error;
+    value = await local();
+    persistenceStatus = fallback;
   }
+  await assertConsultationContext(context);
+  setConsultationPersistenceStatus(context, persistenceStatus);
+  return { value, persistenceStatus };
 }
 
-export async function saveConsultationProfile(profile: OnlineConsultationProfile) {
-  const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) {
-    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
-    await saveLocalConsultationProfile(profile);
-    return getLastConsultationPersistenceStatus();
-  }
+export async function getConsultationLocalState(
+  context?: ConsultationContext,
+): Promise<ConsultationSnapshot> {
+  const captured = context ?? await captureConsultationContext();
+  const { value, persistenceStatus } = await persistInContext(captured, async () => {
+    const filter = orgFilter(captured.organizationId);
+    const studentFilter = captured.student ? `&student_id=eq.${encodeURIComponent(captured.student.id)}` : "";
+    const [profiles, workouts, exercises, logs, completedExercises] = await Promise.all([
+      supabaseGet<ConsultationProfileRow[]>(`/consultation_profiles?${filter}${studentFilter}&select=*&order=updated_at.desc`, captured.identity),
+      supabaseGet<PrescribedWorkoutRow[]>(`/prescribed_workouts?${filter}${studentFilter}&select=*&order=updated_at.desc`, captured.identity),
+      supabaseGet<PrescribedExerciseRow[]>(`/prescribed_exercises?${filter}&select=*&order=order_index.asc`, captured.identity),
+      supabaseGet<WorkoutExecutionLogRow[]>(`/workout_execution_logs?${filter}${studentFilter}&select=*&order=completed_at.desc`, captured.identity),
+      supabaseGet<CompletedExerciseLogRow[]>(`/completed_exercise_logs?${filter}&select=*`, captured.identity),
+    ]);
+    return buildConsultationStateFromRows({ profiles, workouts, exercises, logs, completedExercises });
+  }, () => getLocalConsultationState(captured));
+  const state = captured.student ? {
+    profiles: value.profiles.filter((item) => item.studentId === captured.student!.id),
+    workouts: value.workouts.filter((item) => item.studentId === captured.student!.id),
+    executionLogs: value.executionLogs.filter((item) => item.studentId === captured.student!.id),
+  } : value;
+  return { ...state, context: captured, persistenceStatus };
+}
 
-  try {
+export async function saveConsultationProfile(profile: OnlineConsultationProfile, context: ConsultationContext) {
+  assertStudentBinding(context, profile.studentId);
+  const { persistenceStatus } = await persistInContext(context, async () => {
     await supabasePost(
       "/consultation_profiles?on_conflict=organization_id,student_id",
-      [buildConsultationProfilePayload(profile, organizationId)],
-      { Prefer: "resolution=merge-duplicates" }
+      [buildConsultationProfilePayload(profile, context.organizationId)],
+      { Prefer: "resolution=merge-duplicates" }, context.identity,
     );
-    return setConsultationPersistenceStatus(SUPABASE_STATUS);
-  } catch (error) {
-    const fallbackStatus = getConsultationFallbackStatus(error);
-    if (fallbackStatus) {
-      setConsultationPersistenceStatus(fallbackStatus);
-      await saveLocalConsultationProfile(profile);
-      return getLastConsultationPersistenceStatus();
-    }
-    throw error;
-  }
+  }, () => saveLocalConsultationProfile(profile, context));
+  return persistenceStatus;
 }
 
 export async function getConsultationProfileByStudent(studentId: string) {
@@ -461,67 +478,41 @@ export async function getConsultationProfileByStudent(studentId: string) {
   return state.profiles.find((profile) => profile.studentId === studentId) ?? null;
 }
 
-export async function savePrescribedWorkout(workout: PrescribedWorkout) {
-  const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) {
-    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
-    await saveLocalPrescribedWorkout(workout);
-    return getLastConsultationPersistenceStatus();
-  }
-
-  try {
-    await supabasePost(
+export async function savePrescribedWorkout(workout: PrescribedWorkout, context: ConsultationContext) {
+  assertStudentBinding(context, workout.studentId);
+  const organizationId = context.organizationId;
+  const { persistenceStatus } = await persistInContext(context, async () => {
+    await requestInContext(context, () => supabasePost(
       "/prescribed_workouts?on_conflict=id",
       [buildPrescribedWorkoutPayload(workout, organizationId)],
-      { Prefer: "resolution=merge-duplicates" }
-    );
-    await supabaseDelete(
-      `/prescribed_exercises?workout_id=eq.${encodeURIComponent(workout.id)}&${orgFilter(organizationId)}`
-    );
+      { Prefer: "resolution=merge-duplicates" }, context.identity,
+    ));
+    await requestInContext(context, () => supabaseDelete(
+      `/prescribed_exercises?workout_id=eq.${encodeURIComponent(workout.id)}&${orgFilter(organizationId)}`,
+      context.identity,
+    ));
     const exercisePayloads = buildPrescribedExercisePayloads(workout, organizationId);
     if (exercisePayloads.length) {
-      await supabasePost("/prescribed_exercises", exercisePayloads, {
+      await requestInContext(context, () => supabasePost("/prescribed_exercises", exercisePayloads, {
         Prefer: "resolution=merge-duplicates",
-      });
+      }, context.identity));
     }
-    return setConsultationPersistenceStatus(SUPABASE_STATUS);
-  } catch (error) {
-    const fallbackStatus = getConsultationFallbackStatus(error);
-    if (fallbackStatus) {
-      setConsultationPersistenceStatus(fallbackStatus);
-      await saveLocalPrescribedWorkout(workout);
-      return getLastConsultationPersistenceStatus();
-    }
-    throw error;
-  }
+  }, () => saveLocalPrescribedWorkout(workout, context));
+  return persistenceStatus;
 }
 
-export async function publishWorkout(workout: PrescribedWorkout) {
-  return savePrescribedWorkout({ ...workout, status: "published" });
+export async function publishWorkout(workout: PrescribedWorkout, context: ConsultationContext) {
+  return savePrescribedWorkout({ ...workout, status: "published" }, context);
 }
 
-export async function deletePrescribedWorkout(workoutId: string) {
-  const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) {
-    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
-    await deleteLocalPrescribedWorkout(workoutId);
-    return getLastConsultationPersistenceStatus();
-  }
-
-  try {
+export async function deletePrescribedWorkout(workoutId: string, context: ConsultationContext) {
+  const { persistenceStatus } = await persistInContext(context, async () => {
     await supabaseDelete(
-      `/prescribed_workouts?id=eq.${encodeURIComponent(workoutId)}&${orgFilter(organizationId)}`
+      `/prescribed_workouts?id=eq.${encodeURIComponent(workoutId)}&${orgFilter(context.organizationId)}`,
+      context.identity,
     );
-    return setConsultationPersistenceStatus(SUPABASE_STATUS);
-  } catch (error) {
-    const fallbackStatus = getConsultationFallbackStatus(error);
-    if (fallbackStatus) {
-      setConsultationPersistenceStatus(fallbackStatus);
-      await deleteLocalPrescribedWorkout(workoutId);
-      return getLastConsultationPersistenceStatus();
-    }
-    throw error;
-  }
+  }, () => deleteLocalPrescribedWorkout(workoutId, context));
+  return persistenceStatus;
 }
 
 export async function listPublishedWorkoutsForStudent(studentId: string) {
@@ -531,43 +522,31 @@ export async function listPublishedWorkoutsForStudent(studentId: string) {
   );
 }
 
-export async function saveWorkoutExecutionLog(log: WorkoutExecutionLog) {
-  const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) {
-    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
-    await saveLocalWorkoutExecutionLog(log);
-    return getLastConsultationPersistenceStatus();
-  }
-
-  try {
-    await supabasePost(
+export async function saveWorkoutExecutionLog(log: WorkoutExecutionLog, context: ConsultationContext) {
+  assertStudentBinding(context, log.studentId);
+  const organizationId = context.organizationId;
+  const { persistenceStatus } = await persistInContext(context, async () => {
+    await requestInContext(context, () => supabasePost(
       "/workout_execution_logs?on_conflict=id",
       [buildWorkoutExecutionPayload(log, organizationId)],
-      { Prefer: "resolution=merge-duplicates" }
-    );
-    await supabaseDelete(
-      `/completed_exercise_logs?execution_log_id=eq.${encodeURIComponent(log.id)}&${orgFilter(organizationId)}`
-    );
+      { Prefer: "resolution=merge-duplicates" }, context.identity,
+    ));
+    await requestInContext(context, () => supabaseDelete(
+      `/completed_exercise_logs?execution_log_id=eq.${encodeURIComponent(log.id)}&${orgFilter(organizationId)}`,
+      context.identity,
+    ));
     const exercisePayloads = buildCompletedExercisePayloads(log, organizationId);
     if (exercisePayloads.length) {
-      await supabasePost("/completed_exercise_logs", exercisePayloads, {
+      await requestInContext(context, () => supabasePost("/completed_exercise_logs", exercisePayloads, {
         Prefer: "resolution=merge-duplicates",
-      });
+      }, context.identity));
     }
-    await supabasePatch(
+    await requestInContext(context, () => supabasePatch(
       `/prescribed_workouts?id=eq.${encodeURIComponent(log.workoutId)}&${orgFilter(organizationId)}`,
-      { status: "completed", updated_at: new Date().toISOString() }
-    );
-    return setConsultationPersistenceStatus(SUPABASE_STATUS);
-  } catch (error) {
-    const fallbackStatus = getConsultationFallbackStatus(error);
-    if (fallbackStatus) {
-      setConsultationPersistenceStatus(fallbackStatus);
-      await saveLocalWorkoutExecutionLog(log);
-      return getLastConsultationPersistenceStatus();
-    }
-    throw error;
-  }
+      { status: "completed", updated_at: new Date().toISOString() }, undefined, context.identity,
+    ));
+  }, () => saveLocalWorkoutExecutionLog(log, context));
+  return persistenceStatus;
 }
 
 export const submitWorkoutExecution = saveWorkoutExecutionLog;
@@ -577,32 +556,17 @@ export async function listExecutionsForCoach() {
   return state.executionLogs;
 }
 
-export async function markExecutionLogReviewed(logId: string) {
-  const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) {
-    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
-    await markLocalExecutionLogReviewed(logId);
-    return getLastConsultationPersistenceStatus();
-  }
-
-  try {
+export async function markExecutionLogReviewed(logId: string, context: ConsultationContext) {
+  const { persistenceStatus } = await persistInContext(context, async () => {
     await supabasePatch(
-      `/workout_execution_logs?id=eq.${encodeURIComponent(logId)}&${orgFilter(organizationId)}`,
+      `/workout_execution_logs?id=eq.${encodeURIComponent(logId)}&${orgFilter(context.organizationId)}`,
       {
         coach_review_status: "reviewed",
         reviewed_at: new Date().toISOString(),
-      }
+      }, undefined, context.identity,
     );
-    return setConsultationPersistenceStatus(SUPABASE_STATUS);
-  } catch (error) {
-    const fallbackStatus = getConsultationFallbackStatus(error);
-    if (fallbackStatus) {
-      setConsultationPersistenceStatus(fallbackStatus);
-      await markLocalExecutionLogReviewed(logId);
-      return getLastConsultationPersistenceStatus();
-    }
-    throw error;
-  }
+  }, () => markLocalExecutionLogReviewed(logId, context));
+  return persistenceStatus;
 }
 
 export const markWorkoutExecutionLogReviewed = markWorkoutExecutionReviewed;

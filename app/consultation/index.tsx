@@ -1,6 +1,6 @@
 import { Redirect, useRouter } from "expo-router";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -25,16 +25,16 @@ import {
 } from "../../src/core/consultation";
 import type { Student } from "../../src/core/models";
 import {
+  assertConsultationContext,
   deletePrescribedWorkout,
-  getLastConsultationPersistenceStatus,
-  getConsultationLocalState,
   markExecutionLogReviewed,
   saveConsultationProfile,
   savePrescribedWorkout,
   type ConsultationPersistenceStatus,
   type ConsultationLocalState,
+  type ConsultationContext,
 } from "../../src/db/consultation";
-import { getStudents } from "../../src/db/seed";
+import { useConsultationScreenContext, useConsultationScreenIdentity } from "../../src/hooks/use-consultation-screen-context";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { notifyConsultationEvent } from "../../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../../src/observability/perf";
@@ -337,7 +337,13 @@ const ConsultationField = ({
 );
 
 export function ConsultationScreen() {
+  const { key, organizationId } = useConsultationScreenIdentity();
+  return <ScopedConsultationScreen key={key} organizationId={organizationId} />;
+}
+
+function ScopedConsultationScreen({ organizationId }: { organizationId: string }) {
   markRender("screen.consultation.render.root");
+  const { load, getContext, isCurrent, isActive } = useConsultationScreenContext(organizationId);
   const { colors } = useAppTheme();
   const responsiveLayout = useResponsiveLayout();
   const router = useRouter();
@@ -369,6 +375,7 @@ export function ConsultationScreen() {
     "Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional."
   );
   const [notice, setNotice] = useState("");
+  const [errorNotice, setErrorNotice] = useState("");
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [editingWorkoutId, setEditingWorkoutId] = useState("");
@@ -381,37 +388,59 @@ export function ConsultationScreen() {
   const [activeConsultationTab, setActiveConsultationTab] =
     useState<ConsultationPanelTab>("profile");
   const [persistenceStatus, setPersistenceStatus] = useState<ConsultationPersistenceStatus>(
-    getLastConsultationPersistenceStatus()
+    { mode: "unavailable", reason: "missing_organization", message: "Carregando consultoria." }
   );
 
-  const syncBadgeStatus = persistenceStatus.mode === "supabase" ? "synced" : "saved_local";
+  const syncBadgeStatus = persistenceStatus.mode === "supabase" ? "synced" : persistenceStatus.mode === "local" ? "saved_local" : errorNotice ? "error" : "pending";
   const syncBadgeMessage =
-    persistenceStatus.mode === "supabase" ? "Servidor sincronizado" : "Salvo localmente";
+    persistenceStatus.mode === "supabase" ? "Servidor sincronizado" : persistenceStatus.mode === "local" ? "Salvo localmente" : persistenceStatus.message;
 
   const updatePersistenceNotice = (
     successMessage: string,
     status: ConsultationPersistenceStatus
   ) => {
+    if (status.mode === "unavailable") {
+      setNotice("");
+      setErrorNotice(status.message);
+      setPersistenceStatus(status);
+      return;
+    }
+    setErrorNotice("");
     setPersistenceStatus(status);
     setNotice(status.mode === "supabase" ? successMessage : status.message);
   };
 
-  const reload = async () => {
-    const [studentItems, consultationState] = await measureAsync(
-      "screen.consultation.load.localState",
-      () => Promise.all([getStudents(), getConsultationLocalState()])
-    );
-    setStudents(studentItems);
-    setState(consultationState);
-    setPersistenceStatus(getLastConsultationPersistenceStatus());
-    setSelectedStudentId((current) => current || studentItems[0]?.id || "");
-  };
+  const reportError = useCallback((message: string) => {
+    if (!isActive()) return;
+    setNotice("");
+    setErrorNotice(message);
+    setPersistenceStatus({ mode: "unavailable", reason: "auth", message: "Consultoria indisponível." });
+  }, [isActive]);
+
+  const reload = useCallback(async () => {
+    try {
+      const result = await measureAsync("screen.consultation.load.localState", () => load(true));
+      if (!result) return;
+      setStudents(result.students);
+      setState(result.snapshot);
+      setPersistenceStatus(result.snapshot.persistenceStatus);
+      setSelectedStudentId((current) => current || result.students[0]?.id || "");
+      setErrorNotice("");
+    } catch {
+      if (!isActive()) return;
+      setStudents([]);
+      setPilotStudent(null);
+      setState({ profiles: [], workouts: [], executionLogs: [] });
+      setSelectedStudentId("");
+      reportError("Não foi possível carregar a consultoria. Confira seu acesso e tente novamente.");
+    }
+  }, [isActive, load, reportError]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
       void reload();
     });
-  }, []);
+  }, [reload]);
 
   const consultationStudents = useMemo(
     () => (pilotStudent ? [pilotStudent, ...students] : students),
@@ -601,14 +630,34 @@ export function ConsultationScreen() {
     );
   };
 
-  const saveProfile = async () => {
+  const withLoadedContext = async (action: (context: ConsultationContext) => Promise<void>) => {
+    const context = getContext();
+    if (!context) {
+      reportError("Carregue a consultoria novamente antes de salvar.");
+      return;
+    }
+    try {
+      await action(context);
+    } catch {
+      reportError("Não foi possível salvar a alteração. Confira seu acesso e tente novamente.");
+    }
+  };
+
+  const notificationGuard = (context: ConsultationContext) => async () => {
+    if (!isCurrent(context)) throw new Error("Contexto da consultoria alterado.");
+    await assertConsultationContext(context);
+    if (!isCurrent(context)) throw new Error("Contexto da consultoria alterado.");
+  };
+
+  const saveProfile = () => withLoadedContext(async (context) => {
     if (!profileDraft) return;
-    const status = await saveConsultationProfile(profileDraft);
+    const status = await saveConsultationProfile(profileDraft, context);
+    if (!isCurrent(context)) return;
     updatePersistenceNotice("Perfil de treino salvo no servidor.", status);
     animateLayout();
     setIsProfileEditorOpen(false);
     await reload();
-  };
+  });
 
   const addPilotStudent = () => {
     const name = pilotStudentName.trim();
@@ -623,7 +672,7 @@ export function ConsultationScreen() {
     setNotice("Aluna adicionada ao piloto local.");
   };
 
-  const saveWorkoutDraft = async () => {
+  const saveWorkoutDraft = () => withLoadedContext(async (context) => {
     if (!selectedStudentId) return;
     const exercises = parseExercises(exerciseLines);
     if (!exercises.length) return;
@@ -641,61 +690,67 @@ export function ConsultationScreen() {
       status: "draft",
     });
     try {
-      const status = await savePrescribedWorkout(workout);
+      const status = await savePrescribedWorkout(workout, context);
+      if (!isCurrent(context)) return;
       updatePersistenceNotice("Treino salvo no servidor. Revise a ficha antes de publicar.", status);
       setModalInitialSnapshot("");
       setEditingWorkoutId(workout.id);
       setShowWorkoutModal(false);
       await reload();
     } finally {
-      setIsPublishing(false);
+      if (isCurrent(context)) setIsPublishing(false);
     }
-  };
+  });
 
-  const publishSavedWorkout = async (workout: PrescribedWorkout | null = latestWorkout) => {
+  const publishSavedWorkout = (workout: PrescribedWorkout | null = latestWorkout) => withLoadedContext(async (context) => {
     if (!workout) return;
-    const status = await savePrescribedWorkout({ ...workout, status: "published" });
-    await notifyConsultationEvent({
+    const status = await savePrescribedWorkout({ ...workout, status: "published" }, context);
+    if (!isCurrent(context)) return;
+    if (status.mode === "supabase") await notifyConsultationEvent({
       event: "consultation_workout_published",
       studentId: workout.studentId,
       studentName: selectedStudent?.name,
       workoutId: workout.id,
-      organizationId: selectedStudent?.organizationId,
+      organizationId: context.organizationId,
       classId: selectedStudent?.classId,
       targetUserId: selectedStudent?.studentUserId ?? undefined,
-    });
+    }, notificationGuard(context));
+    if (!isCurrent(context)) return;
     updatePersistenceNotice("Treino publicado para a aluna no servidor.", status);
     await reload();
-  };
+  });
 
-  const reviewLog = async (logId: string) => {
+  const reviewLog = (logId: string) => withLoadedContext(async (context) => {
     const reviewedLog = state.executionLogs.find((log) => log.id === logId);
     const notificationStudent = consultationStudents.find(
       (student) => student.id === (reviewedLog?.studentId ?? selectedStudentId),
     );
-    const status = await markExecutionLogReviewed(logId);
-    await notifyConsultationEvent({
+    const status = await markExecutionLogReviewed(logId, context);
+    if (!isCurrent(context)) return;
+    if (status.mode === "supabase") await notifyConsultationEvent({
       event: "consultation_execution_reviewed",
       studentId: reviewedLog?.studentId ?? selectedStudentId,
       studentName: notificationStudent?.name,
       workoutId: reviewedLog?.workoutId,
       executionLogId: logId,
-      organizationId: notificationStudent?.organizationId,
+      organizationId: context.organizationId,
       classId: notificationStudent?.classId,
       targetUserId: notificationStudent?.studentUserId ?? undefined,
-    });
+    }, notificationGuard(context));
+    if (!isCurrent(context)) return;
     updatePersistenceNotice("Feedback marcado como revisado no servidor.", status);
     await reload();
-  };
+  });
 
-  const deleteWorkout = async () => {
+  const deleteWorkout = () => withLoadedContext(async (context) => {
     if (!editingWorkoutId) return;
-    const status = await deletePrescribedWorkout(editingWorkoutId);
+    const status = await deletePrescribedWorkout(editingWorkoutId, context);
+    if (!isCurrent(context)) return;
     updatePersistenceNotice("Treino excluído no servidor.", status);
     setShowConfirmDeleteWorkout(false);
     closeWorkoutModal();
     await reload();
-  };
+  });
 
   const openWorkoutModal = (
     block: PrescriptionBlock = "prescription",
@@ -812,6 +867,15 @@ export function ConsultationScreen() {
         onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
       />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, gap: 14, paddingBottom: 32 }}>
+
+        {errorNotice ? (
+          <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.dangerBg }}>
+            <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontWeight: "800" }}>{errorNotice}</Text>
+            <Pressable onPress={() => { void reload(); }} style={{ alignSelf: "flex-start", paddingVertical: 8 }}>
+              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {notice ? (
           <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.successBg }}>

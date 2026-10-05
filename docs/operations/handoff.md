@@ -1,4 +1,29 @@
-# Continuidade — 01/10/2026
+# Continuidade — 05/10/2026
+
+## Contexto técnico, consultoria e ambiente local — 05/10/2026
+
+O [índice técnico](../context/README.md) reúne 16 guias para consulta seletiva antes
+de editar; AGENTS e o checklist foram alinhados, preservando IDs/títulos anteriores.
+[Correções locais](consultation-and-rules-sync-local.md): `req` consistente no
+handler de regulamentos; consultoria por usuário/organização, vínculo próprio do
+atleta, contexto capturado, legado preservado e guardas de notificação.
+
+O [smoke autenticado](consultation-authenticated-local-smoke-2026-10-05.md) validou
+perfil → prescrição → execução do atleta sem membership → revisão, erro 403 sem
+sucesso local, fallback de rede e isolamento entre contas/organizações. Auth,
+PostgREST/RLS e Edge Runtime reais em banco descartável; sem dados reais ou envio
+externo. Serviços temporários encerrados e processo 8081 preservado.
+
+[Preparação permanente](worktree-local-ready-2026-10-05.md): dependências próprias,
+patches existentes, configuração pública local ignorada e doctor aprovado. A
+stack compartilhada continua sem alterações; paridade de suas três migrations
+pendentes é uma decisão própria. Após a revisão dos 47 arquivos, o usuário
+autorizou commit e push para `codex/contexto-tecnico-consultoria`. A branch foi
+criada a partir de `d5120cff`; a validação de publicação usa `build:verified`.
+Confirmar o envio pelo SHA remoto e pelo histórico do commit. Core CI é acionado
+por PR/manual/workflow; EAS publica apenas em main/master. Esta autorização não
+inclui PR, merge, main, migrations ou deploy manual. Conferir resultados e limites
+nos relatórios, sem assumir estado remoto a partir do checklist.
 
 ## Publicação do pacote Engineer e alinhamento central — 01/10/2026
 

@@ -62,12 +62,14 @@ const resolveRecipientUserIds = async (
 };
 
 export async function notifyConsultationEvent(
-  payload: ConsultationNotificationPayload
+  payload: ConsultationNotificationPayload,
+  assertContextCurrent?: () => Promise<void>,
 ): Promise<ConsultationNotificationDeliveryResult> {
   const notification = buildConsultationNotification(payload);
   const eventKey = buildConsultationNotificationEventKey(payload);
 
   try {
+    await assertContextCurrent?.();
     const organizationId = String(payload.organizationId ?? "").trim();
     if (!organizationId) {
       return {
@@ -82,6 +84,7 @@ export async function notifyConsultationEvent(
       payload,
       notification.recipientRole,
     );
+    await assertContextCurrent?.();
     if (!recipientUserIds.length) {
       return {
         eventKey,
@@ -92,6 +95,7 @@ export async function notifyConsultationEvent(
     }
 
     const deliveredKeys = await readDeliveredKeys();
+    await assertContextCurrent?.();
     const deliveredSet = new Set(deliveredKeys);
     const pendingRecipients = recipientUserIds.filter(
       (recipientUserId) => !deliveredSet.has(`${eventKey}:${recipientUserId}`),
@@ -110,6 +114,7 @@ export async function notifyConsultationEvent(
     const succeededKeys: string[] = [];
 
     for (const recipientUserId of pendingRecipients) {
+      await assertContextCurrent?.();
       const createdNotification = await addNotification(
         notification.title,
         notification.body,
@@ -131,7 +136,10 @@ export async function notifyConsultationEvent(
           },
           dedupe: true,
         },
+        ...(assertContextCurrent ? [assertContextCurrent] as const : []),
       );
+      // A completed send cannot be undone; a scope change blocks every next step.
+      await assertContextCurrent?.();
       if (!createdNotification) {
         internalFailed = true;
         errors.push("Não foi possível registrar a notificação interna.");
@@ -161,16 +169,18 @@ export async function notifyConsultationEvent(
               executionLogId: payload.executionLogId ?? "",
             },
           },
-        });
+        }, ...(assertContextCurrent ? [assertContextCurrent] as const : []));
       } catch (error) {
         pushFailed = true;
         errors.push(
           error instanceof Error ? error.message : "Falha ao enviar push remoto.",
         );
       }
+      await assertContextCurrent?.();
     }
 
     if (succeededKeys.length) {
+      await assertContextCurrent?.();
       await writeDeliveredKeys([...deliveredKeys, ...succeededKeys]);
     }
 

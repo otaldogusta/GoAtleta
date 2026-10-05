@@ -196,6 +196,7 @@ export const addNotification = async (
   title: string,
   body: string,
   options: Omit<CreateNotificationInput, "title" | "body">,
+  assertContextCurrent?: () => Promise<void>,
 ) => {
   const candidate = { title, body };
   if (!isUserVisibleNotification(candidate)) return null;
@@ -204,7 +205,8 @@ export const addNotification = async (
       ...options,
       title,
       body,
-    });
+    }, ...(assertContextCurrent ? [assertContextCurrent] as const : []));
+    await assertContextCurrent?.();
     await refreshListeners(
       options.inboxScope,
       created?.organizationId ?? options.organizationId,

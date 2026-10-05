@@ -231,4 +231,38 @@ describe("consultation notifications", () => {
     expect(mockSendPushToUser).not.toHaveBeenCalled();
     expect(mockStorage).toEqual({});
   });
+
+  test("scope rotation during recipient lookup prevents internal and push delivery", async () => {
+    let current = true;
+    mockListClassHeadsByClassIds.mockImplementationOnce(async () => {
+      current = false;
+      return [{ userId: "coach-1" }];
+    });
+    const guard = async () => { if (!current) throw new Error("Contexto alterado"); };
+    const result = await notifyConsultationEvent({
+      event: "consultation_workout_completed", studentId: "student-1", workoutId: "workout-1",
+      organizationId: "org-1", classId: "class-1",
+    }, guard);
+    expect(result.internal).toBe("failed");
+    expect(mockAddNotification).not.toHaveBeenCalled();
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+    expect(mockStorage).toEqual({});
+  });
+
+  test("scope rotation after an internal send stops the next push and recipient", async () => {
+    let current = true;
+    mockListClassHeadsByClassIds.mockResolvedValue([{ userId: "coach-1" }, { userId: "coach-2" }]);
+    mockAddNotification.mockImplementationOnce(async () => {
+      current = false;
+      return { id: "already-sent" };
+    });
+    const guard = async () => { if (!current) throw new Error("Contexto alterado"); };
+    await notifyConsultationEvent({
+      event: "consultation_workout_completed", studentId: "student-1", workoutId: "workout-1",
+      organizationId: "org-1", classId: "class-1",
+    }, guard);
+    expect(mockAddNotification).toHaveBeenCalledTimes(1);
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+    expect(mockStorage).toEqual({});
+  });
 });

@@ -21,7 +21,10 @@ export type SendPushResult = {
 
 const PUSH_REQUEST_TIMEOUT_MS = 10_000;
 
-export async function sendPushToUser(input: SendPushInput): Promise<SendPushResult> {
+export async function sendPushToUser(
+  input: SendPushInput,
+  assertContextCurrent?: () => Promise<void>,
+): Promise<SendPushResult> {
   const token = await getValidAccessToken();
   if (!token) {
     throw new Error("Sessão inválida. Faça login novamente.");
@@ -32,6 +35,7 @@ export async function sendPushToUser(input: SendPushInput): Promise<SendPushResu
 
   let response: Response;
   try {
+    await assertContextCurrent?.();
     response = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
       method: "POST",
       headers: {

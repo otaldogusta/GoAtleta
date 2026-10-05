@@ -231,8 +231,8 @@ export const supabaseRequest = async (
   }
 };
 
-export const supabaseGet = async <T>(path: string) => {
-  const text = await supabaseRequest("GET", path);
+export const supabaseGet = async <T>(path: string, identity?: SessionIdentity) => {
+  const text = await supabaseRequest("GET", path, undefined, undefined, identity);
   return safeJsonParse<T>(text, [] as T);
 };
 
@@ -258,8 +258,8 @@ export const supabasePatch = async <T>(
   return safeJsonParse<T>(text, [] as T);
 };
 
-export const supabaseDelete = async (path: string) => {
-  await supabaseRequest("DELETE", path);
+export const supabaseDelete = async (path: string, identity?: SessionIdentity) => {
+  await supabaseRequest("DELETE", path, undefined, undefined, identity);
 };
 
 // ---------------------------------------------------------------------------
@@ -278,6 +278,8 @@ export const CACHE_KEYS = {
 
 const READ_CACHE_PREFIX = "read-cache:v2:";
 let cacheGeneration = 0;
+// A workspace/account change invalidates a compound operation, including A -> B -> A.
+export const getReadCacheGeneration = () => cacheGeneration;
 const isReadCache = (key: string) => Object.values(CACHE_KEYS).some(
   (base) => key === base || key.startsWith(`${base}_`),
 );

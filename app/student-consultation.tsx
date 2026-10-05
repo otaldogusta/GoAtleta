@@ -13,13 +13,12 @@ import {
   getWorkoutAttentionSignal,
 } from "../src/core/consultation";
 import {
-  getLastConsultationPersistenceStatus,
-  getConsultationLocalState,
+  assertConsultationContext,
   saveWorkoutExecutionLog,
   type ConsultationPersistenceStatus,
   type ConsultationLocalState,
 } from "../src/db/consultation";
-import { getStudents } from "../src/db/seed";
+import { useConsultationScreenContext, useConsultationScreenIdentity, type ConsultationStudentScope } from "../src/hooks/use-consultation-screen-context";
 import { notifyConsultationEvent } from "../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius } from "../src/theme/tokens";
@@ -86,7 +85,23 @@ function ScalePicker({
 }
 
 export default function StudentConsultationScreen() {
+  const { key, organizationId } = useConsultationScreenIdentity();
+  const { student } = useRole();
+  const params = useLocalSearchParams<{ devStudentEmail?: string; devStudentId?: string }>();
+  const devPreview = __DEV__ && Boolean(params.devStudentId || params.devStudentEmail);
+  const studentScope = !devPreview && student?.id && student.organizationId
+    ? { studentId: student.id, organizationId: student.organizationId }
+    : undefined;
+  return <ScopedStudentConsultationScreen
+    key={`${key}:${student?.id ?? ""}:${student?.organizationId ?? ""}:${params.devStudentId ?? ""}:${params.devStudentEmail ?? ""}`}
+    organizationId={studentScope?.organizationId ?? organizationId}
+    studentScope={studentScope}
+  />;
+}
+
+function ScopedStudentConsultationScreen({ organizationId, studentScope }: { organizationId: string; studentScope?: ConsultationStudentScope }) {
   markRender("screen.studentConsultation.render.root");
+  const { load, getContext, isCurrent, isActive } = useConsultationScreenContext(organizationId, studentScope);
   const { colors } = useAppTheme();
   const { student } = useRole();
   const params = useLocalSearchParams<{
@@ -105,8 +120,9 @@ export default function StudentConsultationScreen() {
   const [pain, setPain] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [doneWorkoutId, setDoneWorkoutId] = useState("");
+  const [errorNotice, setErrorNotice] = useState("");
   const [persistenceStatus, setPersistenceStatus] = useState<ConsultationPersistenceStatus>(
-    getLastConsultationPersistenceStatus()
+    { mode: "unavailable", reason: "missing_organization", message: "Carregando consultoria." }
   );
 
   const devStudentId = Array.isArray(params.devStudentId)
@@ -115,35 +131,45 @@ export default function StudentConsultationScreen() {
   const devStudentEmail = Array.isArray(params.devStudentEmail)
     ? params.devStudentEmail[0]
     : params.devStudentEmail;
-  const activeStudent = __DEV__ && devStudent ? devStudent : student;
+  const requestedStudent = __DEV__ && devStudent ? devStudent : student;
+  const activeStudent = requestedStudent?.organizationId === organizationId ? requestedStudent : null;
   const shouldLoadDevStudent = __DEV__ && Boolean(devStudentId || devStudentEmail);
 
   const reload = useCallback(async () => {
+    if (!isActive()) return;
     setLoading(true);
-    const [consultationState, studentItems] = await measureAsync(
-      "screen.studentConsultation.load.localState",
-      () =>
-        Promise.all([
-          getConsultationLocalState(),
-          shouldLoadDevStudent ? getStudents() : Promise.resolve([]),
-        ])
-    );
-    if (shouldLoadDevStudent) {
-      const normalizedEmail = devStudentEmail?.trim().toLocaleLowerCase("pt-BR") ?? "";
-      const matchedStudent =
-        studentItems.find((item) => item.id === devStudentId) ??
-        studentItems.find(
-          (item) => item.loginEmail?.trim().toLocaleLowerCase("pt-BR") === normalizedEmail
-        ) ??
-        null;
-      setDevStudent(matchedStudent);
-    } else {
+    try {
+      const result = await measureAsync(
+        "screen.studentConsultation.load.localState",
+        () => load(shouldLoadDevStudent)
+      );
+      if (!result) return;
+      const { snapshot, students: studentItems } = result;
+      if (shouldLoadDevStudent) {
+        const normalizedEmail = devStudentEmail?.trim().toLocaleLowerCase("pt-BR") ?? "";
+        const matchedStudent =
+          studentItems.find((item) => item.id === devStudentId) ??
+          studentItems.find(
+            (item) => item.loginEmail?.trim().toLocaleLowerCase("pt-BR") === normalizedEmail
+          ) ??
+          null;
+        setDevStudent(matchedStudent);
+      } else {
+        setDevStudent(null);
+      }
+      setState(snapshot);
+      setPersistenceStatus(snapshot.persistenceStatus);
+      setErrorNotice("");
+      setLoading(false);
+    } catch {
+      if (!isActive()) return;
+      setState({ profiles: [], workouts: [], executionLogs: [] });
       setDevStudent(null);
+      setPersistenceStatus({ mode: "unavailable", reason: "auth", message: "Consultoria indisponível." });
+      setErrorNotice("Não foi possível carregar a consultoria. Confira seu acesso e tente novamente.");
+      setLoading(false);
     }
-    setState(consultationState);
-    setPersistenceStatus(getLastConsultationPersistenceStatus());
-    setLoading(false);
-  }, [devStudentEmail, devStudentId, shouldLoadDevStudent]);
+  }, [devStudentEmail, devStudentId, isActive, load, shouldLoadDevStudent]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -176,6 +202,16 @@ export default function StudentConsultationScreen() {
 
   const submit = async () => {
     if (!workout) return;
+    const context = getContext();
+    if (!context) {
+      if (isActive()) setErrorNotice("Carregue a consultoria novamente antes de enviar.");
+      return;
+    }
+    const notificationGuard = async () => {
+      if (!isCurrent(context)) throw new Error("Contexto da consultoria alterado.");
+      await assertConsultationContext(context);
+      if (!isCurrent(context)) throw new Error("Contexto da consultoria alterado.");
+    };
     const log = createWorkoutExecutionLog({
       id: createWorkoutExecutionLogId(workout.id),
       workout,
@@ -184,32 +220,44 @@ export default function StudentConsultationScreen() {
       painLevel: pain,
       studentFeedback: feedback,
     });
-    const status = await saveWorkoutExecutionLog(log);
-    await notifyConsultationEvent({
-      event: "consultation_workout_completed",
-      studentId: log.studentId,
-      studentName: activeStudent?.name,
-      workoutId: log.workoutId,
-      executionLogId: log.id,
-      organizationId: activeStudent?.organizationId,
-      classId: activeStudent?.classId,
-    });
-    if ((log.painLevel ?? 0) >= 7) {
-      await notifyConsultationEvent({
-        event: "consultation_high_pain_reported",
+    try {
+      const status = await saveWorkoutExecutionLog(log, context);
+      if (!isCurrent(context)) return;
+      if (status.mode === "unavailable") throw new Error("Consultoria indisponível.");
+      if (status.mode === "supabase") await notifyConsultationEvent({
+        event: "consultation_workout_completed",
         studentId: log.studentId,
         studentName: activeStudent?.name,
         workoutId: log.workoutId,
         executionLogId: log.id,
-        organizationId: activeStudent?.organizationId,
+        organizationId: context.organizationId,
         classId: activeStudent?.classId,
-      });
+      }, notificationGuard);
+      if (!isCurrent(context)) return;
+      if (status.mode === "supabase" && (log.painLevel ?? 0) >= 7) {
+        await notifyConsultationEvent({
+          event: "consultation_high_pain_reported",
+          studentId: log.studentId,
+          studentName: activeStudent?.name,
+          workoutId: log.workoutId,
+          executionLogId: log.id,
+          organizationId: context.organizationId,
+          classId: activeStudent?.classId,
+        }, notificationGuard);
+      }
+      if (!isCurrent(context)) return;
+      setErrorNotice("");
+      setPersistenceStatus(status);
+      setDoneWorkoutId(workout.id);
+      setStarted(false);
+      setFeedback("");
+      await reload();
+    } catch {
+      if (!isActive()) return;
+      setDoneWorkoutId("");
+      setPersistenceStatus({ mode: "unavailable", reason: "auth", message: "Consultoria indisponível." });
+      setErrorNotice("Não foi possível enviar o feedback. Confira seu acesso e tente novamente.");
     }
-    setPersistenceStatus(status);
-    setDoneWorkoutId(workout.id);
-    setStarted(false);
-    setFeedback("");
-    await reload();
   };
 
   const openExerciseMedia = async (url: string) => {
@@ -238,17 +286,26 @@ export default function StudentConsultationScreen() {
             Siga o treino publicado e envie como foi para o professor.
           </Text>
           <SyncStatusBadge
-            status={persistenceStatus.mode === "supabase" ? "synced" : "saved_local"}
+            status={persistenceStatus.mode === "supabase" ? "synced" : persistenceStatus.mode === "local" ? "saved_local" : errorNotice ? "error" : "pending"}
             message={
               __DEV__ && devStudent
                 ? `Modo teste: ${devStudent.name}`
                 : persistenceStatus.mode === "supabase"
                   ? "Servidor sincronizado"
-                  : "Salvo localmente"
+                  : persistenceStatus.mode === "local" ? "Salvo localmente" : persistenceStatus.message
             }
             size="sm"
           />
         </View>
+
+        {errorNotice ? (
+          <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.dangerBg }}>
+            <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontWeight: "800" }}>{errorNotice}</Text>
+            <Pressable onPress={() => { void reload(); }} style={{ alignSelf: "flex-start", paddingVertical: 8 }}>
+              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
           <Text style={{ color: colors.warningText, fontWeight: "800", lineHeight: 18 }}>
@@ -258,7 +315,7 @@ export default function StudentConsultationScreen() {
 
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
-        ) : !workout ? (
+        ) : errorNotice && !workout ? null : !workout ? (
           <View style={{ gap: 8, padding: 16, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
             <GoAtletaIcon name="success" size={24} color={colors.successText} />
             <Text style={{ color: colors.text, fontWeight: "900" }}>Nenhum treino publicado para hoje.</Text>
@@ -428,7 +485,7 @@ export default function StudentConsultationScreen() {
         {attention ? (
           <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: attention.tone === "danger" ? colors.dangerBg : attention.tone === "warning" ? colors.warningBg : colors.successBg }}>
             <Text style={{ color: attention.tone === "danger" ? colors.dangerText : attention.tone === "warning" ? colors.warningText : colors.successText, fontWeight: "900" }}>
-              Feedback enviado · {attention.label}
+              {persistenceStatus.mode === "supabase" ? "Feedback enviado" : "Feedback salvo neste dispositivo"} · {attention.label}
             </Text>
             <Text style={{ color: colors.text, marginTop: 4 }}>{attention.description}</Text>
             {persistenceStatus.mode === "local" ? (

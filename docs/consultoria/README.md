@@ -29,14 +29,32 @@ A persistência do fluxo de consultoria utiliza tabelas dedicadas no Supabase co
 *Nota:* Os IDs das tabelas são strings (tipo `text`) para manter compatibilidade total com os IDs gerados localmente pelo app.
 
 ### Comportamento do Repositório (`src/db/consultation.ts`)
-O repositório tenta salvar e carregar dados do Supabase. Caso ocorra alguma falha, ele ativa silenciosamente o fallback local em `src/db/consultation-local.ts`.
-Os estados tratados são:
-- `supabase`: Sincronização e rede ativas no servidor.
-- `missing_organization`: Sem workspace ativo.
-- `missing_schema`: Migrations não aplicadas localmente.
-- `auth`: Sessão de autenticação expirada ou inexistente.
-- `permission`: Erro de RLS ou permissões.
-- `network`: Sem conectividade com a internet.
+O repositório tenta salvar e carregar dados do Supabase no contexto capturado no
+carregamento da tela. Desde a correção local de 05/10/2026, somente falhas de rede
+ou schema ausente permitem fallback em `src/db/consultation-local.ts`.
+Para atleta sem cargo organizacional, o contexto usa seu vínculo autenticado,
+verificado no servidor antes da primeira abertura; não depende de criar membership.
+Os resultados distinguem:
+- `supabase`: Operação concluída no servidor.
+- `missing_schema` ou `network`: Estado local, sem promessa de sincronização automática.
+- `unavailable`: Contexto ainda não carregado; não significa dado salvo.
+
+Ausência de usuário/organização, troca de identidade, falha de autenticação,
+negação de permissão e erro desconhecido interrompem a operação. Não viram sucesso
+local. A tela conserva o contexto do snapshot para as mutações e descarta respostas
+atrasadas; troca de conta/organização reinicia o estado visual. Notificações do fluxo
+são solicitadas somente após resultado `supabase` ainda válido.
+
+Novos dados locais usam `goatleta_consultation_v2:<usuário>:<organização>` com
+envelope de proprietário/versionamento e mutações serializadas por chave.
+`goatleta_consultation_v1` permanece intacto e fora da leitura automática: o formato
+antigo não permite provar autoria. Não atribuir esses registros ao primeiro usuário
+que abrir a tela nem apagá-los como cache. Recuperação exige revisão explícita da
+origem; esta correção não implementa importação ou envio automático do legado.
+Detalhes e validação em [correções locais](../operations/consultation-and-rules-sync-local.md).
+O [smoke autenticado local](../operations/consultation-authenticated-local-smoke-2026-10-05.md)
+validou o fluxo com contas fictícias e RLS real em banco descartável; não preenche
+o checklist de piloto real com alunas abaixo.
 
 A interface exibe badges de sincronização discretos baseados nessa resposta:
 - `Servidor sincronizado`

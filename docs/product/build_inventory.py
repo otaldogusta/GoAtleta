@@ -239,6 +239,11 @@ add('Consultoria individual', '/consultation', 'docs/consultoria/README.md', """
 code|Entrada do profissional|Rota própria.|app/consultation/index.tsx
 code|Entrada do aluno|Rota individual.|app/student-consultation.tsx
 code|Banco e regras|Camada específica.|src/db/consultation.ts
+code|Consultoria local isolada|Novas escritas v2 por usuário e organização, envelope validado e fila serializada; contexto capturado cancela operações/respostas após troca de conta ou workspace.|src/db/consultation-context.ts
+code|Legado de consultoria preservado|Armazenamento v1 sem autoria comprovável fica intacto e fora da leitura automática; nenhuma adoção ou sincronização automática.|src/db/consultation-local.ts
+code|Falhas de acesso não viram sucesso local|Fallback somente para rede/schema; ausência de contexto, autenticação/permissão negada e troca de identidade interrompem a operação. Atleta sem cargo usa vínculo próprio verificado.|src/db/consultation.ts
+recorded|Validação local do isolamento da consultoria|118 testes focados e checks locais aprovados; smoke autenticado posterior validou perfil, publicação, atleta sem membership, revisão, 403 sem sucesso falso e fallback isolado. Ambiente remoto não certificado.|docs/operations/consultation-and-rules-sync-local.md
+recorded|Smoke autenticado local da consultoria|Navegador 8082, Auth/PostgREST/RLS reais com fixtures descartáveis e duas organizações; execução/revisão e isolamento local comprovados. Fontes do worktree verificadas; resolução temporária e serviços de QA encerrados.|docs/operations/consultation-authenticated-local-smoke-2026-10-05.md
 code|Notificações do fluxo|Eventos próprios.|src/notifications/consultationNotifications.ts
 recorded|Prescrição com demonstração|Link de mídia opcional por exercício.
 recorded|Feedback e alertas|Execução, dor alta e baixa adesão descritos.
@@ -359,14 +364,18 @@ code|Executor de validação de release|11 gates existentes com até dois proces
 recorded|Medição local do executor|Em 02/10/2026: pacote completo em 279s; repetição sem alterações em 7s com cinco resultados reaproveitados. 540 suites, 2.979 testes, sete suites SQL e export web aprovados. Teste focado adicional protege exclusão de arquivo. CI remoto ainda pendente.|docs/operations/release-validation.md
 pending|Ativação remota do executor|Implementação local; workflow e cache do GitHub Actions precisam de publicação e primeira execução real. Promoção condicionada na Vercel não foi implementada.|docs/operations/release-validation.md
 code|Escada de validação|Checks proporcionais ao risco.|docs/operations/validation-ladder.md
+code|Contexto técnico por módulo|16 guias curtos com responsabilidades, arquivos, contratos, decisões, fontes históricas e validações selecionáveis; base de código d5120cff inspecionada em 05/10/2026.|docs/context/README.md
+code|Consulta seletiva antes das edições|AGENTS orienta escolher o módulo afetado e conferir código e testes; fontes antigas não viram requisitos nem autorizações automáticas.|AGENTS.md
+recorded|Revisão documental de 05/10|Referências locais, geração, marca, encoding e diff conferidos; 359 itens anteriores preservados com seus IDs e títulos. Sem testes funcionais, smoke do app ou validação remota nesta entrega.|docs/context/revisao-2026-10-05.md
 recorded|Checklist atualizado por entrega|AGENTS.md exige atualizar os itens afetados sem novo pedido; perguntas sem mudança de estado dispensam regeneração.|AGENTS.md
 code|Continuidade entre máquinas|Setup, doctor e handoff versionados.|docs/operations/workstations.md
 code|Build verificado|validate:app e export web.|package.json
 code|Testes unitários e SQL|Scripts específicos.|package.json
 code|Escopo, arquitetura e performance|Checks separados.|package.json
-pending|Preparar este worktree|dev:doctor de 01/10 detectou dependências e configuração pública local ausentes.|docs/operations/workstations.md
+recorded|Preparar este worktree|Em 05/10, dependências próprias, patches, configuração pública local e doctor aprovados; runtime autenticado com Metro padrão validado e processo 8081 preservado. Pacote de 47 arquivos autorizado para commit/push em codex/contexto-tecnico-consultoria; main/produção fora do escopo.|docs/operations/worktree-local-ready-2026-10-05.md
+pending|Paridade do banco local compartilhado|A stack local permanece em 20260921205434; três migrations posteriores do checkout foram usadas apenas em bancos descartáveis. Doctor não certifica schema nem todos os módulos; banco compartilhado não recebeu reset/migration.|docs/operations/worktree-local-ready-2026-10-05.md
 verify|Produção atual|HEAD não certifica Vercel/EAS, Edge Functions ou migrações remotas.
-future|Fluxo econômico de tarefas|Entrega por módulo, contexto enxuto e checks proporcionais; sugestão de processo.|docs/operations/validation-ladder.md
+code|Fluxo econômico de tarefas|Índice e guias locais orientam consulta por módulo e validação proporcional. Organização documental implementada; não representa ativação de agentes nem validação funcional do app.|docs/context/README.md
 """)
 
 add('Início do professor · rotina e agenda', '/prof/home', 'src/screens/home/HomeProfessor.tsx', """
@@ -385,6 +394,9 @@ code|Perfil por papel|Entradas de professor, coordenação, atleta e família.|a
 code|Configuração de WhatsApp|Rota de retorno/configuração; conclusão do Embedded Signup depende do servidor.|app/whatsapp-settings.tsx
 code|Fontes regulamentares|Rota para fontes.|app/regulation-sources.tsx
 code|Histórico regulamentar|Rotas gerais e por papel.|app/regulation-history.tsx
+code|Handler de sincronização administrativa corrigido|Parâmetro req consistente em CORS e respostas, preservando autorização e limite de requisições. Correção local, sem publicação da Edge Function.|supabase/functions/rules-sync-admin/index.ts
+recorded|Regressão de rules-sync-admin|12 testes reproduziram req indefinido e passaram após correção; handler e CORS reais com backend/sincronizador simulados, sem rede.|supabase/functions/_shared/__tests__/rules-sync-admin-handler.test.ts
+recorded|Runtime local de rules-sync-admin|Edge Runtime real com Auth/PostgREST isolados: OPTIONS, 405, 401, 400, negação por organização e 200 autorizado com fonte inativa. Download, cron e publicação da função não certificados.|docs/operations/consultation-authenticated-local-smoke-2026-10-05.md
 verify|Preferências e permissões nativas|Conferir tema, sessão e retorno das configurações do sistema.|docs/operations/handoff.md
 """)
 add('Interface compartilhada · padrões', 'Transversal', 'docs/ui/DENSITY_AUDIT.md', """
