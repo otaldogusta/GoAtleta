@@ -4,7 +4,7 @@ import { useAuth } from "../../auth/auth";
 import { measureAsync } from "../../observability/perf";
 import { getClassById, getStudentsByClass, listTechnicalVisualsByClass, saveTechnicalVisual } from "../../db/seed";
 import type { ClassGroup, Student } from "../../core/models";
-import { buildEditable5x1ReceptionPreset, build5x1ServingPreset, buildDefenseBase6BackPreset, buildDidacticRotationGridPreset, type CourtVisualDocument, type CourtVisualPayload } from "../../core/visual-court";
+import { buildEditable5x1ReceptionPreset, type CourtVisualDocument, type CourtVisualPayload } from "../../core/visual-court";
 import { editorId, newCourtBoard, upgradeCourtEditor, type EditorSnapshot } from "../../core/visual-court-editor";
 
 type History = { present: EditorSnapshot; past: EditorSnapshot[]; future: EditorSnapshot[] };
@@ -19,17 +19,22 @@ export function useCourtEditor(classId: string) {
   const [history, setHistoryState] = useState(initial);
   const historyRef = useRef(history);
   const [loading, setLoading] = useState(true);
+  const [opening, setOpening] = useState(false);
+  const openingRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [savedSignature, setSavedSignature] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
+  const [draftError, setDraftError] = useState("");
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const generation = useRef(0);
   const savingRef = useRef(false);
   const activeDocumentRef = useRef<string | null>(null);
   const signature = JSON.stringify(history.present.payload);
   const dirty = signature !== savedSignature;
+  const needsSync = !activeDocumentId || activeDocumentId.startsWith("local_") || activeDocumentId.startsWith("template_");
+  const canSave = !loading && !saving && !opening && Boolean(cls?.organizationId) && (dirty || needsSync);
   const draftKey = cls?.organizationId && userId ? `goatleta:court-draft:v2:${userId}:${cls.organizationId}:${classId}` : null;
   const current = useRef(history.present);
   const setHistory = useCallback((change: History | ((old: History) => History)) => {
@@ -54,10 +59,7 @@ export function useCourtEditor(classId: string) {
         try { const parsed: unknown = JSON.parse(trashRaw || "[]"); if (Array.isArray(parsed)) trash = parsed.filter((id): id is string => typeof id === "string"); } catch { /* Keep the library accessible if preferences are damaged. */ }
         if (!active || run !== generation.current) return;
         setTrashedIds(trash);
-        const templates = [
-          ["5×1 · Recepção", buildEditable5x1ReceptionPreset()], ["5×1 · Saque", build5x1ServingPreset()],
-          ["Defesa · 6 fundo", buildDefenseBase6BackPreset()], ["Grade didática", buildDidacticRotationGridPreset()],
-        ] as [string, CourtVisualPayload][];
+        const templates = [["5×1 · Recepção", buildEditable5x1ReceptionPreset()]] as [string, CourtVisualPayload][];
         const locals: CourtVisualDocument[] = templates.map(([title, payload], i) => ({ id: `template_${i}`, classId, organizationId: classData.organizationId!, sourceKind: "rotation", title, payload, createdAt: "", updatedAt: "" }));
         const backupPrefix = `goatleta:court-draft:v2:${userId}:${classData.organizationId}:${classId}:backup:`;
         const backups: CourtVisualDocument[] = [];
@@ -77,7 +79,7 @@ export function useCourtEditor(classId: string) {
         let recovered = false;
         try {
           const raw = await AsyncStorage.getItem(`goatleta:court-draft:v2:${userId}:${classData.organizationId}:${classId}`);
-          if (raw) { const stored = JSON.parse(raw); if (stored.payload?.editor?.version === 1 && stored.payload.timeline?.steps?.length) { snapshot = { payload: upgradeCourtEditor(stored.payload, stored.payload.editor.title || "Jogada"), stepIndex: Math.min(stored.stepIndex || 0, stored.payload.timeline.steps.length - 1) }; openedDocumentId = typeof stored.documentId === "string" ? stored.documentId : openedDocumentId; recovered = true; } }
+          if (raw) { const stored = JSON.parse(raw); if (stored.payload?.editor?.version === 1 && stored.payload.timeline?.steps?.length) { snapshot = { payload: upgradeCourtEditor(stored.payload, stored.payload.editor.title || "Jogada"), stepIndex: Math.min(stored.stepIndex || 0, stored.payload.timeline.steps.length - 1) }; openedDocumentId = typeof stored.documentId === "string" ? stored.documentId : openedDocumentId; recovered = stored.unsaved !== false; } }
         } catch { /* Broken cache never prevents opening an authorized remote document. */ }
         if (!active || run !== generation.current) return;
         setClass(classData); setRoster(students); setDocuments(all);
@@ -85,6 +87,7 @@ export function useCourtEditor(classId: string) {
         activeDocumentRef.current = openedDocumentId;
         setActiveDocumentId(openedDocumentId);
         setSavedSignature(recovered ? "" : JSON.stringify(snapshot.payload));
+        setDraftStatus(""); setDraftError("");
         setNotice(recovered ? "Rascunho recuperado neste dispositivo." : "");
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "Não foi possível abrir a quadra."); }
       finally { if (active) setLoading(false); }
@@ -93,13 +96,13 @@ export function useCourtEditor(classId: string) {
   }, [classId, userId, setHistory]);
 
   useEffect(() => {
-    if (!draftKey || loading || !dirty) return;
+    if (!draftKey || loading || opening || !dirty) return;
     let active = true;
     const timer = setTimeout(() => {
-      void AsyncStorage.setItem(draftKey, JSON.stringify({ ...history.present, documentId: activeDocumentRef.current })).then(() => { if (active) setDraftStatus("Rascunho salvo no dispositivo"); }).catch(() => { if (active) setDraftStatus("Falha ao guardar rascunho. Exporte uma cópia."); });
+      void AsyncStorage.setItem(draftKey, JSON.stringify({ ...history.present, documentId: activeDocumentRef.current })).then(() => { if (active) { setDraftStatus("Neste dispositivo"); setDraftError(""); } }).catch(() => { if (active) setDraftError("Falha no rascunho. Exporte uma cópia."); });
     }, 300);
     return () => { active = false; clearTimeout(timer); };
-  }, [draftKey, dirty, history.present, loading]);
+  }, [draftKey, dirty, history.present, loading, opening]);
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
     const before = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
@@ -113,29 +116,48 @@ export function useCourtEditor(classId: string) {
       if (payload === h.present.payload && stepIndex === undefined) return h;
       return { present: { payload, stepIndex: Math.min(stepIndex ?? h.present.stepIndex, payload.timeline.steps.length - 1) }, past: [...h.past.slice(-79), h.present], future: [] };
     });
-    setNotice(""); setError("");
+    setDraftStatus(""); setNotice(""); setError("");
   }, [setHistory]);
   const selectStep = useCallback((i: number) => setHistory(h => ({ ...h, present: { ...h.present, stepIndex: Math.max(0, Math.min(i, h.present.payload.timeline.steps.length - 1)) } })), [setHistory]);
-  const undo = useCallback(() => setHistory(h => h.past.length ? { present: h.past[h.past.length - 1], past: h.past.slice(0, -1), future: [h.present, ...h.future] } : h), [setHistory]);
-  const redo = useCallback(() => setHistory(h => h.future.length ? { present: h.future[0], past: [...h.past, h.present], future: h.future.slice(1) } : h), [setHistory]);
+  const undo = useCallback(() => { setDraftStatus(""); setHistory(h => h.past.length ? { present: h.past[h.past.length - 1], past: h.past.slice(0, -1), future: [h.present, ...h.future] } : h); }, [setHistory]);
+  const redo = useCallback(() => { setDraftStatus(""); setHistory(h => h.future.length ? { present: h.future[0], past: [...h.past, h.present], future: h.future.slice(1) } : h); }, [setHistory]);
   const open = async (payload: CourtVisualPayload, documentId?: string | null) => {
-    if (dirty && draftKey) {
-      const id = `local_${editorId()}`;
-      const old: CourtVisualDocument = { id, classId, organizationId: cls!.organizationId!, title: history.present.payload.editor!.title, sourceKind: "free", payload: history.present.payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      // Keep switched-away work in the existing scoped local document store through an explicit local backup key.
-      await AsyncStorage.setItem(`${draftKey}:backup:${id}`, JSON.stringify(old));
-      setDocuments(list => [old, ...list]);
-    }
-    setHistory({ present: { payload, stepIndex: 0 }, past: [], future: [] });
-    activeDocumentRef.current = documentId ?? null;
-    setActiveDocumentId(documentId ?? null);
-    setSavedSignature(""); setError(""); setNotice("Cópia aberta para edição. O original foi preservado.");
+    if (savingRef.current || openingRef.current) return false;
+    if (documentId && documentId === activeDocumentRef.current) return true;
+    const run = generation.current;
+    openingRef.current = true;
+    setOpening(true);
+    try {
+      const previous = current.current;
+      if (JSON.stringify(previous.payload) !== savedSignature && draftKey) {
+        const existing = documents.find(document => document.id === activeDocumentRef.current);
+        // A local file keeps its identity while edited. A model/remote source
+        // retains its original row and receives a separate recoverable local draft.
+        const local = existing?.id.startsWith("local_") ? existing : undefined;
+        const id = activeDocumentRef.current?.startsWith("local_") ? activeDocumentRef.current : `local_${editorId()}`;
+        const timestamp = new Date().toISOString();
+        const backup: CourtVisualDocument = { ...local, id, classId, organizationId: cls!.organizationId!, title: previous.payload.editor!.title, sourceKind: local?.sourceKind ?? "free", payload: previous.payload, createdAt: local?.createdAt || timestamp, updatedAt: timestamp };
+        await AsyncStorage.setItem(`${draftKey}:backup:${id}`, JSON.stringify(backup));
+        if (run !== generation.current) return false;
+        setDocuments(list => list.some(document => document.id === id)
+          ? list.map(document => document.id === id ? backup : document)
+          : [...list, backup]);
+      }
+      // Only selection is persisted when opening an untouched file.
+      if (draftKey) await AsyncStorage.setItem(draftKey, JSON.stringify({ payload, stepIndex: 0, documentId: documentId ?? null, unsaved: false }));
+      if (run !== generation.current) return false;
+      setHistory({ present: { payload, stepIndex: 0 }, past: [], future: [] });
+      activeDocumentRef.current = documentId ?? null;
+      setActiveDocumentId(documentId ?? null);
+      setSavedSignature(JSON.stringify(payload)); setDraftStatus(""); setDraftError(""); setError(""); setNotice("");
+      return true;
+    } finally { openingRef.current = false; setOpening(false); }
   };
   const save = async (title?: string) => {
-    if (!cls?.organizationId || savingRef.current) return false;
+    if (!cls?.organizationId || savingRef.current || openingRef.current) return false;
     const currentSnapshot = current.current;
     const snapshot = title ? { ...currentSnapshot, payload: { ...currentSnapshot.payload, editor: { ...currentSnapshot.payload.editor!, title: title.trim() } } } : currentSnapshot;
-    if (JSON.stringify(snapshot.payload) === savedSignature) return true;
+    if (JSON.stringify(snapshot.payload) === savedSignature && activeDocumentRef.current && !activeDocumentRef.current.startsWith("local_") && !activeDocumentRef.current.startsWith("template_")) return true;
     const run = generation.current;
     savingRef.current = true;
     setSaving(true); setError("");
@@ -148,19 +170,31 @@ export function useCourtEditor(classId: string) {
       if (run !== generation.current) return;
       if (!saved) throw new Error("Não foi possível salvar. Seu rascunho permanece no dispositivo.");
       if (title) setHistory(h => h.present.payload === currentSnapshot.payload ? { ...h, present: snapshot } : h);
-      setDocuments(list => [saved, ...list.filter(document => document.id !== saved.id)]);
+      setDocuments(list => list.some(document => document.id === saved.id || (currentDocumentId?.startsWith("local_") && document.id === currentDocumentId))
+        ? list.map(document => document.id === saved.id || (currentDocumentId?.startsWith("local_") && document.id === currentDocumentId) ? saved : document)
+        : [...list, saved]);
       activeDocumentRef.current = saved.id;
       setActiveDocumentId(saved.id);
       setSavedSignature(JSON.stringify(snapshot.payload));
+      setDraftStatus("");
       setNotice(saved.id.startsWith("local_") ? "Jogada salva neste dispositivo; sincronização pendente." : updateId ? "Jogada atualizada na turma." : "Jogada salva na turma.");
-      if (draftKey && JSON.stringify(current.current.payload) === JSON.stringify(snapshot.payload)) await AsyncStorage.removeItem(draftKey);
+      if (draftKey && JSON.stringify(current.current.payload) === JSON.stringify(snapshot.payload)) {
+        try {
+          if (saved.id.startsWith("local_")) await AsyncStorage.setItem(draftKey, JSON.stringify({ ...snapshot, documentId: saved.id, unsaved: false }));
+          else {
+            await AsyncStorage.removeItem(draftKey);
+            if (currentDocumentId?.startsWith("local_")) await AsyncStorage.removeItem(`${draftKey}:backup:${currentDocumentId}`);
+          }
+          setDraftError("");
+        } catch { setDraftError("Falha no rascunho. Exporte uma cópia."); }
+      }
       return true;
     } catch (e) { setError(e instanceof Error ? e.message : "Falha ao salvar."); }
     finally { savingRef.current = false; setSaving(false); }
   };
   const preserveDraft = async () => {
     if (!draftKey) return false;
-    try { await AsyncStorage.setItem(draftKey, JSON.stringify({ ...current.current, documentId: activeDocumentRef.current })); return true; }
+    try { await AsyncStorage.setItem(draftKey, JSON.stringify({ ...current.current, documentId: activeDocumentRef.current })); setDraftError(""); return true; }
     catch { setError("Não foi possível guardar o rascunho. Exporte uma cópia antes de sair."); return false; }
   };
   const trashBusy = useRef(false);
@@ -177,5 +211,5 @@ export function useCourtEditor(classId: string) {
     } catch { setError("Não foi possível atualizar a lixeira. Tente novamente."); }
     finally { trashBusy.current = false; }
   };
-  return { ...history.present, cls, roster, documents, trashedIds, activeDocumentId, setDocumentTrashed, loading, saving, error, notice, dirty, draftStatus, canUndo: !!history.past.length, canRedo: !!history.future.length, commit, selectStep, undo, redo, open, save, preserveDraft, setError, setNotice };
+  return { ...history.present, cls, roster, documents, trashedIds, activeDocumentId, setDocumentTrashed, loading, opening, saving, error, notice, dirty, needsSync, canSave, draftStatus, draftError, canUndo: !!history.past.length, canRedo: !!history.future.length, commit, selectStep, undo, redo, open, save, preserveDraft, setError, setNotice };
 }

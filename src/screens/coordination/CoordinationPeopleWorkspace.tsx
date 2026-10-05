@@ -1618,6 +1618,8 @@ export function CoordinationPeopleWorkspace({
     <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}>
       {profileMember ? <StaffProfilePage
         key={`${organizationId}:${profileMember.userId}`}
+        organizationId={organizationId}
+        userId={profileMember.userId}
         name={profileMember.displayName}
         role={roleLabel(profileMember.roleLevel)}
         organizationName={organizationName}

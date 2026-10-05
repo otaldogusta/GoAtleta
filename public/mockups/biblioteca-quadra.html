@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca da quadra · Mockup Go Atleta</title>
+  <style>
+    :root{color-scheme:dark;--page:#10243b;--panel:#0c1d32;--surface:#15263d;--surface-2:#1a2d47;--line:#2b3d56;--text:#f4f7fb;--muted:#96acc6;--green:#38d989;--green-ink:#082b1d;--amber:#f5bd62;--amber-bg:#3b3026;--blue:#88b9fb;--blue-bg:#203653}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--text);font-size:13px}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+    .mock-note{position:fixed;left:18px;bottom:16px;z-index:10;color:#dfebf8;background:#0b1c30d9;border:1px solid #54708a;padding:8px 12px;border-radius:999px;font-size:11px;letter-spacing:.02em}
+    .stage{position:fixed;inset:0;background:#1978ab;overflow:hidden}.court{position:absolute;left:7%;top:15%;height:70%;width:76%;border:3px solid #fff8;background:#dfa65d}.court:before,.court:after{content:"";position:absolute;background:#fff9}.court:before{top:0;bottom:0;left:50%;width:2px}.court:after{left:0;right:0;top:50%;height:2px}.court-line{position:absolute;top:0;bottom:0;width:2px;background:#fff9}.court-line.one{left:25%}.court-line.two{left:75%}.net{position:absolute;left:55%;top:12%;bottom:12%;width:5px;background:#eaf4fd;box-shadow:2px 0 #314963,5px 0 #eaf4fd}.player{position:absolute;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#10243b;border:1px solid #ffffff70}.p1{left:23%;top:30%;background:#67a9ff}.p2{left:48%;top:68%;background:#67a9ff}.p3{left:38%;top:47%;background:#a78aff}.p4{left:65%;top:28%;background:#34d783}.p5{left:28%;top:74%;background:#34d783}.stage-top{position:absolute;top:10px;left:50%;transform:translateX(-50%);min-width:420px;border-radius:0 0 16px 16px;background:#081a2e;padding:11px 18px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 28px #08132344}.stage-top strong{font-size:14px}.stage-top small{display:block;color:var(--muted);font-size:11px;margin-top:3px}.stage-top .spacer{flex:1}.stage-top .tag{color:var(--amber);background:var(--amber-bg);border-radius:999px;padding:5px 8px;font-size:11px;white-space:nowrap}
+    .drawer{position:fixed;z-index:3;right:16px;top:16px;bottom:16px;width:min(438px,calc(100vw - 32px));display:flex;flex-direction:column;background:var(--panel);border:1px solid #3b526d;border-radius:18px;box-shadow:0 20px 60px #07132180;overflow:hidden}.drawer-head{padding:17px 20px;border-bottom:1px solid var(--line);background:#0c1d32}.title-row,.head-actions,.filter-row,.foot-line{display:flex;align-items:center;justify-content:space-between;gap:10px}.title-row h1{font-size:18px;letter-spacing:-.025em;margin:0}.head-actions{gap:7px}.close,.icon-button{width:32px;height:32px;border:1px solid transparent;background:transparent;color:var(--muted);border-radius:9px;font-size:18px;line-height:1}.button{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:9px;min-height:33px;padding:0 10px;font-size:11px;font-weight:700}.button.primary{background:var(--green);color:var(--green-ink);border-color:var(--green)}.button:hover,.close:hover,.chip:hover,.icon-button:hover{filter:brightness(1.14)}.button.primary:hover{filter:brightness(1.05)}
+    .drawer-content{overflow:auto;scrollbar-width:thin;scrollbar-color:#415a78 transparent;padding:16px 20px 18px}.section-kicker{font-size:11px;color:var(--muted);font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+    .search-wrap{display:flex;align-items:center;gap:10px;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#102039;padding:0 11px;color:var(--muted)}.search-wrap svg{width:16px;height:16px;flex:none}.search-wrap input{background:transparent;border:0;outline:0;color:var(--text);min-width:0;width:100%;font-size:12px}.search-wrap input::placeholder{color:#8da2bc}.filter-row{margin-top:14px;justify-content:flex-start;gap:5px;overflow-x:auto;scrollbar-width:none}.chip{flex:none;border:0;background:transparent;color:var(--muted);border-radius:8px;min-height:31px;padding:0 9px;font-size:11px;font-weight:600;white-space:nowrap}.chip[aria-pressed=true]{color:var(--text);background:#24364e}.fav{margin-left:auto;flex:none;width:31px;height:31px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:17px}.fav[aria-pressed=true]{color:var(--amber);background:#3b3026}
+    .results{margin-top:15px}.group{margin-top:21px}.group:first-child{margin-top:0}.group-title{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;font-weight:650;margin-bottom:5px}.item{width:100%;border:0;border-bottom:1px solid #263951;background:transparent;color:var(--text);border-radius:8px;margin:0;padding:10px 8px;display:grid;grid-template-columns:35px minmax(0,1fr) auto;gap:11px;text-align:left;align-items:center;min-height:57px}.item:last-child{border-bottom-color:transparent}.item:hover{background:#1b2d43}.thumb{height:34px;width:34px;border-radius:7px;background:#ca9b5c;position:relative;overflow:hidden;border:1px solid #ffffff30}.thumb:before{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:1px solid #fff9}.thumb:after{content:"";position:absolute;width:7px;height:7px;border-radius:50%;left:7px;top:8px;background:#54a7fb;box-shadow:14px 12px #44d486,16px 0 #ad86f5}.item-title{font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item-meta{font-size:10px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item-side{font-size:10px;color:#7892ad;white-space:nowrap}.item-side.editing{color:var(--green);font-weight:650}.empty{padding:22px 8px;color:var(--muted);font-size:12px;text-align:center}.drawer-foot{border-top:1px solid var(--line);padding:11px 20px;background:#0c1d32}.trash-link{border:0;background:none;color:var(--muted);font-size:11px;padding:4px 0}.trash-link:hover{color:var(--text)}.foot-help{color:var(--muted);font-size:10px}.toast{position:fixed;right:34px;bottom:28px;z-index:20;background:#1a3c32;color:#dcffeb;border:1px solid #377656;border-radius:10px;padding:10px 13px;font-size:12px;box-shadow:0 8px 24px #0005;max-width:390px}
+    .item[aria-current="true"]{background:#1b3041}.item[aria-current="true"]:hover{background:#21384a}.item[aria-current="true"] .item-title:before{content:"";display:inline-block;width:5px;height:5px;margin:0 7px 2px 0;border-radius:50%;background:var(--green)}
+    @media(max-width:700px){.stage-top{display:none}.drawer{inset:0;width:100%;border:0;border-radius:0}.drawer-head{padding:16px}.drawer-content{padding:14px 16px}.drawer-foot{padding:12px 16px}.mock-note{z-index:6;left:auto;right:8px;bottom:6px;font-size:9px;padding:5px 7px}.toast{right:12px;left:12px;bottom:60px}}
+  </style>
+</head>
+<body>
+  <div class="stage" aria-hidden="true"><div class="court"><i class="court-line one"></i><i class="court-line two"></i><span class="player p1">P²</span><span class="player p2">P¹</span><span class="player p3">C</span><span class="player p4">Op</span><span class="player p5">Lv</span></div><div class="net"></div><div class="stage-top"><span>‹</span><div><strong>5×1 · Recepção</strong><small>Estrelas do Saque</small></div><span class="spacer"></span><span class="tag">Rascunho no dispositivo</span></div></div>
+  <aside class="drawer" aria-label="Mockup da Biblioteca da quadra">
+    <header class="drawer-head"><div class="title-row"><h1>Biblioteca</h1><div class="head-actions"><button class="button primary" type="button" data-action="Nova jogada">＋ Nova</button><button class="icon-button" type="button" aria-label="Importar arquivo" title="Importar arquivo" data-action="Importar arquivo">⇧</button><button class="close" type="button" aria-label="Fechar mockup" data-action="Fechar">×</button></div></div></header>
+    <div class="drawer-content">
+      <section class="library-tools" aria-label="Buscar e filtrar arquivos"><label class="search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg><input id="search" type="search" placeholder="Buscar jogadas e sistemas" aria-label="Buscar na biblioteca"></label><div class="filter-row" role="group" aria-label="Onde está salvo"><button class="chip" type="button" data-filter="all" aria-pressed="true">Tudo</button><button class="chip" type="button" data-filter="local" aria-pressed="false">Rascunhos</button><button class="chip" type="button" data-filter="team" aria-pressed="false">Na turma</button><button class="chip" type="button" data-filter="template" aria-pressed="false">Modelos</button><button class="fav" id="favorites" type="button" aria-label="Somente favoritos" aria-pressed="false" title="Somente favoritos">☆</button></div></section>
+      <div class="results" id="results" aria-live="polite"></div>
+    </div>
+    <footer class="drawer-foot"><div class="foot-line"><button class="trash-link" id="trash" type="button"><span id="trash-label">Lixeira</span> <span id="trash-count"></span> <span id="trash-arrow">›</span></button><span class="foot-help">Rascunhos ficam neste dispositivo</span></div></footer>
+  </aside>
+  <div class="mock-note">MOCKUP · dados ilustrativos · nenhuma ação salva arquivos</div><div class="toast" id="toast" role="status" hidden></div>
+  <script>
+    const items=[
+      {title:'5×1 · Recepção',kind:'play',where:'local',date:'Hoje, 09:14',steps:6,folder:'Recepção',tags:'5x1 rotação',favorite:true,editing:true},
+      {title:'Defesa de fundo',kind:'system',where:'local',date:'Ontem, 18:22',steps:4,folder:'Defesa',tags:'sistema',favorite:false},
+      {title:'Grade didática',kind:'play',where:'team',date:'Hoje, 08:40',steps:6,folder:'Fundamentos',tags:'aula',favorite:true},
+      {title:'Saque direcionado',kind:'play',where:'team',date:'30 set, 16:05',steps:3,folder:'Saque',tags:'treino',favorite:false},
+      {title:'Bloqueio em linha',kind:'system',where:'team',date:'28 set, 11:30',steps:5,folder:'Bloqueio',tags:'sistema',favorite:false},
+      {title:'Cobertura de ataque',kind:'play',where:'team',date:'21 set, 10:12',steps:4,folder:'Ataque',tags:'jogada',favorite:false},
+      {title:'5×1 · Recepção',kind:'system',where:'template',date:'Modelo Go Atleta',steps:6,folder:'',tags:'5x1',favorite:false},
+      {title:'Defesa · 6 fundo',kind:'system',where:'template',date:'Modelo Go Atleta',steps:6,folder:'',tags:'defesa',favorite:false},
+      {title:'Saque antigo',kind:'play',where:'trash',date:'Neste dispositivo',steps:2,folder:'Saque',tags:'',favorite:false}
+    ];
+    const groupNames={local:'Rascunhos · neste dispositivo',team:'Salvos na turma',template:'Modelos',trash:'Lixeira'};
+    const kindNames={play:'Jogada',system:'Sistema'};
+    let filter='all';let favorites=false;
+    const results=document.getElementById('results'),search=document.getElementById('search');
+    function render(){
+      const q=search.value.trim().toLocaleLowerCase('pt-BR');
+      const visible=items.filter(item=>(filter==='all'?item.where!=='trash':item.where===filter)&&(!favorites||item.favorite)&&`${item.title} ${item.folder} ${item.tags} ${kindNames[item.kind]}`.toLocaleLowerCase('pt-BR').includes(q));
+      document.getElementById('trash-count').textContent=`(${items.filter(i=>i.where==='trash').length})`;
+      results.replaceChildren();
+      for(const group of (filter==='all'?['local','team','template']: [filter])){
+        const groupItems=visible.filter(i=>i.where===group);
+        if(!groupItems.length)continue;
+        const section=document.createElement('section');section.className='group';
+        const title=document.createElement('div');title.className='group-title';title.innerHTML=`<span>${groupNames[group]}</span><span>${groupItems.length}</span>`;section.append(title);
+        for(const item of groupItems){
+          const row=document.createElement('button');row.type='button';row.className='item';
+          row.setAttribute('aria-label',`Abrir ${item.title}`);
+          if(item.editing)row.setAttribute('aria-current','true');
+          const thumb=document.createElement('span');thumb.className='thumb';thumb.setAttribute('aria-hidden','true');
+          const body=document.createElement('span');const name=document.createElement('span');name.className='item-title';name.textContent=item.title;
+          const meta=document.createElement('span');meta.className='item-meta';meta.textContent=`${kindNames[item.kind]} · ${item.steps} etapas · ${item.date}${item.favorite?' · ★':''}`;
+          body.append(name,meta);body.style.minWidth='0';body.style.display='grid';
+          const badge=document.createElement('span');badge.className=`item-side${item.editing?' editing':''}`;badge.textContent=item.editing?'Editando':'›';
+          row.append(thumb,body,badge);row.addEventListener('click',()=>notice(`Prévia: abrir “${item.title}”. Nenhum arquivo foi alterado.`));section.append(row);
+        }
+        results.append(section);
+      }
+      if(!visible.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=filter==='trash'?'A lixeira está vazia neste exemplo.':'Nenhum arquivo com estes filtros.';results.append(empty)}
+    }
+    function notice(message){const toast=document.getElementById('toast');toast.textContent=message;toast.hidden=false;clearTimeout(notice.timer);notice.timer=setTimeout(()=>toast.hidden=true,3500)}
+    document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{filter=button.dataset.filter;document.querySelectorAll('[data-filter]').forEach(chip=>chip.setAttribute('aria-pressed',String(chip===button)));render()}));
+    document.getElementById('trash').addEventListener('click',()=>{filter=filter==='trash'?'all':'trash';document.querySelectorAll('[data-filter]').forEach(chip=>chip.setAttribute('aria-pressed',String(filter==='all'&&chip.dataset.filter==='all')));document.getElementById('trash-label').textContent=filter==='trash'?'‹ Voltar aos arquivos':'Lixeira';document.getElementById('trash-count').hidden=filter==='trash';document.getElementById('trash-arrow').hidden=filter==='trash';render();document.querySelector('.drawer-content').scrollTo({top:220,behavior:'smooth'})});
+    document.getElementById('favorites').addEventListener('click',event=>{favorites=!favorites;event.currentTarget.setAttribute('aria-pressed',String(favorites));render()});
+    document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>notice(`Mockup: “${button.dataset.action}” será conectado após aprovação. Nada foi salvo ou excluído.`)));
+    search.addEventListener('input',render);render();
+  </script>
+</body>
+</html>

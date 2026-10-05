@@ -29,11 +29,11 @@ export function CourtSelectionActions({ visible, left, top, children }: {
     ? Children.toArray(retained.children.props.children) : Children.toArray(retained.children);
   return <Animated.View nativeID="court-selection-actions" pointerEvents={visible ? "box-none" : "none"}
     onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
-    style={{ position: "absolute", left: retained.left, top: retained.top, width: 54, height: 170, zIndex: 30 }}>
-    {actions.map((action, index) => <Animated.View key={index} pointerEvents="box-none" style={{ position: "absolute", width: 54, height: 170,
+    style={{ position: "absolute", left: retained.left, top: retained.top, width: 68, height: 176, zIndex: 30 }}>
+    {actions.map((action, index) => <Animated.View key={index} pointerEvents="box-none" style={{ position: "absolute", left: index === 0 || index === actions.length - 1 ? 24 : 0, top: index * 44,
       opacity: progress, transform: [
-        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [64 - (index === 1 ? 0 : 18), 0] }) },
-        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [(actions.length - 1) * 17 - index * 34, 0] }) },
+        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [44, 0] }) },
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [66 - index * 44, 0] }) },
         { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }) },
       ],
     }}>{action}</Animated.View>)}

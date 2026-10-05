@@ -10,6 +10,7 @@ type Props = {
   children: ReactNode;
   rightAccessory?: ReactNode;
   disabled?: boolean;
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   density?: "default" | "compact";
 };
@@ -20,6 +21,7 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
   children,
   rightAccessory,
   disabled,
+  accessibilityLabel,
   style,
   density = "default",
 }: Props) {
@@ -32,6 +34,8 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole={accessibilityLabel ? "button" : undefined}
+      accessibilityLabel={accessibilityLabel}
       style={[
         {
           paddingVertical: isCompact ? 7 : 12,

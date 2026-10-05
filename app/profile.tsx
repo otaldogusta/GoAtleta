@@ -4292,6 +4292,8 @@ export default function ProfileScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {staffProfile ? <StaffProfilePage
         key={`${activeOrganization?.id}:${session?.user.id}`}
+        organizationId={activeOrganization?.id}
+        userId={session?.user.id}
         name={displayName}
         role={profileDisplay.label}
         organizationName={activeOrganization?.name ?? "Go Atleta"}

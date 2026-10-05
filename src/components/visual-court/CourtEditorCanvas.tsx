@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { PanResponder, Platform, View } from "react-native";
+import { PanResponder, Platform, TextInput, View } from "react-native";
 import { CourtEditorScene, displayActors, fromScenePoint, sceneBounds, scenePoint } from "./CourtEditorScene";
-import { duplicateSelection, editorId, frameDrawings, moveSelection, snapCourtPoint, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
+import { drawingAtProgress, duplicateSelection, editorId, frameDrawings, moveSelection, snapCourtPoint, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
 import { CourtSelectionActions } from "./CourtSelectionActions";
+import { COURT_TEXT_FONT, hitCourtText, measureCourtText } from "./court-text-layout";
 
 export type CourtTool = "select" | "pan" | "player" | "animate" | DrawingKind;
 export type CourtEditorCanvasProps = {
   payload: CourtVisualPayload; stepIndex: number; landscape: boolean; tool: CourtTool; motionMode?: "free" | "straight"; selected: string[]; multiple?: boolean;
   onSelect: (ids: string[]) => void; onMove: (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicate?: boolean) => void; onDraw: (d: CourtDrawing) => void;
+  onEditText: (id: string, value: string) => void;
   onAddPlayer: (p: CourtPoint) => void; color: string; dashed: boolean; grid: boolean; progress?: number;
   zoom: number; pan: CourtPoint; onPan: (p: CourtPoint) => void; onZoom: (zoom: number) => void; half: boolean; plain: boolean; disabled?: boolean;
   selectionActions?: ReactNode;
+  selectionTopInset?: number;
+  selectionBottomInset?: number;
   playerPreviewColor?: string;
 };
 type Props = CourtEditorCanvasProps;
@@ -23,6 +27,8 @@ export function CourtEditorCanvas(props: Props) {
   const layoutRef = useRef(layout);
   const [marquee, setMarquee] = useState<{ start: CourtPoint; end: CourtPoint }>();
   const [draft, setDraft] = useState<CourtDrawing>();
+  const [textDraft, setTextDraft] = useState<{ id?: string; point: CourtPoint; value: string; color: string; size: number; rotation: number }>();
+  const textFinished = useRef(false);
   const [playerPreview, setPlayerPreview] = useState<CourtPoint>();
   const [preview, setPreview] = useState<{ ids: string[]; delta: CourtPoint; path?: CourtPoint[]; duplicate?: boolean }>();
   const gesture = useRef<{ start: CourtPoint; pixel: CourtPoint; points: CourtPoint[]; ids: string[]; pan: CourtPoint; dragged: boolean; box: boolean; base: string[]; duplicate: boolean } | null>(null);
@@ -38,6 +44,7 @@ export function CourtEditorCanvas(props: Props) {
     const point = fromScenePoint({ x, y }, p.landscape);
     return { point: limitPoint(point), scale, scene: { x, y } };
   };
+  const visibleDrawings = (p: Props) => frameDrawings(p.payload, p.stepIndex).map(d => drawingAtProgress(d, p.progress));
   const begin = (pixel: CourtPoint, multiple = false, duplicate = false) => {
     const p = live.current; if (p.disabled) return;
     multiple = multiple || !!p.multiple;
@@ -49,10 +56,14 @@ export function CourtEditorCanvas(props: Props) {
       const hidden = p.payload.editor?.hiddenLayers ?? [];
       const targets = [
         ...(hidden.includes("actors") ? [] : displayActors(p.payload, p.stepIndex, p.progress).map(a => ({ id: a.id, points: [a.point] }))),
-        ...(hidden.includes("drawings") ? [] : frameDrawings(p.payload, p.stepIndex)),
+        ...(hidden.includes("drawings") ? [] : visibleDrawings(p)),
       ];
       const hit = [...targets].reverse().find(t => {
         let points = t.points.map(pt => scenePoint(pt, p.landscape));
+        if ("kind" in t && t.kind === "text" && points[0]) {
+          const text = t as CourtDrawing;
+          return hitCourtText(scene, points[0], text.text || "Anotação", text.size || 28, text.rotation || 0, 10 / scale);
+        }
         if ("kind" in t && t.kind === "curve" && points.length > 1) {
           const a = points[0], b = points[points.length - 1];
           const c = { x: (a.x + b.x) / 2 + 65, y: (a.y + b.y) / 2 - 65 };
@@ -104,7 +115,7 @@ export function CourtEditorCanvas(props: Props) {
         const hidden = p.payload.editor?.hiddenLayers ?? [];
         const candidates = [
           ...(hidden.includes("actors") ? [] : displayActors(p.payload, p.stepIndex, p.progress).map(a => ({ id: a.id, points: [a.point] }))),
-          ...(hidden.includes("drawings") ? [] : frameDrawings(p.payload, p.stepIndex)),
+          ...(hidden.includes("drawings") ? [] : visibleDrawings(p)),
         ];
         const enclosed = g.dragged ? candidates.filter(t => t.points.length && Math.max(...t.points.map(pt => pt.x)) >= minX && Math.min(...t.points.map(pt => pt.x)) <= maxX && Math.max(...t.points.map(pt => pt.y)) >= minY && Math.min(...t.points.map(pt => pt.y)) <= maxY).map(t => t.id) : [];
         p.onSelect([...new Set([...g.base, ...enclosed])]);
@@ -113,9 +124,10 @@ export function CourtEditorCanvas(props: Props) {
         point = snappedDrag(point, g, p);
         p.onMove(g.ids, { x: point.x - g.start.x, y: point.y - g.start.y }, p.tool === "animate" ? (p.motionMode === "straight" ? [g.start, point] : [...g.points, point]).map(pt => ({ x: pt.x - g.start.x, y: pt.y - g.start.y })) : undefined, g.duplicate);
       } else if (p.tool === "player") p.onAddPlayer(g.start);
+      else if (p.tool === "text") { textFinished.current = false; setTextDraft({ point: g.start, value: "", color: p.color, size: 32, rotation: 0 }); }
       else if (!["select", "animate", "pan"].includes(p.tool)) {
         const needsStroke = ["arrow", "curve", "pen", "area"].includes(p.tool);
-        if (!needsStroke || g.dragged) p.onDraw({ id: editorId(), kind: p.tool as DrawingKind, points: needsStroke ? [...g.points] : [g.start], color: p.color, dashed: p.dashed, size: 32, rotation: 0, text: p.tool === "text" ? "Anotação" : undefined });
+        if (!needsStroke || g.dragged) p.onDraw({ id: editorId(), kind: p.tool as DrawingKind, points: needsStroke ? [...g.points] : [g.start], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
       }
     }
     setDraft(undefined); setPreview(undefined); setMarquee(undefined);
@@ -162,6 +174,7 @@ export function CourtEditorCanvas(props: Props) {
     };
     const keyup = (e: KeyboardEvent) => { if (e.code === "Space") { space = false; if (!hand) node.style.cursor = ""; } };
     const down = (e: PointerEvent) => {
+      if (editable(e.target)) return;
       if ((e.target as Element)?.closest?.("#court-selection-actions")) return;
       if (e.button !== 0 || active !== null || live.current.disabled) return;
       active = e.pointerId; node.setPointerCapture(e.pointerId); e.preventDefault();
@@ -170,6 +183,20 @@ export function CourtEditorCanvas(props: Props) {
         hand = { pixel: pixel(e), pan: { ...p.pan }, scale: Math.min(l.width / b.width, l.height / b.height) * p.zoom };
         node.style.cursor = "grabbing";
       } else handlers.current.begin(pixel(e), e.shiftKey, e.altKey);
+    };
+    const doubleClick = (e: MouseEvent) => {
+      const p = live.current;
+      if (p.disabled || p.tool !== "select") return;
+      const { scene, scale } = handlers.current.getPoint(pixel(e));
+      const target = [...visibleDrawings(p)].reverse().find(d => {
+        if (d.kind !== "text" || !d.points[0]) return false;
+        const at = scenePoint(d.points[0], p.landscape);
+        return hitCourtText(scene, at, d.text || "Anotação", d.size || 28, d.rotation || 0, 10 / scale);
+      });
+      if (!target?.points[0]) return;
+      e.preventDefault();
+      textFinished.current = false;
+      setTextDraft({ id: target.id, point: target.points[0], value: target.text ?? "", color: target.color, size: target.size || 28, rotation: target.rotation || 0 });
     };
     const move = (e: PointerEvent) => {
       if (active === null && !live.current.disabled && live.current.tool === "player") {
@@ -203,6 +230,7 @@ export function CourtEditorCanvas(props: Props) {
       live.current.onZoom(zoom);
     };
     node.addEventListener("pointerdown", down); node.addEventListener("pointermove", move); node.addEventListener("pointerup", up); node.addEventListener("pointercancel", up);
+    node.addEventListener("dblclick", doubleClick);
     const pointerLeave = () => { if (active === null) { setDraft(undefined); setPlayerPreview(undefined); } };
     node.addEventListener("pointerleave", pointerLeave);
     node.addEventListener("wheel", wheel, { passive: false });
@@ -211,6 +239,7 @@ export function CourtEditorCanvas(props: Props) {
       node.removeEventListener("dragover", dragover); node.removeEventListener("drop", drop);
       node.removeEventListener("dragleave", leave); window.removeEventListener("dragend", clearDropPreview);
       node.removeEventListener("pointerdown", down); node.removeEventListener("pointermove", move); node.removeEventListener("pointerup", up); node.removeEventListener("pointercancel", up);
+      node.removeEventListener("dblclick", doubleClick);
       node.removeEventListener("pointerleave", pointerLeave);
       node.removeEventListener("wheel", wheel); window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("blur", blur);
     };
@@ -240,16 +269,32 @@ export function CourtEditorCanvas(props: Props) {
   } : rendered;
   const anchors = [
     ...displayActors(rendered, props.stepIndex, props.progress).filter(a => props.selected.includes(a.id)).map(a => a.point),
-    ...frameDrawings(rendered, props.stepIndex).filter(d => props.selected.includes(d.id)).flatMap(d => d.points),
+    ...visibleDrawings({ ...props, payload: rendered }).filter(d => props.selected.includes(d.id)).flatMap(d => d.points),
   ].map(point => scenePoint(point, props.landscape));
   const scale = Math.min(layout.width / b.width, layout.height / b.height);
   const anchorX = anchors.length ? anchors.reduce((sum, point) => sum + point.x, 0) / anchors.length : 0;
   const anchorY = anchors.length ? Math.min(...anchors.map(point => point.y)) : 0;
-  const actionLeft = Math.max(8, Math.min(layout.width - 62, (layout.width - b.width * scale) / 2 + (anchorX - b.x) * scale - 56 * scale - 64));
-  const actionTop = Math.max(8, Math.min(layout.height - 178, (layout.height - b.height * scale) / 2 + (anchorY - b.y) * scale - 81));
-  return <View ref={host} {...(Platform.OS === "web" ? {} : native.panHandlers)} onLayout={e => { const next = e.nativeEvent.layout; layoutRef.current = next; setLayout(next); }} style={{ flex: 1, backgroundColor: "#1676ac", ...(Platform.OS === "web" ? { touchAction: "none", userSelect: "none" } as object : {}) }}>
-    <View pointerEvents="none" style={{ flex: 1 }}><CourtEditorScene payload={scenePayload} stepIndex={props.stepIndex} landscape={props.landscape} selected={props.selected} progress={props.progress} previewIds={preview?.ids} previewMotion={!!preview?.path} draft={draft?.id === "placement-preview" && draft.kind !== props.tool ? undefined : draft} grid={props.grid} half={props.half} plain={props.plain} viewBox={`${b.x} ${b.y} ${b.width} ${b.height}`} /></View>
+  const actionLeft = Math.max(72, Math.min(layout.width - 76, (layout.width - b.width * scale) / 2 + (anchorX - b.x) * scale - 56 * scale - 72));
+  const actionTop = Math.max(props.selectionTopInset ?? 8, Math.min(layout.height - (props.selectionBottomInset ?? 8) - 176, (layout.height - b.height * scale) / 2 + (anchorY - b.y) * scale - 88));
+  const finishText = (save: boolean) => {
+    if (!textDraft || textFinished.current) return;
+    textFinished.current = true;
+    setTextDraft(undefined);
+    const value = textDraft.value.trim();
+    if (!save || !value) return;
+    if (textDraft.id) props.onEditText(textDraft.id, value);
+    else props.onDraw({ id: editorId(), kind: "text", points: [textDraft.point], color: textDraft.color, dashed: props.dashed, size: textDraft.size, rotation: textDraft.rotation, text: value });
+  };
+  const textPoint = textDraft ? scenePoint(textDraft.point, props.landscape) : null;
+  const textFontSize = (textDraft?.size ?? 32) * scale;
+  const textWidth = textDraft ? Math.max(36, Math.min(layout.width - 16, Math.ceil(measureCourtText(textDraft.value || "Texto", textFontSize) + textFontSize))) : 0;
+  const textHeight = Math.ceil(textFontSize * 1.45);
+  const textLeft = textPoint ? Math.max(8, Math.min(layout.width - textWidth - 8, (layout.width - b.width * scale) / 2 + (textPoint.x - b.x) * scale - textWidth / 2)) : 0;
+  const textTop = textPoint ? Math.max(8, Math.min(layout.height - textHeight - 8, (layout.height - b.height * scale) / 2 + (textPoint.y - b.y) * scale - textFontSize * 1.1)) : 0;
+  return <View ref={host} {...(Platform.OS === "web" ? {} : native.panHandlers)} onLayout={e => { const next = e.nativeEvent.layout; layoutRef.current = next; setLayout(next); }} style={{ flex: 1, backgroundColor: "#1676ac", ...(Platform.OS === "web" ? { touchAction: "none", userSelect: "none", ...(props.tool === "text" && !props.disabled ? { cursor: "text" } : {}) } as object : {}) }}>
+    <View pointerEvents="none" style={{ flex: 1 }}><CourtEditorScene payload={scenePayload} stepIndex={props.stepIndex} landscape={props.landscape} selected={props.selected} progress={props.progress} previewIds={preview?.ids} previewMotion={!!preview?.path} draft={draft?.id === "placement-preview" && draft.kind !== props.tool ? undefined : draft} grid={props.grid} half={props.half} plain={props.plain} editingTextId={textDraft?.id} viewBox={`${b.x} ${b.y} ${b.width} ${b.height}`} /></View>
     {marquee ? <View pointerEvents="none" style={{ position: "absolute", left: Math.min(marquee.start.x, marquee.end.x), top: Math.min(marquee.start.y, marquee.end.y), width: Math.abs(marquee.end.x - marquee.start.x), height: Math.abs(marquee.end.y - marquee.start.y), borderWidth: 1.5, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.14)" }} /> : null}
-    <CourtSelectionActions visible={!!anchors.length && !!props.selectionActions && !preview} left={actionLeft} top={actionTop}>{props.selectionActions}</CourtSelectionActions>
+    {textDraft ? <TextInput autoFocus accessibilityLabel="Texto da anotação" placeholder="Texto" placeholderTextColor={`${textDraft.color}99`} selectionColor={textDraft.color} value={textDraft.value} onChangeText={value => setTextDraft(current => current ? { ...current, value } : current)} onSubmitEditing={() => finishText(true)} onBlur={() => finishText(true)} onKeyPress={event => { if (event.nativeEvent.key === "Escape") finishText(false); }} returnKeyType="done" style={{ position: "absolute", left: textLeft, top: textTop, width: textWidth, height: textHeight, padding: 0, margin: 0, borderWidth: 0, backgroundColor: "transparent", color: textDraft.color, fontFamily: COURT_TEXT_FONT, fontWeight: "600", fontSize: textFontSize, lineHeight: textFontSize * 1.2, textAlign: "center", transform: [{ rotate: `${textDraft.rotation}deg` }], ...(Platform.OS === "web" ? { cursor: "text", userSelect: "text", outline: "none", boxShadow: "none" } as object : {}) }} /> : null}
+    <CourtSelectionActions visible={!!anchors.length && !!props.selectionActions && !preview && !textDraft} left={actionLeft} top={actionTop}>{props.selectionActions}</CourtSelectionActions>
   </View>;
 }

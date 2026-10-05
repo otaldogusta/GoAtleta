@@ -1,5 +1,5 @@
 import { buildEditable5x1ReceptionPreset, buildRotation5x1Preset, normalizeCourtPayload, parseCourtVisualPayload, serializeCourtVisualPayload } from "../visual-court";
-import { addBlankStep, actorPoint, changeDrawings, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, reorderStepToIndex, upgradeCourtEditor } from "../visual-court-editor";
+import { addBlankStep, actorPoint, changeDrawings, continueStepFromEnd, copyStepSelection, deleteSelection, drawingAtProgress, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, reorderStepToIndex, upgradeCourtEditor } from "../visual-court-editor";
 
 describe("court editor document commands", () => {
   it("duplicates at the drag offset without moving the original", () => {
@@ -17,6 +17,14 @@ describe("court editor document commands", () => {
     expect(snapped.y * 18).toBe(2.5);
     expect(snapCourtPoint(snapped)).toEqual(snapped);
     expect(snapCourtPoint({ x: 0, y: 0.5 })).toEqual({ x: 0, y: 0.5 });
+  });
+  it("targets the displayed position of an animated ball and deletes its drawing", () => {
+    const board = newCourtBoard();
+    const ball = { id: "moving-ball", kind: "ball" as const, points: [{ x: 0.8, y: 0.7 }], motion: [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.7 }], color: "#fff", size: 32, rotation: 0 };
+    const withBall = changeDrawings(board, 0, [ball]);
+    expect(drawingAtProgress(ball, 0).points).toEqual([{ x: 0.2, y: 0.2 }]);
+    expect(drawingAtProgress(ball, 1).points).toEqual(ball.points);
+    expect(frameDrawings(deleteSelection(withBall, 0, [ball.id]), 0)).toHaveLength(0);
   });
   it("includes the libero in every rotation reset and repairs older restored boards", () => {
     const p = upgradeCourtEditor(buildRotation5x1Preset(), "Rotation");
@@ -207,6 +215,14 @@ describe("court editor document commands", () => {
     const moved = reorderStepToIndex(blank.payload, 2, 0);
     expect(moved.payload.timeline.steps[0].id).toBe(blank.payload.timeline.steps[2].id);
     expect(moved.stepIndex).toBe(0);
+  });
+  it("appends a blank court after the last thumbnail even when another step is selected", () => {
+    const p = duplicateStep(duplicateStep(newCourtBoard(), 0).payload, 1).payload;
+    const result = addBlankStep(p, p.timeline.steps.length - 1);
+    expect(result.stepIndex).toBe(p.timeline.steps.length);
+    expect(result.payload.timeline.steps.slice(0, -1)).toEqual(p.timeline.steps);
+    expect(result.payload.timeline.steps.at(-1)?.visibleActorIds).toEqual([]);
+    expect(frameDrawings(result.payload, result.stepIndex)).toEqual([]);
   });
   it("copies selected court content into another step without creating duplicate athletes", () => {
     let p = newCourtBoard();

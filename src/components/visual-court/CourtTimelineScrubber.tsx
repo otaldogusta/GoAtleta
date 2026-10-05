@@ -11,8 +11,8 @@ export function CourtTimelineScrubber({ progress, durationMs, onSeek }: {
   const seconds = (fraction: number) => `${(durationMs * fraction / 1000).toFixed(1).replace(".", ",")} s`;
   return <View style={{ paddingHorizontal: 8, gap: 2 }}>
     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-      <Text style={{ color: colors.muted, fontSize: 11 }}>Tempo da etapa</Text>
-      <Text style={{ color: colors.text, fontSize: 11, fontVariant: ["tabular-nums"] }}>{seconds(value)} / {seconds(1)}</Text>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>Tempo da etapa</Text>
+      <Text style={{ color: colors.text, fontSize: 12, fontVariant: ["tabular-nums"] }}>{seconds(value)} / {seconds(1)}</Text>
     </View>
     {Platform.OS === "web" ? createElement("input", {
       type: "range", min: 0, max: 1000, step: 1, value: Math.round(value * 1000),
@@ -33,8 +33,5 @@ export function CourtTimelineScrubber({ progress, durationMs, onSeek }: {
         <View style={{ position: "absolute", left: `${value * 100}%`, marginLeft: -6, top: -4, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.primaryBg }} />
       </View>
     </View>}
-    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-      {[0, 0.25, 0.5, 0.75, 1].map(fraction => <Text key={fraction} style={{ color: colors.muted, fontSize: 10 }}>{seconds(fraction)}</Text>)}
-    </View>
   </View>;
 }

@@ -1,7 +1,7 @@
 import { scheduleEffectTask } from "../../src/hooks/schedule-effect-task";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Suspense,
   lazy,
@@ -76,6 +76,9 @@ import {
 } from "../../src/screens/students/components/StudentClassDropdownPanel";
 import { StudentSelectOption } from "../../src/screens/students/components/StudentDropdownOptions";
 import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
+import { StudentProfilePage } from "../../src/screens/students/StudentProfilePage";
+import { resolveStudentProfile } from "../../src/screens/students/application/student-profile";
+import { PageBreadcrumbHeader } from "../../src/components/ui/PageBreadcrumbHeader";
 import { StudentPhotoViewerModal } from "../../src/screens/students/components/StudentPhotoViewerModal";
 import { StudentsExportSyncMenu } from "../../src/screens/students/components/StudentsExportSyncMenu";
 import {
@@ -235,6 +238,7 @@ export default function StudentsScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;
   const router = useRouter();
+  const { studentProfile } = useLocalSearchParams<{ studentProfile?: string }>();
   const scopedRoutes = useTrainerRouteScope();
   const insets = useSafeAreaInsets();
   const effectiveProfile = useEffectiveProfile();
@@ -2267,7 +2271,7 @@ void Promise.all(
       <StudentListRow
         student={item}
         photoUrl={resolveStudentPhotoUrl(item)}
-        onPress={onEdit}
+        onPress={(student) => router.setParams({ studentProfile: student.id })}
         onWhatsApp={openStudentWhatsApp}
         onInvite={onGenerateInviteFromList}
         onPhotoPress={openPhotoPreview}
@@ -2285,15 +2289,40 @@ void Promise.all(
     });
   }, [router, scopedRoutes.home]);
 
+  const profile = resolveStudentProfile(studentProfile, activeOrganization?.id, students, classById);
+  const closeProfile = () => router.setParams({ studentProfile: "" });
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        {studentProfile ? profile ? (
+          <StudentProfilePage
+            key={`${activeOrganization?.id}:${profile.student.id}`}
+            student={profile.student}
+            classGroup={profile.classGroup}
+            organizationName={activeOrganization?.name ?? ""}
+            organizationId={activeOrganization?.id ?? ""}
+            canViewFinance={canManageFinancialStatus}
+            photoUri={resolveStudentPhotoUrl(profile.student)}
+            onBack={closeProfile}
+            onEdit={() => onEdit(profile.student)}
+            onEditPhoto={() => { onEdit(profile.student); setShowPhotoSheet(true); }}
+            onMessage={() => openStudentWhatsApp(profile.student)}
+            onManageClass={() => { onEdit(profile.student); setOpenEditSection("links"); }}
+            onOpenFinance={scopedRoutes.scope === "coord" ? () => router.push({ pathname: "/coord/finance", params: { section: "charges", studentId: profile.student.id, studentName: profile.student.name } }) : undefined}
+          />
+        ) : (
+          <View style={{ flex: 1, padding: 24, gap: 20 }}>
+            <PageBreadcrumbHeader title="Perfil" context="Atletas" onBack={closeProfile} />
+            <Text style={{ color: colors.muted }}>{loading ? "Carregando perfil..." : "Atleta indisponível nesta organização."}</Text>
+          </View>
+        ) : null}
         <View
           ref={containerRef}
-          style={{ flex: 1, position: "relative", overflow: "visible" }}
+          style={{ flex: 1, position: "relative", overflow: "visible", display: studentProfile ? "none" : "flex" }}
         >
           <ScreenPageHeader
             title={scopedRoutes.scope === "coord" ? "Atletas" : "Alunos"}
@@ -2655,7 +2684,7 @@ void Promise.all(
               toggleUnitExpanded={toggleUnitExpanded}
               toggleClassExpanded={toggleClassExpanded}
               renderStudentItem={renderStudentItem}
-              onStudentPress={onEdit}
+              onStudentPress={(student) => router.setParams({ studentProfile: student.id })}
               onPhotoPress={openPhotoPreview}
               resolveStudentPhotoUrl={resolveStudentPhotoUrl}
               onStudentWhatsApp={openStudentWhatsApp}

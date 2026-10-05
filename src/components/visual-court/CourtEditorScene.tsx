@@ -1,8 +1,9 @@
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
-import { actorPoint, frameDrawings, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
+import { actorPoint, drawingAtProgress, frameDrawings, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
 
 import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
+import { COURT_TEXT_FONT } from "./court-text-layout";
 
 export const COURT_FLOOR = "#1676ac";
 export const scenePoint = (p: CourtPoint, landscape: boolean) => landscape ? { x: (1 - p.y) * 1800, y: p.x * 900 } : { x: p.x * 900, y: p.y * 1800 };
@@ -34,7 +35,7 @@ function DrawObject({ drawing: d, landscape }: { drawing: CourtDrawing; landscap
       <Path d={path + (d.kind === "area" ? " Z" : "")} fill={d.kind === "area" ? d.color : "none"} fillOpacity={0.2} stroke={d.color} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={d.dashed ? "15 12" : undefined} />
       {d.kind === "arrow" || d.kind === "curve" ? <Polygon points={head} fill={d.color} /> : null}
     </> : <G transform={`rotate(${d.rotation || 0} ${first.x} ${first.y})`}>
-      {d.kind === "text" ? <SvgText x={first.x} y={first.y} fill={d.color} fontSize={size} fontWeight="600" textAnchor="middle">{d.text || "Anotação"}</SvgText> : null}
+      {d.kind === "text" ? <SvgText x={first.x} y={first.y} fill={d.color} fontFamily={COURT_TEXT_FONT} fontSize={size} fontWeight="600" textAnchor="middle">{d.text || "Anotação"}</SvgText> : null}
       {d.kind === "ball" ? <G transform={`translate(${first.x} ${first.y}) scale(${size * 0.085})`}>
         <CourtVolleyballGlyph />
       </G> : null}
@@ -53,12 +54,12 @@ function DrawObject({ drawing: d, landscape }: { drawing: CourtDrawing; landscap
 }
 export type CourtSceneProps = {
   payload: CourtVisualPayload; stepIndex: number; landscape: boolean;
-  selected?: string[]; previewIds?: string[]; previewMotion?: boolean; progress?: number; draft?: CourtDrawing; grid?: boolean; half?: boolean; plain?: boolean;
+  selected?: string[]; previewIds?: string[]; previewMotion?: boolean; progress?: number; draft?: CourtDrawing; grid?: boolean; half?: boolean; plain?: boolean; editingTextId?: string;
   viewBox?: string; width?: number | string; height?: number | string;
 };
 
 /** One geometric scene for the interactive canvas, thumbnails and image/PDF exports. */
-export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = [], previewIds, previewMotion, progress, draft, grid, half, plain, viewBox, width = "100%", height = "100%" }: CourtSceneProps) {
+export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = [], previewIds, previewMotion, progress, draft, grid, half, plain, editingTextId, viewBox, width = "100%", height = "100%" }: CourtSceneProps) {
   const b = sceneBounds(landscape, half);
   const step = p.timeline.steps[stepIndex];
   const hide = p.editor?.hiddenLayers ?? [];
@@ -88,7 +89,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
     {!hide.includes("drawings") ? <>
       {step.arrows?.map(a => <DrawObject key={a.id} landscape={landscape} drawing={{ id: a.id, kind: "arrow", points: [a.from, a.to], color: a.color ?? "#fff", size: 28, rotation: 0 }} />)}
       {p.markers.filter(m => !step.markerIds || step.markerIds.includes(m.id)).map(m => <DrawObject key={m.id} landscape={landscape} drawing={{ id: m.id, kind: m.type, points: [m.position], color: m.color ?? "#ffdc53", size: 28, rotation: 0 }} />)}
-      {frameDrawings(p, stepIndex).map(d => <G key={d.id}>
+      {frameDrawings(p, stepIndex).filter(d => d.id !== editingTextId).map(d => <G key={d.id}>
         {selected.includes(d.id) && d.points.length ? (() => {
           const points = d.points.map(pt => scenePoint(pt, landscape));
           const padding = d.size || 28;
@@ -97,7 +98,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
           return <Rect x={x} y={y} width={Math.max(...points.map(pt => pt.x)) - x + padding} height={Math.max(...points.map(pt => pt.y)) - y + padding} rx={6} fill="none" stroke="#fff" strokeWidth={2} opacity={0.8} />;
         })() : null}
         {d.motion && (previewIds ? previewMotion && previewIds.includes(d.id) : progress !== 0) && !hide.includes("movements") ? <DrawObject landscape={landscape} drawing={{ ...d, kind: "arrow", points: motionTrail(d.motion, previewIds?.includes(d.id) ? 1 : progress ?? 1, (d.size || 28) * 0.85 + 3), dashed: true }} /> : null}
-        <DrawObject drawing={typeof progress === "number" && !previewIds?.includes(d.id) && d.motion ? { ...d, points: [pointAlong(d.motion, progress)] } : d} landscape={landscape} />
+        <DrawObject drawing={previewIds?.includes(d.id) ? d : drawingAtProgress(d, progress)} landscape={landscape} />
       </G>)}
       {draft ? <G pointerEvents="none" opacity={draft.id === "material-drop-preview" ? 0.72 : 1}>
         {draft.id === "material-drop-preview" ? <G transform="translate(8 12)" opacity={0.22}>

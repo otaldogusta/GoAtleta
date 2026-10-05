@@ -13,6 +13,7 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Formulários e configurações (referência: perfil) | [FORM_SETTINGS_PATTERNS.md](FORM_SETTINGS_PATTERNS.md) |
 | Decisões assistidas | [AI_DECISION_EXPLAINABILITY.md](AI_DECISION_EXPLAINABILITY.md) |
 | Validação proporcional e ciclo rápido | [validation-ladder.md](../operations/validation-ladder.md) |
+| Revisão de minimalismo da quadra — 04/10/2026 | [QUADRA_MINIMALISMO_REVIEW_2026-10-04.md](QUADRA_MINIMALISMO_REVIEW_2026-10-04.md) |
 
 ## Regra central
 

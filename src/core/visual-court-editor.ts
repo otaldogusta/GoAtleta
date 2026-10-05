@@ -200,7 +200,7 @@ export function addBlankStep(p: CourtVisualPayload, index: number): EditorSnapsh
   const id = editorId();
   const step: CourtVisualStep = {
     id,
-    label: `Quadra vazia ${p.timeline.steps.length + 1}`,
+    label: `Etapa vazia ${p.timeline.steps.length + 1}`,
     durationMs: 1600,
     actorPositions: {},
     baselineActorPositions: {},
@@ -280,6 +280,13 @@ export function pointAlong(points: CourtPoint[], progress: number): CourtPoint {
   const segment = Math.max(0, Math.min(1, progress)) * (points.length - 1);
   const i = Math.floor(segment), a = points[i], b = points[Math.min(i + 1, points.length - 1)];
   return { x: a.x + (b.x - a.x) * (segment - i), y: a.y + (b.y - a.y) * (segment - i) };
+}
+
+/** The canvas hit target must follow the same animated point shown by the scene. */
+export function drawingAtProgress(drawing: CourtDrawing, progress?: number): CourtDrawing {
+  return typeof progress === "number" && drawing.motion?.length
+    ? { ...drawing, points: [pointAlong(drawing.motion, progress)] }
+    : drawing;
 }
 
 /** The traveled path ends at the rear edge of the moving token. */

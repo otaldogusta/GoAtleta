@@ -9,7 +9,7 @@ import { radius, spacing } from "../../theme/tokens";
 
 import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
 
-export type CourtActionIcon = GoAtletaIconName | "repeatOne" | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtArea" | "courtText";
+export type CourtActionIcon = GoAtletaIconName | "repeatOne" | "courtColor" | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtMotion" | "courtArea" | "courtText";
 export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIcon; color: string; size?: number }) {
   if (name === "repeatOne") return <View style={{ width: size, height: size }}>
     <GoAtletaIcon name="repeat" size={size} color={color} />
@@ -17,12 +17,14 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
   </View>;
   let drawing: ReactNode;
   switch (name) {
+    case "courtColor": drawing = <><Circle cx="8" cy="8" r="4" /><Circle cx="16" cy="8" r="4" /><Circle cx="12" cy="16" r="4" fill={color} fillOpacity={0.25} /></>; break;
     case "courtArrow": drawing = <Path d="M4 20 20 4M11 4h9v9" />; break;
     case "courtBall": drawing = <G transform="translate(12 12) scale(0.9)"><CourtVolleyballGlyph ink={color} /></G>; break;
     case "courtCone": drawing = <><Path d="M6 18 10.4 4.2q.5-1.2 1.6-1.2t1.6 1.2L18 18Z" fill={color} fillOpacity={0.12} /><Path d="M8.4 10h7.2M6.8 15h10.4" /><Rect x="3" y="18" width="18" height="3" rx="1.5" /></>; break;
     case "courtTarget": drawing = <><Circle cx="12" cy="12" r="8" /><Circle cx="12" cy="12" r="4" /><Circle cx="12" cy="12" r="1" fill={color} /><Path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>; break;
     case "courtLadder": drawing = <><Path d="M7 3 4 21M17 3l3 18M6.5 6h11M6 10h12M5.3 14h13.4M4.7 18h14.6" /><Path d="M7 3h10M4 21h16" opacity={0.45} /></>; break;
     case "courtCurve": drawing = <><Path d="M3 19C3 6 11 4 20 7M15 3l5 4-4 5" /></>; break;
+    case "courtMotion": drawing = <><Path d="M2.5 3.5C8 3.5 11 8 12.8 20" /><Path d="M12.8 20c1-5.5 2.5-8 5.4-11" strokeDasharray="1.5 2" /><Circle cx="19.5" cy="6.5" r="3.2" fill={color} fillOpacity={0.2} /></>; break;
     case "courtArea": drawing = <Rect x="3" y="5" width="18" height="14" rx="3" fill={color} fillOpacity={0.12} strokeDasharray="3 3" />; break;
     case "courtText": drawing = <Path d="M4 5h16M12 5v15M8 20h8M4 5v3M20 5v3" />; break;
     default: return <GoAtletaIcon name={name} color={color} size={size} />;
@@ -77,8 +79,8 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
       onHoverIn={show} onHoverOut={() => setTip(null)} onFocus={show} onBlur={() => setTip(null)}
       onPress={() => { setTip(null); onPress(); }}
-      style={({ hovered, pressed }) => [styles.action, text && styles.textAction, tile && styles.tile, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
-      <CourtToolIcon name={icon} size={tile ? 25 : 21} color={ink} />
+      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
+      <CourtToolIcon name={icon} size={tile ? 22 : 21} color={ink} />
       {text || tile ? <Text style={{ color: ink, fontSize: 12, fontWeight: "600", textAlign: tile ? "center" : "left" }}>{label}</Text> : null}
     </Pressable>
     {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${label.toLowerCase()}`} disabled={disabled} onPress={onAdd} style={{ position: "absolute", top: 2, right: 2, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={16} color={ink} /></Pressable> : null}
@@ -130,7 +132,7 @@ export function CourtSizeControl({ value, onChange }: { value: number; onChange:
 const styles = StyleSheet.create({
   action: { minWidth: 44, minHeight: 44, paddingHorizontal: spacing.sm, gap: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1 },
   textAction: { flexShrink: 1, justifyContent: "flex-start" },
-  tile: { width: "47%", minHeight: 76, flexDirection: "column", paddingVertical: spacing.sm },
+  tile: { width: "47%", minHeight: 64, flexDirection: "column", gap: 4, paddingVertical: 6 },
   switchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.md },
 });
 
