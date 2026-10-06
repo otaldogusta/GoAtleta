@@ -248,7 +248,7 @@ code|Notificações do fluxo|Eventos próprios.|src/notifications/consultationNo
 recorded|Prescrição com demonstração|Link de mídia opcional por exercício.
 recorded|Feedback e alertas|Execução, dor alta e baixa adesão descritos.
 recorded|Push sem dados sensíveis|Evita valores exatos de dor e comentários externos.
-verify|Piloto completo|Checklist exige publicar, executar, enviar feedback e revisar; não executado agora.
+verify|Piloto completo|Publicação, execução, feedback e revisão passaram no smoke local isolado. Piloto com contas habituais no backend hospedado e entrega externa ainda não certificados.|docs/operations/consultation-authenticated-local-smoke-2026-10-05.md
 """)
 add('Área do atleta', '/student/home', 'src/screens/student/StudentAthleteHome.tsx', """
 code|Início do atleta|Home dedicada.
@@ -372,8 +372,10 @@ code|Continuidade entre máquinas|Setup, doctor e handoff versionados.|docs/oper
 code|Build verificado|validate:app e export web.|package.json
 code|Testes unitários e SQL|Scripts específicos.|package.json
 code|Escopo, arquitetura e performance|Checks separados.|package.json
-recorded|Preparar este worktree|Em 05/10, dependências próprias, patches, configuração pública local e doctor aprovados; runtime autenticado com Metro padrão validado e processo 8081 preservado. Pacote de 47 arquivos autorizado para commit/push em codex/contexto-tecnico-consultoria; main/produção fora do escopo.|docs/operations/worktree-local-ready-2026-10-05.md
-pending|Paridade do banco local compartilhado|A stack local permanece em 20260921205434; três migrations posteriores do checkout foram usadas apenas em bancos descartáveis. Doctor não certifica schema nem todos os módulos; banco compartilhado não recebeu reset/migration.|docs/operations/worktree-local-ready-2026-10-05.md
+recorded|Preparar este worktree|Em 05/10, dependências próprias, patches e doctor aprovados; runtime autenticado com Metro padrão validado. Processo anterior encerrado com autorização e este worktree iniciado em localhost:8081; tela inicial e login carregaram. Conexão habitual ao Supabase hospedado restaurada a pedido do usuário, sem expor valores ou executar migrations remotas.|docs/operations/worktree-local-ready-2026-10-05.md
+recorded|Paridade do banco local compartilhado|Três migrations aplicadas com autorização no Supabase local em 05/10; histórico em 20260929025310, reaplicação sem pendências, colunas/RLS/grants conferidos. Smoke Auth/PostgREST de perfil profissional e pedagógico passou com isolamento e limpeza das fixtures. Backup fora do Git; catálogo removido estava vazio. UI e todos os fluxos não foram repetidos nesta rodada; app diário usa o backend hospedado.|docs/operations/worktree-local-ready-2026-10-05.md
+recorded|Validação completa do pacote de contexto e consultoria|build:verified aprovado em 05/10: 553 suites, 3.100 testes Jest, suites SQL, tipos, lint, encoding, marca, JWT, escopo, assets, arquitetura, performance e build; 275 segundos, nenhum gate reaproveitado. Smoke autenticado anterior documentado separadamente; resultados locais não certificam produção.|docs/operations/worktree-local-ready-2026-10-05.md
+recorded|Sincronização da branch de contexto e consultoria|47 arquivos enviados em e263fef3 para codex/contexto-tecnico-consultoria; SHA remoto confirmado. Commit/push das três atualizações posteriores de documentação e checklist autorizado na mesma branch; confirmação no histórico Git e SHA remoto. main, merge e deploy manual fora do escopo; ambiente e backups ignorados pelo Git.|docs/operations/worktree-local-ready-2026-10-05.md
 verify|Produção atual|HEAD não certifica Vercel/EAS, Edge Functions ou migrações remotas.
 code|Fluxo econômico de tarefas|Índice e guias locais orientam consulta por módulo e validação proporcional. Organização documental implementada; não representa ativação de agentes nem validação funcional do app.|docs/context/README.md
 """)

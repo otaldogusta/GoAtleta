@@ -14,16 +14,48 @@ Base `d5120cff`; alterações anteriores e checklist preservados.
 - `.env.local` foi criado somente se ausente, usando a configuração pública da
   stack Supabase **local existente** em `127.0.0.1:54321`. Valores não foram
   exibidos; nenhuma chave privilegiada foi escrita no frontend.
+  Posteriormente, a pedido do usuário, URL e chave pública foram restauradas a
+  partir do checkout principal para usar o Supabase hospedado e a conta habitual.
+  O arquivo anterior foi preservado em backup ignorado; valores não foram
+  exibidos. O app continua local em 8081, mas as interações autenticadas usam o
+  backend hospedado. As migrations e smokes locais abaixo não atestam o remoto.
 - `npm run dev:doctor` passou: dependências e configuração local disponíveis.
   O arquivo de ambiente, dependências e backup permanecem ignorados pelo Git.
 - Lockfile, contexto do Expo Router e arquivo do Yoga no checkout principal
   foram conferidos por hash e preservados. A stack e seu banco não receberam
   reset, migration ou dados de teste nesta preparação.
 
-A stack compartilhada está em `20260921205434`; três migrations posteriores
-existem no checkout. Elas foram usadas somente nos bancos descartáveis dos
-smokes. `dev:doctor` confirma pré-requisitos, não paridade de schema, autenticação
-ou operação de todos os módulos contra o banco compartilhado.
+A stack compartilhada estava em `20260921205434`. Após autorização explícita,
+as três migrations posteriores foram aplicadas em 05/10 com
+`supabase migration up --local`; o histórico agora está em `20260929025310`.
+Um backup completo foi preservado em `.tmp/local-schema-review-20261005/`,
+ignorado pelo Git. As duas tabelas do catálogo removido estavam vazias.
+
+A segunda execução não encontrou pendências. Foram conferidos os sete campos
+do perfil profissional, as quatro tabelas pedagógicas com RLS habilitada e os
+grants: mutação pedagógica exclusiva de `service_role`, leitura do perfil
+profissional disponível para `authenticated` e negada a `anon`.
+`dev:doctor` passou novamente. Nenhum reset, migration remota ou alteração de
+produção foi executado na aplicação.
+
+### Smoke autenticado após aplicação
+
+Auth e PostgREST reais da stack compartilhada (`127.0.0.1:54321`) passaram com
+duas contas temporárias e uma organização/turma fictícias, removidas ao final
+pelos identificadores exatos. O login usou senha no Auth local, sem sessões
+sintéticas. Nenhuma credencial foi exibida ou adicionada ao Git.
+
+- Perfil profissional: RPC salva e recupera os dados próprios; outra conta não
+  recebe esse perfil e `anon` não executa a leitura.
+- Perfil pedagógico: `authenticated` não executa a mutação exclusiva do serviço;
+  `service_role` local grava a versão 1, o profissional autorizado a lê e a outra
+  conta recebe lista vazia para essa organização.
+- Limpeza confirmou ausência da organização e dos usuários temporários.
+
+Esta rodada valida API/RLS das migrations aplicadas. Não repetiu UI no navegador,
+CPF com segredo de criptografia nem todos os fluxos do produto. O smoke anterior
+da consultoria no navegador permanece evidência do ambiente isolado. Resultados
+e helper revisado ficam em `.tmp/local-schema-review-20261005/`, fora do Git.
 
 ## Validação após a instalação
 
@@ -46,22 +78,33 @@ ou operação de todos os módulos contra o banco compartilhado.
 
 ## Uso diário e sincronização
 
-`npm run dev:doctor` confere o setup. O comando padrão `npm run dev:web` usa 8081;
-o processo já existente nessa porta foi preservado. Enquanto ele estiver ativo,
-inicie este worktree em 8082:
+`npm run dev:doctor` confere o setup. Após autorização para encerrar o processo
+anterior, o Metro deste worktree foi iniciado na porta padrão 8081. Para iniciar
+novamente quando o servidor estiver desligado:
 
 ```powershell
-node node_modules/expo/bin/cli start --web --port 8082 --max-workers 2
+npm run dev:web
 ```
 
-Essa inicialização usa a stack local configurada. O app pode escrever nesse banco
-quando alguém interage autenticado; os testes deste pacote usam banco separado.
+Essa inicialização usa o Supabase hospedado, conforme restaurado a pedido do
+usuário. Interações autenticadas podem escrever nesse backend; os testes locais
+registrados neste documento não executaram migrations ou fixtures remotas.
 
 `origin/main` foi consultada em 05/10 e apontava para `d5120cff`, a base deste
 worktree. Após a revisão, o usuário autorizou commit e push dos 47 arquivos para
 `codex/contexto-tecnico-consultoria`. A branch foi criada nessa base. O registro
 do commit e a igualdade com o SHA remoto são a confirmação de envio; main e
 produção permanecem fora dessa autorização.
+
+Envio confirmado: commit `e263fef3`, com 47 arquivos, na branch indicada; o SHA
+remoto foi conferido novamente ao atualizar este checklist. `main` permanece em
+`d5120cff`. `npm run build:verified` passou em 275 segundos, sem reaproveitar gates:
+553 suites e 3.100 testes Jest, suites SQL e todos os checks do executor, incluindo
+o build. O usuário autorizou também commit/push das três atualizações posteriores
+de documentação e checklist na mesma branch; a confirmação de envio fica no
+histórico Git e na igualdade com o SHA remoto. A página inicial e o login carregaram em 8081 após
+restaurar a conexão pública anterior; isso não é evidência de novo login completo
+ou smoke de produção.
 
 Pacote local preparado para revisão: 47 arquivos de contexto, instruções,
 consultoria, notificações, handler e testes. Manifesto de hashes e patch ficam
@@ -75,6 +118,7 @@ O Core CI atual roda em PR/manual/workflow; o push desta branch não o aciona po
 si. EAS Update está limitado a main/master. Vercel pode criar preview automático
 da branch; aceite de push não comprova conclusão de preview ou produção.
 
-O checklist registra 371 itens e mantém os 359 IDs/títulos originais. A preparação
+O checklist registra 373 itens e mantém os 371 IDs/títulos anteriores, incluindo
+os 359 originais. A preparação
 local passou para evidência registrada; a diferença de schema do banco local
-compartilhado ficou pendente, sem aplicar mudanças para fechar esse item.
+compartilhado foi encerrada após aplicação autorizada e verificação estrutural.
