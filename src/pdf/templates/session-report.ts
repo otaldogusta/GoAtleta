@@ -7,7 +7,7 @@ export type SessionReportPdfData = {
   unitLabel: string;
   activity: string;
   conclusion: string;
-  participantsCount: number;
+  participantsCount: number | null;
   photos: string;
   deadlineLabel: string;
 };
@@ -51,7 +51,7 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
   const photos = asText(data?.photos).trim();
   const photoUris = parsePhotoUris(photos).filter(isRenderableImageUri).slice(0, 6);
   const participants =
-    typeof data?.participantsCount === "number" && data.participantsCount > 0
+    typeof data?.participantsCount === "number" && data.participantsCount >= 0
       ? String(data.participantsCount)
       : "-";
   const deadline = asText(data?.deadlineLabel).trim() || "último dia da escolinha do mês";

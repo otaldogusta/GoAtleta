@@ -1,4 +1,5 @@
 import type { AttendanceRecord, ClassGroup, Student } from "../../../../core/models";
+import { buildClassDocumentPdfFileName } from "../../../../pdf/class-document-file-name";
 import {
   buildAttendanceExportData,
   buildAttendanceExportFileParts,
@@ -60,6 +61,22 @@ describe("attendance operational export", () => {
       includeAttendance: true,
       startTime: "14:00",
     })).toBe("Chamada - Raposas - Seg e Qua - 14h - Outubro 2026.pdf");
+  });
+
+  test("shares the roster naming convention with daily reports, preserving accents and the lesson date", () => {
+    expect(buildClassDocumentPdfFileName({
+      documentLabel: "Relatório",
+      className: "Hipopótamos",
+      daysLabel: "Qua e Sex",
+      startTime: "18:00",
+      periodLabel: "07-10-2026",
+    })).toBe("Relatório - Hipopótamos - Qua e Sex - 18h - 07-10-2026.pdf");
+    expect(buildClassDocumentPdfFileName({
+      documentLabel: "Relatório",
+      className: "Turma / Iniciação",
+      startTime: "18:30",
+      periodLabel: "09-10-2026",
+    })).toBe("Relatório - Turma Iniciação - 18h30 - 09-10-2026.pdf");
   });
 
   const classes = [

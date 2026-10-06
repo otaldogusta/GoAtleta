@@ -338,7 +338,7 @@ describe("session training UI components", () => {
     expect(text).not.toContain("Detalhes do plano");
   });
 
-  it("renders the report tab fields, training preview and photo actions", () => {
+  it.each([null, 0, 12])("renders the approved report with attendance count %s and no manual field", (attendanceCount) => {
     const nullRef = { current: null } as any;
     const text = collectTextAndLabels(
       SessionReportTab({
@@ -351,12 +351,10 @@ describe("session training UI components", () => {
         hasExistingReport: true,
         pse: 6,
         technique: "boa",
-        participantsCount: "12",
+        participantsCount: attendanceCount === null ? "" : String(attendanceCount),
+        participantsCountFromAttendance: attendanceCount !== null,
         activity: "Passe orientado em estações.",
         conclusion: "Turma manteve atenção e evolução técnica.",
-        autoActivity: "Aquecimento / passe orientado / roda rápida.",
-        canApplyAutoActivity: false,
-        showAppliedPreview: true,
         canSuggestActivity: true,
         canSuggestConclusion: true,
         isRewritingActivity: false,
@@ -365,6 +363,7 @@ describe("session training UI components", () => {
         photoLimit: 3,
         isPickingPhoto: false,
         reportHasChanges: true,
+        reportDraftStatus: "idle",
         showPsePicker: true,
         showTechniquePicker: false,
         showPsePickerContent: true,
@@ -380,13 +379,10 @@ describe("session training UI components", () => {
         onClosePickers: jest.fn(),
         onSelectPse: jest.fn(),
         onSelectTechnique: jest.fn(),
-        onChangeParticipantsCount: jest.fn(),
         onChangeActivity: jest.fn(),
         onChangeConclusion: jest.fn(),
         onRewriteActivity: jest.fn(),
         onRewriteConclusion: jest.fn(),
-        onApplyAutoActivity: jest.fn(),
-        onToggleAppliedPreview: jest.fn(),
         onPickPhoto: jest.fn(),
         onOpenPhotoActions: jest.fn(),
         onClosePhotoActions: jest.fn(),
@@ -400,18 +396,20 @@ describe("session training UI components", () => {
     expect(text).toContain("Relatório da aula");
     expect(text).toContain("06/06/2026");
     expect(text).not.toContain("Editando relatório existente");
-    expect(text).toContain("PSE (0-10)");
+    expect(text).toContain("Esforço · PSE");
     expect(text).toContain("Técnica geral");
-    expect(text).toContain("Número de participantes");
-    expect(text).toContain("Atividade");
-    expect(text).toContain("Conclusão");
-    expect(text).toContain("Preview do treino aplicado");
-    expect(text).toContain("Aquecimento / passe orientado");
-    expect(text).toContain("Fotos");
-    expect(text).toContain("Tirar foto");
-    expect(text).toContain("Galeria");
-    expect(text).toContain("Foto do relatório");
-    expect(text).toContain("Substituir (câmera)");
+    expect(text).not.toContain("Número de participantes");
+    expect(text).not.toContain("Quantos participaram?");
+    if (attendanceCount === null) {
+      expect(text).not.toContain("Preenchido pela chamada");
+    } else {
+      expect(text).toContain(`Preenchido pela chamada: ${attendanceCount} presentes`);
+    }
+    expect(text).toContain("Atividade realizada");
+    expect(text).toContain("Como foi a aula?");
+    expect(text).not.toContain("Preview do treino aplicado");
+    expect(text.indexOf("Como foi a aula?")).toBeLessThan(text.indexOf("Atividade realizada"));
+    expect(text.indexOf("Atividade realizada")).toBeLessThan(text.indexOf("Avaliação da turma"));
     expect(text).toContain("Baixar PDF");
     expect(text).not.toContain("Academia não priorizada");
     expect(text).not.toContain("Detalhes do plano");

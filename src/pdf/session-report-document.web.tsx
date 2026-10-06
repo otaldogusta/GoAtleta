@@ -92,7 +92,7 @@ const isRenderableImageUri = (value: string) =>
 
 export function SessionReportDocument({ data }: { data: SessionReportPdfData }) {
   const participants =
-    typeof data?.participantsCount === "number" && data.participantsCount > 0
+    typeof data?.participantsCount === "number" && data.participantsCount >= 0
       ? String(data.participantsCount)
       : "-";
   const deadline = asText(data?.deadlineLabel).trim() || "último dia da escolinha do mês";

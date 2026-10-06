@@ -16,6 +16,7 @@ import {
   buildSessionReportDraftKey,
   clearSessionReportDraft,
   loadSessionReportDraft,
+  normalizeReportPhotoValue,
   saveSessionReportDraft,
   serializeSessionReportDraftValues,
   type SessionReportDraftValues,
@@ -41,6 +42,7 @@ type UseSessionReportParams = {
   organizationId?: string | null;
   classId: string;
   sessionDate: string;
+  isSessionReady: boolean;
   sessionLog: SessionLog | null;
   setSessionLog: (log: SessionLog | null) => void;
   attendancePercent: number | null;
@@ -76,6 +78,7 @@ export function useSessionReport({
   organizationId,
   classId,
   sessionDate,
+  isSessionReady,
   sessionLog,
   setSessionLog,
   attendancePercent,
@@ -87,7 +90,6 @@ export function useSessionReport({
   const [technique, setTechnique] = useState<ReportTechnique>(incomingBaseline.technique);
   const [activity, setActivity] = useState(incomingBaseline.activity);
   const [conclusion, setConclusion] = useState(incomingBaseline.conclusion);
-  const [participantsCount, setParticipantsCount] = useState(incomingBaseline.participantsCount);
   const [photos, setPhotos] = useState(incomingBaseline.photos);
   const [reportBaseline, setReportBaseline] =
     useState<ReportBaseline>(incomingBaseline);
@@ -98,7 +100,7 @@ export function useSessionReport({
   const resolvedParticipantsCount =
     typeof attendancePresentCount === "number"
       ? String(Math.max(0, Math.round(attendancePresentCount)))
-      : participantsCount;
+      : "";
   const hydrationRunRef = useRef(0);
   const hydrationPendingRef = useRef(false);
   const editedDuringHydrationRef = useRef(false);
@@ -133,7 +135,6 @@ export function useSessionReport({
     setTechnique(baseline.technique);
     setActivity(baseline.activity);
     setConclusion(baseline.conclusion);
-    setParticipantsCount(baseline.participantsCount);
     setPhotos(baseline.photos);
     setIsDraftHydrated(false);
     setReportDraftStatus("loading");
@@ -174,13 +175,6 @@ export function useSessionReport({
     },
     [markEditedDuringHydration]
   );
-  const setDraftParticipantsCount = useCallback<Dispatch<SetStateAction<string>>>(
-    (next) => {
-      markEditedDuringHydration();
-      setParticipantsCount(next);
-    },
-    [markEditedDuringHydration]
-  );
   const setDraftPhotos = useCallback<Dispatch<SetStateAction<string>>>(
     (next) => {
       markEditedDuringHydration();
@@ -190,6 +184,7 @@ export function useSessionReport({
   );
 
   useEffect(() => {
+    if (!isSessionReady) return;
     const runId = hydrationRunRef.current + 1;
     hydrationRunRef.current = runId;
     hydrationPendingRef.current = true;
@@ -201,9 +196,10 @@ export function useSessionReport({
     void loadSessionReportDraft(draftKey)
       .then(async (draft) => {
         if (hydrationRunRef.current !== runId) return;
-        const baselineSignature = serializeSessionReportDraftValues(baseline);
+        // Attendance is authoritative; legacy manual counts are not draft edits.
+        const baselineSignature = serializeSessionReportDraftValues({ ...baseline, participantsCount: "" });
         const draftSignature = draft
-          ? serializeSessionReportDraftValues(draft.values)
+          ? serializeSessionReportDraftValues({ ...draft.values, participantsCount: "" })
           : null;
         const hasRecoverableDraft =
           Boolean(draft && draftSignature !== baselineSignature);
@@ -223,7 +219,6 @@ export function useSessionReport({
           setTechnique(draft.values.technique);
           setActivity(draft.values.activity);
           setConclusion(draft.values.conclusion);
-          setParticipantsCount(draft.values.participantsCount);
           setPhotos(draft.values.photos);
         }
 
@@ -246,7 +241,7 @@ export function useSessionReport({
         hydrationRunRef.current += 1;
       }
     };
-  }, [draftKey, incomingBaseline]);
+  }, [draftKey, incomingBaseline, isSessionReady]);
 
   const saveReport = useCallback(
     async ({ activityFallback = "" }: SaveReportOptions = {}) => {
@@ -331,9 +326,9 @@ export function useSessionReport({
       technique !== reportBaseline.technique ||
       activity.trim() !== reportBaseline.activity.trim() ||
       conclusion.trim() !== reportBaseline.conclusion.trim() ||
-      resolvedParticipantsCount.trim() !== reportBaseline.participantsCount.trim() ||
-      photos.trim() !== reportBaseline.photos.trim(),
-    [PSE, activity, conclusion, photos, reportBaseline, resolvedParticipantsCount, technique]
+      (attendancePresentCount !== null && resolvedParticipantsCount !== reportBaseline.participantsCount.trim()) ||
+      normalizeReportPhotoValue(photos) !== normalizeReportPhotoValue(reportBaseline.photos),
+    [PSE, activity, attendancePresentCount, conclusion, photos, reportBaseline, resolvedParticipantsCount, technique]
   );
 
   const reportDraftValues = useMemo<SessionReportDraftValues>(
@@ -357,9 +352,9 @@ export function useSessionReport({
       key: draftKey,
       values: reportDraftValues,
       signature: reportDraftSignature,
-      shouldPersist: isDraftHydrated && reportHasChanges && !isSavingReport,
+      shouldPersist: isSessionReady && isDraftHydrated && reportHasChanges && !isSavingReport,
     };
-  }, [draftKey, reportDraftValues, reportDraftSignature, isDraftHydrated, reportHasChanges, isSavingReport]);
+  }, [draftKey, reportDraftValues, reportDraftSignature, isSessionReady, isDraftHydrated, reportHasChanges, isSavingReport]);
 
   const persistCurrentDraft = useCallback(async () => {
     const current = latestDraftRef.current;
@@ -389,8 +384,11 @@ export function useSessionReport({
     }
   }, []);
 
+  // Returning to history can unmount the editor before the debounce fires.
+  useEffect(() => () => { void persistCurrentDraft(); }, [persistCurrentDraft]);
+
   useEffect(() => {
-    if (!isDraftHydrated || !draftKey || isSavingReport) return;
+    if (!isSessionReady || !isDraftHydrated || !draftKey || isSavingReport) return;
     if (!reportHasChanges) {
       if (persistedDraftRef.current?.key === draftKey) {
         persistedDraftRef.current = null;
@@ -418,6 +416,7 @@ export function useSessionReport({
     };
   }, [
     draftKey,
+    isSessionReady,
     isDraftHydrated,
     isSavingReport,
     persistCurrentDraft,
@@ -465,7 +464,6 @@ export function useSessionReport({
     conclusion,
     setConclusion: setDraftConclusion,
     participantsCount: resolvedParticipantsCount,
-    setParticipantsCount: setDraftParticipantsCount,
     photos,
     setPhotos: setDraftPhotos,
     reportBaseline,

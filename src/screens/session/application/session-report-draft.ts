@@ -114,6 +114,10 @@ export async function clearSessionReportDraft(key: string | null): Promise<void>
   await AsyncStorage.removeItem(key);
 }
 
+// The picker serializes an empty gallery as []; older reports use an empty string.
+export const normalizeReportPhotoValue = (value: string) =>
+  /^\[\s*\]$/.test(value.trim()) ? "" : value.trim();
+
 export const serializeSessionReportDraftValues = (
   values: SessionReportDraftValues
-) => JSON.stringify(values);
+) => JSON.stringify({ ...values, photos: normalizeReportPhotoValue(values.photos) });

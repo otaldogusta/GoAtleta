@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Go Atleta · Histórico de relatórios · Mockup</title>
+<style>
+/* Protótipo local: dados fictícios, sem consulta ou gravação no app. */
+:root{color-scheme:dark;--bg:#0E1729;--deep:#0A1322;--surface:#162033;--raised:#1B263A;--input:#121c30;--text:#F1F4F9;--secondary:#CBD5E1;--muted:#8A9AB3;--border:rgba(241,244,249,.12);--strong:rgba(241,244,249,.26);--primary:#3DDC84;--on-primary:#0A1322;--focus:#93C5FD}
+[data-theme="light"]{color-scheme:light;--bg:#F5F0E8;--deep:#EBE3D2;--surface:#FFFDF8;--raised:#FFF;--input:#FAF7F1;--text:#0E1729;--secondary:#162033;--muted:#5A6B82;--border:rgba(14,23,41,.12);--strong:rgba(14,23,41,.28);--primary:#0E1729;--on-primary:#FFF;--focus:#3B82F6}
+*{box-sizing:border-box}html,body{margin:0;scrollbar-gutter:auto}body{background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}h1,h2,h3,p{margin:0}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{opacity:.55;cursor:default}button,input,select,textarea{outline:none}button:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:3px}input,textarea{border-radius:0!important}svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}button svg{pointer-events:none}[hidden]{display:none!important}small,.meta{font-size:12px;color:var(--muted)}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent!important}::-webkit-scrollbar-thumb{background:var(--strong);border-radius:8px}*{scrollbar-width:thin;scrollbar-color:var(--strong) transparent}
+.workbench{height:64px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border);background:var(--deep)}.brand{font-weight:750;font-size:16px;white-space:nowrap}.brand span{font-size:12px;font-weight:400;color:var(--muted);margin-left:14px}.tools,.switch{display:flex;align-items:center;gap:4px}.switch{padding:4px;border:1px solid var(--border);border-radius:12px}.tool{display:flex;align-items:center;gap:8px;background:transparent;border:0;min-height:36px;border-radius:8px;padding:8px 12px;font-size:12px;color:var(--muted)}.tool:hover{color:var(--text)}.tool[aria-pressed="true"]{background:var(--raised);color:var(--text)}.tools{gap:8px}.location-tool{color:var(--secondary)}
+.stage{height:calc(100dvh - 64px);min-height:480px;position:relative;isolation:isolate;overflow:hidden}.class-page{max-width:1120px;margin:0 auto;padding:32px;position:relative}.class-page .breadcrumb{color:var(--muted);font-size:12px;margin-bottom:22px}.class-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;padding-bottom:28px}.class-heading h1{font-size:24px;line-height:32px}.class-heading p{color:var(--muted);margin-top:6px;font-size:12px}.class-actions{display:flex;gap:8px;align-items:center}.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid var(--border);border-radius:12px;background:transparent;padding:0 16px;font-size:13px;font-weight:600;white-space:nowrap}.button:hover{background:var(--raised);border-color:var(--strong)}.primary{background:var(--primary);color:var(--on-primary);border-color:transparent}.primary:hover{background:var(--primary);filter:brightness(.95)}.class-actions .history-access{color:var(--secondary)}.class-nav{display:flex;gap:24px;border-bottom:1px solid var(--border);padding-bottom:14px;color:var(--muted);font-size:13px}.class-nav .active{color:var(--text)}.class-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px}.class-block{padding:24px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}.class-block h2{font-size:16px;margin-bottom:20px}.background-row{display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid var(--border)}.background-row>div{flex:1}.background-row p{font-size:13px}.background-row svg{color:var(--muted)}.access-note{margin-top:12px;display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}.stage.show-location .history-access{outline:2px solid var(--primary);outline-offset:4px}.stage.show-location .class-actions{scroll-margin:24px}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:color-mix(in srgb,var(--deep) 76%,transparent);z-index:5}.modal{width:min(760px,100%);height:min(660px,100%);max-height:100%;background:var(--surface);border:1px solid var(--strong);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 18px rgba(10,19,34,.08);container-type:inline-size}.modal-header{display:flex;align-items:center;gap:16px;padding:20px 24px 16px;flex-shrink:0}.header-symbol{width:20px;height:20px;color:var(--muted)}.heading{flex:1;min-width:0}.heading h1{font-size:22px;line-height:28px;letter-spacing:-.45px;font-weight:700}.heading p{font-size:12px;color:var(--muted);margin-top:5px}.icon-button{width:38px;height:38px;min-width:38px;border:1px solid var(--border);border-radius:19px;display:grid;place-items:center;background:transparent}.icon-button:hover{background:var(--raised)}.icon-button svg{width:16px;height:16px}.filters{display:grid;grid-template-columns:112px 174px 1fr;gap:12px;padding:4px 24px 20px;border-bottom:1px solid var(--border);flex-shrink:0}.control{height:50px;border:1px solid var(--border);border-radius:12px;background:var(--input);display:flex;align-items:center;position:relative;overflow:hidden}.control:focus-within{border-color:var(--focus)}.control>svg{position:absolute;right:14px;width:14px;height:14px;color:var(--muted);pointer-events:none}.control select{width:100%;height:100%;padding:0 38px 0 14px;border:0;border-radius:0;appearance:none;background:transparent;font-size:14px}.control option{background:var(--surface);color:var(--text)}.search-control{padding:0 14px;gap:8px}.search-control>svg{position:static;width:16px;height:16px}.search-control input{min-width:0;flex:1;width:100%;border:0;background:transparent;font-size:14px;padding:0}.search-control input::placeholder{color:var(--muted)}.search-control:has(input:placeholder-shown) .clear-search{display:none}.clear-search{padding:0;width:24px;height:32px;border:0;background:transparent;display:grid;place-items:center;color:var(--muted)}.clear-search svg{width:14px;height:14px}input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--input) inset!important;-webkit-text-fill-color:var(--text)}
+.history-content{flex:1;min-height:0;overflow:auto;padding:8px 16px 20px}.month-group+.month-group{margin-top:16px}.month-heading{padding:14px 8px 8px;display:flex;align-items:center;gap:10px}.month-heading h2{font-size:12px;font-weight:600;color:var(--muted)}.month-heading::after{content:"";height:1px;background:var(--border);flex:1}.report-row{width:100%;display:flex;align-items:center;gap:16px;padding:12px 8px;min-height:80px;border:1px solid transparent;border-radius:12px;background:transparent;text-align:left}.report-row:hover{background:var(--raised);border-color:var(--border)}.date-mark{width:42px;text-align:center;flex-shrink:0}.date-mark strong{display:block;font-size:20px;font-weight:650;line-height:24px;font-variant-numeric:tabular-nums;color:var(--secondary)}.date-mark span{display:block;color:var(--muted);font-size:10px;line-height:16px;text-transform:uppercase;letter-spacing:.5px}.report-copy{flex:1;min-width:0}.report-copy h3{font-size:14px;font-weight:600;line-height:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.report-copy p{font-size:12px;color:var(--muted);line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}.photo-count{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px}.photo-count svg{width:14px;height:14px}.row-arrow{width:16px;height:16px;color:var(--muted)}.history-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 24px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);flex-shrink:0}.history-footer .order{display:flex;align-items:center;gap:6px}.history-footer svg{width:14px;height:14px}.empty{min-height:240px;padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px}.empty>svg{width:24px;height:24px;color:var(--muted)}.empty h2{font-size:16px;font-weight:600}.empty p{color:var(--muted);font-size:12px}.link-button{border:0;background:transparent;color:var(--secondary);min-height:40px;padding:4px 8px;font-size:12px}.link-button:hover{text-decoration:underline;color:var(--text)}
+.report-content{min-height:0;flex:1;overflow:auto;padding:20px 24px}.detail-header{border-bottom:1px solid var(--border)}.field{margin-bottom:20px}.field label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin-bottom:10px}.field label.lead{font-size:16px}.field label svg{width:16px;height:16px;color:var(--muted)}.input-wrap{border:1px solid var(--border);border-radius:12px;background:var(--input);padding:12px 14px;min-height:50px}.input-wrap:focus-within{border-color:var(--focus)}.input-wrap textarea{border:0;display:block;width:100%;padding:0;resize:vertical;min-height:64px;background:transparent;font-size:14px;line-height:1.65}.input-wrap #conclusion{min-height:98px}.section{padding-top:20px;border-top:1px solid var(--border);margin-top:24px}.section-heading{display:flex;align-items:center;gap:8px;margin-bottom:16px}.section-heading h2{font-size:16px;line-height:24px}.section-heading>svg{color:var(--muted);width:16px;height:16px}.section-heading .meta{margin-left:auto}.assessment{display:grid;grid-template-columns:1fr 1fr;gap:16px}.assessment label{font-size:14px;font-weight:600;display:block;margin-bottom:8px}.detail-footer{padding:12px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}.detail-footer .meta{margin-right:auto}.detail-footer .pdf{border:0;font-weight:500}.photo-gallery{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.photo-gallery img{display:block;width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:12px;border:1px solid var(--border)}.toast{position:fixed;z-index:30;bottom:20px;left:50%;transform:translateX(-50%);max-width:calc(100% - 32px);padding:12px 20px;border:1px solid var(--strong);border-radius:12px;background:var(--raised);box-shadow:0 8px 24px #0003;font-size:12px;text-align:center;pointer-events:none}
+.filters{grid-template-columns:144px 174px 1fr}
+.stage[data-device="mobile"] .modal{width:390px}.stage[data-device="mobile"] .class-page{max-width:422px;padding:24px 16px}.stage[data-device="mobile"] .class-heading{display:block}.stage[data-device="mobile"] .class-actions{margin-top:20px}.stage[data-device="mobile"] .class-columns{grid-template-columns:1fr}.stage[data-device="mobile"] .class-nav{gap:16px}.stage[data-device="mobile"].show-location{overflow:auto}
+@container(max-width:500px){.modal-header{padding:20px 20px 16px;gap:12px}.heading h1{font-size:20px;line-height:26px}.header-symbol{display:none}.filters{padding:0 20px 16px;grid-template-columns:148px minmax(0,1fr);gap:10px}.search-control{grid-column:1/-1;height:44px}.history-content{padding:4px 12px 16px}.report-row{gap:12px;padding:12px 6px}.date-mark{width:36px}.report-copy p{margin-top:3px}.photo-count{display:none}.history-footer{padding:12px 20px}.history-footer .order{font-size:11px}.report-content{padding:20px}.assessment{grid-template-columns:1fr}.detail-footer{padding:12px 20px;gap:8px;flex-wrap:wrap}.detail-footer .meta{width:100%}.detail-footer .button{flex:1;padding:0 8px;font-size:12px}.photo-gallery{grid-template-columns:1fr 1fr}.section-heading{flex-wrap:wrap}.section-heading .meta{margin-left:0}}
+@media(max-width:650px){.workbench{height:56px;padding:0 12px;gap:8px}.brand{font-size:14px}.brand span,.switch,.theme-label,.location-label{display:none}.tool{padding:8px;min-width:36px;justify-content:center}.tools{gap:4px}.stage{height:calc(100dvh - 56px);min-height:420px}.overlay{padding:12px}.modal{height:100%}.class-page{padding:24px 16px}.class-heading{display:block}.class-heading h1{font-size:22px}.class-actions{margin-top:20px}.class-columns{grid-template-columns:1fr}.class-nav{gap:16px;font-size:12px}.class-block{padding:20px}.report-row{min-height:78px}}
+@media(prefers-reduced-motion:no-preference){.report-row,.button,.icon-button{transition:background .14s,border-color .14s}.modal{animation:arrive .18s ease-out}@keyframes arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}}
+</style>
+</head>
+<body>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"><defs>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6M8 12h12"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol>
+<symbol id="i-document" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l2-7L16 3l5 5-10 10z"/></symbol>
+<symbol id="i-options" viewBox="0 0 24 24"><path d="M3 7h6m5 0h7M3 17h10m5 0h3"/><circle cx="11.5" cy="7" r="2.5"/><circle cx="15.5" cy="17" r="2.5"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></symbol>
+<symbol id="i-desktop" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M12 17v4M8 21h8"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></symbol>
+<symbol id="i-location" viewBox="0 0 24 24"><path d="m4 3 6 17 3-7 7-3z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 2v6M17 2v6M3 11h18M8 15h2M14 15h2"/></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 3v18m-4-4 4 4 4-4M14 5h7M14 10h5M14 15h3"/></symbol>
+</defs></svg>
+<header class="workbench">
+  <div class="brand">Go Atleta <span>Mockup · dados fictícios</span></div>
+  <div class="tools">
+    <button class="tool location-tool" id="location" aria-label="Ver acesso sugerido na turma"><svg aria-hidden="true"><use href="#i-location"/></svg><span class="location-label">Ver acesso na turma</span></button>
+    <div class="switch" aria-label="Visualização"><button class="tool" id="desktop" aria-pressed="true"><svg aria-hidden="true"><use href="#i-desktop"/></svg>Desktop</button><button class="tool" id="mobile" aria-pressed="false"><svg aria-hidden="true"><use href="#i-phone"/></svg>Mobile</button></div>
+    <button class="tool" id="theme" aria-label="Alternar tema"><svg aria-hidden="true"><use href="#i-sun"/></svg><span class="theme-label">Tema claro</span></button>
+  </div>
+</header>
+<main class="stage" id="stage" data-device="desktop">
+  <section class="class-page" id="class-page" aria-label="Turma de exemplo">
+    <p class="breadcrumb">Turmas / Vôlei · Sub-15</p>
+    <div class="class-heading">
+      <div><h1>Vôlei · Sub-15</h1><p>Ter e Qui · 14h às 15h30</p></div>
+      <div><div class="class-actions"><button class="button primary" id="current-report"><svg aria-hidden="true"><use href="#i-document"/></svg>Relatório</button><button class="button history-access" id="open-history"><svg aria-hidden="true"><use href="#i-history"/></svg>Histórico</button></div><p class="access-note" id="access-note" hidden>Acesso sugerido: junto ao relatório da aula.</p></div>
+    </div>
+    <nav class="class-nav" aria-label="Contexto visual da turma"><span class="active">Visão geral</span><span>Chamada</span><span>Planejamentos</span><span>Alunos</span></nav>
+    <div class="class-columns">
+      <section class="class-block"><h2>Aula de 6 de outubro</h2><div class="background-row"><svg aria-hidden="true"><use href="#i-calendar"/></svg><div><p>Recepção e construção</p><small>14h às 15h30 · Quadra 1</small></div></div><div class="background-row"><svg aria-hidden="true"><use href="#i-document"/></svg><div><p>Relatório registrado</p><small>Recepção em duplas e jogos 3 × 3</small></div></div></section>
+      <section class="class-block"><h2>Relatórios recentes</h2><div class="background-row"><div><p>Recepção e construção</p><small>06 out 2026</small></div></div><div class="background-row"><div><p>Controle de bola</p><small>01 out 2026</small></div></div><button class="link-button" id="all-reports">Ver todos os relatórios</button></section>
+    </div>
+  </section>
+  <div class="overlay" id="overlay">
+    <section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header class="modal-header" id="modal-header"><svg class="header-symbol" id="history-symbol" aria-hidden="true"><use href="#i-history"/></svg><button class="icon-button" id="back-history" aria-label="Voltar ao histórico" hidden><svg aria-hidden="true"><use href="#i-back"/></svg></button><div class="heading"><h1 id="modal-title">Histórico de relatórios</h1><p id="modal-context">Vôlei · Sub-15</p></div><button class="icon-button" id="close-modal" aria-label="Fechar histórico"><svg aria-hidden="true"><use href="#i-close"/></svg></button></header>
+      <div class="filters" id="filters">
+        <div class="control"><select id="year" aria-label="Ano"><option value="2026">2026</option><option value="2025">2025</option><option value="all">Todos os anos</option></select><svg aria-hidden="true"><use href="#i-down"/></svg></div>
+        <div class="control"><select id="month" aria-label="Mês"><option value="all">Todos os meses</option></select><svg aria-hidden="true"><use href="#i-down"/></svg></div>
+        <div class="control search-control"><svg aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="query" aria-label="Buscar no relato" placeholder="Buscar no relato" autocomplete="off"><button class="clear-search" id="clear-search" aria-label="Limpar busca"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      </div>
+      <div class="history-content" id="history-content"><div id="report-list"></div></div>
+      <footer class="history-footer" id="history-footer"><span id="result-count" role="status" aria-live="polite"></span><span class="order"><svg aria-hidden="true"><use href="#i-sort"/></svg>Mais recentes primeiro</span></footer>
+      <form class="report-content" id="report-content" hidden>
+        <div class="field"><label class="lead" for="conclusion"><svg aria-hidden="true"><use href="#i-pencil"/></svg>Como foi a aula?</label><div class="input-wrap"><textarea id="conclusion"></textarea></div></div>
+        <div class="field"><label for="activity"><svg aria-hidden="true"><use href="#i-document"/></svg>Atividade realizada</label><div class="input-wrap"><textarea id="activity"></textarea></div></div>
+        <section class="section"><div class="section-heading"><svg aria-hidden="true"><use href="#i-options"/></svg><h2>Avaliação da turma</h2><span class="meta" id="attendance"></span></div><div class="assessment"><div><label for="effort">Esforço · PSE</label><div class="control"><select id="effort"></select><svg aria-hidden="true"><use href="#i-down"/></svg></div></div><div><label for="technique">Técnica geral</label><div class="control"><select id="technique"><option value="boa">Boa</option><option value="ok">OK</option><option value="ruim">Ruim</option><option value="nenhum">Não avaliar</option></select><svg aria-hidden="true"><use href="#i-down"/></svg></div></div></div></section>
+        <section class="section" id="photos-section"><div class="section-heading"><svg aria-hidden="true"><use href="#i-photo"/></svg><h2>Fotos da aula</h2><span class="meta" id="photos-count"></span></div><div class="photo-gallery" id="photo-gallery"></div></section>
+      </form>
+      <footer class="detail-footer" id="detail-footer" hidden><span class="meta" id="save-status">Salvo</span><button class="button pdf" id="pdf">Baixar PDF</button><button class="button primary" id="save" disabled>Salvar relatório</button></footer>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+const $ = id => document.getElementById(id);
+const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const weekdays = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const samplePhotos = ['assets/relatorio-aula/recepcao-exemplo.png','assets/relatorio-aula/orientacao-exemplo.png'];
+// Todas as aulas e narrativas abaixo são exemplos criados para esta proposta.
+const reports = [
+ ['2026-10-06','Recepção e construção','A turma manteve mais trocas de bola e melhorou a comunicação na recepção. Na próxima aula, retomar a posição de base e ampliar os jogos com três toques.','Recepção e deslocamento em duplas, seguidos de jogos 3 × 3 com foco na construção de três toques.',18,6,'boa',2],
+ ['2026-10-01','Controle de bola','As duplas sustentaram sequências mais longas. Retomar o controle de força no toque.','Desafios de toque e manchete em duplas, com aumento gradual de distância.',17,5,'boa',0],
+ ['2026-09-29','Saque por baixo','O direcionamento melhorou quando a turma escolheu um alvo antes de sacar.','Saque por baixo por zonas e jogo reduzido com saque orientado.',18,6,'boa',1],
+ ['2026-09-24','Leitura e deslocamento','A antecipação ainda precisa de atenção. Repetir as situações de bola curta.','Jogos 2 × 2 e desafios de leitura da trajetória da bola.',16,7,'ok',0],
+ ['2026-09-22','Comunicação em quadra','A turma passou a chamar a bola com mais frequência durante o jogo.','Recepção em trios e jogos cooperativos com três contatos.',19,6,'boa',0],
+ ['2026-09-17','Base da recepção','Houve mais estabilidade no contato. Retomar o deslocamento lateral.','Circuito de manchete e deslocamento para receber bolas direcionadas.',null,5,'ok',1],
+ ['2026-09-15','Construção em três toques','Os grupos conseguiram organizar os contatos com menos interrupções.','Jogos 3 × 3 com metas de continuidade e troca de posições.',18,6,'boa',0],
+ ['2026-09-10','Jogos cooperativos','A turma colaborou nas tarefas e ampliou as sequências de passes.','Desafios em pequenos grupos para manter a bola em jogo.',17,5,'boa',0],
+ ['2026-08-27','Posição de base','Os alunos reconheceram melhor a posição de espera entre as ações.','Deslocamentos com sinais visuais e recepção em duplas.',18,5,'ok',0],
+ ['2026-08-25','Passe e recepção','O controle do passe evoluiu nas tarefas de menor distância.','Passe em duplas e jogos 2 × 2 com espaço reduzido.',16,6,'boa',1],
+ ['2026-07-30','Retomada da turma','Boa participação na volta às aulas. Priorizar continuidade nas próximas sessões.','Jogos de cooperação, toque e manchete em pequenos grupos.',17,4,'ok',0],
+ ['2026-06-25','Festival de jogos','A turma aplicou a comunicação trabalhada durante o mês.','Rodízio de jogos 3 × 3, com conversa ao final de cada rodada.',20,7,'boa',2],
+ ['2025-12-18','Fechamento do semestre','O grupo reconheceu seus avanços e combinou objetivos para a próxima etapa.','Jogos cooperativos e conversa sobre a evolução no semestre.',18,5,'boa',1],
+ ['2025-11-27','Continuidade do jogo','As trocas ficaram mais consistentes quando houve tempo para organizar a recepção.','Jogos reduzidos com foco em três toques.',17,6,'ok',0],
+ ['2025-10-23','Primeiros contatos','A turma participou dos desafios e reconheceu os fundamentos trabalhados.','Exploração de toque, manchete e jogos adaptados.',19,4,'ok',0]
+].map(([date,title,conclusion,activity,attendance,effort,technique,photos]) => ({date,title,conclusion,activity,attendance,effort,technique,photos}));
+let current = null, savedListScroll = 0, selectedDate = null, toastTimer;
+const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+months.forEach((month,index) => $('month').add(new Option(month,String(index+1).padStart(2,'0'))));
+for(let effort=0;effort<=10;effort++) $('effort').add(new Option(`${effort} / 10`,String(effort)));
+function renderHistory(){
+  const year=$('year').value, month=$('month').value, query=normalize($('query').value.trim());
+  const filtered=reports.filter(report => (year==='all'||report.date.startsWith(year)) && (month==='all'||report.date.slice(5,7)===month) && (!query||normalize(`${report.title} ${report.activity} ${report.conclusion} ${report.date.split('-').reverse().join('/')}`).includes(query))).sort((a,b)=>b.date.localeCompare(a.date));
+  $('result-count').textContent=`${filtered.length} ${filtered.length===1?'relatório':'relatórios'}`;
+  if(!filtered.length){$('report-list').innerHTML=`<div class="empty">${icon('search')}<h2>Nenhum relatório encontrado</h2><p>Tente outro período ou termo.</p><button class="link-button" id="reset-filters">Limpar filtros</button></div>`;$('reset-filters').onclick=resetFilters;return;}
+  let previous='', html='';
+  filtered.forEach(report=>{
+    const group=report.date.slice(0,7), day=report.date.slice(8), weekday=weekdays[new Date(report.date+'T12:00:00').getDay()];
+    if(group!==previous){if(previous)html+='</section>';html+=`<section class="month-group"><div class="month-heading"><h2>${months[Number(report.date.slice(5,7))-1]}${year==='all'?' '+report.date.slice(0,4):''}</h2></div>`;previous=group;}
+    html+=`<button class="report-row" data-date="${report.date}" aria-label="Abrir relatório de ${report.date.split('-').reverse().join('/')}: ${escapeHtml(report.title)}"><div class="date-mark" aria-hidden="true"><strong>${day}</strong><span>${weekday}</span></div><div class="report-copy"><h3>${escapeHtml(report.title)}</h3><p>${escapeHtml(report.conclusion)}</p></div>${report.photos?`<span class="photo-count" aria-label="${report.photos} fotos">${icon('photo')}${report.photos}</span>`:''}${icon('chevron').replace('<svg ','<svg class="row-arrow" ')}</button>`;
+  });
+  $('report-list').innerHTML=html+'</section>';
+  document.querySelectorAll('.report-row').forEach(row=>row.onclick=()=>openReport(row.dataset.date));
+}
+function resetFilters(){$('year').value='2026';$('month').value='all';$('query').value='';renderHistory();$('history-content').scrollTop=0;}
+function showToast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,4000);}
+function isDirty(){return current&&($('conclusion').value!==current.conclusion||$('activity').value!==current.activity||Number($('effort').value)!==current.effort||$('technique').value!==current.technique);}
+function mayLeave(){return !isDirty()||window.confirm('Descartar as alterações feitas neste exemplo?');}
+function displayMode(detail){
+  ['filters','history-content','history-footer','history-symbol'].forEach(id=>$(id).hidden=detail);
+  ['report-content','detail-footer','back-history'].forEach(id=>$(id).hidden=!detail);
+  $('modal-header').classList.toggle('detail-header',detail);
+  $('close-modal').setAttribute('aria-label',detail?'Fechar relatório':'Fechar histórico');
+}
+function openHistory(){
+  current=null;displayMode(false);$('modal-title').textContent='Histórico de relatórios';$('modal-context').textContent='Vôlei · Sub-15';
+  $('overlay').hidden=false;$('class-page').inert=true;$('stage').classList.remove('show-location');$('access-note').hidden=true;
+  document.querySelector('.location-label').textContent='Ver acesso na turma';$('location').setAttribute('aria-label','Ver acesso sugerido na turma');renderHistory();
+  $('history-content').scrollTop=savedListScroll;
+  requestAnimationFrame(()=>{const row=selectedDate?document.querySelector(`[data-date="${selectedDate}"]`):null;(row||$('close-modal')).focus({preventScroll:true});});
+}
+function openReport(date){
+  savedListScroll=$('history-content').scrollTop;selectedDate=date;current=reports.find(report=>report.date===date);displayMode(true);
+  $('modal-title').textContent='Relatório da aula';$('modal-context').textContent=`Vôlei · Sub-15 · ${current.date.split('-').reverse().join('/')} · 14h–15h30`;
+  $('conclusion').value=current.conclusion;$('activity').value=current.activity;$('effort').value=String(current.effort);$('technique').value=current.technique;
+  $('attendance').textContent=current.attendance===null?'':`${current.attendance} presentes · chamada`;
+  $('photos-section').hidden=!current.photos;$('photos-count').textContent=`${current.photos} ${current.photos===1?'foto':'fotos'}`;
+  $('photo-gallery').innerHTML=samplePhotos.slice(0,current.photos).map((src,i)=>`<img src="${src}" alt="Foto ilustrativa ${i+1} de uma aula de vôlei">`).join('');
+  $('save-status').textContent='Salvo';$('save').disabled=true;$('report-content').scrollTop=0;$('back-history').focus({preventScroll:true});
+}
+function closeModal(){if(!mayLeave())return;if(!current)savedListScroll=$('history-content').scrollTop;current=null;$('overlay').hidden=true;$('class-page').inert=false;$('stage').classList.add('show-location');$('access-note').hidden=false;document.querySelector('.location-label').textContent='Ver modal';$('location').setAttribute('aria-label','Ver modal do histórico');$('open-history').focus({preventScroll:true});}
+$('year').onchange=$('month').onchange=$('query').oninput=()=>{renderHistory();$('history-content').scrollTop=0;savedListScroll=0;};
+$('clear-search').onclick=()=>{$('query').value='';renderHistory();$('query').focus();};
+$('open-history').onclick=$('all-reports').onclick=openHistory;
+$('current-report').onclick=()=>{openHistory();openReport('2026-10-06');};
+$('close-modal').onclick=closeModal;
+$('location').onclick=()=>{if($('overlay').hidden)openHistory();else closeModal();};
+$('back-history').onclick=()=>{if(mayLeave())openHistory();};
+$('overlay').onclick=event=>{if(event.target===$('overlay'))closeModal();};
+$('report-content').oninput=()=>{$('save').disabled=!isDirty();$('save-status').textContent=isDirty()?'Alterações no exemplo':'Salvo';};
+$('report-content').onsubmit=event=>event.preventDefault();
+$('save').onclick=()=>{if(!current||!isDirty())return;Object.assign(current,{conclusion:$('conclusion').value,activity:$('activity').value,effort:Number($('effort').value),technique:$('technique').value});$('save').disabled=true;$('save-status').textContent='Salvo';showToast('Alterações salvas apenas neste mockup.');};
+$('pdf').onclick=()=>showToast('No app, este botão baixa o PDF do relatório selecionado.');
+$('theme').onclick=()=>{const light=document.documentElement.dataset.theme!=='light';document.documentElement.dataset.theme=light?'light':'dark';document.querySelector('.theme-label').textContent=light?'Tema escuro':'Tema claro';};
+['desktop','mobile'].forEach(device=>$(device).onclick=()=>{$('stage').dataset.device=device;['desktop','mobile'].forEach(value=>$(value).setAttribute('aria-pressed',String(value===device)));});
+document.addEventListener('keydown',event=>{
+  if($('overlay').hidden)return;
+  if(event.key==='Escape'){event.preventDefault();if(current){if(mayLeave())openHistory();}else closeModal();}
+  if(event.key==='Tab'&&$('modal').contains(document.activeElement)){
+    const focusable=[...$('modal').querySelectorAll('button:not(:disabled),input,select,textarea')].filter(el=>el.getClientRects().length);
+    if(event.shiftKey&&document.activeElement===focusable[0]){event.preventDefault();focusable.at(-1).focus();}
+    else if(!event.shiftKey&&document.activeElement===focusable.at(-1)){event.preventDefault();focusable[0].focus();}
+  }
+});
+openHistory();
+</script>
+</body>
+</html>

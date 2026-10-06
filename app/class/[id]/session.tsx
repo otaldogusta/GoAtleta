@@ -47,6 +47,7 @@ import { SessionPlanFabActions } from "../../../src/screens/session/components/S
 import { SessionPlanGenerationState } from "../../../src/screens/session/components/SessionPlanGenerationState";
 import { SessionResistanceTrainingSection } from "../../../src/screens/session/components/SessionResistanceTrainingSection";
 import { SessionReportTab } from "../../../src/screens/session/components/SessionReportTab";
+import { SessionReportActions, type ReportPendingAction } from "../../../src/screens/session/components/SessionReportActions";
 import { SessionTabBar } from "../../../src/screens/session/components/SessionTabBar";
 import { SessionTopHeader } from "../../../src/screens/session/components/SessionTopHeader";
 import { SessionUnavailableState } from "../../../src/screens/session/components/SessionUnavailableState";
@@ -135,6 +136,7 @@ import { logAction, logPlanGenerationDecision } from "../../../src/observability
 import { measure } from "../../../src/observability/perf";
 import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
+import { buildClassDocumentPdfFileName } from "../../../src/pdf/class-document-file-name";
 import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
 import { SessionReportDocument } from "../../../src/pdf/session-report-document";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
@@ -1683,6 +1685,7 @@ type SessionScreenProps = {
   embeddedReport?: boolean;
   embeddedDate?: string;
   onCloseEmbeddedReport?: () => void;
+  onBackEmbeddedReport?: () => void;
 };
 
 // perf-check: ignore-render
@@ -1691,6 +1694,7 @@ export function SessionScreen({
   embeddedReport = false,
   embeddedDate,
   onCloseEmbeddedReport,
+  onBackEmbeddedReport,
 }: SessionScreenProps = {}) {
   const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
     id: string;
@@ -1705,7 +1709,7 @@ export function SessionScreen({
   const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
   const { width: viewportWidth } = useWindowDimensions();
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const [sessionTab, setSessionTab] = useState<SessionTabId>(
@@ -1715,7 +1719,9 @@ export function SessionScreen({
     treino: new Animated.Value(1),
     relatório: new Animated.Value(0),
   }));
-  const [showAppliedPreview, setShowAppliedPreview] = useState(false);
+  const [reportPendingAction, setReportPendingAction] = useState<ReportPendingAction>(null);
+  const reportActionLock = useRef(false);
+  const reportPhotoScopeRef = useRef("");
   const [autoActivity, setAutoActivity] = useState("");
   const [isRewritingActivity, setIsRewritingActivity] = useState(false);
   const [isRewritingConclusion, setIsRewritingConclusion] = useState(false);
@@ -1790,7 +1796,6 @@ export function SessionScreen({
     savedClassPlans,
     setSavedClassPlans,
     sessionStudents,
-    studentsCount,
     isLoadingSession,
     sessionDataStatus,
     sessionDataError,
@@ -1843,7 +1848,6 @@ export function SessionScreen({
     conclusion,
     setConclusion,
     participantsCount,
-    setParticipantsCount,
     photos,
     setPhotos,
     reportHasChanges,
@@ -1854,6 +1858,7 @@ export function SessionScreen({
     organizationId: cls?.organizationId,
     classId: cls?.id ?? "",
     sessionDate,
+    isSessionReady: !isLoadingSession && sessionDataStatus === "ready",
     sessionLog,
     setSessionLog,
     attendancePercent,
@@ -2014,17 +2019,6 @@ export function SessionScreen({
     setShowTechniquePicker(false);
   };
 
-  const handleApplyAutoActivity = () => {
-    if (!autoActivity.trim()) return;
-    if (activity.trim()) return;
-    setActivity(autoActivity);
-    closePickers();
-    showSaveToast({
-      message: "Atividade preenchida a partir do treino.",
-      variant: "info",
-    });
-  };
-  const canApplyAutoActivity = !!autoActivity.trim() && !activity.trim();
   const normalizeRewriteInput = (value: string) => value.trim().replace(/\s+/g, " ");
   const isRelevantForRewrite = (value: string) => {
     const normalized = normalizeRewriteInput(value);
@@ -2036,6 +2030,10 @@ export function SessionScreen({
   const canSuggestActivity = isRelevantForRewrite(activity);
   const canSuggestConclusion = isRelevantForRewrite(conclusion);
   const reportPhotoUris = useMemo(() => parseReportPhotoUris(photos), [photos]);
+  useEffect(() => {
+    reportPhotoScopeRef.current = `${cls?.id ?? ""}:${sessionDate}`;
+    return () => { reportPhotoScopeRef.current = ""; };
+  }, [cls?.id, sessionDate]);
 
   const getRewriteFieldLabel = (field: ReportRewriteField) =>
     field === "activity" ? "Atividade" : "Conclusão";
@@ -2123,10 +2121,29 @@ export function SessionScreen({
   };
 
   const removePhotoAtIndex = (index: number) => {
+    const removedUri = reportPhotoUris[index];
+    if (!removedUri) return;
+    const scope = reportPhotoScopeRef.current;
+    let canRestore = true;
     setPhotos((previous) => {
       const list = parseReportPhotoUris(previous);
       list.splice(index, 1);
       return serializeReportPhotoUris(list);
+    });
+    showSaveToast({
+      message: "Foto removida.",
+      variant: "info",
+      actionLabel: "Desfazer",
+      onAction: () => {
+        if (!canRestore || reportPhotoScopeRef.current !== scope) return;
+        canRestore = false;
+        setPhotos((previous) => {
+          const list = parseReportPhotoUris(previous);
+          if (list.length >= REPORT_PHOTO_LIMIT) return previous;
+          list.splice(Math.min(index, list.length), 0, removedUri);
+          return serializeReportPhotoUris(list);
+        });
+      },
     });
   };
 
@@ -2291,22 +2308,34 @@ export function SessionScreen({
   }, [showPsePicker, showTechniquePicker, syncPickerLayouts]);
 
   async function handleSaveReport() {
+    if (reportActionLock.current) return;
+    reportActionLock.current = true;
+    setReportPendingAction("save");
     try {
       await saveReport({ activityFallback: autoActivity });
       showSaveToast({ message: ptBR.session.success.reportSaved, variant: "success" });
     } catch {
       showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
+    } finally {
+      reportActionLock.current = false;
+      setReportPendingAction(null);
     }
   }
 
   async function handleSaveAndGenerateReport() {
+    if (reportActionLock.current) return;
+    reportActionLock.current = true;
+    setReportPendingAction("pdf");
     try {
       await saveReport({ activityFallback: autoActivity });
       await handleExportReportPdf();
     } catch {
       showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
+    } finally {
+      reportActionLock.current = false;
+      setReportPendingAction(null);
     }
   }
 
@@ -3434,20 +3463,12 @@ export function SessionScreen({
     if (!cls) return;
     const dateLabel = sessionDate.split("-").reverse().join("/");
     const reportMonth = monthLabel(sessionDate);
-    const attendanceFromLog =
-      typeof sessionLog?.attendance === "number" ? sessionLog.attendance : 0;
-    const estimatedParticipants =
-      studentsCount > 0
-        ? Math.round((attendanceFromLog / 100) * studentsCount)
-        : 0;
     const participantsRaw = participantsCount.trim();
     const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
     const participantsForPdf =
       Number.isFinite(participantsValue) && participantsValue >= 0
         ? participantsValue
-        : sessionLog?.participantsCount && sessionLog.participantsCount > 0
-        ? sessionLog.participantsCount
-        : estimatedParticipants || undefined;
+        : null;
     const photosForPdf = await serializePhotosForPdf(photos);
     const activityValue = normalizeDisplayText(
       activity.trim() || autoActivity.trim() || (sessionLog?.activity ?? "")
@@ -3462,7 +3483,7 @@ export function SessionScreen({
       unitLabel: normalizeDisplayText(cls.unit),
       activity: activityValue,
       conclusion: conclusionValue,
-      participantsCount: participantsForPdf ?? 0,
+      participantsCount: participantsForPdf,
       photos: photosForPdf,
       deadlineLabel: "último dia da escolinha do mês",
     };
@@ -3470,9 +3491,15 @@ export function SessionScreen({
     const webDocument =
       Platform.OS === "web" ? <SessionReportDocument data={reportData} /> : undefined;
     try {
-      const safeClass = safeFileName(cls.name);
-      const safeDate = safeFileName(sessionDate);
-      const fileName = `relatório-${safeClass}-${safeDate}.pdf`;
+      const fileName = buildClassDocumentPdfFileName({
+        documentLabel: "Relatório",
+        className: cls.name,
+        daysLabel: normalizeClassDaysOfWeek(cls.daysOfWeek)
+          .map((day) => ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"][day])
+          .filter(Boolean).join(" e "),
+        startTime: cls.startTime,
+        periodLabel: dateLabel.replace(/\//g, "-"),
+      });
       await measure("exportSessionReportPdf", () =>
         exportPdf({
           html,
@@ -3533,7 +3560,9 @@ export function SessionScreen({
   const reportTabContent = (
     <>
       <SessionReportTab
+        key={`${cls.id}:${sessionDate}`}
         embedded={embeddedReport}
+        inputBackground={mode === "dark" ? "#121c30" : colors.inputBg}
       compactFields={resolveResponsiveTier(viewportWidth) === "mobile"}
       colors={colors}
       containerRef={containerRef}
@@ -3548,9 +3577,6 @@ export function SessionScreen({
       participantsCountFromAttendance={attendancePresentCount !== null}
       activity={activity}
       conclusion={conclusion}
-      autoActivity={autoActivity}
-      canApplyAutoActivity={canApplyAutoActivity}
-      showAppliedPreview={showAppliedPreview}
       canSuggestActivity={canSuggestActivity}
       canSuggestConclusion={canSuggestConclusion}
       isRewritingActivity={isRewritingActivity}
@@ -3559,6 +3585,7 @@ export function SessionScreen({
       photoLimit={REPORT_PHOTO_LIMIT}
       isPickingPhoto={isPickingPhoto}
       reportHasChanges={reportHasChanges}
+      pendingAction={reportPendingAction}
       reportDraftStatus={reportDraftStatus}
       showPsePicker={showPsePicker}
       showTechniquePicker={showTechniquePicker}
@@ -3575,7 +3602,6 @@ export function SessionScreen({
       onClosePickers={closePickers}
       onSelectPse={handleSelectPse}
       onSelectTechnique={handleSelectTechnique}
-      onChangeParticipantsCount={setParticipantsCount}
       onChangeActivity={(value) => {
         setActivity(value);
         closePickers();
@@ -3587,7 +3613,7 @@ export function SessionScreen({
       onFieldFocus={(nativeTarget, field) => {
         if (!embeddedReport) return;
         const additionalOffset =
-          field === "conclusion" ? 260 : field === "activity" ? 156 : 132;
+          field === "conclusion" ? 260 : 156;
         const revealFocusedField = () => {
           embeddedReportScrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(
             nativeTarget,
@@ -3602,8 +3628,6 @@ export function SessionScreen({
       }}
       onRewriteActivity={() => void handleRewriteField("activity")}
       onRewriteConclusion={() => void handleRewriteField("conclusion")}
-      onApplyAutoActivity={handleApplyAutoActivity}
-      onToggleAppliedPreview={() => setShowAppliedPreview((prev) => !prev)}
       onPickPhoto={(photoSource) => {
         void pickReportPhoto(photoSource);
       }}
@@ -3651,52 +3675,21 @@ export function SessionScreen({
             borderBottomColor: colors.border,
           }}
         >
-          <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-              Relatório da aula
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
-                {cls.name} · {sessionDate.split("-").reverse().join("/")}
-              </Text>
-              {reportDraftStatus === "restored" ||
-              reportDraftStatus === "saving" ||
-              reportDraftStatus === "saved" ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 5,
-                    paddingVertical: 3,
-                    paddingHorizontal: 7,
-                    borderRadius: 9,
-                    backgroundColor: colors.successBg,
-                  }}
-                >
-                  <GoAtletaIcon
-                    name={reportDraftStatus === "saving" ? "ellipsisHorizontal" : "cloudDone"}
-                    size={12}
-                    color={colors.successText}
-                  />
-                  <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "700" }}>
-                    {reportDraftStatus === "restored"
-                      ? ptBR.session.report.draftRestored
-                      : reportDraftStatus === "saving"
-                        ? ptBR.session.report.draftSaving
-                        : ptBR.session.report.draftSaved}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+          {onBackEmbeddedReport ? <Pressable onPress={onBackEmbeddedReport} accessibilityRole="button" accessibilityLabel="Voltar ao histórico" style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}>
+            <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
+          </Pressable> : resolveResponsiveTier(viewportWidth) !== "mobile" ? <GoAtletaIcon name="document" size={20} color={colors.muted} /> : null}
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+            <Text style={{ color: colors.text, fontSize: resolveResponsiveTier(viewportWidth) === "mobile" ? 20 : 22, lineHeight: 28, fontWeight: "700" }}>Relatório da aula</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{cls.name} · {sessionDate.split("-").reverse().join("/")}{timeLabel ? ` · ${timeLabel}` : ""}</Text>
           </View>
           <Pressable
             onPress={onCloseEmbeddedReport}
             accessibilityRole="button"
             accessibilityLabel="Fechar relatório"
             style={({ pressed }) => ({
-              width: 36,
-              height: 36,
-              borderRadius: 18,
+              width: 38,
+              height: 38,
+              borderRadius: 19,
               borderWidth: 1,
               borderColor: colors.border,
               alignItems: "center",
@@ -3709,17 +3702,20 @@ export function SessionScreen({
         </View>
         <ScrollView
           ref={embeddedReportScrollRef}
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ padding: 20, paddingBottom: Math.max(24, insets.bottom + 16) }}
+          style={[{ flex: 1, minHeight: 0 }, Platform.OS === "web" ? ({ scrollbarWidth: "thin", scrollbarColor: `${colors.borderStrong} transparent` } as any) : null]}
+          contentContainerStyle={{ paddingHorizontal: resolveResponsiveTier(viewportWidth) === "mobile" ? 20 : 24, paddingVertical: 20 }}
           onScrollBeginDrag={closePickers}
           scrollEnabled={!showPsePicker && !showTechniquePicker}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           automaticallyAdjustKeyboardInsets
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator
         >
           {reportTabContent}
         </ScrollView>
+        <View style={{ paddingHorizontal: resolveResponsiveTier(viewportWidth) === "mobile" ? 20 : 24, paddingBottom: Math.max(12, insets.bottom), backgroundColor: colors.card }}>
+          <SessionReportActions colors={colors} compact={resolveResponsiveTier(viewportWidth) === "mobile"} hasExistingReport={!!sessionLog} dirty={reportHasChanges} draftStatus={reportDraftStatus} pendingAction={reportPendingAction} onSave={handleSaveReport} onExport={handleSaveAndGenerateReport} />
+        </View>
       </KeyboardAvoidingView>
     );
   }

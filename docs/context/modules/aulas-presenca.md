@@ -59,6 +59,31 @@ O [assistente de planejamento](../../../docs/operations/planning-assistant-local
 consome execução oficial e indicadores agregados; narrativa de relatório não deve
 ser encaminhada indiscriminadamente como contexto externo.
 
+Em 06/10/2026, o [visual aprovado do relatório](../../ui/RELATORIO_AULA_2026-10-06.md)
+foi aplicado em `SessionReportTab`, com galeria visível e ações fixas no modal.
+O card do plano saiu da interface; o fallback de atividade ao salvar/exportar
+continua no fluxo existente. Galeria vazia (`[]` ou string vazia) é equivalente
+na comparação do rascunho. Exemplos sintéticos ficam apenas no mockup.
+Participantes no modal vêm exclusivamente da chamada da aula: sem chamada, ficam
+ausentes, inclusive na gravação e no PDF, sem campo manual ou estimativa. Contagens
+manuais de relatórios/rascunhos antigos não são reutilizadas nesse fluxo; zero
+presentes em uma chamada registrada continua diferente de ausência de chamada.
+O PDF do relatório segue o nome legível da chamada (documento, turma, dias,
+horário e período), usando a data da aula no último segmento. Ambos usam
+`src/pdf/class-document-file-name.ts` para preservar o mesmo formato e sanitização.
+
+O [histórico aprovado](../../ui/HISTORICO_RELATORIOS_2026-10-06.md) foi aplicado
+localmente: acesso Histórico junto ao Relatório e link nos três recentes. O modal
+filtra por ano/mês e texto, agrupa aulas e reutiliza o editor datado sem mudar a
+data da turma. `src/db/session-report-history.ts` pagina resumos sem fotografias,
+exige usuário/organização/turma e fixa a identidade; `useClassReportHistory`
+descarta respostas após troca de escopo. A lista renderiza 30 aulas por vez;
+busca/filtros abrangem todos os resumos. Voltar preserva lista e rascunho local.
+A hidratação/gravação do rascunho aguarda o relatório remoto, mesmo se a chamada
+carregar antes, para não restaurar um relato vazio gerado durante o carregamento.
+`/class/[id]/log` continua sendo editor legado por data. Pacote autorizado para
+integração na `main` pela esteira Vercel/EAS; prontidão remota é conferida por commit.
+
 ## Validação seletiva
 
 Testes existentes, a selecionar em mudanças funcionais:
@@ -74,5 +99,6 @@ Testes existentes, a selecionar em mudanças funcionais:
   [artefatos PDF](../../../src/pdf/templates/__tests__/attendance-summary-artifacts.test.ts).
 
 Consultar a [escada](../../../docs/operations/validation-ladder.md); validar chamada
-autenticada no localhost e NFC/QR em dispositivo quando afetados. Nesta rodada não
-houve testes do app, smoke, exportação real ou verificação física de câmera/tag.
+autenticada no localhost e NFC/QR em dispositivo quando afetados. O levantamento
+original de 05/10 não executou testes; a aplicação visual de 06/10 registra suas
+evidências e limites no documento do relatório acima.

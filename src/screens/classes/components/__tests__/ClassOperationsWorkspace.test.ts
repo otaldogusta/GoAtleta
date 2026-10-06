@@ -67,7 +67,7 @@ const colors = {
 it("hides empty operations and training history for a class without athletes", () => {
   const { screen } = renderWorkspace(false, null, { hasActiveStudents: false, recentTrainings: [] });
   expect(screen.queryByText("Operação da aula")).toBeNull();
-  expect(screen.queryByText("Últimos treinos")).toBeNull();
+  expect(screen.queryByText("Relatórios recentes")).toBeNull();
   expect(screen.queryByText("Pendente")).toBeNull();
 });
 
@@ -105,6 +105,7 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: R
       onOpenSession: jest.fn(),
       onOpenAttendance: jest.fn(),
       onOpenReport,
+      onOpenReportHistory: jest.fn(),
       onOpenRecentTraining,
       onOpenPlanning,
       onOpenVisualTech: jest.fn(),
@@ -127,6 +128,16 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: R
 }
 
 describe("ClassOperationsWorkspace responsive navigation", () => {
+  it("offers history next to the report and from the recent reports block", () => {
+    const openHistory = jest.fn();
+    const { screen } = renderWorkspace(false, null, {
+      onOpenReportHistory: openHistory,
+      recentTrainings: [{ id: "r1", dateKey: "2026-10-07", dateLabel: "07/10/2026", title: "Recepção" }],
+    });
+    fireEvent.press(screen.getByLabelText("Histórico"));
+    fireEvent.press(screen.getByLabelText("Ver todos os relatórios"));
+    expect(openHistory).toHaveBeenCalledTimes(2);
+  });
   it("uses the dense workspace only when the permanent rail has limited room", () => {
     expect(resolveDenseClassWorkspace(1159, false)).toBe(true);
     expect(resolveDenseClassWorkspace(1160, false)).toBe(false);
@@ -220,7 +231,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.getByLabelText("Abrir relatório: Concluído")).toBeTruthy();
     expect(screen.getByText("Recepção e transição")).toBeTruthy();
 
-    fireEvent.press(screen.getByLabelText("Abrir treino de 19/08/2026"));
+    fireEvent.press(screen.getByLabelText("Abrir relatório recente de 19/08/2026"));
     expect(onOpenRecentTraining).toHaveBeenCalledWith("2026-08-19");
   });
 

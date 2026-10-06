@@ -66,6 +66,7 @@ type ClassOperationsWorkspaceProps = {
   onOpenSession: () => void;
   onOpenAttendance: () => void;
   onOpenReport: () => void;
+  onOpenReportHistory: () => void;
   onOpenRecentTraining: (dateKey: string) => void;
   onOpenPlanning: () => void;
   onOpenVisualTech: () => void;
@@ -261,6 +262,7 @@ function CompactClassNavigation({
         <RailAction action={actions.overview} colors={colors} selected={activeSection === "overview"} onSelect={onSelect} />
         <RailAction action={actions.attendance} colors={colors} selected={activeSection === "attendance"} onSelect={onSelect} />
         <RailAction action={actions.report} colors={colors} onSelect={onSelect} />
+        <RailAction action={actions.history} colors={colors} onSelect={onSelect} />
         <RailSection
           title="Planejamento"
           actions={[actions.planning, actions.visual]}
@@ -382,6 +384,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onOpenSession,
   onOpenAttendance,
   onOpenReport,
+  onOpenReportHistory,
   onOpenRecentTraining,
   onOpenPlanning,
   onOpenVisualTech,
@@ -458,6 +461,13 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       icon: "document",
       onPress: onOpenReport,
     },
+    history: {
+      key: "history",
+      label: "Histórico",
+      description: "Consultar relatórios de todas as aulas",
+      icon: "time",
+      onPress: onOpenReportHistory,
+    },
     planning: {
       key: "planning",
       label: "Planejamentos da turma",
@@ -506,6 +516,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     onOpenAttendance,
     onOpenPlanning,
     onOpenReport,
+    onOpenReportHistory,
     onOpenScouting,
     onOpenSession,
     onOpenStudents,
@@ -689,7 +700,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         />}
 
         {(recentTrainings === null || recentTrainings.length > 0) && <View style={[styles.recentTrainings, { borderTopColor: colors.border }]}>
-          <Text style={[styles.recentTrainingsTitle, { color: colors.text }]}>Últimos treinos</Text>
+          <Text style={[styles.recentTrainingsTitle, { color: colors.text }]}>Relatórios recentes</Text>
           {recentTrainings === null ? (
             <View style={styles.recentTrainingsLoading} accessibilityLiveRegion="polite">
               <ActivityIndicator size="small" color={colors.primaryBg} />
@@ -701,7 +712,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
                 key={training.id}
                 onPress={() => onOpenRecentTraining(training.dateKey)}
                 accessibilityRole="button"
-                accessibilityLabel={`Abrir treino de ${training.dateLabel}`}
+                accessibilityLabel={`Abrir relatório recente de ${training.dateLabel}`}
                 style={({ pressed }) => [styles.recentTrainingRow, { opacity: pressed ? 0.76 : 1 }]}
               >
                 <GoAtletaIcon name="training" size={17} color={colors.muted} />
@@ -717,6 +728,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           ) : (
             <Text style={[styles.recentTrainingEmpty, { color: colors.muted }]}>Nenhum treino registrado.</Text>
           )}
+          <Pressable onPress={onOpenReportHistory} accessibilityRole="button" accessibilityLabel="Ver todos os relatórios" suppressWebHoverFeedback style={{ minHeight: 44, justifyContent: "center", alignSelf: "flex-start", paddingHorizontal: 8 }}>
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600", textDecorationLine: "underline" }}>Ver todos os relatórios</Text>
+          </Pressable>
         </View>}
       </View>}
     </View>
@@ -748,6 +762,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
             <RailAction action={actions.overview} colors={colors} dense={dense} selected={activeSection === "overview"} />
             <RailAction action={actions.attendance} colors={colors} dense={dense} selected={activeSection === "attendance"} />
             <RailAction action={actions.report} colors={colors} dense={dense} />
+            <RailAction action={actions.history} colors={colors} dense={dense} />
             <RailSection
               title="Planejamento"
               actions={[actions.planning, actions.visual]}

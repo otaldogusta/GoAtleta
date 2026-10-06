@@ -1,4 +1,5 @@
 import type { AttendanceRecord, ClassGroup, Student } from "../../../core/models";
+import { buildClassDocumentPdfFileName } from "../../../pdf/class-document-file-name";
 import { resolveAttendanceStudentsForDate } from "../../attendance/attendance-roster";
 
 export function resolveClassRosterExportStudents(
@@ -206,13 +207,6 @@ export function canAccessAttendanceExport(params: {
   return !params.permissionsLoading && params.reportsAllowed === true;
 }
 
-const sanitizeDocumentFilePart = (value: string) =>
-  value
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
-    .replace(/\s+/g, " ")
-    .replace(/[. ]+$/g, "")
-    .trim();
-
 export function buildClassRosterPdfFileName(params: {
   className: string;
   monthLabel: string;
@@ -220,15 +214,11 @@ export function buildClassRosterPdfFileName(params: {
   startTime?: string | null;
   daysLabel?: string | null;
 }) {
-  const className = sanitizeDocumentFilePart(params.className) || "Turma";
-  const monthLabel = sanitizeDocumentFilePart(params.monthLabel) || "Período";
-  const timeMatch = params.startTime?.trim().match(/^(\d{1,2}):?(\d{2})?/);
-  const startTime = timeMatch
-    ? `${Number(timeMatch[1])}h${timeMatch[2] && timeMatch[2] !== "00" ? timeMatch[2] : ""}`
-    : "";
-  const documentLabel = params.includeAttendance ? "Chamada" : "Lista de chamada";
-  const daysLabel = sanitizeDocumentFilePart(params.daysLabel ?? "");
-  return [documentLabel, className, daysLabel, startTime, monthLabel].filter(Boolean).join(" - ") + ".pdf";
+  return buildClassDocumentPdfFileName({
+    ...params,
+    documentLabel: params.includeAttendance ? "Chamada" : "Lista de chamada",
+    periodLabel: params.monthLabel,
+  });
 }
 
 export function buildAttendanceExportFileParts(params: {

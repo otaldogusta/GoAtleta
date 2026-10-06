@@ -14,6 +14,8 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Decisões assistidas | [AI_DECISION_EXPLAINABILITY.md](AI_DECISION_EXPLAINABILITY.md) |
 | Validação proporcional e ciclo rápido | [validation-ladder.md](../operations/validation-ladder.md) |
 | Revisão de minimalismo da quadra — 04/10/2026 | [QUADRA_MINIMALISMO_REVIEW_2026-10-04.md](QUADRA_MINIMALISMO_REVIEW_2026-10-04.md) |
+| Relatório da aula — visual aprovado e aplicação local | [RELATORIO_AULA_2026-10-06.md](RELATORIO_AULA_2026-10-06.md) |
+| Histórico de relatórios — visual aprovado e aplicação local | [HISTORICO_RELATORIOS_2026-10-06.md](HISTORICO_RELATORIOS_2026-10-06.md) |
 
 ## Regra central
 

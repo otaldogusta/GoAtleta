@@ -13,6 +13,8 @@ import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsig
 import { resolveCopilotCompanionFabBottom } from "../../src/copilot/components/CopilotFab";
 
 import { ClassNavigationFab } from "../../src/screens/classes/components/ClassNavigationFab";
+import { ClassReportHistory } from "../../src/screens/classes/components/ClassReportHistory";
+import { useClassReportHistory } from "../../src/screens/classes/hooks/useClassReportHistory";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
@@ -230,9 +232,9 @@ export default function ClassDetails() {
   });
   const reportModalCardStyle = useModalCardStyle({
     maxHeight: Platform.OS === "web" ? "90%" : "96%",
-    maxWidth: 720,
+    maxWidth: 760,
     padding: 0,
-    radius: 18,
+    radius: 16,
   });
   const splitPlanPreviewLayout = Platform.OS === "web" && windowWidth >= 980;
   const planPreviewLoadingCardStyle = useModalCardStyle({
@@ -293,6 +295,22 @@ export default function ClassDetails() {
   const [showPlanPreviewModal, setShowPlanPreviewModal] = useState(false);
   const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
   const [showReportModal, setShowReportModal] = useState(false);
+  const [reportHistoryScope, setReportHistoryScope] = useState<string | null>(null);
+  const [historyReportDate, setHistoryReportDate] = useState<string | null>(null);
+  const reportHistoryScopeKey = `${session?.user?.id ?? ""}:${activeOrganization?.id ?? ""}:${id}`;
+  const showReportHistory = reportHistoryScope === reportHistoryScopeKey && cls?.id === String(id) && !!activeOrganization?.id && cls.organizationId === activeOrganization.id;
+  const [previousReportHistoryScopeKey, setPreviousReportHistoryScopeKey] = useState(reportHistoryScopeKey);
+  if (previousReportHistoryScopeKey !== reportHistoryScopeKey) {
+    setPreviousReportHistoryScopeKey(reportHistoryScopeKey);
+    setReportHistoryScope(null);
+    setHistoryReportDate(null);
+  }
+  const reportHistory = useClassReportHistory({
+    enabled: showReportHistory,
+    classId: String(id ?? ""),
+    organizationId: activeOrganization?.id ?? "",
+    userId: session?.user?.id ?? "",
+  });
   const requestedWorkspaceSection = resolveClassWorkspaceRouteSection(section);
   const requestedLessonDate = useMemo(() => parseClassWorkspaceRouteDate(date), [date]);
   const [workspaceSection, setWorkspaceSection] = useState<ClassWorkspaceSection>(() => requestedWorkspaceSection);
@@ -2469,6 +2487,25 @@ export default function ClassDetails() {
     requestAttendanceAction(() => setShowReportModal(true));
   };
 
+  const handleOpenReportHistory = () => {
+    requestAttendanceAction(() => {
+      setHistoryReportDate(null);
+      setReportHistoryScope(reportHistoryScopeKey);
+    });
+  };
+
+  const handleCloseReportHistory = () => {
+    setReportHistoryScope(null);
+    setHistoryReportDate(null);
+    void loadLessonOperationalSnapshot();
+    void loadRecentTrainingHistory();
+  };
+
+  const handleBackToReportHistory = () => {
+    setHistoryReportDate(null);
+    reportHistory.reload();
+  };
+
   const handleCloseReport = () => {
     setShowReportModal(false);
     void loadLessonOperationalSnapshot();
@@ -2591,6 +2628,7 @@ export default function ClassDetails() {
           onOpenSession={handleOpenSession}
           onOpenAttendance={handleOpenAttendance}
           onOpenReport={handleOpenReport}
+          onOpenReportHistory={handleOpenReportHistory}
           onOpenRecentTraining={handleOpenRecentTraining}
           onOpenPlanning={handleOpenPlanning}
           onOpenVisualTech={handleOpenVisualTech}
@@ -2611,7 +2649,7 @@ export default function ClassDetails() {
           bottom={insets.bottom + 18}
         />
 
-        {compactClassWorkspace && !classNavigationOpen && !showReportModal && !showEditModal ? (
+        {compactClassWorkspace && !classNavigationOpen && !showReportModal && !showReportHistory && !showEditModal ? (
           <ClassNavigationFab
             colors={colors}
             bottom={resolveCopilotCompanionFabBottom(insets.bottom)}
@@ -2634,6 +2672,20 @@ export default function ClassDetails() {
         ]}
       >
           {showReportModal ? <SessionScreen embeddedReport embeddedDate={selectedLessonDateKey} onCloseEmbeddedReport={handleCloseReport} /> : null}
+      </ModalSheet>
+
+      <ModalSheet visible={showReportHistory} onClose={handleCloseReportHistory} position="center"
+        cardStyle={[reportModalCardStyle, { height: mobileClassWorkspace ? "94%" : 660, overflow: "hidden" }]}>
+        {showReportHistory ? <View key={reportHistoryScopeKey} style={{ flex: 1, minHeight: 0 }}>
+          <View style={{ flex: 1, minHeight: 0, display: historyReportDate ? "none" : "flex" }}>
+            <ClassReportHistory colors={colors} inputBackground={mode === "dark" ? "#121c30" : colors.inputBg}
+              compact={mobileClassWorkspace} className={className} active={!historyReportDate}
+              entries={reportHistory.entries} loading={reportHistory.loading} error={reportHistory.error}
+              onRetry={reportHistory.reload} onOpenReport={setHistoryReportDate} onClose={handleCloseReportHistory} />
+          </View>
+          {historyReportDate ? <SessionScreen key={historyReportDate} embeddedReport embeddedDate={historyReportDate}
+            onBackEmbeddedReport={handleBackToReportHistory} onCloseEmbeddedReport={handleCloseReportHistory} /> : null}
+        </View> : null}
       </ModalSheet>
 
       {appliedPlan && cls ? (
