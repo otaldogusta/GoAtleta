@@ -35,6 +35,11 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
   Ver [contrato e evidência da correção local](../../operations/consultation-and-rules-sync-local.md).
 - Chamada usa `replace_attendance_records` transacional, sem fallback DELETE/POST.
   Aplicação remota da migration precisa de evidência separada da existência do SQL.
+- Scouting por jogada usa `apply_scouting_command`: trava/revisão por sessão,
+  recibo idempotente e escrita atômica de pontos, ações e contagens legadas.
+  Rascunho e comando pendente incluem usuário/organização/sessão. Migration
+  `20261007112922` aplicada e gravação real validada em 07/10; `rally_event_id` e
+  `capture_zone` preservam campos legados homônimos. [Evidência e limites](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md).
 - Não registrar tokens, conteúdo privado ou links de recuperação. A sanitização de
   [navegação](../../../src/observability/navigation-privacy.ts) remove parâmetros e
   normaliza segmentos conhecidos; novos eventos devem ser revisados explicitamente.

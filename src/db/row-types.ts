@@ -287,6 +287,9 @@ export type ScoutingSessionRow = {
   createdat: string;
   updatedat?: string | null;
   completed_at?: string | null;
+  format?: import("../core/models").ScoutingFormat | null;
+  revision?: number;
+  match_state?: import("../core/models").ScoutingMatchState | null;
 };
 
 export type ScoutingActionRow = {
@@ -301,6 +304,10 @@ export type ScoutingActionRow = {
   result_key?: string | null;
   result_label?: string | null;
   result_level?: number | null;
+  rally_event_id?: string | null;
+  contact_index?: number | null;
+  capture_zone?: number | null;
+  rubric_version?: number | null;
   createdat: string;
 };
 

@@ -1,4 +1,10 @@
-import { getLatestScoutingSessionDetailForPlanning } from "../scouting-sessions";
+import { getLatestScoutingSessionDetailForPlanning, scoutingActionRowToModel } from "../scouting-sessions";
+
+test("capture mapping keeps historical rally and zone fields separate", () => {
+  const historical = { id: "action", session_id: "session", classid: "class", createdat: "2026-10-07", rally_id: "old-tag", zone: "unknown" };
+  expect(scoutingActionRowToModel(historical)).toMatchObject({ rallyId: null, zone: null });
+  expect(scoutingActionRowToModel({ ...historical, rally_event_id: "rally", capture_zone: 5 })).toMatchObject({ rallyId: "rally", zone: 5 });
+});
 
 const mockSupabaseGet = jest.fn();
 
