@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { ActivityIndicator, View, Text, useWindowDimensions } from "react-native";
 import type { ScoutingActionFundamental, ScoutingActionPhase, ScoutingContact, ScoutingSide, Student } from "../../core/models";
-import { captureCriterion, captureFundamentals, captureResult, contactOutcome, getCaptureResultOptions, nextCaptureFundamental, validateRallyContacts } from "../../core/scouting-rallies";
+import { captureCriterion, captureResult, contactOutcome, getCaptureResultOptions, nextCaptureFundamental, validateRallyContacts } from "../../core/scouting-rallies";
 import { scoutingActionPhases } from "../../core/scouting";
 import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { amount, Copy, Choice, ErrorNotice, Input, Link, ScoutingModal, shortDate, skillLabel } from "./ScoutingUI";
 import { useScoutingCollection } from "./use-scouting-collection";
+import { CaptureText, ContactCourt, ContactPad, ContactSequence } from "./ScoutingCaptureUI";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 export function ScoutingCollector({ org, sessionId, userId, students, onClose, onSaved }: {
   org: string; sessionId: string; userId: string; students: Student[]; onClose: () => void; onSaved: () => void;
@@ -16,13 +18,13 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
   const { width } = useWindowDimensions();
   const [fundamental, setFundamental] = useState<ScoutingActionFundamental | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [athleteChosen, setAthleteChosen] = useState(false);
   const [zone, setZone] = useState<number | null>(null);
   const [phase, setPhase] = useState<ScoutingActionPhase | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [extra, setExtra] = useState(false);
   const [criteria, setCriteria] = useState(false);
   const [history, setHistory] = useState(false);
-  const [allPlayers, setAllPlayers] = useState(false);
   const [configure, setConfigure] = useState(false);
   const [serve, setServe] = useState<ScoutingSide>("us");
   const [rotation, setRotation] = useState<number | null>(null);
@@ -40,12 +42,10 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
   const skill = fundamental ?? nextCaptureFundamental(last, state?.serve);
   const terminal = contactOutcome(last);
   const contacts = flow.contacts;
-  const shortName = (name: string) => { const words = name.trim().split(/\s+/); return words.length > 1 ? `${words[0]} ${words[words.length - 1]}` : name; };
-  const playerName = (name: string) => students.filter(s => shortName(s.name) === shortName(name)).length > 1 ? name : shortName(name);
   const nextSet = state ? state.setNumber + 1 : Number(initialSet);
   const validSet = /^\d+$/.test(scoreUs) && /^\d+$/.test(scoreThem) && Number(scoreUs) <= 999 && Number(scoreThem) <= 999 && Number.isInteger(nextSet) && nextSet >= 1 && nextSet <= 99;
   const commitContact = async (resultKey: string) => {
-    if (disabled || (isGame && terminal && editing == null)) return;
+    if (disabled || !athleteChosen || (isGame && terminal && editing == null)) return;
     const student = students.find(s => s.id === studentId);
     const contact: ScoutingContact = { studentId, athleteName: student?.name ?? null, fundamental: skill,
       resultKey, zone, phase: phase ?? (skill === "saque" ? "saque" : isGame ? state?.serve === "them" && !contacts.some(c => c.fundamental === "ataque") ? "side_out" : "transicao" : ["recepcao", "levantamento", "ataque"].includes(skill) ? "side_out" : "transicao") };
@@ -53,36 +53,46 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
     const next = editing == null ? [...contacts, contact] : contacts.map((c, i) => i === editing ? contact : c);
     const invalid = validateRallyContacts(next);
     if (invalid) { flow.setError(invalid); return; }
-    flow.changeContacts(next); setEditing(null); setFundamental(null); setStudentId(null); setZone(null); setPhase(null);
+    flow.changeContacts(next); resetEditor();
   };
   const closePoint = async (winner: ScoutingSide) => {
-    if (editing != null) { flow.setError("Salve ou cancele a edição do contato antes de fechar o ponto."); return; }
+    if (editing != null || athleteChosen) { flow.setError("Escolha o resultado ou cancele este contato antes de fechar o ponto."); return; }
     const invalid = validateRallyContacts(contacts, winner);
     if (invalid) { flow.setError(invalid); return; }
     if (await flow.execute({ name: "point", payload: { contacts, winner } })) {
-      setFundamental(null); setStudentId(null); setZone(null); setPhase(null);
+      resetEditor();
     }
   };
   const editContact = (c: ScoutingContact, index: number) => {
-    setEditing(index); setFundamental(c.fundamental); setStudentId(c.studentId ?? null); setZone(c.zone ?? null); setPhase(c.phase); setExtra(c.zone != null);
+    setEditing(index); setFundamental(c.fundamental); setStudentId(c.studentId ?? null); setAthleteChosen(true); setZone(c.zone ?? null); setPhase(c.phase); setExtra(c.zone != null);
   };
-  const resetEditor = () => { setEditing(null); setFundamental(null); setStudentId(null); setZone(null); setPhase(null); };
+  const resetEditor = () => { setEditing(null); setFundamental(null); setStudentId(null); setAthleteChosen(false); setZone(null); setPhase(null); setExtra(false); };
+  const canReopen = !disabled && !contacts.length && (!isGame || !athleteChosen) && (isGame ? !!detail?.rallies.length && detail.rallies[detail.rallies.length - 1].setNumber === state?.setNumber : !!detail?.actions.length);
+  const reopen = () => {
+    if (!detail || !canReopen) return;
+    void flow.execute(isGame ? { name: "reopen_point", payload: { rallyId: detail.rallies[detail.rallies.length - 1].id } } : { name: "undo_action", payload: { actionId: detail.actions[0].id } }).then(ok => { if (ok) resetEditor(); });
+  };
   const footer = editable && !configuring ? <>
-    {flow.pending ? <Button label="Tentar novamente" loading={flow.busy} onPress={() => { void flow.execute(); }} /> : isGame && state ?
+    {isGame ? <CaptureText muted>{flow.busy ? "Salvando ponto…" : editing != null ? "Escolha o resultado para salvar a correção." : athleteChosen ? "Escolha o resultado deste contato." : terminal ? `Confirme: ponto ${terminal === "us" ? "nosso" : "do adversário"}.` : contacts.length ? "Contatos prontos. Quem fez o ponto?" : "Quem fez o ponto?"}</CaptureText> : null}
+    {flow.pending && !flow.busy ? <Button label="Tentar novamente" onPress={() => { void flow.execute(); }} /> : isGame && state ?
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <View style={{ flex: 1 }}><Button label="Nosso ponto" loading={flow.busy} disabled={disabled || terminal === "them" || editing != null} onPress={() => { void closePoint("us"); }} /></View>
-        <View style={{ flex: 1 }}><Button label="Adversário" variant="outline" loading={flow.busy} disabled={disabled || terminal === "us" || editing != null} onPress={() => { void closePoint("them"); }} /></View>
+        <View style={{ flex: 1 }}><Button label="＋ Nosso ponto" loading={flow.busy} disabled={disabled || terminal === "them" || athleteChosen || editing != null} onPress={() => { void closePoint("us"); }} /></View>
+        <View style={{ flex: 1 }}><Button label="＋ Ponto adversário" variant="outline" loading={flow.busy} disabled={disabled || terminal === "us" || athleteChosen || editing != null} onPress={() => { void closePoint("them"); }} /></View>
       </View> : null}
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-      <Copy muted>{flow.busy ? "Salvando…" : flow.pending ? "Envio pendente" : contacts.length ? `${amount(contacts.length, "contato")} · rascunho` : amount(detail?.actions.length ?? 0, "registro salvo", "registros salvos")}</Copy>
-      <Link label="Concluir análise" disabled={disabled || contacts.length > 0} onPress={() => { void flow.execute({ name: "complete", payload: {} }); }} />
+      {detail?.rallies.length ? <Link label="Reabrir último ponto" disabled={!canReopen} onPress={reopen} /> : <CaptureText muted>{flow.busy ? "Salvando…" : flow.pending ? "Envio pendente" : contacts.length ? "Rascunho da jogada" : amount(detail?.actions.length ?? 0, "registro salvo", "registros salvos")}</CaptureText>}
+      <Link label="Encerrar análise" disabled={disabled || contacts.length > 0 || (isGame && athleteChosen)} onPress={() => { void flow.execute({ name: "complete", payload: {} }); }} />
     </View>
   </> : undefined;
   const scoreboard = state ? <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-    <View style={{ gap: 3 }}><Copy>Set {state.setNumber} · saque {state.serve === "us" ? "nosso" : "adversário"}</Copy><Copy muted>{state.rotation ? `R${state.rotation} · posição do levantador` : "Rodízio não informado"}</Copy></View>
-    <Text style={{ fontSize: 30, fontWeight: "700", color: colors.text, fontVariant: ["tabular-nums"] }}>{state.scoreUs} <Text style={{ color: colors.muted, fontSize: 20 }}>×</Text> {state.scoreThem}</Text>
+    <View style={{ flex: 1, gap: 3 }}><CaptureText muted>Set {state.setNumber}{state.rotation ? ` · R${state.rotation}` : ""}</CaptureText><CaptureText>{state.serve === "us" ? "Nosso saque" : "Saque adversário"}</CaptureText></View>
+    <View accessibilityLabel={`Placar: nós ${state.scoreUs}, adversário ${state.scoreThem}`} style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
+      <View style={{ alignItems: "center" }}><CaptureText muted>Nós</CaptureText><Text style={{ color: colors.text, fontSize: 26, lineHeight: 32, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{state.scoreUs}</Text></View>
+      <CaptureText muted>:</CaptureText><View style={{ alignItems: "center" }}><CaptureText muted>Adversário</CaptureText><Text style={{ color: colors.text, fontSize: 26, lineHeight: 32, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{state.scoreThem}</Text></View>
+    </View>
+    <View style={{ flex: 1, alignItems: "flex-end" }}><Link label={history ? "Voltar à jogada" : "Ver pontos"} onPress={() => setHistory(!history)} /></View>
   </View> : null;
-  return <ScoutingModal title={session?.title || "Análise"} subtitle={session ? `${isGame ? "Jogo" : "Treino"} · ${session.format ?? "Contexto não informado"} · ${shortDate(session.date)}` : undefined}
+  return <ScoutingModal title={editable ? isGame ? "Registrar jogada" : "Registrar treino" : session?.title || "Análise"} subtitle={session ? `${session.title} · ${session.format ?? "Contexto não informado"} · ${shortDate(session.date)}` : undefined}
     onClose={() => { if (!flow.busy) onClose(); }} footer={footer} summary={scoreboard}>
     {flow.loading ? <ActivityIndicator color={colors.text} /> : null}
     <ErrorNotice text={flow.error} />
@@ -99,47 +109,34 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
       {session?.format === "6x6" ? <><Copy>Posição do levantador · opcional</Copy><View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>{[1, 2, 3, 4, 5, 6].map(n => <Choice key={n} label={`R${n}`} selected={rotation === n} onPress={() => setRotation(rotation === n ? null : n)} />)}</View></> : null}
       <Button label={flow.pending ? "Tentar novamente" : "Começar coleta"} loading={flow.busy} disabled={!validSet || flow.conflict} onPress={() => { void flow.execute({ name: "start_set", payload: { setNumber: nextSet, scoreUs: Number(scoreUs), scoreThem: Number(scoreThem), serve, rotation: session?.format === "6x6" ? rotation : null } }).then(ok => { if (ok) setConfigure(false); }); }} />
       {state ? <Link label="Cancelar" disabled={flow.busy || !!flow.pending} onPress={() => setConfigure(false)} /> : null}
-    </View> : editable ? <>
-      {isGame ? <View style={{ gap: 8 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Copy title>Jogada atual</Copy><Copy muted>{contacts.length ? amount(contacts.length, "contato") : "Ainda sem contatos"}</Copy></View>
-        {contacts.length ? contacts.map((c, index) => <View key={index} style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <Text style={{ color: colors.muted, width: 18, fontSize: 12 }}>{index + 1}</Text>
-          <View style={{ flex: 1 }}><Choice compact label={`${c.athleteName || "Equipe"} · ${skillLabel(c.fundamental)} · ${captureResult(c)?.label ?? c.resultKey}${c.zone ? ` · Z${c.zone}` : ""}`} selected={editing === index} disabled={disabled} onPress={() => editContact(c, index)} /></View>
-          <Link label="Remover" disabled={disabled} onPress={() => { flow.changeContacts(contacts.filter((_, i) => i !== index)); resetEditor(); }} />
-        </View>) : <Copy muted>Marque os contatos que observou e, ao final, registre o ponto.</Copy>}
-        {!!state?.recoveredDraft.length && !contacts.length ? <Link label="Descartar contatos reabertos" disabled={disabled} onPress={() => { void flow.execute({ name: "discard_draft", payload: {} }); }} /> : null}
-      </View> : null}
-      {terminal && editing == null ? <Copy>Jogada encerrada pelo último contato. Registre o ponto abaixo.</Copy> : <View style={{ gap: 14 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Copy title>{editing != null ? `Editar contato ${editing + 1}` : isGame ? "Adicionar contato" : "Registrar repetição"}</Copy>{editing != null ? <Link label="Cancelar edição" onPress={resetEditor} /> : null}</View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>{captureFundamentals.map(f => <Choice compact key={f} label={skillLabel(f)} selected={skill === f} disabled={disabled} onPress={() => { setFundamental(f); setPhase(null); }} />)}</View>
-        <View style={{ flexDirection: width >= 650 ? "row" : "column", gap: 18 }}>
-          <View style={{ flex: 1, gap: 9 }}><Copy>Quem fez?</Copy><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
-            <Choice label="Equipe" selected={studentId == null} disabled={disabled} onPress={() => setStudentId(null)} />
-            {(allPlayers ? students : students.slice(0, 6)).map(s => <Choice key={s.id} label={playerName(s.name)} accessibilityLabel={s.name} selected={studentId === s.id} disabled={disabled} onPress={() => setStudentId(s.id)} />)}
-          </View>{students.length > 6 ? <Link label={allPlayers ? "Mostrar menos" : `Ver todos (${students.length})`} onPress={() => setAllPlayers(!allPlayers)} /> : null}</View>
-          <View style={{ flex: 1, gap: 9 }}><Copy>{editing != null ? "Novo resultado" : "Toque no resultado"}</Copy>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{getCaptureResultOptions(skill).map(result => <View key={result.key} style={{ width: "48%" }}><Choice label={result.label} disabled={disabled} onPress={() => { void commitContact(result.key); }} /></View>)}</View>
-            <Link label={criteria ? "Ocultar critérios" : "Como avaliar"} onPress={() => setCriteria(!criteria)} />
-          </View>
+    </View> : editable && !history ? <>
+      {isGame ? <ContactSequence contacts={contacts} editing={editing} disabled={disabled} onEdit={editContact} onUndo={() => { flow.changeContacts(contacts.slice(0, -1)); resetEditor(); }} /> :
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><CaptureText>{amount(detail?.actions.length ?? 0, "ação registrada", "ações registradas")}</CaptureText><Link label="Desfazer ação" disabled={!canReopen} onPress={reopen} /></View>}
+      {!!state?.recoveredDraft.length && !contacts.length ? <Link label="Descartar contatos reabertos" disabled={disabled} onPress={() => { void flow.execute({ name: "discard_draft", payload: {} }); }} /> : null}
+      {terminal && editing == null ? <View style={{ alignItems: "center", gap: 8, paddingVertical: 24 }}>
+        <GoAtletaIcon name="checkmarkCircle" size={36} color={colors.success} /><Copy title>Jogada pronta</Copy>
+        <Copy>{last.athleteName || "Equipe"} · {skillLabel(last.fundamental)} · {captureResult(last)?.label}</Copy>
+        <CaptureText muted>Confirme o ponto abaixo. Toque em um contato para corrigir.</CaptureText>
+      </View> : <View style={{ gap: 4 }}>
+        <ContactPad skill={skill} students={students} studentId={studentId} athleteChosen={athleteChosen} editing={editing} disabled={disabled} wide={width >= 600}
+          onSkill={f => { setFundamental(f); setPhase(null); }} onAthlete={id => { setStudentId(id); setAthleteChosen(true); }} onResult={key => { void commitContact(key); }} />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }}>
+          <Link icon="dashboard" label={zone ? `Zona ${zone} · opcional` : "Local na quadra · opcional"} selected={extra} onPress={() => setExtra(!extra)} />
+          <Link label="Critérios" selected={criteria} onPress={() => setCriteria(!criteria)} />
+          {editing != null || (isGame && athleteChosen) ? <Link label={editing != null ? "Cancelar edição" : "Cancelar contato"} disabled={disabled} onPress={resetEditor} /> : null}
+          {editing != null ? <Link label="Remover contato" disabled={disabled} onPress={() => { flow.changeContacts(contacts.filter((_, index) => index !== editing)); resetEditor(); }} /> : null}
         </View>
-        {criteria ? <View style={{ gap: 8 }}>{getCaptureResultOptions(skill).map(r => <Copy muted key={r.key}>{r.label}: {captureCriterion(skill, r.key)}</Copy>)}</View> : null}
-        <Link label={extra ? "Ocultar local e fase" : "Local e fase · opcional"} onPress={() => setExtra(!extra)} />
-        {extra ? <View style={{ gap: 10 }}><Copy>Zona do contato · nossa quadra</Copy><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{[1, 2, 3, 4, 5, 6].map(n => <Choice key={n} label={`Z${n}`} selected={zone === n} disabled={disabled} onPress={() => setZone(zone === n ? null : n)} />)}</View><Copy>Fase</Copy><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>{scoutingActionPhases.map(p => <Choice key={p.id} label={p.label} selected={phase === p.id} disabled={disabled} onPress={() => setPhase(p.id)} />)}</View></View> : null}
+        {criteria ? <View style={{ gap: 8, paddingVertical: 8 }}>{getCaptureResultOptions(skill).map(r => <Copy muted key={r.key}>{r.label}: {captureCriterion(skill, r.key)}</Copy>)}</View> : null}
+        {extra ? <View style={{ gap: 10 }}><ContactCourt zone={zone} disabled={disabled} onChange={setZone} /><CaptureText muted>Fase do contato</CaptureText><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>{scoutingActionPhases.map(p => <Choice compact key={p.id} label={p.label} selected={phase === p.id} disabled={disabled} onPress={() => setPhase(p.id)} />)}</View></View> : null}
       </View>}
-      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, flexDirection: "row", justifyContent: "space-between", gap: 16 }}>
-        <Link label={isGame ? "Reabrir último ponto" : "Desfazer último registro"} disabled={disabled || contacts.length > 0 || (isGame ? !detail?.rallies.length || detail.rallies[detail.rallies.length - 1].setNumber !== state?.setNumber : !detail?.actions.length)} onPress={() => {
-          if (!detail) return;
-          void flow.execute(isGame ? { name: "reopen_point", payload: { rallyId: detail.rallies[detail.rallies.length - 1].id } } : { name: "undo_action", payload: { actionId: detail.actions[0].id } }).then(ok => { if (ok) resetEditor(); });
-        }} />
-        {isGame ? <Link label="Próximo set" disabled={disabled || contacts.length > 0 || (state?.setNumber ?? 0) >= 99} onPress={() => { setScoreUs("0"); setScoreThem("0"); setRotation(null); setConfigure(true); }} /> : null}
-      </View>
     </> : null}
-    {detail && (detail.actions.length > 0 || detail.rallies.length > 0) ? <View style={{ gap: 12 }}>
+    {detail && (history || !isGame || !editable) && (detail.actions.length > 0 || detail.rallies.length > 0) ? <View style={{ gap: 12 }}>
       <Link label={history || !editable ? "Registros da análise" : `Ver registros (${amount(detail.actions.length, "ação", "ações")}${isGame ? ` · ${amount(detail.rallies.length, "ponto")}` : ""})`} onPress={() => setHistory(!history)} />
       {history || !editable ? <>
         {detail.rallies.slice().reverse().map(r => <View key={r.id} style={{ gap: 4, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}><Copy>Set {r.setNumber} · {r.scoreUs} × {r.scoreThem} · {r.won ? "Nosso ponto" : "Adversário"}</Copy><Copy muted>{r.contacts.map(c => `${c.athleteName || "Equipe"}: ${skillLabel(c.fundamental)} ${captureResult(c)?.label ?? c.resultKey}`).join(" → ") || "Somente placar"}</Copy></View>)}
         {detail.actions.filter(a => !a.rallyId).map(a => <View key={a.id} style={{ paddingVertical: 7 }}><Copy>{a.athleteName || "Equipe"} · {skillLabel(a.fundamental)} · {a.resultLabel}</Copy><Copy muted>{a.zone ? `Zona ${a.zone} · ` : ""}{scoutingActionPhases.find(p => p.id === a.phase)?.label}</Copy></View>)}
       </> : null}
-    </View> : session?.status === "concluido" ? <Copy muted>Análise concluída sem registros.</Copy> : null}
+    </View> : session?.status === "concluido" || history ? <Copy muted>{history ? "Nenhum ponto registrado nesta análise." : "Análise concluída sem registros."}</Copy> : null}
+    {history && isGame && editable ? <Link label="Próximo set" disabled={disabled || contacts.length > 0 || athleteChosen || (state?.setNumber ?? 0) >= 99} onPress={() => { setScoreUs("0"); setScoreThem("0"); setRotation(null); setConfigure(true); setHistory(false); }} /> : null}
   </ScoutingModal>;
 }

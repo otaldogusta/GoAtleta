@@ -14,9 +14,11 @@ import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useTrainerRouteScope } from "../../navigation/use-trainer-route-scope";
-import { amount, Copy, Choice, ErrorNotice, Input, Link, shortDate } from "./ScoutingUI";
+import { amount, Copy, ErrorNotice, Input, Link, shortDate } from "./ScoutingUI";
 import { ScoutingCollector } from "./ScoutingCollector";
 import { ScoutingMetrics } from "./ScoutingMetrics";
+import { ScoutingSelect, ScoutingTabs } from "./ScoutingNavigation";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { NewScoutingModal } from "./NewScoutingModal";
 
 export function ScoutingScreen({ classId, initialSessionId }: { classId: string; initialSessionId?: string }) {
@@ -44,7 +46,6 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
   const [format, setFormat] = useState("all");
   const [year, setYear] = useState("all");
   const [month, setMonth] = useState("all");
-  const [filters, setFilters] = useState(false);
   const [query, setQuery] = useState("");
   const [criteria, setCriteria] = useState(false);
   const [current, setCurrent] = useState(initialSessionId ?? null);
@@ -88,7 +89,10 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
   const active = inProgress[0];
   const contextKinds = new Set(completed.map(r => r.session.format ?? "unknown"));
   const mixed = contextKinds.size > 1;
-  const years = [...new Set(rows.map(r => r.session.date.slice(0, 4)))].sort().reverse();
+  const periods = [...new Set(rows.map(r => r.session.date.slice(0, 7)))].sort().reverse();
+  const periodOptions = [{ value: "all", label: "Todo o período" }, ...[...new Set(periods.map(p => p.slice(0, 4)))].flatMap(y => [
+    { value: y, label: `Ano de ${y}` }, ...periods.filter(p => p.startsWith(y)).map(p => ({ value: p, label: new Date(`${p}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) })),
+  ])];
   const historyRows = visible.filter(row => `${row.session.title} ${row.session.opponent ?? ""}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
   const back = () => router.replace(classId ? { pathname: "/class/[id]", params: { id: classId } } : scoped.classes);
   const close = () => { restoreFocus.current = true; setCurrent(null); if (dirty.current) { dirty.current = false; reloadRows(); } if (initialSessionId) router.replace({ pathname: "/class/[id]/scouting", params: { id: classId } }); };
@@ -97,34 +101,33 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
     <ScreenPageHeader title="Scouting" eyebrow={cls?.name} onBack={back} right={<Button label="+ Nova análise" variant={active ? "outline" : "primary"} disabled={!ready || loading} onPress={() => setCreating(true)} />} />
     <ScrollView contentContainerStyle={{ paddingTop: 24, paddingBottom: 48 }}>
       <ResponsivePage gap={24}>
-      <View style={{ flexDirection: "row", gap: 8 }}><Choice label="Treinos" selected={mode === "treino"} onPress={() => setMode("treino")} /><Choice label="Jogos" selected={mode === "jogo"} onPress={() => setMode("jogo")} /></View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><ScoutingTabs segmented value={mode} onChange={v => setMode(v as "treino" | "jogo")} items={[{ value: "treino", label: "Treinos" }, { value: "jogo", label: "Jogos" }]} /><Copy muted>{cls?.name}</Copy></View>
       <ErrorNotice text={error} />
       {error ? <Link label="Tentar novamente" onPress={() => reloadRows()} /> : null}
       {!loading && !ready && !error ? <Copy muted>A nova coleta aguarda atualização do banco. Você pode consultar as análises existentes.</Copy> : null}
       {loading ? <ActivityIndicator color={colors.text} /> : null}
       {active ? <View style={[shell, { flexDirection: width >= 650 ? "row" : "column", justifyContent: "space-between", alignItems: width >= 650 ? "center" : "stretch" }]}>
-        <View style={{ gap: 5, flex: 1 }}><Copy muted>Em andamento{inProgress.length > 1 ? ` · ${inProgress.length} análises` : ""}</Copy><Copy title>{active.session.title}</Copy><Copy muted>{shortDate(active.session.date)} · {active.session.format ?? "Contexto não informado"}</Copy></View>
+        <GoAtletaIcon name="scouting" size={20} color={colors.muted} /><View style={{ gap: 5, flex: 1 }}><Copy muted>Em andamento{inProgress.length > 1 ? ` · ${inProgress.length} análises` : ""}</Copy><Copy title>{active.session.title}</Copy><Copy muted>{shortDate(active.session.date)} · {active.session.format ?? "Contexto não informado"}</Copy></View>
         <Button label={ready ? "Continuar análise" : "Ver análise"} onPress={() => setCurrent(active.session.id)} />
       </View> : null}
-      <View style={{ gap: 12 }}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <View style={{ flexDirection: "row", gap: 8 }}><Choice nativeID="scouting-overview-tab" compact label="Visão geral" selected={tab === "overview"} onPress={() => setTab("overview")} /><Choice nativeID="scouting-history-tab" compact label="Histórico" selected={tab === "history"} onPress={() => setTab("history")} /></View>
-          <Link label={`Filtrar · ${year === "all" ? "Todo o período" : year}${month !== "all" ? ` / ${month}` : ""} · ${format === "all" ? "Todos os contextos" : format === "unknown" ? "Não informado" : format}`} onPress={() => setFilters(!filters)} />
+      <View style={{ gap: 16 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <ScoutingTabs value={tab} onChange={v => setTab(v as "overview" | "history")} items={[{ value: "overview", label: "Visão geral", id: "scouting-overview-tab" }, { value: "history", label: `Histórico${visible.length ? ` · ${visible.length}` : ""}`, id: "scouting-history-tab" }]} />
+          <ScoutingSelect label="Período" calendar value={year === "all" ? "all" : month === "all" ? year : `${year}-${month}`} options={periodOptions} onChange={v => { const [y, m] = v.split("-"); setYear(y); setMonth(m ?? "all"); }} />
         </View>
-        {filters ? <View style={{ gap: 12, paddingVertical: 10 }}>
-          <Copy>Contexto observado</Copy><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{["all", "2x2", "3x3", "4x4", "6x6", "outro", "unknown"].map(f => <Choice key={f} label={f === "all" ? "Todos" : f === "unknown" ? "Não informado" : f} selected={format === f} onPress={() => setFormat(f)} />)}</View>
-          <Copy>Ano</Copy><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{["all", ...years].map(y => <Choice key={y} label={y === "all" ? "Todos" : y} selected={year === y} onPress={() => setYear(y)} />)}</View>
-          <Copy>Mês</Copy><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{["all", ...Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"))].map(m => <Choice key={m} label={m === "all" ? "Todos" : new Date(2026, Number(m) - 1, 1).toLocaleDateString("pt-BR", { month: "short" })} selected={month === m} onPress={() => setMonth(m)} />)}</View>
-        </View> : null}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Copy muted>Contexto observado</Copy><ScoutingSelect label="Contexto observado" outlined value={format} onChange={setFormat} options={["all", "2x2", "3x3", "4x4", "6x6", "outro", "unknown"].map(f => ({ value: f, label: f === "all" ? "Todos os contextos" : f === "unknown" ? "Não informado" : f === "outro" ? "Outro" : f.replace("x", " × ") }))} /></View>
+          {tab === "overview" ? <Copy muted>Somente análises concluídas</Copy> : null}
+        </View>
       </View>
       {tab === "overview" ? <View style={shell}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}><View style={{ gap: 5 }}><Copy title>Leitura da equipe</Copy><Copy muted>{ready ? `${amount(completed.length, "análise concluída exibida", "análises concluídas exibidas")} · ${amount(actionCount, "ação observada", "ações observadas")}` : "Somente análises concluídas"}</Copy></View><Link label="Critérios" onPress={() => setCriteria(!criteria)} /></View>
-        {mixed ? <Copy muted>Selecione um contexto para comparar tarefas equivalentes.</Copy> : actionCount && ready ? <ScoutingMetrics counts={counts} /> : <Copy muted>{ready ? "Conclua uma análise com registros para ver a leitura da equipe." : "Os indicadores estarão disponíveis após a atualização."}</Copy>}
         {mode === "jogo" && !mixed && ready && completed.some(r => r.rallyStats.total > 0) ? <View style={{ flexDirection: "row", gap: 24, flexWrap: "wrap", borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16 }}>{(["receiving", "serving"] as const).map(k => {
           const total = completed.reduce((n, r) => n + r.rallyStats[k], 0);
           const won = completed.reduce((n, r) => n + r.rallyStats[k === "receiving" ? "receivingWon" : "servingWon"], 0);
           return <View key={k} style={{ gap: 4 }}><Copy>{k === "receiving" ? "Pontos recebendo · side-out" : "Pontos sacando · break point"}</Copy><Copy title>{total ? `${Math.round(won / total * 100)}%` : "—"}</Copy><Copy muted>{won} de {total} jogadas registradas</Copy></View>;
         })}</View> : null}
+        {mixed ? <Copy muted>Selecione um contexto para comparar tarefas equivalentes.</Copy> : actionCount > 0 && ready ? <ScoutingMetrics counts={counts} /> : <Copy muted>{ready ? "Conclua uma análise com registros para ver a leitura da equipe." : "Os indicadores estarão disponíveis após a atualização."}</Copy>}
         {criteria ? <Copy muted>Recepção, saque e defesa: resultados de nível 2 ou 3 / ações observadas. Ataque: (pontos − erros − bloqueios que encerraram o ponto) / ataques classificados. “Bloqueado” de registros antigos fica fora desse cálculo. Não é a porcentagem de pontos ganhos. Somente análises concluídas e carregadas entram nesta leitura; ausência de registro não é erro. Treinos e jogos permanecem separados.</Copy> : null}
       </View> : <View style={{ gap: 4 }}>
         <Input label="Buscar análise" value={query} onChangeText={setQuery} placeholder="Título ou adversário" />

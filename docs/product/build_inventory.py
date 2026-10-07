@@ -192,7 +192,7 @@ code|Detalhe da sessão|Coletor local por jogada, contato editável e reabertura
 code|Persistência de sessões|Migration 20261007112922 aplicada. Smoke autenticado real: jogo, reabertura, treino, desfazer e conclusão; registros antigos preservados e sessões temporárias removidas.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
 code|Núcleo de scouting|Regras no core.|src/core/scouting.ts
 code|Visão individual|Entrada student-scouting.|app/student-scouting.tsx
-verify|Proposta visual de Scouting|Mockup aplicado; gravação real e release validados em 07/10: 562 suítes, 3.153 testes, 9 suítes SQL e build. Entrega em branch para prévia; produção e avaliação em campo pendentes.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
+verify|Proposta visual de Scouting|Fidelidade corrigida após revisão do usuário: modal compacto, sequência, grade de atletas/resultados, quadra e filtros. Comparação local em desktop/tablet/mobile e temas claro/escuro; aceite estético final, produção e uso em campo pendentes.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
 verify|Métricas e encerramento|Amostras e formatos separados; eficiência exclui bloqueado legado ambíguo. Conclusão e agregados verificados no serviço real; conferência em campo pendente.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
 """)
 add('Assistente · conversa e contexto', '/assistant', 'docs/operations/planning-assistant-local.md', """

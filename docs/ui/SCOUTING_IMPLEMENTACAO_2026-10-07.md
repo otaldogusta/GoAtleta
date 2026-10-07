@@ -140,3 +140,40 @@ legado entra agora no runner SQL/CI via `scouting-hosted-compat-sql.mjs`.
 Smoke real de jogo/treino registrado acima reaproveitado; leitura autenticada da
 tela conferida novamente após instrumentação. Alterações documentais posteriores
 ao executor exigem geração do checklist e diff, sem repetir testes do runtime.
+
+## Correção de fidelidade ao mockup — 07/10/2026
+
+A primeira implementação preservou a coleta, mas divergiu da composição aprovada.
+Esta revisão usa o mockup `scouting-2026-10-06.html?coleta=jogo` como referência
+visual, sem alterar RPCs, migration, rubricas ou isolamento de organização.
+
+- Modal de 640px, placar central com equipes identificadas e cabeçalho/rodapé fixos.
+- Contatos em sequência horizontal editável, desfazer o último contato e confirmação
+  do ponto no rodapé. Atletas e resultados lado a lado no desktop; resultados abaixo
+  da grade no celular. Mobile usa a altura disponível para acomodar turmas maiores.
+- Atleta ou “Sem atleta” é uma escolha explícita; fechar ponto fica bloqueado enquanto
+  falta o resultado do contato. Treino mantém a seleção para repetições sucessivas.
+- Nomes curtos são desambiguados; o nome completo permanece no rótulo acessível.
+  Números de camisa fictícios do mockup não são inventados para atletas reais.
+- Quadra opcional em posições 4–3–2 / 5–6–1, critérios sob demanda, fundo sólido e
+  links discretos. Abas, contexto/período em dropdown e distribuição dos resultados
+  recuperam a hierarquia visual da referência.
+
+Validação visual/interativa no app autenticado em localhost, com respostas de
+scouting substituídas somente na aba de QA: editar contato, registrar ponto
+12–10 → 13–10, reabrir e recuperar três contatos/saque/rodízio, zona, filtros,
+Tab/Shift+Tab e retorno de foco. Nenhuma gravação remota nesta revisão.
+Conferidos desktop 1055×704, tablet 834×1194 e mobile 390×844 em tema escuro;
+desktop 1440×1024 e mobile 390×844 em tema claro. Evidência visual privada em `.tmp/`.
+Cinco testes de interação novos cobrem seleção explícita, contato pendente,
+edição/desfazer, repetição de treino e próximo set sem pontos registrados. Aprovação estética final e uso em campo
+continuam pendentes; esta revisão não certifica dispositivo nativo.
+
+Release desta revisão aprovado em 138s: 563 suítes / 3.158 testes, lint sem
+avisos, tipos, escopo, arquitetura, performance e export web. SQL reutilizado
+pelo executor por inputs inalterados. Na tentativa anterior, um teste de
+redelivery concorrente de webhook Asaas falhou ao presumir qual chamada seria
+a duplicada; passou isoladamente e na repetição completa, sem mudanças nesse módulo.
+Também exercitados treino registrar/desfazer/concluir, distribuição dos resultados
+e início do set 2 no browser de QA. Respostas simuladas removidas e tema original
+restaurado ao terminar; o app real continua conectado normalmente.

@@ -22,10 +22,11 @@ export function Choice({ label, accessibilityLabel, nativeID, selected, disabled
     <Text style={{ color: colors.text, fontSize: 14, fontWeight: selected ? "700" : "400" }}>{label}</Text>
   </Pressable>;
 }
-export function Link({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+export function Link({ label, onPress, disabled, selected, icon }: { label: string; onPress: () => void; disabled?: boolean; selected?: boolean; icon?: React.ComponentProps<typeof GoAtletaIcon>["name"] }) {
   const { colors } = useAppTheme();
-  return <Pressable suppressWebHoverFeedback accessibilityRole="button" disabled={disabled} onPress={onPress} style={{ minHeight: 38, justifyContent: "center", opacity: disabled ? .55 : 1 }}>
-    <Text style={{ color: colors.muted, fontSize: 12, textDecorationLine: "underline" }}>{label}</Text>
+  return <Pressable suppressWebHoverFeedback accessibilityRole="button" accessibilityState={{ disabled: !!disabled, selected: !!selected }} disabled={disabled} onPress={onPress} style={{ minHeight: 38, flexDirection: "row", alignItems: "center", gap: 6, opacity: disabled ? .55 : 1 }}>
+    {icon ? <GoAtletaIcon name={icon} size={14} color={colors.muted} /> : null}
+    <Text style={{ color: selected ? colors.text : colors.muted, fontSize: 12, textDecorationLine: selected ? "underline" : "none" }}>{label}</Text>
   </Pressable>;
 }
 export function Input({ label, ...props }: TextInputProps & { label: string }) {
@@ -41,7 +42,8 @@ export function ErrorNotice({ text }: { text: string }) {
 export function ScoutingModal({ title, subtitle, onClose, children, footer, summary }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode }>) {
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
-  const card = useModalCardStyle({ maxWidth: 680, padding: 0, gap: 0 });
+  const card = useModalCardStyle({ maxWidth: 640, padding: 0, gap: 0 });
+  const inset = width < 600 ? 16 : 20;
   const root = useRef<View>(null);
   const closeRef = useRef(onClose);
   useLayoutEffect(() => { closeRef.current = onClose; }, [onClose]);
@@ -63,16 +65,16 @@ export function ScoutingModal({ title, subtitle, onClose, children, footer, summ
     document.addEventListener("keydown", keydown, true);
     return () => { document.removeEventListener("keydown", keydown, true); if (previous?.isConnected) previous.focus(); };
   }, []);
-  return <ModalSheet visible onClose={onClose} position="center" containerPadding={width < 520 ? 8 : 20}
-    cardStyle={[card, { height: Math.min(730, height - 32), maxHeight: "96%", paddingBottom: 0, marginBottom: 0, overflow: "hidden" }]}>
+  return <ModalSheet visible onClose={onClose} position="center" containerPadding={width < 600 ? 8 : 16}
+    cardStyle={[card, { height: width < 600 ? height - 16 : Math.min(684, height - 32), maxHeight: "100%", backgroundColor: colors.surface, paddingBottom: 0, marginBottom: 0, overflow: "hidden" }, Platform.OS === "web" ? { backgroundImage: "none" } as never : null]}>
     <View ref={root} role="dialog" aria-modal={true} accessibilityLabel={title} style={{ flex: 1, minHeight: 0 }}>
-      <View style={{ flexDirection: "row", gap: 16, padding: 20, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
+      <View style={{ flexDirection: "row", gap: 16, paddingHorizontal: inset, paddingVertical: 16, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <View style={{ flex: 1, gap: 3 }}><Copy title>{title}</Copy>{subtitle ? <Copy muted>{subtitle}</Copy> : null}</View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fechar análise" onPress={onClose} style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, justifyContent: "center", alignItems: "center" }}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable>
       </View>
-      {summary ? <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 }}>{summary}</View> : null}
-      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 20, gap: 20 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-      {footer ? <View style={{ padding: 16, gap: 8, borderTopWidth: 1, borderTopColor: colors.border }}>{footer}</View> : null}
+      {summary ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 10 }}>{summary}</View> : null}
+      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: inset, paddingVertical: 12, gap: 14 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+      {footer ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 8, gap: 4, borderTopWidth: 1, borderTopColor: colors.border }}>{footer}</View> : null}
     </View>
   </ModalSheet>;
 }
