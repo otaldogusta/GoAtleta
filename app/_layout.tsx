@@ -7,6 +7,7 @@ import {
 } from "expo-router";
 import Head from "expo-router/head";
 import "../src/ui/web-font-timeout-fallback";
+import "../src/navigation/browser-pending-edits";
 import { StatusBar } from "expo-status-bar";
 import * as Updates from "expo-updates";
 import { useCallback, useEffect, useRef, useState } from "react";

@@ -265,7 +265,7 @@ describe("pending invite storage", () => {
     }
   );
 
-  test.each(["/student/home", "/student-plan", "/student/profile"])(
+  test.each(["/student/home", "/student-plan", "/student/profile", "/student/profile/settings"])(
     "allows a pending athlete to use the free %s experience",
     (pathname) => {
       expect(

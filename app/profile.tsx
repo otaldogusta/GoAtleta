@@ -1,13 +1,17 @@
 import { StaffProfilePage } from "../src/screens/coordination/StaffProfilePage";
+import { PersonProfilePage } from "../src/screens/profiles/PersonProfilePage";
 import { listClassStaffByClassIds } from "../src/api/class-responsibles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { canUseProfilePreview } from "../src/dev/profile-preview-access";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, usePathname, useRouter } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { registerPendingEditsNavigation } from "../src/navigation/pending-edits-navigation";
+import { registerBrowserPendingEdits } from "../src/navigation/browser-pending-edits";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import type { ScrollViewProps } from "react-native";
 import CountryList, { type Country } from "country-list-with-dial-code-and-flag";
 
 // perf-check: ignore-inline-row-style - compact mapped form controls require live theme and selection colors; lists are bounded and non-virtualized.
@@ -529,7 +533,24 @@ function AccountTextField({
 
 // perf-check: ignore-render
 // perf-check: ignore-measure
-export default function ProfileScreen() {
+function ProfileSettingsBody({ embedded, children, ...props }: ScrollViewProps & { embedded: boolean }) {
+  return embedded ? <View testID="profile-settings-panel">{children}</View> : <ScrollView {...props}>{children}</ScrollView>;
+}
+
+function ProfileSettingsNavigationGuard({ blocked, onLeave }: { blocked: boolean; onLeave: (navigate: () => void) => void }) {
+  const navigation = useNavigation();
+  const leave = useRef(onLeave);
+  useEffect(() => { leave.current = onLeave; }, [onLeave]);
+  useFocusEffect(useCallback(() => {
+    if (blocked && Platform.OS === "web") return registerBrowserPendingEdits((navigate) => leave.current(navigate));
+  }, [blocked]));
+  usePreventRemove(blocked, ({ data }) => onLeave(() => navigation.dispatch(data.action)));
+  return null;
+}
+
+// perf-check: ignore-render
+// perf-check: ignore-measure
+export default function ProfileScreen({ settingsPage = false }: { settingsPage?: boolean } = {}) {
   const { colors, mode, toggleMode } = useAppTheme();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const responsiveLayout = useResponsiveLayout("dashboard");
@@ -565,19 +586,22 @@ export default function ProfileScreen() {
     setEnabled: setBiometricsEnabled,
   } = useBiometricLock();
   const router = useRouter();
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
-  const [staffSettings, setStaffSettings] = useState(false);
+  const pathname = usePathname();
+  const { edit, section } = useLocalSearchParams<{ edit?: string; section?: string }>();
+  const allowProfileNavigation = useRef(false);
   const [staffClassIds, setStaffClassIds] = useState<string[]>([]);
   const [staffClassesLoading, setStaffClassesLoading] = useState(true);
   const [staffClassesError, setStaffClassesError] = useState(false);
   const pendingNavigationHandler = useRef<((navigate: () => void) => void) | null>(null);
   const pendingRefreshHandler = useRef<((refresh: () => void) => void) | null>(null);
-  useFocusEffect(useCallback(() => registerPendingEditsNavigation((navigate, reason) => {
-    if (reason === "refresh" && pendingRefreshHandler.current) { pendingRefreshHandler.current(navigate); return; }
-    if (pendingNavigationHandler.current) pendingNavigationHandler.current(navigate);
-    else navigate();
-  }), []));
-  const pathname = usePathname();
+  useFocusEffect(useCallback(() => {
+    allowProfileNavigation.current = false;
+    return registerPendingEditsNavigation((navigate, reason) => {
+      if (reason === "refresh" && pendingRefreshHandler.current) { pendingRefreshHandler.current(navigate); return; }
+      if (pendingNavigationHandler.current) pendingNavigationHandler.current(navigate);
+      else navigate();
+    });
+  }, []));
   const scopedRoutes = useTrainerRouteScope();
   const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const NOTIFY_SETTINGS_KEY = "notify_settings_v1";
@@ -614,9 +638,14 @@ export default function ProfileScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
+  const workspaceTriggerRef = useRef<View | null>(null);
+  const [workspaceMenuLayout, setWorkspaceMenuLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [dangerZoneExpanded, setDangerZoneExpanded] = useState(false);
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>("personal");
-  const [professionalExpandedSection, setProfessionalExpandedSection] = useState<string | null>("personal");
+  const [profileTab, setProfileTab] = useState(settingsPage ? "settings" : "overview");
+  const [professionalExpandedSection, setProfessionalExpandedSection] = useState<string | null>(
+    section === "account" || section === "preferences" || section === "integrations" ? section : "personal",
+  );
   const [mobileNameDraft, setMobileNameDraft] = useState("");
   const [mobileBirthDraft, setMobileBirthDraft] = useState("");
   const [mobilePhoneDraft, setMobilePhoneDraft] = useState("");
@@ -785,11 +814,14 @@ export default function ProfileScreen() {
     Promise.resolve().then(() => {
       if (!alive) return;
       if (edit === "photo") setShowPhotoSheet(true);
-      else { setProfessionalExpandedSection(edit === "personal" ? "personal" : "account"); setStaffSettings(true); }
+      else {
+        setProfessionalExpandedSection(edit === "personal" ? "personal" : "account");
+        setProfileTab("settings");
+      }
       router.setParams({ edit: "" });
     });
     return () => { alive = false; };
-  }, [edit, staffProfile, router]);
+  }, [edit, staffProfile, router, pathname]);
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
@@ -942,7 +974,7 @@ export default function ProfileScreen() {
   }, [activeOrganization?.id, student]);
 
   const loadingProfile = loadingClasses || loadingPhoto;
-  const showWorkspaceSwitcher = !student && organizations.length > 1;
+  const showWorkspaceSwitcher = organizations.length > 1;
   const hasTrainerRole = userRole === "trainer" || availableRoles.includes("trainer");
   const hasStudentRole = userRole === "student" || availableRoles.includes("student");
   const hasFamilyRole = userRole === "family" || availableRoles.includes("family");
@@ -2039,10 +2071,9 @@ export default function ProfileScreen() {
       || mobileHealthObservationsDraft.trim() !== mobileSportsBaseline.healthObservations.trim(),
   );
   const mobileSecurityHasChanges = Boolean(
-    (mobileExpandedSection === "security" || professionalExpandedSection === "account")
-      && (securityContactDraft.trim() !== accountSecurity.securityContactEmail.trim()
+    securityContactDraft.trim() !== accountSecurity.securityContactEmail.trim()
         || newPassword
-        || passwordConfirmation),
+        || passwordConfirmation,
   );
   const mobileHasUnsavedChanges = mobileProfileHasChanges || mobileSportsHasChanges || mobileSecurityHasChanges || athleteModalities.dirty;
   const pendingCardFields: Record<string, [string, unknown, unknown][]> = {
@@ -2309,6 +2340,7 @@ export default function ProfileScreen() {
   }
 
   const isStudentMobileProfile = selectedProfilePreview === "student";
+  const inlineProfile = isStudentMobileProfile || staffProfile;
   const visibleMobileCountries = (() => {
     const query = mobileCountrySearch.trim().toLocaleLowerCase("pt-BR");
     if (!query) return mobileCountryOptions.slice(0, QUICK_COUNTRY_CODES.length);
@@ -2348,7 +2380,11 @@ export default function ProfileScreen() {
     setMobileExpandedSection((current) => current === section ? null : section);
   };
   const leaveMobileProfile = (destination?: () => void) => {
-    const navigate = destination ?? (() => navigateBackOrReplace({ router, fallback: scopedRoutes.home }));
+    const navigate = () => {
+      allowProfileNavigation.current = true;
+      if (destination) destination();
+      else navigateBackOrReplace({ router, fallback: scopedRoutes.home });
+    };
     if (savingMobileProfile || athleteModalities.saving || savingSecurityContact) return;
     if (!mobileHasUnsavedChanges) {
       navigate();
@@ -2397,6 +2433,8 @@ export default function ProfileScreen() {
       const section = guardianFields.length ? "guardian" : mobileProfileHasChanges ? "personal" : athleteModalities.dirty || mobilePositionDraft !== mobileSportsBaseline.position || mobileSecondaryPositionDraft !== mobileSportsBaseline.secondaryPosition ? "sports" : mobileSportsHasChanges ? "health" : "security";
       const title = { guardian: "Responsável", personal: "Dados pessoais", sports: "Modalidade esportiva", health: "Saúde", security: "Conta e segurança" }[section];
       setMobileExpandedSection(section);
+      if (inlineProfile) setProfileTab("settings");
+      if (staffProfile) setProfessionalExpandedSection(section === "security" ? "account" : "personal");
       const notices: Record<string, { message: string; snapshot: string }> = {};
       for (const [card, fields] of Object.entries(pendingCardFields)) {
         const changed = fields.filter(([, draft, saved]) => String(draft ?? "").trim() !== String(saved ?? "").trim()).map(([label]) => label);
@@ -2501,20 +2539,7 @@ export default function ProfileScreen() {
     </>
   );
 
-  const settingsContent = (
-      <ScrollView
-        style={Platform.OS === "web" && responsiveLayout.usesWorkspaceShell
-          ? ({ overflowY: "scroll" } as any)
-          : undefined}
-        contentContainerStyle={{
-          paddingTop: 16,
-          paddingBottom: Math.max(
-            16,
-            insets.bottom + (responsiveLayout.isMobile ? 92 : 16),
-            Platform.OS === "web" && mobileProfileHasChanges ? 96 : 0,
-          ),
-        }}
-        refreshControl={
+  const profileRefreshControl = (
           <AppRefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
@@ -2533,96 +2558,27 @@ export default function ProfileScreen() {
             tintColor={colors.text}
             colors={[colors.text]}
           />
-        }
+  );
+  const settingsContent = (
+      <ProfileSettingsBody embedded={inlineProfile}
+        testID="profile-settings-page"
+        style={Platform.OS === "web" && responsiveLayout.usesWorkspaceShell
+          ? ({ overflowY: "scroll" } as any)
+          : undefined}
+        contentContainerStyle={{
+          paddingTop: 16,
+          paddingBottom: Math.max(
+            16,
+            insets.bottom + (responsiveLayout.isMobile ? 92 : 16),
+            Platform.OS === "web" && mobileProfileHasChanges ? 96 : 0,
+          ),
+        }}
+        refreshControl={profileRefreshControl}
       >
 
         {isStudentMobileProfile ? (
-          <ResponsivePage variant="dashboard" gap={20} style={{ width: "100%", paddingBottom: 18 }}>
-            <BackTitleHeader
-              title="Configurações"
-              onBack={() => leaveMobileProfile()}
-            />
-
-            <ResponsiveGrid columns={{ compact: "1", split: "4/8" }} gap={24}>
-            <View
-              key="student-identity"
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: responsiveLayout.isMobile ? 16 : 24,
-                paddingLeft: responsiveLayout.supportsSplitView ? 8 : undefined,
-                borderRadius: responsiveLayout.supportsSplitView ? 0 : radius.container,
-                borderWidth: responsiveLayout.supportsSplitView ? 0 : 1,
-                borderRightWidth: responsiveLayout.supportsSplitView ? 1 : undefined,
-                borderColor: colors.border,
-                backgroundColor: responsiveLayout.supportsSplitView ? "transparent" : colors.card,
-                alignItems: "center",
-                gap: 14,
-              }}
-            >
-              <View style={{ position: "relative" }}>
-                <Pressable
-                  accessibilityLabel="Visualizar foto de perfil"
-                  accessibilityRole="button"
-                  onPress={() => setShowPhotoViewer(true)}
-                  style={{
-                    width: responsiveLayout.isMobile ? 88 : 132,
-                    height: responsiveLayout.isMobile ? 88 : 132,
-                    borderRadius: responsiveLayout.isMobile ? 44 : 66,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    ...shadow.card,
-                  }}
-                >
-                  {photoUri ? (
-                    <Image
-                      source={{ uri: photoUri }}
-                      style={{
-                        width: responsiveLayout.isMobile ? 84 : 120,
-                        height: responsiveLayout.isMobile ? 84 : 120,
-                        borderRadius: responsiveLayout.isMobile ? 42 : 60,
-                      }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <GoAtletaIcon name="personSolid" size={responsiveLayout.isMobile ? 42 : 46} color={colors.primaryBg} />
-                  )}
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Alterar foto"
-                  accessibilityRole="button"
-                  onPress={() => setShowPhotoSheet(true)}
-                  style={({ pressed }) => ({
-                    position: "absolute",
-                    right: -1,
-                    bottom: 0,
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: pressed ? colors.secondaryBg : colors.primaryBg,
-                    borderWidth: 2,
-                    borderColor: colors.background,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  })}
-                >
-                  <GoAtletaIcon name="camera" size={18} color={colors.primaryText} />
-                </Pressable>
-              </View>
-              <Text style={{ color: colors.text, fontSize: 20, lineHeight: 25, fontWeight: "800", textAlign: "center" }}>
-                {displayName}
-              </Text>
-              <View style={{ alignItems: "center", gap: 3 }}>
-                <Text style={{ color: colors.primaryBg, fontSize: 13, fontWeight: "800" }}>Atleta</Text>
-                <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }} numberOfLines={2}>
-                  {currentClass?.name || profileInstitution?.name || "Perfil esportivo"}
-                </Text>
-              </View>
-            </View>
-
+          <ResponsivePage variant="dashboard" gap={20} style={{ width: "100%", paddingHorizontal: 0, paddingBottom: 18 }}>
+            <View style={{ gap: 24 }}>
             <View key="student-settings" style={{ minWidth: 0, gap: 10 }}>
               <MobileProfileSection
                 icon="personSolid"
@@ -2632,9 +2588,6 @@ export default function ProfileScreen() {
                 expanded={mobileExpandedSection === "personal"}
                 onPress={() => toggleMobileSection("personal")}
               >
-                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-                  Nome, celular, data de nascimento e CPF são obrigatórios. Os demais dados são opcionais.
-                </Text>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo (obrigatório)</Text>
                   <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
@@ -3249,16 +3202,13 @@ export default function ProfileScreen() {
                 ) : null}
               </View>
             </View>
-            </ResponsiveGrid>
+            </View>
           </ResponsivePage>
         ) : (
-        <ResponsivePage variant="dashboard" gap={20} style={{ paddingBottom: 32 }}>
-          <BackTitleHeader
-            title={staffProfile ? "Configurações do perfil" : "Perfil"}
-            onBack={() => staffProfile ? leaveMobileProfile(() => setStaffSettings(false)) : navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
-          />
-
-          <ResponsiveGrid columns={{ compact: "1", split: "4/8" }} gap={24}>
+        <ResponsivePage variant="dashboard" gap={20} style={staffProfile ? { width: "100%", paddingHorizontal: 0, paddingBottom: 18 } : { paddingBottom: 32, maxWidth: 1168 }}>
+          {!staffProfile ? <BackTitleHeader title="Perfil" onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })} /> : null}
+          <ResponsiveGrid columns={{ compact: "1", split: "4/8" }} splitEnabled={!staffProfile} gap={24}>
+            {!staffProfile ? (
             <View
               key="identity"
               style={{
@@ -3458,7 +3408,7 @@ export default function ProfileScreen() {
                       }}
                     >
                       <Text
-                        numberOfLines={responsiveLayout.isMobile ? 1 : 2}
+                        numberOfLines={2}
                         ellipsizeMode="tail"
                         style={{
                           flexShrink: 1,
@@ -3619,17 +3569,16 @@ export default function ProfileScreen() {
               ) : null}
             </View>
 
+            ) : null}
             <View key="settings" style={{ minWidth: 0, gap: 12 }}>
             <MobileProfileSection
               icon="personSolid"
               title="Dados pessoais"
               subtitle="Identificação e contato"
               expanded={professionalExpandedSection === "personal"}
+              pendingMessage={pendingNoticeFor("personal")}
               onPress={() => setProfessionalExpandedSection((current) => current === "personal" ? null : "personal")}
             >
-              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-                Nome, celular, data de nascimento e CPF são obrigatórios. Os demais dados são opcionais.
-              </Text>
               <View style={{ gap: 7 }}>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo (obrigatório)</Text>
                 <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
@@ -3814,6 +3763,7 @@ export default function ProfileScreen() {
               title="Conta e segurança"
               subtitle={accountSecurity.loginLabel}
               expanded={professionalExpandedSection === "account"}
+              pendingMessage={pendingNoticeFor("security")}
               onPress={() => setProfessionalExpandedSection((current) => current === "account" ? null : "account")}
             >
               {accountSecuritySectionContent}
@@ -4262,7 +4212,7 @@ export default function ProfileScreen() {
           </ResponsiveGrid>
         </ResponsivePage>
         )}
-      </ScrollView>
+      </ProfileSettingsBody>
   );
   const profileSaveBar = (<FloatingSaveBar
         bottom={responsiveLayout.isMobile ? insets.bottom + 104 : 18}
@@ -4287,15 +4237,92 @@ export default function ProfileScreen() {
         loading={savingMobileProfile || athleteModalities.saving}
         loadingLabel="Salvando..."
       />);
-  const closeStaffSettings = () => leaveMobileProfile(() => setStaffSettings(false));
+  const workspaceControl = showWorkspaceSwitcher ? <>
+          <View ref={workspaceTriggerRef} collapsable={false} style={{ alignSelf: "flex-start", maxWidth: "100%" }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Trocar workspace"
+            accessibilityState={{ expanded: workspaceExpanded }}
+            suppressWebHoverFeedback
+            onPress={() => {
+              if (workspaceExpanded) { setWorkspaceExpanded(false); return; }
+              workspaceTriggerRef.current?.measureInWindow((x, y, width, height) => {
+                setWorkspaceMenuLayout({ x, y, width, height });
+                setWorkspaceExpanded(true);
+              });
+            }}
+            style={{ alignSelf: "flex-start", maxWidth: "100%", minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: responsiveLayout.isMobile ? 13 : 14, flexShrink: 1 }}>{activeOrganization?.name || "Selecionar workspace"}</Text>
+            <GoAtletaIcon name={workspaceExpanded ? "chevronUp" : "chevronDown"} size={14} color={colors.muted} />
+          </Pressable>
+          </View>
+          <AnchoredDropdown visible={workspaceExpanded} layout={workspaceMenuLayout} container={null} animationStyle={{ opacity: 1 }} zIndex={6000} maxHeight={280} nestedScrollEnabled density="menu" preferredWidth={280} interactiveRefs={[workspaceTriggerRef]} onRequestClose={() => setWorkspaceExpanded(false)}>
+            {organizations.map(org => <AnchoredDropdownOption
+              key={org.id}
+              active={org.id === activeOrganization?.id}
+              accessibilityLabel={org.name}
+              density="compact"
+              style={{ minHeight: 44, justifyContent: "center", backgroundColor: org.id === activeOrganization?.id ? colors.secondaryBg : colors.card, borderWidth: 0 }}
+              rightAccessory={org.id === activeOrganization?.id ? <GoAtletaIcon name="checkmark" size={16} color={colors.primaryBg} /> : null}
+              onPress={() => {
+                setWorkspaceExpanded(false);
+                if (org.id !== activeOrganization?.id) leaveMobileProfile(() => {
+                  allowProfileNavigation.current = false;
+                  void handleOrganizationChange(org.id);
+                });
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 14, flex: 1 }}>{org.name}</Text>
+            </AnchoredDropdownOption>)}
+          </AnchoredDropdown>
+        </> : undefined;
+  const roleControl = canSwitchProfile ? (
+    <View ref={profileMenuTriggerRef} collapsable={false}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Trocar perfil" accessibilityState={{ expanded: profileMenuOpen }} onPress={toggleProfileMenu} suppressWebHoverFeedback style={{ minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.secondaryBg }}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{isStudentMobileProfile ? "Atleta" : profileDisplay.label}</Text>
+        <GoAtletaIcon name={profileMenuOpen ? "chevronUp" : "chevronDown"} size={13} color={colors.muted} />
+      </Pressable>
+    </View>
+  ) : undefined;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {staffProfile ? <StaffProfilePage
+      {settingsPage || inlineProfile ? <ProfileSettingsNavigationGuard blocked={mobileHasUnsavedChanges || savingMobileProfile || athleteModalities.saving || savingSecurityContact} onLeave={(navigate) => allowProfileNavigation.current ? navigate() : leaveMobileProfile(navigate)} /> : null}
+      {isStudentMobileProfile ? <PersonProfilePage
+        testID="own-student-profile"
+        name={student?.name || displayName}
+        role="Atleta"
+        roleControl={roleControl}
+        organizationName={profileInstitution?.name ?? "Go Atleta"}
+        workspaceControl={workspaceControl}
+        photoUri={studentPhotoUri || photoUri}
+        joinedAt={student?.createdAt}
+        joinedLabel="Atleta desde"
+        summary={<></>}
+        classes={institutionClasses.groups.flatMap(group => group.classes)}
+        loading={loadingClasses || institutionClasses.loading}
+        error={institutionClasses.error}
+        aboutItems={[{ label: "Instituição", value: profileInstitution?.name }, { label: "Unidade", value: currentClass?.unit }]}
+        ownProfile
+        selectedTab={profileTab}
+        onTabChange={setProfileTab}
+        settingsContent={settingsContent}
+        refreshControl={profileRefreshControl}
+        onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
+        onEditPhoto={() => setShowPhotoSheet(true)}
+        onEditProfile={() => { setMobileExpandedSection("personal"); setProfileTab("settings"); }}
+      /> : staffProfile ? <StaffProfilePage
         key={`${activeOrganization?.id}:${session?.user.id}`}
         organizationId={activeOrganization?.id}
         userId={session?.user.id}
         name={displayName}
         role={profileDisplay.label}
+        roleControl={roleControl}
+        workspaceControl={workspaceControl}
+        selectedTab={profileTab}
+        onTabChange={setProfileTab}
+        settingsContent={settingsContent}
+        refreshControl={profileRefreshControl}
         organizationName={activeOrganization?.name ?? "Go Atleta"}
         email={session?.user.email}
         photoUri={photoUri}
@@ -4305,14 +4332,9 @@ export default function ProfileScreen() {
         ownProfile
         onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
         onEditPhoto={() => setShowPhotoSheet(true)}
-        onEditProfile={() => { setProfessionalExpandedSection("personal"); setStaffSettings(true); }}
-        onSettings={() => { setProfessionalExpandedSection("account"); setStaffSettings(true); }}
+        onEditProfile={() => { setProfessionalExpandedSection("personal"); setProfileTab("settings"); }}
       /> : settingsContent}
-      {staffProfile ? <ModalSheet visible={staffSettings} onClose={closeStaffSettings} position="right" cardStyle={{ alignSelf: "flex-end", width: responsiveLayout.isMobile ? "100%" : 900, maxWidth: "100%", height: "94%", padding: 0, backgroundColor: colors.background }}>
-        {settingsContent}
-        {profileSaveBar}
-      </ModalSheet> : null}
-      {!staffProfile ? profileSaveBar : null}
+      {(inlineProfile ? profileTab === "settings" : true) ? profileSaveBar : null}
       <Modal
         visible={googleMenuOpen && Boolean(googleMenuAnchor)}
         animationType="none"
@@ -4561,7 +4583,8 @@ export default function ProfileScreen() {
                     accessibilityRole="menuitem"
                     accessibilityState={{ selected }}
                     onPress={() => {
-                      void applyProfilePreview(profileId);
+                      closeProfileMenu();
+                      if (!selected) leaveMobileProfile(() => { void applyProfilePreview(profileId); });
                     }}
                     style={getProfileMenuOptionStyle(selected)}
                   >

@@ -187,12 +187,13 @@ future|GIF e vídeo|Fora do pacote documentado.|docs/operations/visual-court-wor
 future|Análise tática por IA|Proposta separada, não certificada como entregue.
 """)
 add('Scouting · observação esportiva', '/class/[id]/scouting', 'app/class/[id]/scouting.tsx', """
-code|Listagem e nova sessão|Rotas específicas.|app/class/[id]/scouting/new.tsx
-code|Detalhe da sessão|Rota com ID de sessão.|app/class/[id]/scouting/[scoutingSessionId].tsx
-code|Persistência de sessões|Camada de banco específica.|src/db/scouting-sessions.ts
+code|Listagem e nova sessão|Treinos/Jogos, histórico, busca, filtros e criação com formato explícito. Banco ativado em 07/10; fechamento autorizado para main pelo PR #98, com checks e deploy rastreáveis no GitHub/Vercel.|src/screens/scouting/ScoutingScreen.tsx
+code|Detalhe da sessão|Coletor local por jogada, contato editável e reabertura; treino por repetição. Consulta do legado preservada.|src/screens/scouting/ScoutingCollector.tsx
+code|Persistência de sessões|Migration 20261007112922 aplicada. Smoke autenticado real: jogo, reabertura, treino, desfazer e conclusão; registros antigos preservados e sessões temporárias removidas.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
 code|Núcleo de scouting|Regras no core.|src/core/scouting.ts
 code|Visão individual|Entrada student-scouting.|app/student-scouting.tsx
-verify|Métricas e encerramento|Conferir coleta, edição e consolidação no fluxo real.
+verify|Proposta visual de Scouting|Fidelidade corrigida após revisão do usuário: modal compacto, sequência, grade de atletas/resultados, quadra e filtros. Comparação local em desktop/tablet/mobile e temas claro/escuro; aceite estético final, produção e uso em campo pendentes.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
+verify|Métricas e encerramento|Amostras e formatos separados; eficiência exclui bloqueado legado ambíguo. Conclusão e agregados verificados no serviço real; conferência em campo pendente.|docs/ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md
 """)
 add('Assistente · conversa e contexto', '/assistant', 'docs/operations/planning-assistant-local.md', """
 code|Assistente oculto em convites|Botão e painel bloqueados nas rotas públicas de convite, mesmo com sessão ativa; fechamento ao entrar nessas rotas.|src/copilot/route-visibility.ts
@@ -391,8 +392,8 @@ code|Recomendação de feriado|Hook e componente próprios.|src/screens/home/use
 verify|Data, vazio e contexto de turma|Conferir dia sem aula, aula atual e navegação no localhost.
 """)
 add('Perfil, preferências e regulamentação', '/profile', 'app/profile.tsx', """
-code|Perfil geral|Entrada compartilhada.
-code|Perfil por papel|Entradas de professor, coordenação, atleta e família.|app/prof/profile.tsx
+code|Perfil geral|Aluno, professor e coordenação usam Configurações abaixo da mesma capa e abas; Editar perfil ativa Dados pessoais. Rascunho preservado entre abas e protegido ao sair ou trocar workspace. Cabeçalho reúne seletores autorizados de perfil e organização. Texto redundante de obrigatoriedade removido. Links /student/profile/settings, /prof/profile/settings e /coord/profile/settings mantêm compatibilidade. Release local: build:verified em 186s, 566 suítes/3.173 testes, 9 suítes SQL isoladas e todos os checks; smoke autenticado de coordenação e professor, rascunho temporário revertido, menu de workspace e entrada antiga de configurações. Professor conferido em 390 px sem overflow horizontal. Sem envio de dados pessoais/senha. Fechamento autorizado para main pelo PR #98; aceite das filas não certifica produção ou OTA aplicado.|app/profile.tsx
+code|Perfil por papel|Entradas de professor, coordenação, atleta e família.|app/prof/profile/index.tsx
 code|Configuração de WhatsApp|Rota de retorno/configuração; conclusão do Embedded Signup depende do servidor.|app/whatsapp-settings.tsx
 code|Fontes regulamentares|Rota para fontes.|app/regulation-sources.tsx
 code|Histórico regulamentar|Rotas gerais e por papel.|app/regulation-history.tsx

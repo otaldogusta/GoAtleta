@@ -52,6 +52,16 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   público implícito nem substituir autorização pela existência de arquivo/link.
 - Scouting de equipe preserva organização, turma, sessão, fundamento e resultado;
   ações sincronizam contagens legadas. Sessão concluída rejeita adição/exclusão de ações.
+- A coleta por jogada foi implementada localmente em 07/10: contatos vinculados
+  ao ponto, reabertura, revisão/idempotência e rascunho por usuário/organização.
+  Treino permanece por repetição; legado não recebe placar/rubrica presumidos.
+  Migration `20261007112922` aplicada em 07/10; gravação real de jogo/treino validada
+  pelo app local. Pacote validado para prévia; produção do app pendente. Ver [contrato e validação](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md)
+  e [adaptador](../../../src/db/scouting-collection.ts).
+- Coletor refinado contra o mockup em 07/10: sequência compacta, escolha explícita
+  de atleta/sem atleta antes do resultado e confirmação do ponto só após fechar
+  o contato. Seleção permanece no treino para repetições; nomes reais não recebem
+  números de camisa inventados. Comparação visual em browser não substitui aceite.
 - Autorregistro do atleta usa notas `0/1/2` por fundamento com limites próprios.
   A UI permite salvar no dia agendado, do início da aula até quatro horas depois;
   essa guarda cliente não comprova enforcement temporal no servidor.

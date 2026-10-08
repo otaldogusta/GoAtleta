@@ -1,5 +1,5 @@
-import { markRender } from "../../src/observability/perf";
-import ProfileScreen from "../profile";
+import { markRender } from "../../../src/observability/perf";
+import ProfileScreen from "../../profile";
 
 export default function CoordinationProfileTab() {
   markRender("screen.coordProfile.render.root");

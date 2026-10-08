@@ -16,6 +16,8 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Revisão de minimalismo da quadra — 04/10/2026 | [QUADRA_MINIMALISMO_REVIEW_2026-10-04.md](QUADRA_MINIMALISMO_REVIEW_2026-10-04.md) |
 | Relatório da aula — visual aprovado e aplicação local | [RELATORIO_AULA_2026-10-06.md](RELATORIO_AULA_2026-10-06.md) |
 | Histórico de relatórios — visual aprovado e aplicação local | [HISTORICO_RELATORIOS_2026-10-06.md](HISTORICO_RELATORIOS_2026-10-06.md) |
+| Scouting — proposta visual e pesquisa de domínio | [SCOUTING_MOCKUP_2026-10-06.md](SCOUTING_MOCKUP_2026-10-06.md) |
+| Scouting — coleta por jogada, app local e banco ativado | [SCOUTING_IMPLEMENTACAO_2026-10-07.md](SCOUTING_IMPLEMENTACAO_2026-10-07.md) |
 
 ## Regra central
 

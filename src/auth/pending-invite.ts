@@ -146,4 +146,5 @@ export const shouldRedirectPendingRole = ({
   pathname !== "/student/home" &&
   pathname !== "/student-plan" &&
   pathname !== "/student/profile" &&
+  pathname !== "/student/profile/settings" &&
   !isInviteRoute;

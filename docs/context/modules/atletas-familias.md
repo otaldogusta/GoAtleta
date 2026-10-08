@@ -19,7 +19,7 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 | [student-relationship-invite.ts](../../../src/api/student-relationship-invite.ts) | Convites, recibos, relações, permissões, revogação e resumo familiar por atleta. |
 | [family-access-request.ts](../../../src/api/family-access-request.ts), [family-invite](../../../app/family-invite/) | Solicitação familiar e consumo explícito de convite. |
 | [family-access.ts](../../../src/api/family-access.ts), [useFamilyOverview.ts](../../../src/screens/family/useFamilyOverview.ts) | Projeções autorizadas, seleção por relação e descarte de respostas antigas. |
-| [screens/family](../../../src/screens/family/), [student/profile.tsx](../../../app/student/profile.tsx) | Início, agenda, pagamentos e perfil do contexto selecionado; perfil próprio do atleta. |
+| [screens/family](../../../src/screens/family/), [student/profile/index.tsx](../../../app/student/profile/index.tsx) | Início, agenda, pagamentos e perfil do contexto selecionado; perfil próprio do atleta com edição na aba Configurações, mantendo rascunho entre abas. `/student/profile/settings` abre diretamente essa aba. |
 | [student-photo-storage.ts](../../../src/api/student-photo-storage.ts), [student-self-photo.ts](../../../src/api/student-self-photo.ts) | Armazenamento/foto e RPC `set_my_student_photo`. |
 
 ## Contratos a preservar
@@ -46,6 +46,9 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 - O perfil compartilhado é composição visual; autorização permanece nas APIs/RPCs e
   capacidades de cada consumidor. A aba financeira do atleta exige `canViewFinance`.
+- Aluno, professor e coordenação editam o próprio perfil na aba Configurações,
+  abaixo da mesma capa. Links de configurações por papel continuam compatíveis;
+  perfis de outras pessoas permanecem separados dos controles da própria conta.
 - Reconciliação automática é restrita à identidade verificada e recarrega sob RLS;
   ver [acesso e organizações](acesso-organizacoes.md).
 - A fundação familiar distingue RPC ausente de falhas de acesso/transporte.

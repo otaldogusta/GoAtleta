@@ -72,7 +72,7 @@ const normalizeSessionStatus = (
   value: string | null | undefined
 ): ScoutingSessionStatus => (value === "concluido" ? "concluido" : "em_andamento");
 
-const scoutingSessionRowToModel = (row: ScoutingSessionRow): ScoutingSession => ({
+export const scoutingSessionRowToModel = (row: ScoutingSessionRow): ScoutingSession => ({
   id: row.id,
   organizationId: row.organization_id ?? "",
   classId: row.classid,
@@ -85,6 +85,9 @@ const scoutingSessionRowToModel = (row: ScoutingSessionRow): ScoutingSession => 
   createdAt: row.createdat,
   updatedAt: row.updatedat ?? row.createdat,
   completedAt: row.completed_at ?? null,
+  format: row.format ?? null,
+  revision: row.revision,
+  matchState: row.match_state ?? null,
 });
 
 const normalizeFundamental = (
@@ -116,7 +119,7 @@ const normalizeResultLevel = (value: number | null | undefined): ScoutingAction[
   return 0;
 };
 
-const scoutingActionRowToModel = (row: ScoutingActionRow): ScoutingAction => ({
+export const scoutingActionRowToModel = (row: ScoutingActionRow): ScoutingAction => ({
   id: row.id,
   sessionId: row.session_id,
   organizationId: row.organization_id ?? "",
@@ -129,6 +132,10 @@ const scoutingActionRowToModel = (row: ScoutingActionRow): ScoutingAction => ({
   resultLabel: row.result_label ?? "Erro",
   resultLevel: normalizeResultLevel(row.result_level),
   createdAt: row.createdat,
+  rallyId: row.rally_event_id ?? null,
+  contactIndex: row.contact_index ?? null,
+  zone: row.capture_zone ?? null,
+  rubricVersion: row.rubric_version ?? null,
 });
 
 const sessionTypeLabel = (type: ScoutingSessionType) => {

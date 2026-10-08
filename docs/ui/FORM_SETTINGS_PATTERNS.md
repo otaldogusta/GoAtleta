@@ -13,6 +13,23 @@ Não copiar o arquivo inteiro, estilos locais ou regras específicas do atleta.
 
 ## Organização e conteúdo
 
+- Nos perfis próprios de aluno, professor e coordenação, Configurações troca somente o conteúdo abaixo da capa e
+  das abas, sem outra navegação ou repetição da identidade. Editar perfil ativa
+  Configurações e abre Dados pessoais. Alternar abas preserva o rascunho sem
+  confirmação; sair do perfil mantém a proteção contra descarte.
+  `/student/profile/settings`, `/prof/profile/settings` e `/coord/profile/settings`
+  continuam aceitos como entradas diretas da mesma composição, com Configurações
+  selecionada. A aba e Editar perfil não navegam para essas rotas.
+  Verificação de contato e senha mantêm ações independentes.
+- O cabeçalho dos perfis próprios oferece troca de workspace quando a conta possui
+  mais de uma organização autorizada. Reutiliza o handler existente e protege
+  rascunhos; a instituição do atleta continua determinada pelo vínculo dele.
+  Campos obrigatórios são indicados pelos rótulos, sem parágrafo repetido.
+  A troca de papel permanece disponível conforme os perfis autorizados da conta.
+  `browser-pending-edits.ts` é inicializado no layout raiz antes do listener do
+  Expo e ativado somente pela página focada com edição ou salvamento em curso.
+  “Completar perfil” entra diretamente nas configurações, inclusive para o
+  acesso pendente já autorizado.
 - Agrupar campos por assunto, com título direto e descrição curta quando útil.
   Dados pessoais, responsável, instituição, modalidades, saúde e segurança são
   assuntos distintos; preferências relacionadas podem usar separadores.
@@ -126,3 +143,42 @@ houver necessidade real; manter consultas fora dos componentes visuais.
 
 A adoção no restante do app deve ocorrer por fluxo, com verificação. Atualizar
 esta documentação não significa que todas as telas já foram corrigidas.
+
+### Conferência local de configurações — 08/10/2026
+
+A página própria de professor/coordenação passou por 33 testes focados, typecheck,
+build web, org-scope, perf-hygiene e arquitetura. Smoke autenticado conferiu as
+seções, rascunho ao alternar cards, saída pelas abas e Voltar do navegador com
+cancelamento/descarte; layout escuro em 390×844, 834×1194 e 1440×1024. Não houve
+envio de dados pessoais ou credenciais. Tema claro, submissão real e dispositivo
+nativo não foram certificados nesta rodada; publicação permanece pendente.
+
+### Unificação dos perfis próprios — 08/10/2026
+
+Aluno, professor e coordenação agora compartilham a composição com edição abaixo
+das abas. Validado com 27 testes focados, typecheck, lint e org-scope; smoke local
+de professor e coordenação, rascunho entre abas, menu de workspace e link antigo
+de configurações. Professor também conferido em 390 px sem overflow horizontal.
+Sem gravação de dados pessoais, troca real de workspace ou publicação.
+
+### Entrega integrada — 08/10/2026
+
+O pacote de perfil acompanha o scouting no [PR #98](https://github.com/otaldogusta/GoAtleta/pull/98),
+com destino à `main` autorizado pelo usuário. Os checks e a revisão do PR registram
+o resultado de release para o commit correspondente; os relatos locais acima
+continuam como evidência de cada etapa, não como certificação de produção.
+
+A revisão final também protege a troca de papel antes de alterar seu contexto e
+reinicia a guarda ao voltar a focar o perfil. Smoke autenticado: editar nome,
+solicitar troca de Coordenação para Professor e cancelar manteve papel, URL e
+rascunho. A edição temporária foi revertida sem salvar.
+
+A distribuição usa os fluxos existentes de Vercel e EAS Update. Merge ou aceite
+da fila não confirma versão pronta na web nem atualização aplicada no dispositivo.
+
+`PERF_BASE_REF=origin/main npm run build:verified` aprovou o código final em 186s,
+sem reaproveitar recibos: 566 suítes / 3.173 testes, 9 suítes PostgreSQL isoladas,
+lint sem erros/avisos, tipos, encoding, marca, JWT, escopo, assets, arquitetura,
+performance e export web. Depois disso, somente este registro documental e o
+checklist receberam o resultado; geração e diff foram conferidos novamente.
+O CI valida o commit publicado de forma independente.

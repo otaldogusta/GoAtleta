@@ -1305,6 +1305,41 @@ export type ScoutingSession = {
   createdAt: string;
   updatedAt: string;
   completedAt?: string | null;
+  format?: ScoutingFormat | null;
+  revision?: number;
+  matchState?: ScoutingMatchState | null;
+};
+
+export type ScoutingFormat = "2x2" | "3x3" | "4x4" | "6x6" | "outro";
+export type ScoutingSide = "us" | "them";
+export type ScoutingContact = {
+  studentId?: string | null;
+  athleteName?: string | null;
+  fundamental: ScoutingActionFundamental;
+  phase: ScoutingActionPhase;
+  resultKey: string;
+  zone?: number | null;
+};
+export type ScoutingMatchState = {
+  setNumber: number;
+  scoreUs: number;
+  scoreThem: number;
+  serve: ScoutingSide;
+  rotation: number | null;
+  recoveredDraft: ScoutingContact[];
+};
+export type ScoutingRally = {
+  id: string;
+  sessionId: string;
+  setNumber: number;
+  number: number;
+  won: boolean;
+  serve: ScoutingSide;
+  rotation: number | null;
+  scoreUs: number;
+  scoreThem: number;
+  contacts: ScoutingContact[];
+  createdAt: string;
 };
 
 export type ScoutingAction = {
@@ -1320,6 +1355,10 @@ export type ScoutingAction = {
   resultLabel: string;
   resultLevel: 0 | 1 | 2 | 3;
   createdAt: string;
+  rallyId?: string | null;
+  contactIndex?: number | null;
+  zone?: number | null;
+  rubricVersion?: number | null;
 };
 
 export type PlanningCycle = {
