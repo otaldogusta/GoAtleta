@@ -29,6 +29,14 @@ Selecionar somente os fluxos afetados entre login/logout, workspace, convites, v
 
 Guardar sessões, traces, screenshots autenticados e dados pessoais em diretório privado ignorado, verificando `git check-ignore` antes. Nunca versionar estado autenticado. Falta de sessão/ambiente deve ser relatada como teste pendente, sem contornar auth ou trocar silenciosamente por mocks.
 
+## OTP e verificação entre dispositivos
+
+- Exercitar envio sem confirmação, código inválido/expirado, resposta 429, telefone divergente e falha na leitura do usuário. Para remoção, cobrir consulta indisponível, último método de acesso, DELETE negado e estado ainda presente após recarregar. Reutilizar `src/auth/__tests__/phone-verification-flow.test.ts` e testes relacionados.
+- Separar prazo configurado no Auth, texto do template, contagem de reenvio no cliente e expiração realmente exercitada. `otp_expired` pode indicar código inválido ou expirado; registrar tempos de envio/confirmação sem guardar o código. Resposta 429 simulada não comprova limite remoto.
+- Diferenciar solicitação e recebimento no Android, confirmação realizada no navegador e reconhecimento posterior no dispositivo. Exibir `Número verificado` não comprova novo ciclo inteiramente nativo nem runtime OTA aplicado.
+- Em smoke por ADB autorizado, conferir conexão e tela atual, aguardar desbloqueio pelo usuário e preservar dados/canal/instalação. Não reutilizar XML após falha de captura. Não reenviar OTP só para conferir um estado já confirmado.
+- Evidências atuais e pendências ficam em `docs/operations/whatsapp-auth-prototype.md`; a skill contém o procedimento, sem dados pessoais nem códigos reais.
+
 ## Fechamento
 
 Reportar comandos, resultado e limites (mock, SQL isolado, navegador, dispositivo). Instalar uma skill não cria nem executa uma suíte E2E. Publicação usa o nível de release; `build:verified` agrega validação e exportação conforme `package.json`. Não executar scripts `update:*` como se fossem apenas testes: podem publicar no EAS.

@@ -1,7 +1,8 @@
 # Acesso, organizações e administração
 
-Leitura do código em 05/10/2026, base `d5120cff`. Este mapa descreve o checkout;
-não confirma configuração, migrações aplicadas ou disponibilidade em produção.
+Mapa inicial em 05/10/2026, base `d5120cff`; contrato de confirmação/remoção de
+telefone revisado em 08/10 sobre `6ceb0540` com alterações locais. Este mapa não
+certifica configuração, migrações aplicadas ou publicação do checkout.
 
 ## Responsabilidades e entradas
 
@@ -41,6 +42,11 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
   negar leitura e escrita indevidas. Alterar somente um redirecionamento é insuficiente.
 - Links de recuperação/expiração são interceptados no bootstrap. O parâmetro `next`
   passa por [post-login-redirect.ts](../../../src/auth/post-login-redirect.ts), que aceita destinos internos seguros.
+- A consulta de identidades usa o usuário canônico em `GET /auth/v1/user`.
+  Falha de leitura não equivale a lista vazia; remoção de telefone exige outra
+  identidade e confirmação posterior de ausência do telefone/identidade no servidor.
+- A confirmação `phone_change` recarrega o usuário e confere o telefone solicitado;
+  envio/recebimento do código não autoriza persistir confirmação no cliente.
 
 ## Decisões atuais e limites
 
@@ -64,8 +70,11 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Validação relevante
 
-Nesta organização documental houve inspeção estática; não foram executados testes
-do aplicativo, smoke autenticado ou verificações remotas.
+O mapa inicial de 05/10 teve inspeção estática, sem testes ou verificações remotas.
+Na continuação de 07/10, a correção local da remoção passou em 32 testes focados,
+typecheck, org-scope e desvinculação real autorizada no localhost. O Android
+instalado recebeu a confirmação feita no localhost em 08/10, mas a correção de
+remoção ainda não foi publicada; [evidência e pendências](../../operations/whatsapp-auth-prototype.md).
 
 - Para mudanças de acesso: [testes de auth](../../../src/auth/__tests__/) cobrem papéis,
   redirects, verificação, provisionamento, plataforma e reconciliação.

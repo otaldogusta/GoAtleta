@@ -7,17 +7,28 @@ Ele confirma a propriedade do telefone informado no perfil por meio de
 `phone_change`; o telefone não é usado como método primário de login e nenhuma
 credencial fica no cliente ou neste repositório.
 
-Resultado mais recente em 07/10/2026: remetente oficial configurado, template
+Resultado operacional em 07/10/2026: remetente oficial configurado, template
 ativo e pagamento confirmado. Após autorização, o diagnóstico do receptor foi
 publicado na versão 11 e a Meta confirmou `Successfully subscribed to webhooks`.
 O envio das 22:12 BRT chegou ao destinatário controlado; a confirmação no perfil
 mostrou `Número verificado`. O estado confirmado também foi observado no
 localhost autenticado e no Android instalado. A rejeição de códigos e o limite
 de reenvio foram testados localmente com respostas simuladas do Supabase.
-O motivo da falha anterior, o recebimento dos eventos no receptor, um novo ciclo
-OTP completo no Android e a expiração/rate limit reais continuam pendentes.
+Na continuação, a desvinculação autorizada revelou uma rota inválida de consulta
+de identidades, corrigida e validada localmente; publicação dessa correção pendente.
+Em 08/10, a validade do OTP foi ajustada com autorização de 60 para 300 segundos
+no Auth de produção, alinhando o prazo ao template. Novo código recebido e aceito
+no localhost às 08:36:50 BRT; o perfil voltou a mostrar `Número verificado`.
+Às 09:17 BRT, o Android instalado também exibiu `Número verificado`, sem novo
+envio de OTP. O recebimento dos eventos no receptor e os limites reais de
+expiração/rate limit continuam pendentes.
 Por decisão do usuário, o WhatsApp permanece somente para códigos; o assistente
 continua dentro do app, sem ativação de bot ou lembretes neste canal.
+
+## Histórico operacional
+
+As etapas abaixo preservam a sequência de configuração e testes. Estados
+intermediários não substituem o resumo atual nem autorizam alterações remotas.
 
 Configuração registrada em 25/09/2026 (conferência parcial atual descrita abaixo):
 
@@ -226,7 +237,8 @@ Cadastro direto realizado na conta Go Atleta em 07/10:
   reutilização de resultados: 560 suítes Jest / 3.147 testes, sete suítes SQL
   locais, tipos, lint, verificações do projeto e exportação web. Os logs ficam
   em `.tmp/validation/`. Esse resultado não substitui os testes operacionais
-  pendentes e não representa uma nova publicação em produção.
+  pendentes e não representa uma nova publicação em produção. Antecede a correção
+  de remoção descrita a seguir; não é uma validação de release desse novo diff.
 - A contagem local mantém o segundo final antes dos 60 segundos e considera o
   tempo decorrido em segundo plano. A tela existente guarda o clique durante
   envio/contagem. O teste de HTTP 429 verifica a resposta do cliente, não impõe
@@ -249,6 +261,63 @@ Cadastro direto realizado na conta Go Atleta em 07/10:
   salvos no perfil comercial pela Meta com autorização anterior. O nome continua
   em revisão. A consulta até 22:55 BRT não encontrou eventos do receptor, mesmo
   após a entrega real do código; não concluir que o diagnóstico remoto está validado.
+
+### Continuação do teste Android em 07/10/2026
+
+- O usuário autorizou explicitamente desvincular e revalidar seu telefone pessoal.
+  O número comercial não foi alterado. O Android instalado chamou
+  `GET /auth/v1/user/identities`, com HTTP 404 às 23:13:27 BRT. O cliente convertia
+  essa falha em lista vazia e encerrava a remoção sem comprovação do servidor.
+- Correção local em `src/auth/auth.tsx`: obter identidades de `GET /auth/v1/user`,
+  rejeitar falha/lista ausente, bloquear remoção sem telefone ou método alternativo,
+  e conferir a ausência de telefone e identidade após o DELETE. Foram acrescentados
+  casos de regressão no AuthProvider real, incluindo compatibilidade com desvinculação OAuth.
+- 32 testes focados (quatro suítes), `typecheck:app` e `check:org-scope` passaram.
+  O smoke autenticado local executou a desvinculação autorizada e exibiu
+  `Celular removido`. A correção ainda não foi publicada para web/Android.
+- Após reabrir o Android, o perfil reconheceu a ausência do celular. Houve três
+  envios aceitos pelo Auth às 23:20:47, 23:27:37 e 23:28:42 BRT; o usuário forneceu
+  os códigos recebidos. A contagem de reenvio foi observada no aparelho. Não houve
+  comprovação de HTTP 429 remoto nem de bloqueio de clique dentro do minuto.
+- O código correto do primeiro envio foi recusado após cerca de cinco minutos
+  e 43 segundos. Uma tentativa incorreta no último desafio foi recusada às
+  23:29:55, mas o código correto também recebeu HTTP 403 `otp_expired` às 23:30:33,
+  cerca de 112 segundos após o envio. O texto remoto é ambíguo: inválido ou expirado.
+  A inspeção do painel de Auth confirmou `SMS OTP Expiry = 60` segundos, divergente
+  dos cinco minutos anunciados no template. O hook está habilitado; o login pelo
+  provedor Phone permanece desabilitado. Nessa etapa de 07/10, nenhuma dessas
+  configurações foi alterada.
+- Consulta somente de leitura confirmou que o telefone pendente e o código
+  informado correspondem ao desafio do Auth, sem expor hashes ou tokens.
+  O ajuste proposto para 300 segundos e a confirmação final ficaram pendentes nessa
+  etapa; a continuação autorizada de 08/10 está registrada abaixo.
+  Até 23:31 BRT, a consulta não mostrou eventos `whatsapp_delivery_status`.
+- Capturas/XML privados permanecem em `.tmp/whatsapp-validation/`, fora do Git.
+  Nenhum OTP, credencial ou dado de destinatário foi adicionado aos documentos.
+
+### Ajuste de validade e confirmação em 08/10/2026
+
+- Após autorização do usuário, `SMS OTP Expiry` foi alterado de 60 para 300 segundos
+  no painel de Auth de produção. A reabertura da configuração confirmou o valor
+  persistido. A confirmação de telefone, o hook e o estado do provedor de login
+  Phone foram preservados; não houve alteração de segredos ou deploy de código.
+- O localhost autenticado solicitou um novo código às 08:35:57 BRT, com HTTP 200
+  em `PUT /user` e `Hook ran successfully`. O usuário forneceu o código recebido;
+  `POST /verify` retornou HTTP 200 às 08:36:50, seguido de `GET /user` HTTP 200.
+  O perfil exibiu `Número verificado`, restaurando a confirmação pessoal.
+- Essa confirmação ocorreu cerca de 53 segundos após o envio. O valor de cinco
+  minutos foi conferido na configuração; o limite exato de expiração não foi
+  exercitado nesta rodada. A consulta de logs da rodada não mostrou eventos
+  `whatsapp_delivery_status`.
+- Às 09:03 BRT, o aparelho reconectado foi reconhecido como `device` pelo ADB;
+  pacote instalado `1.0.3-perf`/código 3. Após o desbloqueio pelo usuário, o perfil
+  no Android exibiu `Número verificado` às 09:17 BRT para o mesmo telefone pessoal.
+  Não houve novo OTP, instalação de APK, alteração de canal ou limpeza de dados.
+  A captura privada foi preservada em `.tmp/whatsapp-validation/`; o runtime OTA
+  executado não foi identificado. A confirmação do desafio ocorreu no localhost,
+  e o Android comprovou o reconhecimento posterior desse estado.
+
+## Limites do canal e do onboarding
 
 A coexistência requer conclusão do onboarding no servidor e processamento dos
 eventos correspondentes. O receptor atual verifica a assinatura, valida o objeto,
@@ -275,6 +344,10 @@ não comprova essa conclusão.
 - `whatsapp-auth-hook` autentica o evento pela assinatura Standard Webhooks.
 - A Edge Function envia o OTP com um template Meta da categoria `AUTHENTICATION`.
 - O cliente confirma o código no endpoint canônico `type=phone_change`; a função nunca marca telefone como verificado.
+- [AuthProvider](../../src/auth/auth.tsx) recarrega o usuário canônico e confere
+  o telefone confirmado antes de persistir a sessão. A correção local de remoção
+  consulta identidades em `GET /auth/v1/user`, exige outro método de acesso e
+  confirma a ausência do telefone e da identidade após o DELETE.
 
 ## Configuração operacional
 
@@ -292,7 +365,15 @@ não comprova essa conclusão.
    - `META_WHATSAPP_APP_SECRET`
 5. Ao alterar o transporte de OTP, publique somente `whatsapp-auth-hook`; publique `meta-whatsapp-webhook` apenas quando o receptor também mudar.
 6. Em Authentication > Hooks, selecione `Send SMS` e informe o endpoint HTTPS da função. Copie o segredo gerado para `SEND_SMS_HOOK_SECRET`.
-7. Mantenha Phone Auth habilitado com confirmação automática desligada.
+7. Em Authentication > Sign In / Providers > Phone, confira `SMS OTP Expiry = 300`
+   e `SMS OTP Length = 6`. O prazo do Auth deve corresponder aos cinco minutos do
+   template; o texto da mensagem não configura a expiração no servidor.
+8. Preserve `Enable phone confirmations` habilitado. O estado conferido para este
+   fluxo mantém `Enable Phone provider` desabilitado: a confirmação de perfil usa
+   `phone_change`, sem habilitar login por telefone. O hook de envio continua ativo.
+
+Esses passos descrevem o contrato operacional. Nova alteração de autenticação,
+segredos ou publicação em produção exige o escopo autorizado em `AGENTS.md`.
 
 Valores não secretos esperados no primeiro teste:
 
@@ -333,3 +414,30 @@ Confirme a versão da Graph API exibida no painel Meta antes do teste; ela é co
 - aprovação e publicação Meta confirmadas em 07/10/2026; acompanhar novas exigências do painel.
 
 Não use Baileys, sessão por QR Code ou WhatsApp Web como fallback deste fluxo.
+
+## Manutenção e próxima entrega
+
+- A correção de remoção em `src/auth/auth.tsx`, seus testes, documentos e skills
+  compõem a entrega autorizada para commit/push na branch
+  `codex/whatsapp-delivery-validation`, sobre a base `6ceb0540`. Merge e deploy de
+  produção não fazem parte dessa autorização. Futuras entregas seguem a
+  [escada de validação](validation-ladder.md) para o diff e ambiente daquele momento.
+- A correção passou em 32 testes de quatro suítes (`phone-verification-flow`,
+  `phone-verification`, `identity-linking` e `auth-token-retry`), `typecheck:app`,
+  `check:org-scope` e smoke autenticado de remoção. A confirmação e a leitura no
+  Android de 08/10 são evidências operacionais separadas.
+- Em 08/10, `npm run build:verified` validou o pacote: 560 suítes / 3.159 testes
+  Jest, sete suítes SQL isoladas, checks de release e exportação web de 117 rotas.
+  Os recibos/logs locais ficam em `.tmp/validation/`; CI remoto não reutiliza
+  esses recibos e publicação em produção permanece separada deste resultado.
+- Uma repetição do gate encontrou intermitência em `asaas-webhook-handler.test.ts`:
+  a asserção associa a duplicação à segunda chamada de um par concorrente, cuja
+  ordem de processamento pode variar. Os quatro testes passaram isoladamente.
+  Esse arquivo não foi alterado no pacote; a entrega exige nova passagem do gate
+  completo, sem ignorar a falha ou criar recibos manualmente.
+- Seguir as skills [segurança](../../.agents/skills/goatleta-security/SKILL.md),
+  [testes](../../.agents/skills/goatleta-testing/SKILL.md) e
+  [fluxo de trabalho](../../.agents/skills/goatleta-feature-workflow/SKILL.md).
+  Manter o resumo nos guias de acesso/comunicação e atualizar a fonte
+  `docs/product/build_inventory.py` antes de regenerar o HTML. Preservar títulos,
+  IDs e revisão pessoal do checklist.

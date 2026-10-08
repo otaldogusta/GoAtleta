@@ -1,8 +1,8 @@
 # Comunicação, notificações e WhatsApp
 
-Leitura do código em 05/10/2026, base `d5120cff`. Aprovação e publicação Meta
-conferidas em 07/10/2026, conforme o registro operacional abaixo. Entrega de
-push/OTP e configuração atual de provedores exigem verificação própria.
+Mapa inicial em 05/10/2026, base `d5120cff`; fluxo OTP e evidências revisados em
+08/10/2026 sobre `6ceb0540` com correção de remoção ainda não publicada em produção.
+Configuração remota e entrega por provedor exigem evidência operacional própria.
 
 ## Responsabilidades e entradas
 
@@ -51,6 +51,9 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
   caminhos de leitura retornam vazio em falha; isso não é evidência de caixa sem eventos.
 - OTP confirma propriedade do telefone por Supabase Auth `phone_change`; não cria
   um segundo login primário nem deve marcar a confirmação por código cliente.
+- Prazo de expiração do Auth, texto do template e contagem de reenvio são controles
+  distintos. O valor registrado de 300 segundos foi conferido no painel em 08/10;
+  não inferir expiração real nem limite remoto apenas pelo texto da interface.
 - O hook de envio usa assinatura Standard Webhooks; o receptor Meta usa token de
   verificação no GET e assinatura de corpo no POST antes de interpretar conteúdo.
 - O receptor Meta v11 publicado registra somente status de entrega permitido
@@ -64,15 +67,12 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 
 ## Documentação existente e precedência
 
-- [Confirmação pelo WhatsApp](../../operations/whatsapp-auth-prototype.md): apesar do
-  nome `prototype`, descreve o contrato atual e a ativação observada em 07/10.
-  App publicado, número oficial `Registered`/`Ligado`, template OTP `pt_BR` ativo
-  e pagamento padrão confirmado. O remetente oficial foi configurado no Supabase
-  com autorização; o teste às 22:12 BRT foi recebido e confirmado no perfil
-  (`Número verificado`). Diagnóstico v11 publicado e assinatura da conta ativada;
-  recebimento dos eventos pelo receptor ainda não observado. O estado confirmado
-  foi conferido no localhost e no Android instalado; novo desafio no Android pendente.
-  Histórico da revisão e divergência de WABA estão no guia operacional.
+- [Confirmação pelo WhatsApp](../../operations/whatsapp-auth-prototype.md): contrato
+  atual, histórico Meta e evidências de 07–08/10. App publicado, remetente oficial,
+  template e pagamento configurados; validade do Auth ajustada com autorização
+  para cinco minutos. Novo OTP aceito no localhost e estado confirmado reconhecido
+  pelo Android. Deploy da correção de remoção pendente; eventos de entrega no receptor,
+  limites reais e divergência de WABA seguem separados dessa confirmação.
 - [Pacote de acesso](../../audits/2026-09-09-access-package.md): taxonomia e decisões de
   notificações transacionais; verificar cada emissor no código antes de tratá-lo como entregue.
 - [Consultoria](../../consultoria/README.md): contexto dos avisos do fluxo individual;
@@ -80,14 +80,16 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 
 ## Validação relevante
 
-Nesta organização documental houve inspeção estática, sem envio de mensagens ou OTP.
+O mapa inicial de 05/10 teve inspeção estática, sem envio de mensagens ou OTP.
 Na continuação local, [testes da guarda de contexto](../../../src/api/__tests__/notification-context-guard.test.ts)
 e regressões de notificações foram executados; [resultados e limites](../../operations/consultation-and-rules-sync-local.md).
-Em 07/10, passaram 23 testes Jest focados, oito Deno e o typecheck do entrypoint.
-Os negativos de OTP/reenvio usam respostas simuladas no AuthProvider real.
-O teste operacional web recebeu e confirmou o OTP; localhost e Android exibiram
-`Número verificado`. Novo desafio Android, expiração/rate limit reais e eventos
-de entrega recebidos pelo webhook continuam sem comprovação operacional.
+Na continuação de 07/10, a correção local passou em 32 testes Jest focados, tipos,
+org-scope e remoção real autorizada. O diagnóstico do webhook tinha validação
+própria de oito testes Deno e typecheck. Negativos de OTP/429 usam transporte
+simulado no AuthProvider real. O Android solicitou e recebeu códigos; após ajustar
+o prazo, a confirmação ocorreu no localhost e o Android reconheceu o estado.
+Novo ciclo inteiramente nativo com prazo corrigido, limite exato de expiração,
+rate limit real e eventos recebidos pelo webhook continuam sem comprovação.
 
 - [Testes da caixa](../../../src/notifications/__tests__/), [web push](../../../src/push/__tests__/web-notifications.test.ts)
   e [templates WhatsApp](../../../src/utils/__tests__/whatsapp-templates.test.ts).

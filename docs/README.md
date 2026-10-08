@@ -41,8 +41,10 @@ Este é o índice canônico dos documentos do projeto. Use esta página como pon
 - [Visão Geral de NFC](nfc/overview.md) — Estado atual do scanner contínuo de tags e chamada.
 
 ### 🛡️ Operação, Segurança e Deploy
+
 - [Produção, Deploy e Rollback](operations/production.md) — Manual operacional de entrega.
 - [Visão Geral de Segurança](security/overview.md) — Diretrizes de proteção de dados e permissões organizacionais.
+- [Confirmação de telefone pelo WhatsApp](operations/whatsapp-auth-prototype.md) — Configuração do OTP, evidências web/Android e pendências de publicação.
 - [Checklist Curto de Release](../RELEASE_CHECKLIST.md) — Checklist final pré-deploy.
 
 ---

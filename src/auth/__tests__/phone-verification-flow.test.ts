@@ -51,9 +51,10 @@ beforeEach(() => {
 });
 afterEach(() => { global.fetch = originalFetch; });
 
-const mountAuth = async () => {
+const mountAuth = async (initialSession = session) => {
+  jest.mocked(loadSession).mockResolvedValue(initialSession);
   const hook = renderHook(() => useAuth(), {
-    wrapper: ({ children }) => React.createElement(AuthProvider, { initialSession: session }, children),
+    wrapper: ({ children }) => React.createElement(AuthProvider, { initialSession }, children),
   });
   await act(async () => {});
   return hook;
@@ -136,4 +137,81 @@ it("persists verification only after the server confirms the matching phone", as
   expect(fetchMock).toHaveBeenLastCalledWith("https://auth.example.test/auth/v1/user", expect.objectContaining({ method: "GET" }));
   expect(saveSession).toHaveBeenCalledWith({ ...session, user: confirmedUser }, true);
   expect(getConfirmedPhone(result.current.session?.user)).toBe(phone);
+});
+
+describe("removing a verified phone", () => {
+  const phoneIdentity = { identity_id: "phone-identity", id: "provider-user-id", provider: "phone" };
+  const emailIdentity = { identity_id: "email-identity", provider: "email" };
+  const verifiedSession: AuthSession = { ...session, user: {
+    ...session.user, phone, phone_confirmed_at: "2026-10-07T12:00:00Z",
+    identities: [phoneIdentity, emailIdentity],
+  } };
+  const unlinkedUser = { ...verifiedSession.user, phone: "", phone_confirmed_at: null, identities: [emailIdentity] };
+
+  it("reads canonical user identities and persists removal only after the server confirms it", async () => {
+    fetchMock.mockResolvedValueOnce(response(200, verifiedSession.user))
+      .mockResolvedValueOnce(response(200, {})).mockResolvedValueOnce(response(200, unlinkedUser));
+    const { result } = await mountAuth(verifiedSession);
+    await act(async () => { await result.current.removeVerifiedPhone(); });
+    expect(fetchMock.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
+      ["https://auth.example.test/auth/v1/user", "GET"],
+      ["https://auth.example.test/auth/v1/user/identities/phone-identity", "DELETE"],
+      ["https://auth.example.test/auth/v1/user", "GET"],
+    ]);
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.any(String), expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer test-access-token" }),
+    }));
+    expect(saveSession).toHaveBeenCalledWith({ ...verifiedSession, user: unlinkedUser }, true);
+    expect(getConfirmedPhone(result.current.session?.user)).toBe("");
+  });
+
+  it.each([
+    [401, { message: "expired session" }],
+    [500, { message: "unavailable" }],
+    [200, {}],
+    [200, { ...verifiedSession.user, identities: null }],
+    [200, { ...verifiedSession.user, identities: [emailIdentity] }],
+    [200, { ...verifiedSession.user, identities: [phoneIdentity] }],
+  ])("rejects an unavailable or unsafe canonical identity list without using cached alternatives (%s)", async (status, user) => {
+    fetchMock.mockResolvedValueOnce(response(status as number, user));
+    const { result } = await mountAuth(verifiedSession);
+    await act(async () => { await expect(result.current.removeVerifiedPhone()).rejects.toThrow(); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(saveSession).not.toHaveBeenCalled();
+    expect(result.current.session).toEqual(verifiedSession);
+  });
+
+  it("preserves the session when the server denies deletion", async () => {
+    fetchMock.mockResolvedValueOnce(response(200, verifiedSession.user))
+      .mockResolvedValueOnce(response(403, { message: "Cannot unlink this identity" }));
+    const { result } = await mountAuth(verifiedSession);
+    await act(async () => { await expect(result.current.removeVerifiedPhone()).rejects.toThrow("Cannot unlink"); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(saveSession).not.toHaveBeenCalled();
+    expect(result.current.session).toEqual(verifiedSession);
+  });
+
+  it.each([
+    [200, verifiedSession.user],
+    [200, { ...unlinkedUser, identities: [phoneIdentity, emailIdentity] }],
+    [500, {}],
+  ])("does not report removal when the refreshed user fails to confirm it (%s)", async (status, user) => {
+    fetchMock.mockResolvedValueOnce(response(200, verifiedSession.user))
+      .mockResolvedValueOnce(response(200, {})).mockResolvedValueOnce(response(status as number, user));
+    const { result } = await mountAuth(verifiedSession);
+    await act(async () => { await expect(result.current.removeVerifiedPhone()).rejects.toThrow(); });
+    expect(saveSession).not.toHaveBeenCalled();
+    expect(result.current.session).toEqual(verifiedSession);
+  });
+
+  it("keeps OAuth unlinking compatible with identities from the canonical user endpoint", async () => {
+    const googleUser = { ...session.user, identities: [{ identity_id: "google-identity", provider: "google" }, emailIdentity] };
+    fetchMock.mockResolvedValueOnce(response(200, googleUser)).mockResolvedValueOnce(response(200, googleUser))
+      .mockResolvedValueOnce(response(200, {})).mockResolvedValueOnce(response(200, { ...session.user, identities: [emailIdentity] }));
+    const { result } = await mountAuth();
+    await act(async () => { await result.current.unlinkIdentityProvider("google"); });
+    expect(fetchMock.mock.calls.some(([url]) => url === "https://auth.example.test/auth/v1/user/identities")).toBe(false);
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "https://auth.example.test/auth/v1/user/identities/google-identity", expect.objectContaining({ method: "DELETE" }));
+    expect(saveSession).toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,6 @@
 ---
 name: goatleta-security
-description: Revisar limites de autorização do Go Atleta ao alterar convites, acesso de atletas e familiares, organizações, exportações, Storage ou operações privilegiadas; orientar testes negativos focados.
+description: Revisar limites de autorização do Go Atleta ao alterar autenticação, identidades, convites, acesso de atletas e familiares, organizações, exportações, Storage ou operações privilegiadas; orientar testes negativos focados.
 ---
 
 # Segurança específica do Go Atleta
@@ -14,6 +14,13 @@ Resolver caminhos a partir da raiz. Ler `AGENTS.md`, as migrations/policies e os
 3. Conferir filtros, chaves de cache e descarte de respostas após troca de usuário/organização em `src/db/client.ts` e `src/providers/OrganizationProvider.tsx`.
 4. Não usar `user_metadata` editável como prova de autorização/verificação. Conferir os contratos reais em `src/auth/` e no backend; não inferir proteção pela existência de uma tela de confirmação.
 5. Para `SECURITY DEFINER`, examinar finalidade, checagem do chamador, `search_path` e grants/revokes. Um aviso genérico não prova vulnerabilidade; documentar o caminho reproduzível.
+
+## Identidade e confirmação de telefone
+
+- Supabase Auth é a fonte da confirmação. No fluxo `phone_change`, envio aceito ou código recebido não bastam: recarregar o usuário canônico e conferir o telefone solicitado antes de persistir a sessão. Não usar flags editáveis nem escrita administrativa para substituir a confirmação normal.
+- Consultar identidades pelo usuário canônico (`GET /auth/v1/user` no cliente atual). Falha de consulta não significa lista vazia. Ao remover telefone, preservar outro método de acesso, usar o identificador da identidade e conferir a ausência de telefone/identidade no servidor antes de anunciar sucesso.
+- Confirmar telefone no perfil não implica habilitar login por telefone. Conferir o prazo real do Auth separadamente do texto do template; alterações de autenticação em produção seguem a autorização explícita e a análise de impacto de `AGENTS.md`.
+- Usar [o guia do fluxo](../../../docs/operations/whatsapp-auth-prototype.md) para configuração e evidências datadas; não transportar OTPs, tokens ou contatos pessoais para a skill ou artefatos versionados.
 
 ## Matriz proporcional ao fluxo
 

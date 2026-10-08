@@ -1,4 +1,31 @@
-# Continuidade — 05/10/2026
+# Continuidade — 08/10/2026
+
+## WhatsApp OTP e confirmação de telefone — 08/10/2026
+
+O prazo do Auth foi ajustado com autorização de 60 para 300 segundos em produção.
+Novo OTP foi recebido e confirmado no localhost às 08:36:50 BRT; às 09:17, o
+Android instalado também mostrou `Número verificado`, sem outro envio. O canal
+continua reservado a códigos; o assistente permanece no app.
+
+Na branch `codex/whatsapp-delivery-validation`, base `6ceb0540`, a correção local
+de remoção usa as identidades do usuário canônico e só confirma sucesso após
+recarregar o servidor. Passaram 32 testes focados, tipos, org-scope e smoke de
+remoção autorizado. A validação completa do pacote em 08/10 passou em 560 suítes /
+3.159 testes Jest, sete suítes SQL e exportação web de 117 rotas, além dos checks
+de release. O usuário autorizou commit e push somente nesta branch; merge e
+deploy de produção seguem fora do escopo desta entrega.
+
+[Guia operacional](whatsapp-auth-prototype.md) reúne contrato, evidências e
+pendências: publicação da correção, ciclo inteiramente nativo com prazo corrigido,
+limites reais e diagnóstico de entrega. Skills de segurança/testes foram alinhadas
+ao contrato; checklist regenerado a partir da fonte, preservando IDs e revisão
+pessoal. Antes de continuar, inspecionar o Git e seguir a escada aplicável.
+
+Fechamento documental: duas skills passaram no validador de formato; 103 links
+locais conferidos, marca/codificação e diff aprovados. O HTML gerado mantém
+29 módulos, 373 itens, 116 rotas, títulos/IDs e lógica de revisão pessoal.
+A etapa documental não alterou runtime; a validação completa posterior está
+registrada acima. Nenhuma nova publicação em produção foi realizada.
 
 ## Contexto técnico, consultoria e ambiente local — 05/10/2026
 

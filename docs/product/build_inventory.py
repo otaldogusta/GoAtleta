@@ -344,11 +344,11 @@ verify|Links expirados e autorização|Conferir recuperação, confirmação e l
 add('Confirmação de contatos', '/student/profile', 'docs/operations/security-contact-verification.md', """
 recorded|E-mail alternativo confirmado|Documento registra recebimento e confirmação em 13/09 sem mudar login.
 recorded|Proteções do desafio|Validade, tentativas, rate limit e consumo transacional.
-recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial.|docs/operations/whatsapp-auth-prototype.md
+recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial e confirmação canônica do usuário. Validade de 300s configurada com autorização em 08/10; confirmação de telefone habilitada, sem ativar login por telefone.|docs/operations/whatsapp-auth-prototype.md
 recorded|Hooks WhatsApp configurados|Em 07/10, remetente oficial aplicado; diagnóstico do receptor v11 ACTIVE e assinatura da conta ativada com autorização. Oito testes Deno e typecheck do entrypoint aprovados. Sem dados pessoais nos logs; recebimento efetivo dos eventos ainda não observado.|docs/operations/whatsapp-auth-prototype.md
-recorded|OTP WhatsApp ponta a ponta|Teste web em 07/10 às 22:12 BRT: código recebido e aceito; localhost e Android instalado também exibiram Número verificado. 23 testes Jest focados passaram, incluindo erros/expiração/429 simulados, prova do servidor e contagem de reenvio. Expiração/rate limit reais, nome em revisão e divergência dos IDs de WABA continuam separados deste resultado.|docs/operations/whatsapp-auth-prototype.md
+recorded|OTP WhatsApp ponta a ponta|Em 08/10, validade ajustada para 300s com autorização. OTP recebido e aceito no localhost às 08:36:50 BRT; Android exibiu Número verificado às 09:17, sem novo envio. Correção coberta por 32 testes focados; pacote passou em 3.159 testes, sete suítes SQL e build web. Commit/push autorizados na branch; deploy, limites reais, nome em revisão e divergência de WABA permanecem separados.|docs/operations/whatsapp-auth-prototype.md
 pending|Revisão Meta e Embedded Signup|App Published; messaging/public_profile aprovadas em 07/10. API dedicada ativa para OTP; foto e site salvos. Gestão avançada em rascunho; coexistência/Embedded Signup não concluídos. Por opção de custo, WhatsApp somente para códigos e assistente mantido no app.|docs/operations/whatsapp-auth-prototype.md
-pending|Android e custos do transporte|Em 07/10, Android perf 1.0.3 abriu perfil com Número verificado, sem crash observado; não foi gerado novo desafio nem comprovado runtime OTA. Novo ciclo OTP completo e custos em uso contínuo ainda pendentes.|docs/operations/whatsapp-auth-prototype.md
+pending|Android e custos do transporte|Em 08/10, Android perf 1.0.3 reconheceu Número verificado após confirmação no localhost, sem novo OTP; runtime OTA não identificado. Remoção corrigida localmente com 32 testes, tipos, org-scope e smoke autenticado. Publicação dessa correção, ciclo inteiramente nativo com prazo corrigido, limites reais e custos em uso contínuo continuam pendentes.|docs/operations/whatsapp-auth-prototype.md
 """)
 add('Notificações e push', '/notifications', 'app/notifications/index.tsx', """
 code|Caixa interna|Implementação de inbox.|src/notificationsInbox.ts
@@ -411,7 +411,7 @@ verify|Paridade e acessibilidade|Tema claro/escuro, foco, teclado e mobile exige
 """)
 
 add('Engenharia assistida · skills e agents', 'Ferramentas locais de desenvolvimento', 'docs/operations/goatleta-engineer.md', """
-code|Governança em três camadas|Núcleo local, engenharia da stack e catálogo auxiliar; até seis skills por etapa.|docs/operations/skill-governance.md
+code|Governança em três camadas|Núcleo local, engenharia da stack e catálogo auxiliar; até seis skills por etapa. Skills locais de segurança e testes incluem confirmação canônica, expiração no Auth e distinção de evidências OTP web/Android, sem autorizar ativação remota.|docs/operations/skill-governance.md
 code|Roteador explicável|Seleção consultiva, métricas reais e indicação de divisão em etapas.|scripts/explain-skill-selection.py
 recorded|Validação da governança|21 testes do roteador, matriz de 16 cenários e oito regressões dos helpers.|docs/operations/skill-governance-validation.md
 code|Pacote local do Go Atleta Engineer|Arquivos explícitos, skills locais, hashes, perfis e rastreio local; não é executor isolado.|scripts/goatleta-engineer.py

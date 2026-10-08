@@ -324,29 +324,12 @@ const deleteUserIdentity = async (accessToken: string, identityId: string) => {
 type UserIdentity = LinkedIdentity;
 
 const fetchUserIdentities = async (accessToken: string): Promise<UserIdentity[]> => {
-  if (!accessToken) return [];
-  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/auth/v1/user/identities`, {
-    method: "GET",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) return [];
-  const text = await res.text();
-  if (!text) return [];
-  const parsed = safeJsonParse<unknown>(text, null);
-  if (Array.isArray(parsed)) {
-    return parsed as UserIdentity[];
+  if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
+  const user = await fetchUser(accessToken);
+  if (!user || !Array.isArray(user.identities)) {
+    throw new Error("Não foi possível consultar os métodos de acesso da conta. Tente novamente.");
   }
-  if (parsed && typeof parsed === "object") {
-    const maybe = parsed as { identities?: unknown };
-    if (Array.isArray(maybe.identities)) {
-      return maybe.identities as UserIdentity[];
-    }
-  }
-  return [];
+  return user.identities;
 };
 
 const resolveIdentityId = (identity: UserIdentity | undefined) =>
@@ -667,7 +650,7 @@ export function AuthProvider({
     if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
     const identities = await fetchUserIdentities(accessToken);
     const phoneIdentity = identities.find((identity) => String(identity.provider ?? "").toLowerCase() === "phone");
-    if (!phoneIdentity) return;
+    if (!phoneIdentity) throw new Error("Número de celular não encontrado na conta. Atualize o perfil e tente novamente.");
     if (!canSafelyUnlinkProvider(identities, "phone")) {
       throw new Error("Adicione outro método de acesso antes de remover este telefone.");
     }
@@ -676,6 +659,10 @@ export function AuthProvider({
     await deleteUserIdentity(accessToken, identityId);
     const user = await fetchUser(accessToken);
     if (!user) throw new Error("Não foi possível atualizar a conta.");
+    if (user.phone || user.phone_confirmed_at || !Array.isArray(user.identities)
+      || user.identities.some((identity) => String(identity.provider ?? "").toLowerCase() === "phone")) {
+      throw new Error("O servidor não confirmou a remoção do telefone. Atualize o perfil e tente novamente.");
+    }
     const activeSession = (await loadSession()) ?? session;
     const next: AuthSession = { ...activeSession, user };
     setSession(next);
