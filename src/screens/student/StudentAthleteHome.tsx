@@ -413,7 +413,7 @@ export function StudentAthleteHome() {
           {isNewAccount || role === "pending" ? "Bem-vindo ao Go Atleta" : "Complete seu perfil"}
         </Text>
         <Text style={{ color: colors.muted, fontSize: 14 }}>{profileGuidance}</Text>
-        <Pressable accessibilityRole="button" onPress={() => { setGuidanceDismissed(true); router.push("/student/profile"); }} style={{ minHeight: 50, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
+        <Pressable accessibilityRole="button" onPress={() => { setGuidanceDismissed(true); router.push("/student/profile/settings"); }} style={{ minHeight: 50, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
           <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 14 }}>Completar perfil</Text>
         </Pressable>
       </ModalSheet>

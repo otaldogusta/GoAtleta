@@ -34,7 +34,7 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('setMobileGuardianNameDraft(mobileProfileBaseline.guardianName)');
     expect(source).toContain('setMobileHealthObservationsDraft(mobileSportsBaseline.healthObservations)');
     expect(source).toContain('athleteModalities.discard()');
-    expect(source).toContain('onBack={() => leaveMobileProfile()}');
+    expect(source).toContain('settingsPage || inlineProfile ? <ProfileSettingsNavigationGuard');
     expect(source).not.toContain('onBack={leaveMobileProfile}');
   });
 
@@ -95,20 +95,20 @@ describe("profile unsaved feedback", () => {
     expect(source).not.toContain('subtitle="E-mail, contato de segurança e senha"');
   });
 
-  it("uses the professional responsive grid for the student profile", () => {
+  it("embeds the student form without repeating the profile identity", () => {
     const studentProfile = source.slice(
       source.indexOf("{isStudentMobileProfile ? ("),
-      source.indexOf('title="Perfil"', source.indexOf("{isStudentMobileProfile ? (")),
+      source.indexOf('maxWidth: 1168', source.indexOf("{isStudentMobileProfile ? (")),
     );
 
-    expect(studentProfile).toContain('<ResponsiveGrid columns={{ compact: "1", split: "4/8" }} gap={24}>');
-    expect(studentProfile).toContain('key="student-identity"');
+    expect(studentProfile).not.toContain('key="student-identity"');
     expect(studentProfile).toContain('key="student-settings"');
     expect(studentProfile).not.toContain("maxWidth: responsiveLayout.isMobile ? undefined : 760");
   });
 
   it("makes the student completion requirements explicit before saving", () => {
-    expect(source).toContain("Nome, celular, data de nascimento e CPF são obrigatórios. Os demais dados são opcionais.");
+    expect(source).toContain("Nome completo (obrigatório)");
+    expect(source).not.toContain("Os demais dados são opcionais.");
     expect(source).toContain('message: "Revise os campos obrigatórios destacados."');
     expect(source).toContain("mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors");
     expect(source).toContain('"Preencha os dados obrigatórios"');

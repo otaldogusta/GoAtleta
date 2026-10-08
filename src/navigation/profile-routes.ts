@@ -43,3 +43,11 @@ export const getScopedProfilePath = (currentPath: string) => {
   if (isScopedPath(path, "/coord") || path === "/coordination") return "/coord/profile";
   return "/profile";
 };
+
+export const getScopedProfileSettingsPath = (currentPath: string) => {
+  const path = normalizePath(currentPath);
+  if (isScopedPath(path, "/student")) return "/student/profile/settings";
+  if (isScopedPath(path, "/prof")) return "/prof/profile/settings";
+  if (isScopedPath(path, "/coord") || path === "/coordination") return "/coord/profile/settings";
+  return "/profile/settings";
+};

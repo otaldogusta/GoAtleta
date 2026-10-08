@@ -1,6 +1,7 @@
 import { PageBreadcrumbHeader } from "../../components/ui/PageBreadcrumbHeader";
 import { useState, type ReactNode } from "react";
 import { Image, Platform, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import type { ScrollViewProps } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import type { OrgClass } from "../../api/members";
 import { useAppTheme } from "../../ui/app-theme";
@@ -15,11 +16,17 @@ export type PersonProfilePageProps = {
   summary?: ReactNode;
   overviewContent?: ReactNode;
   financeContent?: ReactNode;
+  settingsContent?: ReactNode;
+  selectedTab?: string;
+  onTabChange?: (tab: string) => void;
+  refreshControl?: ScrollViewProps["refreshControl"];
   aboutItems?: { label: string; value?: string | null }[];
   testID?: string;
   name: string;
   role: string;
+  roleControl?: ReactNode;
   organizationName: string;
+  workspaceControl?: ReactNode;
   email?: string | null;
   photoUri?: string | null;
   locationLabel?: string | null;
@@ -44,7 +51,9 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
   const { colors, mode } = useAppTheme();
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState("overview");
-  const activeTab = tab === "finance" && !props.financeContent ? "overview" : tab;
+  const selectedTab = props.selectedTab ?? tab;
+  const activeTab = (selectedTab === "finance" && !props.financeContent) || (selectedTab === "settings" && (!props.ownProfile || !props.settingsContent)) ? "overview" : selectedTab;
+  const selectTab = (next: string) => { setTab(next); props.onTabChange?.(next); };
   const compact = width < 600;
   const avatarSize = compact ? 76 : 88;
   // Colors and court artwork from the approved profile mockup.
@@ -89,9 +98,9 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
     </View>
   ) : null;
   return (
-    <ScrollView testID={`${props.testID ?? "staff-profile"}-scroll`} style={{ flex: 1, minHeight: 0, ...(Platform.OS === "web" ? { overflowY: "scroll", scrollbarGutter: "stable", scrollbarWidth: "thin" } as any : {}) }} contentContainerStyle={{ padding: compact ? 12 : 24, paddingBottom: 100 }}>
+    <ScrollView refreshControl={props.refreshControl} testID={`${props.testID ?? "staff-profile"}-scroll`} style={{ flex: 1, minHeight: 0, ...(Platform.OS === "web" ? { overflowY: "scroll", scrollbarGutter: "stable", scrollbarWidth: "thin" } as any : {}) }} contentContainerStyle={{ padding: compact ? 12 : 24, paddingBottom: 100 }}>
       <View style={{ width: "100%", maxWidth: 1120, alignSelf: "center", gap: 20 }}>
-        <PageBreadcrumbHeader title="Perfil" context={props.context ?? (props.ownProfile ? "Meu perfil" : "Equipe")} onBack={props.onBack} backLabel="Voltar" />
+        <PageBreadcrumbHeader title={props.ownProfile ? "Meu perfil" : "Perfil"} context={props.context ?? "Equipe"} breadcrumbs={props.ownProfile ? [] : undefined} onBack={props.onBack} backLabel="Voltar" />
         <View style={{ ...card, overflow: "hidden" }}>
           <View testID={`${props.testID ?? "staff-profile"}-cover`} style={{ height: compact ? 104 : width < 850 ? 108 : 124, backgroundColor: coverColor, overflow: "hidden" }}>
             <Svg width={compact ? 290 : 420} height={330} viewBox="0 0 420 330" fill="none" style={{ position: "absolute", right: compact ? -20 : 50, top: -120, transform: [{ rotate: "-15deg" }] }}>
@@ -111,25 +120,25 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
               <View testID={`${props.testID ?? "staff-profile"}-actions`} style={{ flexDirection: "row", flexShrink: 0, marginLeft: "auto", gap: compact ? 6 : 8, paddingTop: compact ? 12 : 14, flexWrap: "nowrap" }}>
                 {props.onEditProfile ? action("Editar perfil", props.onEditProfile, true) : props.onManageAccess ? action("Gerenciar acesso", props.onManageAccess, true) : null}
                 {props.onMessage ? action("Mensagem", props.onMessage, false, compact) : null}
-                {props.onSettings ? <Pressable accessibilityRole="button" accessibilityLabel="Configurações" onPress={props.onSettings} style={{ width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="management" size={18} color={colors.text} /></Pressable> : null}
               </View>
             </View>
-            <View style={{ flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}><Text style={{ color: colors.text, fontSize: compact ? 22 : 24, fontWeight: "700" }}>{props.name}</Text><Text style={{ color: colors.muted, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, fontSize: 12 }}>{props.role}</Text></View>
-            <Text style={{ color: colors.muted, fontSize: compact ? 13 : 14, marginTop: 4 }}>{props.organizationName}</Text>
+            <View style={{ flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}><Text style={{ color: colors.text, fontSize: compact ? 22 : 24, fontWeight: "700" }}>{props.name}</Text>{props.ownProfile && props.roleControl ? props.roleControl : <Text style={{ color: colors.muted, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, fontSize: 12 }}>{props.role}</Text>}</View>
+            {props.ownProfile && props.workspaceControl ? props.workspaceControl : <Text style={{ color: colors.muted, fontSize: compact ? 13 : 14, marginTop: 4 }}>{props.organizationName}</Text>}
             {props.locationLabel || (props.joinedAt && Number.isFinite(Date.parse(props.joinedAt))) ? <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 18, rowGap: 8, marginTop: 12 }}>
               {props.locationLabel ? <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><GoAtletaIcon name="location" size={13} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: 12 }}>{props.locationLabel}</Text></View> : null}
               {props.joinedAt && Number.isFinite(Date.parse(props.joinedAt)) ? <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><GoAtletaIcon name="calendar" size={13} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: 12 }}>{props.joinedLabel ?? "Na equipe desde"} {new Date(props.joinedAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</Text></View> : null}
             </View> : null}
             {props.summary ?? (!props.loading && !props.error ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: compact ? 16 : 20 }}><Text style={{ color: colors.text, fontWeight: "700", fontSize: 18 }}>{props.classes.length}</Text> turmas atribuídas</Text> : null)}
           </View>
-          <View style={{ flexDirection: "row", borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 14 }}>
-            {[{ id: "overview", label: "Visão geral" }, { id: "classes", label: "Turmas" }, ...(props.activity ? [{ id: "activity", label: "Atividade" }] : []), ...(props.financeContent ? [{ id: "finance", label: "Financeiro" }] : [])].map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} onPress={() => setTab(item.id)} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === item.id ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === item.id ? colors.text : colors.muted, fontWeight: "600" }}>{item.label}</Text></Pressable>)}
+          <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 14 }}>
+            {[{ id: "overview", label: "Visão geral" }, { id: "classes", label: "Turmas" }, ...(props.activity ? [{ id: "activity", label: "Atividade" }] : []), ...(props.financeContent ? [{ id: "finance", label: "Financeiro" }] : [])].map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} onPress={() => selectTab(item.id)} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === item.id ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === item.id ? colors.text : colors.muted, fontWeight: "600" }}>{item.label}</Text></Pressable>)}
+            {props.ownProfile && (props.settingsContent || props.onSettings) ? <Pressable accessibilityRole="tab" accessibilityLabel="Configurações" accessibilityState={{ selected: activeTab === "settings" }} onPress={() => { if (props.settingsContent) selectTab("settings"); props.onSettings?.(); }} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === "settings" ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === "settings" ? colors.text : colors.muted, fontWeight: "600" }}>Configurações</Text></Pressable> : null}
           </View>
         </View>
-        <View style={{ flexDirection: split && activeTab === "overview" ? "row" : "column", gap: 20, alignItems: "flex-start" }}>
+        {activeTab === "settings" ? props.settingsContent : <View style={{ flexDirection: split && activeTab === "overview" ? "row" : "column", gap: 20, alignItems: "flex-start" }}>
           <View style={{ flex: 1, width: "100%", minWidth: 0, gap: 20 }}>{activeTab === "finance" ? props.financeContent : <>{activeTab !== "activity" ? classesContent : null}{activeTab === "overview" ? props.overviewContent : null}{activeTab !== "classes" ? activityContent : null}</>}</View>
           {activeTab === "overview" ? <View style={{ ...card, padding: 18, gap: 16, width: split ? 300 : "100%" }}><Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Sobre</Text>{(props.aboutItems ?? [{ label: "Instituição", value: props.organizationName }, { label: "Função", value: props.role }, { label: "Contato", value: props.email }, { label: "Último acesso", value: props.lastAccess }]).filter(item => item.value).map(item => <View key={item.label} style={{ gap: 5 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text><Text selectable style={{ color: colors.text, fontSize: 14 }}>{item.value}</Text></View>)}</View> : null}
-        </View>
+        </View>}
       </View>
     </ScrollView>
   );

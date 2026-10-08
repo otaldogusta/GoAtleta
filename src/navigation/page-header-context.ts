@@ -1,4 +1,5 @@
 import type { TrainerScopedRoutes } from "./profile-route-scope";
+import { getScopedProfilePath } from "./profile-routes";
 
 /** Display context for the current section. */
 export function resolvePageHeaderContext(pathname: string, title: string): string {
@@ -19,10 +20,11 @@ export function resolvePageBreadcrumbs(pathname: string, title: string, routes: 
   const destinations: Record<string, string> = {
     Turmas: routes.classes, Atletas: routes.students, Alunos: routes.students,
     Planejamento: routes.planning, Periodização: routes.periodization,
-    Agenda: routes.events, "Meu perfil": routes.profile, Relatórios: routes.reports,
+    Agenda: routes.events, "Meu perfil": getScopedProfilePath(pathname), Relatórios: routes.reports,
     ...(routes.scope === "coord" ? { Gestão: "/coord/management", Equipe: "/coord/management", Financeiro: "/coord/finance" } : {}),
   };
-  const result = [{ label: "Início", href: routes.home as string }];
+  const home = /^\/student(\/|$)/.test(pathname) ? "/student/home" : routes.home;
+  const result = [{ label: "Início", href: home as string }];
   const href = destinations[section];
   if (href && section.toLocaleLowerCase("pt-BR") !== title.toLocaleLowerCase("pt-BR") && pathname !== href) {
     result.push({ label: section, href });

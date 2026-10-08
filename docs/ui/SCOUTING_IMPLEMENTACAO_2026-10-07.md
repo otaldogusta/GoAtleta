@@ -177,3 +177,12 @@ a duplicada; passou isoladamente e na repetição completa, sem mudanças nesse 
 Também exercitados treino registrar/desfazer/concluir, distribuição dos resultados
 e início do set 2 no browser de QA. Respostas simuladas removidas e tema original
 restaurado ao terminar; o app real continua conectado normalmente.
+
+## Integração com os perfis — 08/10/2026
+
+O usuário autorizou o fechamento na `main` pelo [PR #98](https://github.com/otaldogusta/GoAtleta/pull/98),
+incluindo os dois commits de scouting e a unificação das configurações de perfil.
+O [padrão de configurações](FORM_SETTINGS_PATTERNS.md) descreve esse segundo fluxo.
+Checks e estado de integração são rastreáveis no PR; o deploy utiliza as filas
+existentes de Vercel e EAS. Este fechamento não acrescenta novas migrations nem
+certifica uso em campo, dispositivo nativo ou atualização aplicada ao aparelho.

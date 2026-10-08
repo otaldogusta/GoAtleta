@@ -1,5 +1,19 @@
 # Continuidade — 05/10/2026
 
+## Perfil e scouting — fechamento de 08/10/2026
+
+Entrega autorizada à `main` no [PR #98](https://github.com/otaldogusta/GoAtleta/pull/98).
+Aluno, professor e coordenação usam a aba Configurações na mesma composição do
+perfil, com seletores autorizados e proteção de rascunho ao sair/trocar contexto.
+Entradas antigas de configurações e conclusão do cadastro continuam compatíveis.
+Ver [contrato e smoke do perfil](../ui/FORM_SETTINGS_PATTERNS.md) e
+[evidência do scouting](../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md).
+
+O fechamento usa `npm run build:verified`; resultados por commit e integração
+devem ser conferidos no PR. Vercel e EAS Update seguem os workflows existentes;
+fila aceita não significa produção pronta ou OTA aplicado. Não há nova migration
+nem alteração de segredos neste fechamento.
+
 ## Contexto técnico, consultoria e ambiente local — 05/10/2026
 
 O [índice técnico](../context/README.md) reúne 16 guias para consulta seletiva antes

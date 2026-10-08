@@ -34,6 +34,13 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 - Respeitar variantes web/nativo e reduced motion. Alterações em representação
   visual não devem excluir dados do usuário; ver [quadra](biblioteca-quadra.md).
 - Copy curta, sem repetir alertas ou atribuir cada resultado à IA.
+- Em aluno, professor e coordenação, Configurações renderiza os formulários abaixo
+  das abas do próprio perfil, preservando a identidade e o rascunho entre abas.
+  Entradas `/profile/settings` por papel abrem a mesma composição. A edição
+  reutiliza os formulários e a proteção ao sair.
+  No próprio perfil, o nome do workspace abre as organizações autorizadas da
+  conta; trocar também respeita o rascunho pendente.
+  Ver [padrão de configurações](../../ui/FORM_SETTINGS_PATTERNS.md).
 
 ## Decisões e fontes
 
