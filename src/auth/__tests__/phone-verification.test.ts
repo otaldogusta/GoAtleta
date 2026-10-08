@@ -3,6 +3,7 @@ import {
   getPhoneVerificationTarget,
   getPhoneVerificationRetrySeconds,
   hasConfirmedPhone,
+  PHONE_VERIFICATION_RESEND_DELAY_MS,
 } from "../phone-verification";
 
 describe("phone verification", () => {
@@ -29,6 +30,16 @@ describe("phone verification", () => {
     expect(getPhoneVerificationRetrySeconds(61_000, 1_500)).toBe(60);
     expect(getPhoneVerificationRetrySeconds(61_000, 61_000)).toBe(0);
     expect(getPhoneVerificationRetrySeconds(61_000, 70_000)).toBe(0);
+  });
+
+  it("counts the full resend minute and accounts for time spent in background", () => {
+    const sentAt = 1_000_000;
+    const retryUntil = sentAt + PHONE_VERIFICATION_RESEND_DELAY_MS;
+    expect(getPhoneVerificationRetrySeconds(retryUntil, sentAt)).toBe(60);
+    expect(getPhoneVerificationRetrySeconds(retryUntil, sentAt + 30_000)).toBe(30);
+    expect(getPhoneVerificationRetrySeconds(retryUntil, sentAt + 59_999)).toBe(1);
+    expect(getPhoneVerificationRetrySeconds(retryUntil, sentAt + 60_000)).toBe(0);
+    expect(getPhoneVerificationRetrySeconds(retryUntil, sentAt + 300_000)).toBe(0);
   });
 
   it("accepts valid international targets and rejects invalid E.164 lengths", () => {

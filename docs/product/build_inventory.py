@@ -345,10 +345,10 @@ add('Confirmação de contatos', '/student/profile', 'docs/operations/security-c
 recorded|E-mail alternativo confirmado|Documento registra recebimento e confirmação em 13/09 sem mudar login.
 recorded|Proteções do desafio|Validade, tentativas, rate limit e consumo transacional.
 recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial.|docs/operations/whatsapp-auth-prototype.md
-recorded|Hooks WhatsApp configurados|Registro de 25/09; estado remoto atual não verificado.|docs/operations/whatsapp-auth-prototype.md
-pending|OTP WhatsApp ponta a ponta|Receber, confirmar, rejeitar expirado/incorreto e reenviar em telefone controlado.|docs/operations/whatsapp-auth-prototype.md
-pending|Revisão Meta e Embedded Signup|Documento registra revisão em andamento e conclusão no servidor ainda necessária.|docs/operations/whatsapp-auth-prototype.md
-pending|Android e custos do transporte|Gates operacionais explícitos; status atual requer conferência.|docs/operations/whatsapp-auth-prototype.md
+recorded|Hooks WhatsApp configurados|Em 07/10, remetente oficial aplicado; diagnóstico do receptor v11 ACTIVE e assinatura da conta ativada com autorização. Oito testes Deno e typecheck do entrypoint aprovados. Sem dados pessoais nos logs; recebimento efetivo dos eventos ainda não observado.|docs/operations/whatsapp-auth-prototype.md
+recorded|OTP WhatsApp ponta a ponta|Teste web em 07/10 às 22:12 BRT: código recebido e aceito; localhost e Android instalado também exibiram Número verificado. 23 testes Jest focados passaram, incluindo erros/expiração/429 simulados, prova do servidor e contagem de reenvio. Expiração/rate limit reais, nome em revisão e divergência dos IDs de WABA continuam separados deste resultado.|docs/operations/whatsapp-auth-prototype.md
+pending|Revisão Meta e Embedded Signup|App Published; messaging/public_profile aprovadas em 07/10. API dedicada ativa para OTP; foto e site salvos. Gestão avançada em rascunho; coexistência/Embedded Signup não concluídos. Por opção de custo, WhatsApp somente para códigos e assistente mantido no app.|docs/operations/whatsapp-auth-prototype.md
+pending|Android e custos do transporte|Em 07/10, Android perf 1.0.3 abriu perfil com Número verificado, sem crash observado; não foi gerado novo desafio nem comprovado runtime OTA. Novo ciclo OTP completo e custos em uso contínuo ainda pendentes.|docs/operations/whatsapp-auth-prototype.md
 """)
 add('Notificações e push', '/notifications', 'app/notifications/index.tsx', """
 code|Caixa interna|Implementação de inbox.|src/notificationsInbox.ts

@@ -3,6 +3,38 @@ type WebhookEnvironment = {
   appSecret: string;
 };
 
+export type WhatsAppDeliveryStatus = {
+  status: "sent" | "delivered" | "read" | "failed";
+  errorCodes: number[];
+};
+
+const record = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+const items = (value: unknown): unknown[] => Array.isArray(value) ? value.slice(0, 100) : [];
+
+const deliveryStatuses = (payload: Record<string, unknown>): WhatsAppDeliveryStatus[] => {
+  const result: WhatsAppDeliveryStatus[] = [];
+  for (const entry of items(payload.entry)) {
+    for (const change of items(record(entry).changes)) {
+      if (record(change).field !== "messages") continue;
+      for (const item of items(record(record(change).value).statuses)) {
+        const status = record(item).status;
+        if (status !== "sent" && status !== "delivered" && status !== "read" && status !== "failed") continue;
+        const errorCodes = items(record(item).errors)
+          .map((error) => record(error).code)
+          .filter((code): code is number => typeof code === "number" && Number.isSafeInteger(code) && code >= 0);
+        // Allowlist only: never forward IDs, recipients, names, text or error descriptions.
+        result.push({ status, errorCodes: [...new Set(errorCodes)].slice(0, 10) });
+        if (result.length === 100) return result;
+      }
+    }
+  }
+  return result;
+};
+
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), {
     status,
@@ -33,7 +65,10 @@ const signPayload = async (body: string, secret: string) => {
   return `sha256=${bytesToHex(await crypto.subtle.sign("HMAC", key, encoder.encode(body)))}`;
 };
 
-export const createMetaWhatsAppWebhookHandler = (environment: WebhookEnvironment) =>
+export const createMetaWhatsAppWebhookHandler = (
+  environment: WebhookEnvironment,
+  reportDeliveryStatus: (status: WhatsAppDeliveryStatus) => void = () => {},
+) =>
   async (request: Request): Promise<Response> => {
     if (request.method === "GET") {
       const url = new URL(request.url);
@@ -63,8 +98,9 @@ export const createMetaWhatsAppWebhookHandler = (environment: WebhookEnvironment
       return json(401, { error: "invalid_signature" });
     }
 
+    let payload: Record<string, unknown>;
     try {
-      const payload = JSON.parse(rawBody) as { object?: unknown };
+      payload = record(JSON.parse(rawBody));
       if (payload.object !== "whatsapp_business_account") {
         return json(400, { error: "unsupported_object" });
       }
@@ -72,7 +108,13 @@ export const createMetaWhatsAppWebhookHandler = (environment: WebhookEnvironment
       return json(400, { error: "invalid_json" });
     }
 
-    // Do not log message bodies, phone numbers, names, or webhook payloads.
+    for (const status of deliveryStatuses(payload)) {
+      try {
+        reportDeliveryStatus(status);
+      } catch {
+        // A diagnostic sink failure must not turn a valid Meta event into a retry.
+      }
+    }
     return json(200, { received: true });
   };
 
