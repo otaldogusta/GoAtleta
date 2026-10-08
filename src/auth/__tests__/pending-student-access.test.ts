@@ -1,5 +1,6 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import * as pendingInvites from "../pending-invite";
 
 const mockRefresh = jest.fn();
 const mockResend = jest.fn();
@@ -77,6 +78,18 @@ it("submits an athlete link from profile without choosing a staff plan", async (
   fireEvent.press(screen.getByLabelText("Selecionar Rede Esportes Pinhais"));
   await act(async () => { fireEvent.press(screen.getByText("Solicitar vínculo")); });
   expect(mockRequestAthlete).toHaveBeenCalledWith({ organizationId: "org-1", kind: "athlete", studentName: "Ana Teste", relationshipLabel: "" });
+});
+
+it("does not offer role selection while the saved invitation is loading", async () => {
+  let finish!: (value: string) => void;
+  const getter = jest.spyOn(pendingInvites, "getPendingTrainerInvite").mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  try {
+    await mountPending();
+    expect(screen.getByText("Validando convite")).toBeTruthy();
+    expect(screen.queryByText("Encontre sua instituição")).toBeNull();
+    await act(async () => finish(""));
+    expect(screen.getByText("Encontre sua instituição")).toBeTruthy();
+  } finally { getter.mockRestore(); }
 });
 
 it("offers explicit correction for a legacy staff request from the athlete profile", async () => {

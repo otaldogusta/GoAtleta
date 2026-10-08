@@ -1,0 +1,104 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+const db = new PGlite();
+const org = '10000000-0000-0000-0000-000000000001';
+const other = '10000000-0000-0000-0000-000000000002';
+const actor = '20000000-0000-0000-0000-000000000001';
+const recipient = '20000000-0000-0000-0000-000000000002';
+const stranger = '20000000-0000-0000-0000-000000000003';
+const profile = '30000000-0000-0000-0000-000000000001';
+const migration = async name => readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), 'utf8');
+try {
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
+    create function auth.uid() returns uuid language sql as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+    create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
+    insert into auth.users(id,email) values('${actor}','admin@example.test'),('${recipient}','prof@example.test'),('${stranger}','other@example.test');
+    create table organizations(id uuid primary key); insert into organizations values('${org}'),('${other}');
+    create table organization_members(organization_id uuid,user_id uuid,role_level int, unique(organization_id,user_id));
+    insert into organization_members values('${org}','${actor}',50);
+    create function is_org_admin(uuid) returns boolean language sql security definer as 'select exists(select 1 from public.organization_members where organization_id=$1 and user_id=auth.uid() and role_level>=50)';
+    create table trainers(user_id uuid unique);
+    create table organization_member_permissions(organization_id uuid,user_id uuid,permission_key text,is_allowed boolean,updated_at timestamptz,updated_by uuid,unique(organization_id,user_id,permission_key));
+    create table classes(id text primary key,organization_id uuid,owner_id uuid); insert into classes(id,organization_id) values('existing','${org}'),('additional','${org}'),('foreign','${other}');
+    create table organization_staff_profiles(id uuid primary key,organization_id uuid,display_name text,linked_user_id uuid,updated_at timestamptz);
+    insert into organization_staff_profiles values('${profile}','${org}','Professor Teste',null,now());
+    create table trainer_invites(id uuid primary key default gen_random_uuid(),code_hash text unique,created_by uuid,expires_at timestamptz,max_uses int,uses int,revoked boolean,organization_id uuid,target_role_level int,invited_via text,invited_to text,initial_permissions jsonb,delivery_status text,claimed_by uuid,claimed_at timestamptz);
+    create table class_staff(id uuid default gen_random_uuid(),organization_id uuid,class_id text,user_id uuid,staff_profile_id uuid,staff_role text,unique(class_id,user_id),check(num_nonnulls(user_id,staff_profile_id)=1));
+    create table class_staff_versions(organization_id uuid,class_id text,version bigint default 0,updated_at timestamptz,primary key(organization_id,class_id));
+    create table class_staff_tenures(id uuid default gen_random_uuid(),organization_id uuid,class_id text,user_id uuid,staff_profile_id uuid,display_name_snapshot text,staff_role text,status text default 'active',starts_on date,ends_on date,created_by uuid,updated_at timestamptz);
+    create unique index tenure_unique on class_staff_tenures(class_id,user_id) where user_id is not null and ends_on is null and status in ('scheduled','active','away');
+    create table class_staff_substitutions(organization_id uuid,class_id text,replacement_staff_profile_id uuid,replacement_user_id uuid,absent_tenure_id uuid,absent_user_id uuid,updated_at timestamptz);
+    insert into class_staff(organization_id,class_id,staff_profile_id,staff_role) values('${org}','existing','${profile}','head');
+    insert into class_staff_tenures(organization_id,class_id,staff_profile_id,display_name_snapshot,staff_role,starts_on) values('${org}','existing','${profile}','Professor Teste','head','2026-01-01');
+    grant usage on schema public,auth to authenticated,service_role,anon;
+  `);
+  const base = await migration('20260825214632_atomic_student_invite_claim.sql');
+  await db.exec(base.slice(base.indexOf('create or replace function public.create_trainer_invite_access('),base.indexOf('create or replace function public.list_trainer_invites_access(')));
+  await db.exec(await migration('20261008191304_trainer_invite_staff_assignments.sql'));
+  let counter = 0;
+  const create = async (classes = ['additional'], staff = profile) => (await db.query(
+    'select * from create_trainer_invite_access_v2($1,$2,10,\'email\',$3,\'["classes"]\',$4,$5)',
+    [org,(++counter).toString(16).padStart(64,'0'),'prof@example.test',classes,staff])).rows[0].invite_id;
+  const claim = id => db.query('select claim_trainer_invite_access($1,$2)',[id,recipient]);
+  await db.exec('set role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[stranger]);
+  await assert.rejects(() => create(), /NOT_AUTHORIZED/);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[actor]);
+  await assert.rejects(() => create(['foreign']), /INVITE_CLASSES_INVALID/);
+  await assert.rejects(() => create([],stranger), /INVITE_PROFILE_INVALID/);
+  const invite = await create();
+  await assert.rejects(() => claim(invite), /permission denied/);
+  await assert.rejects(() => db.query('select apply_trainer_invite_staff($1,$2)',[invite,recipient]), /permission denied/);
+  await db.exec('reset role; set role service_role');
+  await assert.rejects(() => db.query('select claim_trainer_invite_access($1,$2)',[invite,stranger]), /INVITE_EMAIL_MISMATCH/);
+  await claim(invite);
+  await claim(invite); // Retry cannot duplicate membership or assignments.
+  await db.exec('reset role');
+  assert.equal((await db.query('select uses from trainer_invites where id=$1',[invite])).rows[0].uses,1);
+  assert.equal((await db.query('select linked_user_id from organization_staff_profiles')).rows[0].linked_user_id,recipient);
+  assert.equal((await db.query("select owner_id from classes where id='existing'")).rows[0].owner_id,recipient);
+  assert.equal((await db.query("select owner_id from classes where id='additional'")).rows[0].owner_id,null);
+  assert.deepEqual((await db.query('select class_id,staff_role from class_staff order by class_id')).rows,[{class_id:'additional',staff_role:'assistant'},{class_id:'existing',staff_role:'head'}]);
+  const historical = (await db.query("select user_id,staff_profile_id,starts_on::text,display_name_snapshot from class_staff_tenures where class_id='existing'")).rows[0];
+  assert.deepEqual(historical,{user_id:recipient,staff_profile_id:profile,starts_on:'2026-01-01',display_name_snapshot:'Professor Teste'});
+  assert.equal((await db.query("select version from class_staff_versions where class_id='existing'")).rows[0].version,1);
+  // A second placeholder must not overwrite an existing assignment for this user.
+  const conflictingProfile = '30000000-0000-0000-0000-000000000002';
+  await db.query('insert into organization_staff_profiles values($1,$2,$3,null,now())',[conflictingProfile,org,'Outro cadastro']);
+  await db.query("insert into class_staff(organization_id,class_id,staff_profile_id,staff_role) values($1,'existing',$2,'assistant')",[org,conflictingProfile]);
+  await db.exec('set role authenticated');
+  const conflicting = await create([],conflictingProfile);
+  await db.exec('reset role; set role service_role');
+  await assert.rejects(() => claim(conflicting), /INVITE_STAFF_CONFLICT/);
+  await db.exec('reset role');
+  assert.equal((await db.query('select linked_user_id from organization_staff_profiles where id=$1',[conflictingProfile])).rows[0].linked_user_id,null);
+  assert.equal((await db.query('select uses from trainer_invites where id=$1',[conflicting])).rows[0].uses,0);
+  assert.equal((await db.query("select version from class_staff_versions where class_id='existing'")).rows[0].version,1);
+  // Revocation and expiry cannot grant access or consume the invitation.
+  await db.exec('set role authenticated');
+  const revoked = await create([],null);
+  const expired = await create([],null);
+  await db.exec('reset role');
+  await db.query('update trainer_invites set revoked=true where id=$1',[revoked]);
+  await db.query("update trainer_invites set expires_at=now()-interval '1 minute' where id=$1",[expired]);
+  await db.exec('set role service_role');
+  await assert.rejects(() => claim(revoked), /INVITE_REVOKED/);
+  await assert.rejects(() => claim(expired), /INVITE_EXPIRED/);
+  await db.exec('reset role');
+  assert.equal((await db.query('select sum(uses)::int as uses from trainer_invites where id=any($1::uuid[])',[[revoked,expired]])).rows[0].uses,0);
+  // A stale/deleted class at claim time rolls back access for a fresh account.
+  await db.exec('set role authenticated');
+  const stale = await create(['additional'],null);
+  await db.exec('reset role');
+  await db.query("update trainer_invites set invited_to='other@example.test' where id=$1",[stale]);
+  await db.exec("update classes set organization_id='"+other+"' where id='additional'; set role service_role");
+  await assert.rejects(() => db.query('select claim_trainer_invite_access($1,$2)',[stale,stranger]), /INVITE_CLASSES_INVALID/);
+  await db.exec('reset role');
+  assert.equal((await db.query('select uses from trainer_invites where id=$1',[stale])).rows[0].uses,0);
+  assert.equal((await db.query('select count(*)::int as count from organization_members where user_id=$1',[stranger])).rows[0].count,0);
+  assert.equal((await db.query('select count(*)::int as count from organization_member_permissions where user_id=$1',[stranger])).rows[0].count,0);
+  assert.equal((await db.query('select count(*)::int as count from trainers where user_id=$1',[stranger])).rows[0].count,0);
+  console.log('[trainer-invite-staff] Local PostgreSQL: authorization, org isolation, atomic claim, history and replay passed.');
+} finally { await db.close(); }

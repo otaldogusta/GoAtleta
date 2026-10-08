@@ -1,7 +1,7 @@
 import { createWebPortal } from "./web-portal";
 import { useEffect, useLayoutEffect, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
@@ -17,6 +17,7 @@ type ModalSheetProps = {
   bottomOffset?: number;
   containerPadding?: number;
   respectBottomInset?: boolean;
+  avoidKeyboard?: boolean;
 };
 
 let activeWebScrollLocks = 0;
@@ -114,7 +115,21 @@ export function ModalSheet({
   bottomOffset,
   containerPadding = 16,
   respectBottomInset = true,
+  avoidKeyboard = false,
 }: ModalSheetProps) {
+  const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!visible || !avoidKeyboard || Platform.OS !== "web" || !window.visualViewport) return;
+    const visual = window.visualViewport;
+    const update = () => setViewport({ top: visual.offsetTop, height: visual.height });
+    update();
+    visual.addEventListener("resize", update);
+    visual.addEventListener("scroll", update);
+    return () => {
+      visual.removeEventListener("resize", update);
+      visual.removeEventListener("scroll", update);
+    };
+  }, [avoidKeyboard, visible]);
   const [anim] = useState(() => new Animated.Value(0));
   const [isMounted, setIsMounted] = useState(visible);
   if (visible && !isMounted) setIsMounted(true);
@@ -192,6 +207,8 @@ export function ModalSheet({
         ...(Platform.OS === "web"
           ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
           : null),
+        ...(avoidKeyboard && viewport && Platform.OS === "web"
+          ? { top: viewport.top, height: viewport.height, bottom: undefined } : null),
       } as unknown as ViewStyle}
       pointerEvents={visible ? "auto" : "none"}
     >
@@ -281,7 +298,9 @@ export function ModalSheet({
       presentationStyle={Platform.OS === "ios" ? "overFullScreen" : undefined}
       hardwareAccelerated={Platform.OS === "android"}
     >
-      {content}
+      <KeyboardAvoidingView style={{ flex: 1 }} enabled={avoidKeyboard} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {content}
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -44,6 +44,10 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Refinamento local em 08/10: convite de equipe aceita turmas e perfil sem conta;
+  cadastro persiste o código antes da sessão, e `/pending` aguarda sua recuperação.
+  [Contrato, validação e ativação pendente](../../operations/trainer-invite-refinement.md).
+
 - A conta sem vínculo pode solicitar acesso em `/pending`; não recebe criação livre
   de instituição. A RPC legada de provisionamento está restrita no contrato SQL.
 - Atleta e familiar não são cargos da equipe; aprovação de acesso deve preservar

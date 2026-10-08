@@ -47,6 +47,11 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 ## Decisões atuais e histórico
 
+- O [refinamento local de convites](../../operations/trainer-invite-refinement.md)
+  associa perfil sem conta somente por seleção explícita e aceite verificado;
+  preserva equipe/histórico e avança versões. Novas turmas não substituem responsáveis.
+  A migration de 08/10 está preparada, sem aplicação remota nesta tarefa.
+
 O [perfil pedagógico](../../../docs/operations/class-pedagogical-profile.md) é a
 referência detalhada de segurança, interpretação e revisão de planos. Seu relato
 de ativação/smoke é datado; não é uma nova verificação deste levantamento.

@@ -4,6 +4,10 @@ Referência inspecionada: `d5120cff`, 05/10/2026. [Índice e regra de leitura](.
 
 ## Responsabilidade e implementação atual
 
+`ModalSheet` oferece `avoidKeyboard` opt-in para acompanhar o visual viewport web
+e evitar o teclado nativo. O convite da gestão usa essa opção; os demais modais
+mantêm o comportamento anterior. [Evidência e limites](../../operations/trainer-invite-refinement.md).
+
 Expo Router compõe rotas; telas de feature usam primitives em `src/ui` e
 componentes compartilhados. Existem adaptações `.web` e nativas. O contrato de
 camadas está em [higiene arquitetural](../../architecture-hygiene.md); estas

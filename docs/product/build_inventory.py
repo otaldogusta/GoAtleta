@@ -319,7 +319,7 @@ code|Dashboard e insights|Loader próprio.|src/screens/coordination/application/
 code|Radar de turmas|Painel específico.|src/screens/coordination/ClassRadarPanel.tsx
 code|Auditoria|Painel específico.|src/screens/coordination/AuditPanel.tsx
 code|Consistência|Painel específico.|src/screens/coordination/ConsistencyPanel.tsx
-code|Membros e convites|Ciclo de vida de convite.|src/screens/coordination/application/invite-lifecycle.ts
+code|Membros e convites|Seleção local de turmas e professor sem conta no convite; aceite transacional preserva histórico. SQL isolado validado; migration aplicada e Edge v38 ativa. Frontend em publicação. Modal adapta área visível ao teclado; conferência real em celular pendente.|docs/operations/trainer-invite-refinement.md
 code|Desativação de membro|Contrato próprio.|src/screens/coordination/application/member-deactivation.ts
 code|Último acesso|Regra específica.|src/screens/coordination/application/member-last-access.ts
 code|Gestão de atletas|Rota administrativa.|app/coord/management/athletes.tsx
@@ -336,9 +336,9 @@ code|Verificar e-mail|Rota de verificação.|app/verify-email.tsx
 code|Recuperar senha|Rota com testes existentes.|app/reset-password.tsx
 code|Callback|Retorno de autenticação.|app/auth-callback.tsx
 code|Onboarding|Entrada específica.|app/onboarding.tsx
-code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
+code|Acesso pendente|Aguarda leitura do convite antes de oferecer escolha de vínculo; progresso do convite tem prioridade sobre solicitações anteriores. Testes locais aprovados, aceite real pendente.|app/pending.tsx
 code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
-code|Convite de equipe|Entrada própria.|app/staff-invite.tsx
+code|Convite de equipe|Entrada própria; cadastro por link persiste intenção antes da sessão e preserva código na verificação. E-mail tem texto e endereço copiável. Fluxo real de entrega e aceite ainda requer smoke.|docs/operations/trainer-invite-refinement.md
 code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.
 """)

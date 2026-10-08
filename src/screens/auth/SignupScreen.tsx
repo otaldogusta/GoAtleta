@@ -239,6 +239,8 @@ useEffect(() => {
     setMessage("");
     setBusy(true);
     try {
+      // Session publication triggers route guards immediately. Persist intent first.
+      if (inviteCode.trim()) await savePendingTrainerInvite(inviteCode.trim());
       const session = await signUp(normalizedEmail, password, "login", "");
       let initialCodeDeliveryFailed = false;
       if (session) {
@@ -253,6 +255,7 @@ useEffect(() => {
         params: {
           email: normalizedEmail,
           delivery: initialCodeDeliveryFailed ? "failed" : undefined,
+          inviteCode: inviteCode.trim() || undefined,
         },
       };
       if (inviteCode.trim()) {
@@ -260,7 +263,7 @@ useEffect(() => {
         if (session) {
           router.replace(verifyEmailRoute);
         } else {
-          router.replace("/login");
+          router.replace({ pathname: "/login", params: { email: normalizedEmail, inviteCode: inviteCode.trim() } });
         }
       } else {
         if (session) {
