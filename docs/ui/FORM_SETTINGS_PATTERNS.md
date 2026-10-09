@@ -1,5 +1,12 @@
 # Formulários e configurações
 
+## Convites indisponíveis
+
+Usar bloco central de até 440 px, seta circular para o início, título e uma
+orientação curta. Não acumular aviso vermelho, identificação da conta e botões
+de aceite quando o link já foi recusado definitivamente. Voltar preserva a sessão;
+falha de conexão não deve ser confundida com convite expirado.
+
 ## Referência e limites
 
 O perfil do atleta (`app/profile.tsx`, rota `/student/profile`) reúne os

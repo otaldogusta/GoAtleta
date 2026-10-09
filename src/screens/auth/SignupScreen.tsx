@@ -31,7 +31,9 @@ import { ScreenBackdrop } from "../../components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Button } from "../../ui/Button";
-import type { StaffSignupFields } from "../../api/staff-invite";
+import { StaffInviteUnavailableError, refreshStaffSignupSession, resumeStaffSignup, type StaffInviteResult, type StaffSignupFields } from "../../api/staff-invite";
+import type { StaffInviteProof } from "../../auth/staff-invite-link";
+import { useOrganization } from "../../providers/organization-context";
 
 import { estimatePasswordStrength } from "../../auth/password-strength";
 import { SignupInviteCode } from "./SignupInviteCode";
@@ -52,13 +54,17 @@ const hasValidEmailFormat = (value: string) =>
 export default function SignupScreen({ completion }: { completion?: SignupCompletion } = {}) {
   markRender("screen.signup.render.root");
   const { colors, mode } = useAppTheme();
-  const { signUp, signInWithOAuth, resendSignupCode } = useAuth();
+  const { session: currentSession, signUp, signInWithOAuth, resendSignupCode, acceptStaffInvite, completeStaffInvite } = useAuth();
+  const { setActiveOrganizationId } = useOrganization();
+  const pastedProof = useRef<StaffInviteProof | null>(null);
+  const pendingSetup = useRef<StaffInviteResult | null>(null);
   const { inviteCode: inviteCodeParam } = useLocalSearchParams<{
     inviteCode?: string;
   }>();
   const solidInputBg = mode === "dark" ? "#121c30" : colors.inputBg;
   const router = useRouter();
   const [emailInput, setEmail] = useState("");
+  const inviteEmailSuggestion = useRef<string | undefined>(undefined);
   const email = completion ? completion.email : emailInput;
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -73,6 +79,31 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
   const [verifiedInviteCode, setVerifiedInviteCode] = useState("");
+  const [inviteSubmissionError, setInviteSubmissionError] = useState("");
+  const [canResendInviteAccess, setCanResendInviteAccess] = useState(false);
+  const [resendingInviteAccess, setResendingInviteAccess] = useState(false);
+  const resendInviteAccess = async () => {
+    if (submitting.current || resendingInviteAccess) return;
+    const recipient = inviteEmailSuggestion.current;
+    if (!recipient) return;
+    submitting.current = true;
+    setResendingInviteAccess(true);
+    try {
+      await savePendingTrainerInvite(inviteCode.trim());
+      await resendSignupCode(recipient, "verify-email");
+      router.replace({ pathname: "/verify-email", params: { email: recipient } });
+    } catch {
+      setInviteSubmissionError("Não foi possível reenviar agora. Tente novamente em instantes.");
+    } finally {
+      submitting.current = false;
+      setResendingInviteAccess(false);
+    }
+  };
+  const handleInviteVerified = useCallback((code: string) => {
+    setVerifiedInviteCode(code);
+    const suggestion = inviteEmailSuggestion.current;
+    if (suggestion) setEmail((current) => current.trim() ? current : suggestion);
+  }, []);
   const inviteNeedsVerification = !completion && Boolean(inviteCode.trim()) && verifiedInviteCode !== inviteCode.trim().toUpperCase();
   const [strengthAnim] = useState(() => new Animated.Value(0));
   const [enterAnim] = useState(() => new Animated.Value(0));
@@ -225,6 +256,34 @@ useEffect(() => {
     try {
       if (inviteCode.trim()) await savePendingTrainerInvite(inviteCode.trim());
       else await clearPendingTrainerInvite();
+      const canResumeInvite = Boolean(inviteCode.trim() && currentSession?.user.app_metadata?.staff_invite_setup_required === true &&
+        currentSession.user.email?.toLowerCase() === normalizedEmail.toLowerCase());
+      if (pastedProof.current || canResumeInvite) {
+        const proof = pastedProof.current;
+        if (inviteEmailSuggestion.current && normalizedEmail.toLowerCase() !== inviteEmailSuggestion.current.toLowerCase()) {
+          setMessage("Use o e-mail que recebeu este convite.");
+          return;
+        }
+        const code = proof?.code ?? inviteCode.trim();
+        const result = pendingSetup.current ?? (canResumeInvite && currentSession
+          ? await resumeStaffSignup(code, currentSession)
+          : await acceptStaffInvite(proof!));
+        if (result.setup_required) {
+          pendingSetup.current = result;
+          if (result.session.user.email?.toLowerCase() !== normalizedEmail.toLowerCase()) {
+            setMessage("Use o e-mail que recebeu este convite.");
+            return;
+          }
+          pendingSetup.current = await refreshStaffSignupSession(result);
+          await completeStaffInvite(code, pendingSetup.current, { password });
+        }
+        await setActiveOrganizationId(result.organization_id);
+        await clearPendingTrainerInvite();
+        pastedProof.current = null;
+        pendingSetup.current = null;
+        router.replace("/");
+        return;
+      }
       const session = await signUp(normalizedEmail, password, "login", "");
       let initialCodeDeliveryFailed = false;
       if (session) {
@@ -259,7 +318,14 @@ useEffect(() => {
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
       const normalized = detail.toLowerCase();
-      if (normalized.includes("user already registered")) {
+      if (error instanceof StaffInviteUnavailableError) {
+        setCanResendInviteAccess(error.reason === "AUTH_LINK_EXPIRED" && Boolean(inviteEmailSuggestion.current));
+        setVerifiedInviteCode("");
+        setInviteSubmissionError(detail);
+        setMessage("");
+      } else if (pastedProof.current || pendingSetup.current || currentSession?.user.app_metadata?.staff_invite_setup_required === true) {
+        setMessage(/fetch|network/i.test(detail) ? "Não foi possível conectar. Tente novamente." : detail);
+      } else if (normalized.includes("user already registered")) {
         router.replace({
           pathname: "/login",
           params: {
@@ -845,10 +911,28 @@ useEffect(() => {
                   )}
                 </Pressable>
               ) : !completion ? (
-                <SignupInviteCode code={inviteCode} disabled={busy}
-                  onChange={(value) => { setInviteCode(value); setVerifiedInviteCode(""); }}
-                  onVerified={setVerifiedInviteCode}
-                  onRemove={() => { setInviteCode(""); setVerifiedInviteCode(""); setShowInviteCode(false); }} />
+                <SignupInviteCode code={inviteCode} disabled={busy} submissionError={inviteSubmissionError}
+                  onChange={(value, emailSuggestion, proof) => {
+                    setCanResendInviteAccess(false);
+                    setInviteSubmissionError("");
+                    pastedProof.current = proof ?? null;
+                    pendingSetup.current = null;
+                    setInviteCode(value); setVerifiedInviteCode("");
+                    inviteEmailSuggestion.current = emailSuggestion;
+                  }}
+                  onVerified={handleInviteVerified}
+                  onRemove={() => { setInviteSubmissionError(""); pastedProof.current = null; pendingSetup.current = null; inviteEmailSuggestion.current = undefined; setInviteCode(""); setVerifiedInviteCode(""); setShowInviteCode(false); }} />
+              ) : null}
+
+              {canResendInviteAccess && inviteSubmissionError ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Solicitar novo código"
+                  disabled={resendingInviteAccess} suppressWebHoverFeedback onPress={() => void resendInviteAccess()}
+                  style={{ alignSelf: "flex-start", paddingVertical: 6 }}>
+                  {({ hovered }: any) => <Text style={{ color: colors.muted, fontSize: 13,
+                    textDecorationLine: hovered ? "underline" : "none" }}>
+                    {resendingInviteAccess ? "Enviando..." : "Solicitar novo código"}
+                  </Text>}
+                </Pressable>
               ) : null}
 
               { message ? (
@@ -863,26 +947,7 @@ useEffect(() => {
                   >
                     {message.startsWith("!") ? message.slice(1) : message}
                   </Text>
-                  {!completion && email.trim() ? (
-                    <Pressable
-                      onPress={() =>
-                        router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`)
-                      }
-                      style={{
-                        alignSelf: "flex-start",
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        Confirmar com codigo
-                      </Text>
-                    </Pressable>
-                  ) : null}
+
                 </View>
               ) : null}
 

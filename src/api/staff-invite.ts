@@ -5,6 +5,13 @@ import type { AuthSession } from "../auth/session";
 export type StaffInviteResult = { session: AuthSession; organization_id: string; setup_required?: boolean };
 export type StaffSignupFields = { password: string };
 
+export class StaffInviteUnavailableError extends Error {
+  constructor(public readonly reason: "INVITE_INVALID" | "AUTH_LINK_EXPIRED" = "INVITE_INVALID") {
+    super(reason === "AUTH_LINK_EXPIRED" ? "O código de acesso expirou ou já foi utilizado." : "Este convite expirou ou já foi utilizado. Peça um novo à instituição.");
+    this.name = "StaffInviteUnavailableError";
+  }
+}
+
 const STAFF_SIGNUP_REFRESH_MARGIN_SECONDS = 30;
 
 export async function refreshStaffSignupSession(setup: StaffInviteResult): Promise<StaffInviteResult> {
@@ -58,9 +65,10 @@ export async function redeemStaffInvite(proof: StaffInviteProof): Promise<StaffI
   const payload = await response.json();
   if (!response.ok || !payload.session?.access_token || !payload.session?.refresh_token ||
       !payload.session?.user?.id || !payload.organization_id) {
-    throw new Error(payload.code === "AUTH_LINK_EXPIRED" || payload.code === "INVITE_INVALID"
-      ? "Link inválido, expirado ou já utilizado. Solicite um novo convite."
-      : "Não foi possível concluir o convite. Entre com a conta convidada para tentar novamente.");
+    if (payload.code === "AUTH_LINK_EXPIRED" || payload.code === "INVITE_INVALID") {
+      throw new StaffInviteUnavailableError(payload.code);
+    }
+    throw new Error("Não foi possível concluir o convite. Entre com a conta convidada para tentar novamente.");
   }
   return payload;
 }

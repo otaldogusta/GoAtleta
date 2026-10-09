@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { StaffInviteResult, StaffSignupFields } from "../src/api/staff-invite";
-import { refreshStaffSignupSession, resumeStaffSignup } from "../src/api/staff-invite";
+import { refreshStaffSignupSession, resumeStaffSignup, StaffInviteUnavailableError } from "../src/api/staff-invite";
 import SignupScreen from "../src/screens/auth/SignupScreen";
 import { markRender } from "../src/observability/perf";
 import { useAuth } from "../src/auth/auth";
@@ -11,6 +11,8 @@ import { clearPendingTrainerInvite, savePendingTrainerInvite } from "../src/auth
 import { useOrganization } from "../src/providers/organization-context";
 import { Button } from "../src/ui/Button";
 import { useAppTheme } from "../src/ui/app-theme";
+import { Pressable } from "../src/ui/Pressable";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 // perf-check: ignore-measure - validation runs only after explicit acceptance, not on load.
 export default function StaffInviteScreen() {
@@ -26,6 +28,7 @@ export default function StaffInviteScreen() {
   const ready = true;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
   const [setup, setSetup] = useState<StaffInviteResult | null>(null);
   useEffect(() => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -64,6 +67,7 @@ export default function StaffInviteScreen() {
       clearProof();
       router.replace("/");
     } catch (err) {
+      if (err instanceof StaffInviteUnavailableError) setUnavailable(true);
       setError(err instanceof Error ? err.message : "Não foi possível aceitar o convite.");
     } finally {
       inFlight.current = false;
@@ -100,7 +104,12 @@ export default function StaffInviteScreen() {
     await savePendingTrainerInvite(code);
     router.replace({ pathname: "/login", params: { inviteCode: code } });
   };
-  const invalid = ready && !proof && !resumeCode;
+  const invalid = unavailable || (ready && !proof && !resumeCode);
+  const leave = async () => {
+    await clearPendingTrainerInvite();
+    clearProof();
+    router.replace("/");
+  };
   if (setup) {
     return <SignupScreen completion={{
       email: setup.session.user.email ?? "",
@@ -117,27 +126,27 @@ export default function StaffInviteScreen() {
   }
   return <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
     <View style={styles.block}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Voltar para o início"
+        disabled={busy} onPress={() => void leave()} suppressWebHoverFeedback
+        style={({ pressed, hovered }: any) => ({
+          width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center",
+          backgroundColor: colors.secondaryBg, borderWidth: 1,
+          borderColor: hovered ? colors.primaryBg : colors.border, opacity: pressed ? 0.8 : 1,
+        })}>
+        {({ hovered }: any) => <GoAtletaIcon name="chevronBack" size={18} color={hovered ? colors.primaryBg : colors.text} />}
+      </Pressable>
       <Text style={[styles.title, { color: colors.text }]}>{invalid ? "Convite indisponível" : "Convite da instituição"}</Text>
       <Text style={[styles.copy, { color: colors.muted }]}>
-        {invalid ? "Abra novamente o link recebido por e-mail." : resumeCode
+        {invalid ? "Peça um novo convite à instituição." : resumeCode
           ? "Confirme o convite para continuar seu cadastro."
           : session
           ? `Você está conectado como ${session.user.email}. Continuar troca para a conta convidada.`
           : "Aceite para entrar com a conta que recebeu este convite."}
       </Text>
-      {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
+      {error && !invalid ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
       {!invalid ? <Button label={busy ? "Validando convite..." : resumeCode ? "Continuar cadastro" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
         disabled={!ready || loading || busy} onPress={() => void accept()} /> : null}
-      {error && proof ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
-      <Button
-        label={session ? "Manter minha conta" : "Voltar"}
-        variant="secondary"
-        disabled={busy}
-        onPress={() => void (async () => {
-          await clearPendingTrainerInvite();
-          router.replace("/");
-        })()}
-      />
+      {error && proof && !invalid ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
     </View>
   </ScrollView>;
 }
