@@ -260,7 +260,7 @@ code|Conquistas|Rota presente; revisar conteúdo funcional.|app/student/achievem
 code|Plano individual|Rota student-plan.|app/student-plan.tsx
 code|Foto própria|API específica.|src/api/student-self-photo.ts
 code|Contatos de segurança|Campos e hook próprios.|src/screens/student/SecurityContactFields.tsx
-verify|Refresh e navegação Android|Handoff registra limite nativo: conferir instituição/turma e atualização física.|docs/operations/handoff.md
+verify|Refresh e navegação Android|Indicador nativo com contraste e barra fina de atividade global, sem overlay nem opacidade sobre a navegação após relato de duplicação persistente e atualização de permissões no gesto. ADB com professor sem privilégio administrativo: nova turma liberada apareceu sem login; revogar/restaurar permissão atualizou o atalho Alunos. 16 testes, tipos, escopo, lint e performance aprovados. Novos gestos em Planejamento, Calendário, Notificações, Periodização e Regulamentos. Somente local.|docs/operations/android-role-invite-qa-2026-10-08.md
 """)
 add('Família · vínculos e revisão', '/family/home', 'src/screens/family/FamilyHomeScreen.tsx', """
 code|Início familiar|Home própria.
@@ -319,26 +319,26 @@ code|Dashboard e insights|Loader próprio.|src/screens/coordination/application/
 code|Radar de turmas|Painel específico.|src/screens/coordination/ClassRadarPanel.tsx
 code|Auditoria|Painel específico.|src/screens/coordination/AuditPanel.tsx
 code|Consistência|Painel específico.|src/screens/coordination/ConsistencyPanel.tsx
-code|Membros e convites|Ciclo de vida de convite.|src/screens/coordination/application/invite-lifecycle.ts
+code|Membros e convites|Seleção de turmas e professor sem conta no convite; aceite transacional preserva histórico. Migration de convites aplicada e Edge v38 ativa; produção frontend não certificada. ADB local: digitação, turma e link aprovados; primeiro Voltar agora fecha teclado e segundo solicita descarte. Textos reduzidos localmente; revisão visual final e aceite novo/OTP pendentes.|docs/operations/trainer-invite-refinement.md
 code|Desativação de membro|Contrato próprio.|src/screens/coordination/application/member-deactivation.ts
 code|Último acesso|Regra específica.|src/screens/coordination/application/member-last-access.ts
 code|Gestão de atletas|Rota administrativa.|app/coord/management/athletes.tsx
 code|Plataforma e acessos|Entradas próprias.|app/platform/accesses.tsx
-verify|Matriz de permissões|Conferir equipe, atleta, família e administrador com contas de QA.
+verify|Matriz de permissões|ADB com cinco contas locais; gestão bloqueada para professor, estagiário e responsável, financeiro familiar restrito. Autoedição do aluno persistiu após correção local; quatro outros perfis e alteração de turma pela nova RPC retornaram 403. SQL cobre vínculo, verificação e revogação. Matriz completa entre organizações e aceite/OTP pendentes.|docs/operations/android-role-invite-qa-2026-10-08.md
 """)
 add('Autenticação e onboarding', '/login', 'app/login.tsx', """
 code|Carregamento sem diagnóstico técnico|Tela inicial mostra indicador e Carregando; logs de bootstrap permanecem no console, sem texto de debug na interface.|src/bootstrap/BootstrapGate.tsx
 code|Indicador desde o HTML inicial|Carregando visível antes do JavaScript, com passagem para o BootstrapGate após montar e respeito a movimento reduzido.|app/+html.tsx
 code|Boas-vindas|Rota dedicada.|app/welcome.tsx
-code|Login|Entrada de autenticação.
+code|Login|Cinco contas locais exercitadas via ADB. Guard de histórico corrigido localmente para não acessar APIs DOM no boot React Native; 7 testes, tipos e escopo aprovados. Não confirma APK/OTA distribuído.|docs/operations/android-role-invite-qa-2026-10-08.md
 code|Cadastro|Tela e rota próprias.|src/screens/auth/SignupScreen.tsx
 code|Verificar e-mail|Rota de verificação.|app/verify-email.tsx
 code|Recuperar senha|Rota com testes existentes.|app/reset-password.tsx
 code|Callback|Retorno de autenticação.|app/auth-callback.tsx
 code|Onboarding|Entrada específica.|app/onboarding.tsx
-code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
+code|Acesso pendente|Aguarda leitura do convite antes de oferecer escolha de vínculo; progresso do convite tem prioridade sobre solicitações anteriores. Testes locais aprovados, aceite real pendente.|app/pending.tsx
 code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
-code|Convite de equipe|Entrada própria.|app/staff-invite.tsx
+code|Convite de equipe|Entrada própria; cadastro por link persiste intenção antes da sessão e preserva código na verificação. E-mail tem texto e endereço copiável. Fluxo real de entrega e aceite ainda requer smoke.|docs/operations/trainer-invite-refinement.md
 code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.
 """)
@@ -393,7 +393,7 @@ verify|Data, vazio e contexto de turma|Conferir dia sem aula, aula atual e naveg
 """)
 add('Perfil, preferências e regulamentação', '/profile', 'app/profile.tsx', """
 code|Perfil geral|Aluno, professor e coordenação usam Configurações abaixo da mesma capa e abas; Editar perfil ativa Dados pessoais. Rascunho preservado entre abas e protegido ao sair ou trocar workspace. Cabeçalho reúne seletores autorizados de perfil e organização. Texto redundante de obrigatoriedade removido. Links /student/profile/settings, /prof/profile/settings e /coord/profile/settings mantêm compatibilidade. Release local: build:verified em 186s, 566 suítes/3.173 testes, 9 suítes SQL isoladas e todos os checks; smoke autenticado de coordenação e professor, rascunho temporário revertido, menu de workspace e entrada antiga de configurações. Professor conferido em 390 px sem overflow horizontal. Sem envio de dados pessoais/senha. Fechamento autorizado para main pelo PR #98; aceite das filas não certifica produção ou OTA aplicado.|app/profile.tsx
-code|Perfil por papel|Entradas de professor, coordenação, atleta e família.|app/prof/profile/index.tsx
+code|Perfil por papel|Refresh preserva lista e contador durante busca no mesmo contexto, sem salto de layout; ADB e teste de resultado vazio conferidos. Autoedição do aluno usa RPC restrita com recibo; ADB confirmou persistência e início após recarga. Rótulo Estagiário corrigido e testado; barra nativa reposicionada e mensagens redundantes removidas. 38 testes focados e SQL aprovados. Nova migration somente local; publicação e revisão visual final pendentes.|docs/operations/android-role-invite-qa-2026-10-08.md
 code|Configuração de WhatsApp|Rota de retorno/configuração; conclusão do Embedded Signup depende do servidor.|app/whatsapp-settings.tsx
 code|Fontes regulamentares|Rota para fontes.|app/regulation-sources.tsx
 code|Histórico regulamentar|Rotas gerais e por papel.|app/regulation-history.tsx

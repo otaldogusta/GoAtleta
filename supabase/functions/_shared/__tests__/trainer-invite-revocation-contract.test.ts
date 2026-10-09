@@ -34,6 +34,10 @@ const atomicInviteMigrationSource = readFileSync(
   ),
   "utf8"
 );
+const staffInviteMigrationSource = readFileSync(
+  resolve(__dirname, "../../../migrations/20261008191304_trainer_invite_staff_assignments.sql"),
+  "utf8"
+);
 
 describe("trainer invite revocation and member removal contract", () => {
   it("creates only single-use invitations", () => {
@@ -91,7 +95,9 @@ describe("trainer invite revocation and member removal contract", () => {
   });
 
   it("creates trainer invitations in a JWT-scoped transaction", () => {
-    expect(createSource).toContain('rpc("create_trainer_invite_access"');
+    expect(createSource).toContain('rpc("create_trainer_invite_access_v2"');
+    expect(staffInviteMigrationSource).toContain("not public.is_org_admin(p_org_id)");
+    expect(staffInviteMigrationSource).toContain("from public.create_trainer_invite_access(");
     expect(createSource).not.toContain('.from("trainer_invites").insert');
     expect(atomicInviteMigrationSource).toContain(
       "create or replace function public.create_trainer_invite_access"

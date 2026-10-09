@@ -18,6 +18,7 @@ import {
   getPendingInvite,
   getPendingRelationshipInvite,
   getPendingTrainerInvite,
+  savePendingTrainerInvite,
   resolvePendingInviteRedirect,
 } from "../src/auth/pending-invite";
 import { useRole } from "../src/auth/role";
@@ -48,7 +49,7 @@ export default function VerifyEmailScreen() {
   const router = useRouter();
   const { session, resendSignupCode, verifySignupCode, refreshUser } = useAuth();
   const { refresh: refreshRole } = useRole();
-  const params = useLocalSearchParams<{ email?: string; delivery?: string }>();
+  const params = useLocalSearchParams<{ email?: string; delivery?: string; inviteCode?: string }>();
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -134,6 +135,9 @@ export default function VerifyEmailScreen() {
     setBusy(true);
     setMessage("");
     try {
+      if (typeof params.inviteCode === "string" && params.inviteCode.trim()) {
+        await savePendingTrainerInvite(params.inviteCode);
+      }
       const verifiedSession = await verifySignupCode(email.trim(), code.trim());
       await refreshUser();
       const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([

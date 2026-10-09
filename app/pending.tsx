@@ -363,6 +363,7 @@ export default function PendingScreen() {
   const [inviteIssue, setInviteIssue] = useState<PendingInviteIssue>(null);
   const [storedToken, setStoredToken] = useState("");
   const [storedTrainerCode, setStoredTrainerCode] = useState("");
+  const [invitesLoaded, setInvitesLoaded] = useState(false);
   const [accessApproved, setAccessApproved] = useState(false);
   const [inviteEntryOpen, setInviteEntryOpen] = useState(false);
   const [inviteEntry, setInviteEntry] = useState("");
@@ -765,6 +766,7 @@ export default function PendingScreen() {
       if (!alive) return;
       setStoredToken(token);
       setStoredTrainerCode(trainerCode);
+      setInvitesLoaded(true);
       if (autoClaimedRef.current) return;
       if (
         shouldReturnTrainerInviteToSignup({
@@ -808,7 +810,12 @@ export default function PendingScreen() {
       } else {
         await handleStoredTrainerInvite(trainerCode);
       }
-    })();
+    })().catch(() => {
+      if (!alive) return;
+      setInvitesLoaded(true);
+      setInviteIssue("failed");
+      setMessage("Não foi possível recuperar seu convite. Abra novamente o link recebido.");
+    });
     return () => {
       alive = false;
     };
@@ -828,7 +835,7 @@ export default function PendingScreen() {
 
   const pendingViewState = resolvePendingInviteViewState({
     accessApproved,
-    inviteBusy,
+    inviteBusy: inviteBusy || !invitesLoaded,
     issue: inviteIssue,
     hasStoredInvite: Boolean(storedToken || storedTrainerCode),
   });
@@ -837,7 +844,9 @@ export default function PendingScreen() {
       ? getStudentAccessPendingCopy(studentAccessResolution)
       : null;
   const pendingCopy =
-    accessRequest?.status === "pending"
+    pendingViewState !== "waiting"
+      ? getPendingInviteCopy(pendingViewState)
+      : accessRequest?.status === "pending"
       ? {
           title: "Solicitação enviada",
           subtitle: `A ${accessRequest.organizationName ?? "instituição"} revisará seu acesso.`,

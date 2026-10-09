@@ -1,3 +1,5 @@
+import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
+import { useScreenRefresh } from "../../src/ui/useScreenRefresh";
 import { PlanningAssistantProvider } from "../../src/screens/periodization/PlanningAssistant";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -2855,6 +2857,9 @@ export default function PeriodizationScreen() {
     setClassPlans(plans);
     setRecentDailyLessonPlans(recentDailyPlans);
   }, [activeCycle?.id, activeCycle?.year, activeCycleStartDate, selectedClass]);
+  const screenRefresh = useScreenRefresh(async () => {
+    await Promise.all([getClasses().then(setClasses), refreshPlans(), refreshRecentSessionSummaries()]);
+  });
 
   useEffect(() => {
     let alive = true;
@@ -4530,6 +4535,7 @@ export default function PeriodizationScreen() {
         </ScreenPageHeader>
 
         <ScrollView
+          refreshControl={<AppRefreshControl {...screenRefresh} />}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
             paddingBottom: selectedClass

@@ -1,3 +1,5 @@
+import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
+import { useScreenRefresh } from "../../src/ui/useScreenRefresh";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -54,6 +56,10 @@ export default function NotificationsScreen() {
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [items, setItems] = useState<AppNotification[]>([]);
+  const screenRefresh = useScreenRefresh(async () => {
+    const next = await getNotifications(inboxScope, notificationOrganizationId);
+    setItems(next);
+  });
 
   useEffect(() => {
     let alive = true;
@@ -165,6 +171,7 @@ export default function NotificationsScreen() {
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
+          refreshControl={<AppRefreshControl {...screenRefresh} />}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         >

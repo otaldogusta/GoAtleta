@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import { Text } from "react-native";
 
 import { NativeSidebar } from "../NativeSidebar";
 
@@ -12,6 +13,7 @@ import { NativeSidebar } from "../NativeSidebar";
 const mockPush = jest.fn();
 const mockSignOut = jest.fn();
 let mockPathname = "/prof";
+let mockRoleLevel = 50;
 
 jest.mock("expo-router", () => ({
   usePathname: () => mockPathname,
@@ -31,7 +33,7 @@ jest.mock("../../auth/use-platform-admin-access", () => ({
 
 jest.mock("../../providers/organization-context", () => ({
   useOptionalOrganization: () => ({
-    activeOrganization: { role_level: 50 },
+    activeOrganization: { role_level: mockRoleLevel },
     memberPermissions: {},
     permissionsLoading: false,
   }),
@@ -67,8 +69,19 @@ const homeProfessor = readFileSync(
 
 describe("native mobile sidebar", () => {
   beforeEach(() => {
+    mockRoleLevel = 50;
     mockPathname = "/prof";
     mockPush.mockClear();
+  });
+  it("labels an intern without changing the professor workspace", () => {
+    mockRoleLevel = 5;
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(NativeSidebar, {
+      role: "prof", visible: true, canExpand: false, forceExpanded: true,
+    })); });
+    expect(renderer.root.findAllByType(Text).some(node => node.props.children === "Estagiário")).toBe(true);
+    expect(renderer.root.findAllByType(Text).some(node => node.props.children === "Painel do professor")).toBe(true);
+    act(() => renderer.unmount());
   });
   it("exposes the same Home menu trigger on native mobile", () => {
     expect(homeProfessor).toContain("{responsiveLayout.isMobile ? (");

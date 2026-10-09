@@ -1,3 +1,5 @@
+import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
+import { useScreenRefresh } from "../../src/ui/useScreenRefresh";
 import * as Calendar from "expo-calendar";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { buildPlanningCopilotContext } from "../../src/screens/training/application/planning-copilot-context";
@@ -913,6 +915,10 @@ function TrainingWorkspace() {
     ]);
     setItems([...localPlans, ...data.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
   }, [workspaceDraftKey]);
+
+  const screenRefresh = useScreenRefresh(async () => {
+    await Promise.all([reload(), getClasses().then(setClasses)]);
+  });
 
   const hydrateFormFromPlanningActivities = useCallback(
     (activities: PlanningBlockActivities) => {
@@ -1925,7 +1931,9 @@ function TrainingWorkspace() {
               }}
             />
 
-            <View
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1 }}
+              refreshControl={<AppRefreshControl {...screenRefresh} enabled={!workspaceHasUnsavedChanges} />}
               style={{
                 flex: 1,
                 minHeight: 0,
@@ -2067,7 +2075,7 @@ function TrainingWorkspace() {
                   )}
                 </View>
               </View>
-            </View>
+            </ScrollView>
           </>
         )}
       </KeyboardAvoidingView>

@@ -49,3 +49,17 @@ it("keeps the caller's workspace control on the own profile across tabs only", (
   expect(view.root.findAllByType(Text).filter(n => n.props.testID === "workspace-control")).toHaveLength(0);
   act(() => view.unmount());
 });
+it("keeps classes and count visible during refresh and applies an empty final result", () => {
+  const props = { name: "Ana", role: "Professora", organizationName: "Rede", classes: [{ id: "c1", name: "Turma existente", unit: "", daysOfWeek: [1], startTime: "14:00", endTime: "15:00" }] as any, onBack: jest.fn() };
+  let view!: TestRenderer.ReactTestRenderer;
+  act(() => { view = TestRenderer.create(React.createElement(PersonProfilePage, props)); });
+  act(() => { view.update(React.createElement(PersonProfilePage, { ...props, loading: true })); });
+  const during = JSON.stringify(view.toJSON());
+  expect(during).toContain("Turma existente");
+  expect(during).toContain("turmas atribuídas");
+  expect(during).not.toContain("Carregando turmas");
+  act(() => { view.update(React.createElement(PersonProfilePage, { ...props, loading: false, classes: [] })); });
+  expect(JSON.stringify(view.toJSON())).toContain("Nenhuma turma vinculada");
+  expect(JSON.stringify(view.toJSON())).not.toContain("Turma existente");
+  act(() => view.unmount());
+});

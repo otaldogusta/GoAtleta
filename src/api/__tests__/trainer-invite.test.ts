@@ -43,6 +43,8 @@ describe("createTrainerInvite", () => {
       invitedVia: "email",
       permissionKeys: ["classes", "calendar", "financial"],
       maxUses: 1,
+      classIds: [],
+      staffProfileId: null,
     });
   });
 
@@ -61,6 +63,11 @@ describe("createTrainerInvite", () => {
       invitedVia: "link",
       permissionKeys: [],
     });
+  });
+
+  test("preserves the explicit class and existing staff selection", async () => {
+    await createTrainerInvite({ organizationId: "org", role: "professor", classIds: ["class-a"], staffProfileId: "profile-a" });
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)).toMatchObject({ classIds: ["class-a"], staffProfileId: "profile-a" });
   });
 
   test("keeps selected permissions without requiring a recipient for a manual link", async () => {

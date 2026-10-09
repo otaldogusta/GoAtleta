@@ -47,6 +47,11 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 ## Decisões atuais e histórico
 
+- O [refinamento local de convites](../../operations/trainer-invite-refinement.md)
+  associa perfil sem conta somente por seleção explícita e aceite verificado;
+  preserva equipe/histórico e avança versões. Novas turmas não substituem responsáveis.
+  A migration de 08/10 está preparada, sem aplicação remota nesta tarefa.
+
 O [perfil pedagógico](../../../docs/operations/class-pedagogical-profile.md) é a
 referência detalhada de segurança, interpretação e revisão de planos. Seu relato
 de ativação/smoke é datado; não é uma nova verificação deste levantamento.
@@ -70,3 +75,10 @@ Testes localizados, para executar conforme a mudança:
 Na edição funcional, classificar pela [escada de validação](../../../docs/operations/validation-ladder.md);
 dados/rotas exigem org-scope e smoke autenticado do fluxo afetado. Neste levantamento
 foram inspecionados código, fontes e caminhos; testes do app e backend não foram executados.
+
+## Atualização por gesto
+
+Planejamento e Periodização usam `AppRefreshControl` e feedback global. O primeiro
+reconsulta planos e turmas, preserva a biblioteca local e bloqueia o gesto quando
+há rascunho pendente. Periodização reconsulta turmas, planos e resumos de sessões.
+Validação local registrada no relatório Android de 08/10/2026.

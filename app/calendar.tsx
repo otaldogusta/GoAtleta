@@ -1,3 +1,5 @@
+import { AppRefreshControl } from "../src/ui/AppRefreshControl";
+import { useScreenRefresh } from "../src/ui/useScreenRefresh";
 import { listCalendarPauses } from "../src/api/holiday-decisions";
 import { isPaused, type CalendarPause } from "../src/core/holidays";
 import { markRender, measureAsync } from "../src/observability/perf";
@@ -335,6 +337,17 @@ export default function CalendarScreen() {
       alive = false;
     };
   }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id]);
+
+  const screenRefresh = useScreenRefresh(async () => {
+    const from = new Date(calendarStart); from.setHours(0, 0, 0, 0);
+    const to = new Date(calendarEnd); to.setHours(23, 59, 59, 999);
+    await Promise.all([
+      getClasses().then(setClasses), getTrainingPlans().then(setPlans),
+      activeOrganization?.id ? listEvents({ organizationId: activeOrganization.id,
+        fromIso: from.toISOString(), toIso: to.toISOString(),
+        userId: session?.user?.id }).then(setEvents) : Promise.resolve(),
+    ]);
+  });
 
   const applyTargetHandled = useRef(false);
   useEffect(() => {
@@ -824,6 +837,7 @@ export default function CalendarScreen() {
           </ScreenPageHeader>
 
           <ScrollView
+            refreshControl={<AppRefreshControl {...screenRefresh} />}
             contentContainerStyle={{
               paddingHorizontal: isCompactLayout ? 12 : 16,
               paddingTop: 2,

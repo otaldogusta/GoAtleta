@@ -44,6 +44,11 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 ## Decisões atuais e limites
 
+- Autoedição do aluno usa `save_my_student_profile`, com campos permitidos explícitos,
+  vínculo ativo e identidade verificada; exige recibo de persistência. Não amplia
+  a policy de equipe. Migration `20261008235145` validada somente no banco local.
+  [Evidência e limites](../../operations/android-role-invite-qa-2026-10-08.md).
+
 - O perfil compartilhado é composição visual; autorização permanece nas APIs/RPCs e
   capacidades de cada consumidor. A aba financeira do atleta exige `canViewFinance`.
 - Aluno, professor e coordenação editam o próprio perfil na aba Configurações,
@@ -79,3 +84,7 @@ Nesta organização documental: inspeção estática, sem executar testes do app
   e [family_access_requests.sql](../../../supabase/tests/family_access_requests.sql) cobrem contratos de vínculo.
 - Para mudanças de vínculo, usar nível de dados/segurança da [escada](../../operations/validation-ladder.md)
   e testar aceitação autenticada, conta incorreta, revogação e troca de contexto.
+
+- Refresh do perfil mantém vínculos já resolvidos apenas na mesma conta e
+  organização. Lista e contador permanecem visíveis durante nova busca; troca
+  de contexto e erro limpam vínculos. Resultado vazio final substitui a lista.

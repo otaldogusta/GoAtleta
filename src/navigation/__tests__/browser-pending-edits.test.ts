@@ -36,6 +36,19 @@ describe("browser settings draft navigation", () => {
     expect(browser.history.go).not.toHaveBeenCalled();
   });
 
+  it.each([undefined, {}])("does not register browser navigation in a native runtime (%p)", (nativeWindow) => {
+    Object.defineProperty(globalThis, "window", { configurable: true, value: nativeWindow });
+    expect(() => {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- native module initialization regression.
+        const nativeRegister = require("../browser-pending-edits").registerBrowserPendingEdits;
+        const onLeave = jest.fn();
+        nativeRegister(onLeave)();
+        expect(onLeave).not.toHaveBeenCalled();
+      });
+    }).not.toThrow();
+  });
+
   it("restores the URL before asking and preserves the draft when editing continues", () => {
     const confirm = jest.fn();
     register(confirm);

@@ -44,7 +44,7 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('pendingProfileNotice?.[section]?.snapshot === pendingCardSnapshot(section)');
     expect(source).toContain('Object.entries(pendingCardFields)');
     expect(source).toContain('`Não salvo: ${changed.join(", ")}.`');
-    expect(source).toContain('bottom={responsiveLayout.isMobile ? insets.bottom + 104 : 18}');
+    expect(source).toContain('bottom={Platform.OS !== "web" ? 12 : responsiveLayout.isMobile ? insets.bottom + 104 : 18}');
   });
 
   it("shows the web save action as a floating control only after a real edit", () => {

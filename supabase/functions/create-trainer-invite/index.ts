@@ -85,11 +85,13 @@ const sendInviteEmail = async (to: string, signupLink: string, roleLabel: string
       from,
       to: [to],
       subject: "Você recebeu um convite para o Go Atleta",
+      text: `Você recebeu acesso como ${roleLabel} ao Go Atleta.\n\nAceitar convite: ${signupLink}\n\nSe não esperava este convite, ignore esta mensagem.`,
       html: `
         <div style="font-family:Arial,sans-serif;line-height:1.5;color:#102038">
           <h1 style="font-size:22px">Convite para o Go Atleta</h1>
           <p>Você recebeu acesso como <strong>${roleLabel}</strong>.</p>
           <p><a href="${signupLink}" style="display:inline-block;padding:12px 18px;background:#41d984;color:#07111f;text-decoration:none;border-radius:8px;font-weight:700">Aceitar convite</a></p>
+          <p style="font-size:12px;overflow-wrap:anywhere">Se o botão não abrir, copie e cole este endereço no navegador:<br><a href="${signupLink}">${signupLink}</a></p>
           <p style="font-size:12px;color:#5f6f85">Se você não esperava este convite, ignore esta mensagem.</p>
         </div>
       `,
@@ -121,6 +123,8 @@ Deno.serve(async (req) => {
     invitedTo?: string;
     invitedVia?: string;
     permissionKeys?: string[];
+    classIds?: string[];
+    staffProfileId?: string | null;
   } = { organizationId: "", role: "collaborator" };
 
   try {
@@ -149,6 +153,14 @@ Deno.serve(async (req) => {
         : payload.role === "professor"
           ? "professor"
           : "collaborator";
+  if (payload.classIds !== undefined && (!Array.isArray(payload.classIds) || payload.classIds.length > 200 ||
+      payload.classIds.some((id) => typeof id !== "string" || !id.trim() || id.length > 128))) {
+    return createError(req, 400, "INVALID_REQUEST", "Invalid class selection");
+  }
+  if (payload.staffProfileId != null && (typeof payload.staffProfileId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.staffProfileId))) {
+    return createError(req, 400, "INVALID_REQUEST", "Invalid staff profile");
+  }
   const targetRoleLevel = role === "moderator" ? 50 : role === "intern" ? 5 : 10;
   const permissionKeys = Array.from(
     new Set(
@@ -209,13 +221,15 @@ Deno.serve(async (req) => {
     codeHash = await sha256(code);
 
     const { data, error } = await supabase
-      .rpc("create_trainer_invite_access", {
+      .rpc("create_trainer_invite_access_v2", {
         p_org_id: orgValidation.data,
         p_code_hash: codeHash,
         p_target_role_level: targetRoleLevel,
         p_invited_via: invitedVia,
         p_invited_to: invitedTo,
         p_initial_permissions: permissionKeys,
+        p_class_ids: payload.classIds ?? [],
+        p_staff_profile_id: payload.staffProfileId ?? null,
       })
       .single();
 

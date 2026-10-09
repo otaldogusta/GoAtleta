@@ -6,7 +6,10 @@ import SignupRoute from "../../../../app/signup";
 const mockSignUp = jest.fn();
 const mockReplace = jest.fn();
 const mockResend = jest.fn();
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, canGoBack: () => false }), useLocalSearchParams: () => ({}) }));
+let mockInviteCode: string | undefined;
+const mockSaveInvite = jest.fn().mockResolvedValue(undefined);
+jest.mock("../../../auth/pending-invite", () => ({ savePendingTrainerInvite: (...args: unknown[]) => mockSaveInvite(...args) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, canGoBack: () => false }), useLocalSearchParams: () => ({ inviteCode: mockInviteCode }) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ signUp: mockSignUp, resendSignupCode: mockResend, signInWithOAuth: jest.fn() }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
@@ -21,7 +24,7 @@ const completion = (overrides: Partial<SignupCompletion> = {}): SignupCompletion
 });
 
 describe("canonical signup screen", () => {
-  beforeEach(() => { jest.clearAllMocks(); jest.useFakeTimers(); });
+  beforeEach(() => { jest.clearAllMocks(); mockInviteCode = undefined; jest.useFakeTimers(); });
   afterEach(() => { cleanup(); jest.clearAllTimers(); jest.useRealTimers(); });
 
   it("uses the exact same component for the public signup route", () => {
@@ -95,6 +98,24 @@ describe("canonical signup screen", () => {
     fireEvent.changeText(screen.getByLabelText("Confirmar senha"), "Secret123!");
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Criar conta" })));
     expect(mockSignUp).toHaveBeenCalledWith("new@example.com", "Secret123!", "login", "");
-    expect(mockReplace).toHaveBeenCalledWith({ pathname: "/verify-email", params: { email: "new@example.com", delivery: undefined } });
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: "/verify-email", params: { email: "new@example.com", delivery: undefined, inviteCode: undefined } });
+  });
+
+  it("persists invitation intent before signup publishes the session and carries it to verification", async () => {
+    mockInviteCode = "ABCD-EFGH";
+    mockSignUp.mockImplementation(async () => {
+      expect(mockSaveInvite).toHaveBeenCalledWith("ABCD-EFGH");
+      return { user: { id: "recipient" } };
+    });
+    mockResend.mockResolvedValue(undefined);
+    const screen = render(React.createElement(SignupScreen));
+    await act(async () => { await Promise.resolve(); });
+    mockSaveInvite.mockClear(); // Ignore persistence performed when the link first mounts.
+    fireEvent.changeText(screen.getByLabelText("E-mail"), "recipient@example.test");
+    fireEvent.changeText(screen.getByLabelText("Senha"), "Secret123!");
+    fireEvent.changeText(screen.getByLabelText("Confirmar senha"), "Secret123!");
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Criar conta" })));
+    expect(mockSignUp).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: "/verify-email", params: { email: "recipient@example.test", delivery: undefined, inviteCode: "ABCD-EFGH" } });
   });
 });

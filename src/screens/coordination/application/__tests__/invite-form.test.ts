@@ -5,6 +5,12 @@ import {
 } from "../invite-form";
 
 describe("invite form snapshots", () => {
+  it("protects class and existing-profile changes when closing the form", () => {
+    const original = createInviteFormSnapshot({ email: "", role: "professor", permissionKeys: [], classIds: ["a", "b"] });
+    expect(areInviteFormSnapshotsEqual(original, createInviteFormSnapshot({ ...original, classIds: ["b", "a", "a"] }))).toBe(true);
+    expect(areInviteFormSnapshotsEqual(original, createInviteFormSnapshot({ ...original, classIds: ["a"] }))).toBe(false);
+    expect(areInviteFormSnapshotsEqual(original, createInviteFormSnapshot({ ...original, staffProfileId: "profile" }))).toBe(false);
+  });
   it("keeps financial access out of the default invitation permissions", () => {
     expect(DEFAULT_INVITE_PERMISSION_KEYS).not.toContain("financial");
   });

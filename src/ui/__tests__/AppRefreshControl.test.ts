@@ -7,6 +7,10 @@ import { AppRefreshControl } from "../AppRefreshControl";
 let mockPlatformOS = "android";
 let mockFeedback: jest.Mock | null = null;
 
+jest.mock("../app-theme", () => ({
+  useAppTheme: () => ({ colors: { text: "#f1f5f9", card: "#162133" } }),
+}));
+
 jest.mock("../RefreshFeedbackProvider", () => ({
   useRefreshFeedback: () => mockFeedback,
 }));
@@ -28,21 +32,10 @@ jest.mock("react-native", () => {
 });
 
 describe("AppRefreshControl", () => {
-  it("captura o gesto vertical no topo quando o ScrollView assume o toque", () => {
-    mockFeedback = jest.fn();
-    const onRefresh = jest.fn();
-    const screen = render(createElement(AppRefreshControl, { refreshing: false, onRefresh, testID: "refresh" }, createElement(View, { testID: "scroll" })));
-    const event = (y: number) => ({ nativeEvent: { pageX: 10, pageY: y } });
-    const wrapper = screen.getByTestId("refresh");
-    expect(wrapper.props.onStartShouldSetResponderCapture(event(0))).toBe(false);
-    expect(wrapper.props.onMoveShouldSetResponderCapture(event(120))).toBe(true);
-    fireEvent(wrapper, "responderGrant", event(120));
-    fireEvent(wrapper, "responderRelease", event(120));
-    expect(onRefresh).toHaveBeenCalledTimes(1);
-    fireEvent(screen.getByTestId("scroll"), "scroll", { nativeEvent: { contentOffset: { y: 100 } } });
-    wrapper.props.onStartShouldSetResponderCapture(event(0));
-    fireEvent(screen.getByTestId("scroll"), "scroll", { nativeEvent: { contentOffset: { y: 0 } } });
-    expect(wrapper.props.onMoveShouldSetResponderCapture(event(120))).toBe(false);
+  it("aplica fundo do tema ao indicador Android para preservar contraste", () => {
+    const screen = render(createElement(AppRefreshControl, { refreshing: true, tintColor: "#f1f5f9", testID: "refresh" }));
+    expect(screen.getByTestId("refresh").props.colors).toEqual(["#f1f5f9"]);
+    expect(screen.getByTestId("refresh").props.progressBackgroundColor).toBe("#162133");
   });
   beforeEach(() => {
     mockPlatformOS = "android";
@@ -118,30 +111,16 @@ describe("AppRefreshControl", () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("usa somente feedback global quando o provider está disponível", () => {
-    mockFeedback = jest.fn();
-    const screen = render(createElement(AppRefreshControl, { refreshing: true, testID: "refresh" }));
-    expect(screen.getByTestId("refresh").props.progressViewOffset).toBeUndefined();
-    expect(screen.getByTestId("refresh").props.onRefresh).toBeUndefined();
-    expect(screen.getByTestId("refresh").props.colors).not.toEqual(["transparent"]);
-    expect(mockFeedback).toHaveBeenCalledWith(expect.any(String), { refreshing: true, pull: 0 });
-    screen.unmount();
-    expect(mockFeedback).toHaveBeenLastCalledWith(expect.any(String), null);
-  });
-
-  it("publica o puxar global e atualiza apenas ao soltar além do limiar", () => {
+  it("mantém o indicador nativo com provider, sem duplicar refresh global", () => {
     mockFeedback = jest.fn();
     const onRefresh = jest.fn();
-    const screen = render(createElement(AppRefreshControl, { refreshing: false, onRefresh, testID: "refresh" }, createElement(View, { testID: "scroll" })));
-    const event = (y: number) => ({ nativeEvent: { pageX: 10, pageY: y } });
-    fireEvent(screen.getByTestId("scroll"), "touchStart", event(0));
-    fireEvent(screen.getByTestId("scroll"), "touchMove", event(50));
-    fireEvent(screen.getByTestId("scroll"), "touchEnd", event(50));
-    expect(onRefresh).not.toHaveBeenCalled();
-    fireEvent(screen.getByTestId("scroll"), "touchStart", event(0));
-    fireEvent(screen.getByTestId("scroll"), "touchMove", event(120));
-    expect(mockFeedback).toHaveBeenCalledWith(expect.any(String), { refreshing: false, pull: 100 });
-    fireEvent(screen.getByTestId("scroll"), "touchEnd", event(120));
+    const screen = render(createElement(AppRefreshControl, { refreshing: false, onRefresh, testID: "refresh" }));
+    expect(screen.getByTestId("refresh").props.onRefresh).toEqual(expect.any(Function));
+    expect(screen.getByTestId("refresh").props.onMoveShouldSetResponderCapture).toBeUndefined();
+    fireEvent(screen.getByTestId("refresh"), "refresh");
     expect(onRefresh).toHaveBeenCalledTimes(1);
+    screen.rerender(createElement(AppRefreshControl, { refreshing: true, onRefresh, testID: "refresh" }));
+    expect(screen.getByTestId("refresh").props.refreshing).toBe(true);
+    expect(mockFeedback).toHaveBeenCalledWith(expect.any(String), { refreshing: true, pull: 0 });
   });
 });

@@ -44,6 +44,14 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- QA Android em 08/10: guard de histórico do navegador não registra listeners no
+  runtime nativo. Cinco contas locais exercitadas; cadastro por convite/OTP não
+  coberto. [Resultados e falhas](../../operations/android-role-invite-qa-2026-10-08.md).
+
+- Refinamento local em 08/10: convite de equipe aceita turmas e perfil sem conta;
+  cadastro persiste o código antes da sessão, e `/pending` aguarda sua recuperação.
+  [Contrato, validação e ativação pendente](../../operations/trainer-invite-refinement.md).
+
 - A conta sem vínculo pode solicitar acesso em `/pending`; não recebe criação livre
   de instituição. A RPC legada de provisionamento está restrita no contrato SQL.
 - Atleta e familiar não são cargos da equipe; aprovação de acesso deve preservar
@@ -73,3 +81,8 @@ do aplicativo, smoke autenticado ou verificações remotas.
   e [useCoordinationDashboard.test.ts](../../../src/screens/coordination/hooks/__tests__/useCoordinationDashboard.test.ts).
 - Aplicar o nível de dados/segurança da [escada de validação](../../operations/validation-ladder.md):
   testes focados, typecheck, org-scope e smoke autenticado do fluxo afetado.
+
+- Pull-to-refresh da Home do professor busca turmas/agenda e chama
+  `refreshMemberPermissions`; mantém sessão, organização e RLS existentes.
+  Liberação de turma e alteração de atalho por permissão conferidas via ADB local
+  em 08/10/2026; ver relatório Android de acessos.

@@ -126,6 +126,8 @@ export async function createTrainerInvite(options: {
   invitedTo?: string;
   invitedVia?: "email" | "link";
   permissionKeys?: MemberPermissionKey[];
+  classIds?: string[];
+  staffProfileId?: string | null;
 }, auth?: AuthOverride) {
   const res = await authedPost("/functions/v1/create-trainer-invite", {
     organizationId: options.organizationId,
@@ -133,6 +135,8 @@ export async function createTrainerInvite(options: {
     invitedTo: options.invitedTo,
     invitedVia: options.invitedVia ?? (options.invitedTo ? "email" : "link"),
     permissionKeys: options.permissionKeys ?? [],
+    classIds: options.classIds ?? [],
+    staffProfileId: options.staffProfileId ?? null,
     maxUses: 1,
   }, auth);
   return await parseInviteApiResponse<{
