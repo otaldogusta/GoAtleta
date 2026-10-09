@@ -44,6 +44,11 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- A entrada `/staff-invite` mantém a prova do link apenas em memória acima do
+  bootstrap para sobreviver à remontagem da tela após limpar a URL. Ao sair ou
+  concluir, descarta a prova; aceite continua explícito e validado no servidor.
+  [Correção e validação](../../operations/staff-invite-entry-fix.md).
+
 - A conta sem vínculo pode solicitar acesso em `/pending`; não recebe criação livre
   de instituição. A RPC legada de provisionamento está restrita no contrato SQL.
 - Atleta e familiar não são cargos da equipe; aprovação de acesso deve preservar
