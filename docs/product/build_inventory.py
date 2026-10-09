@@ -338,7 +338,7 @@ code|Callback|Retorno de autenticação.|app/auth-callback.tsx
 code|Onboarding|Entrada específica.|app/onboarding.tsx
 code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
 code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
-code|Convite de equipe|Entrada própria.|app/staff-invite.tsx
+code|Convite de equipe|Prova do link preservada em memória acima do bootstrap, sem perder contexto ao remontar a tela depois de limpar a URL. Descartada ao sair ou concluir; aceite explícito preservado. Testes de regressão e entrada fictícia conferidos; aceite real autenticado não exercitado.|app/staff-invite.tsx
 code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.
 """)

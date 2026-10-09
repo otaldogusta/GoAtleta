@@ -84,6 +84,7 @@ import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
 import { RootWebShell } from "../src/ui/RootWebShell";
 import { SaveToastProvider } from "../src/ui/save-toast";
+import { StaffInviteEntryProvider } from "../src/auth/staff-invite-entry";
 import { RefreshFeedbackProvider } from "../src/ui/RefreshFeedbackProvider";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 import { ptBR } from "../src/constants/copy/pt-br";
@@ -1393,9 +1394,11 @@ function RootLayout() {
           )}
           showDialog={false}
         >
-          <BootstrapProvider>
-            <BootstrapAuthProviders />
-          </BootstrapProvider>
+          <StaffInviteEntryProvider>
+            <BootstrapProvider>
+              <BootstrapAuthProviders />
+            </BootstrapProvider>
+          </StaffInviteEntryProvider>
         </Sentry.ErrorBoundary>
       </AppThemeProvider>
     </>

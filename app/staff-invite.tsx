@@ -6,7 +6,7 @@ import { refreshStaffSignupSession, resumeStaffSignup } from "../src/api/staff-i
 import SignupScreen from "../src/screens/auth/SignupScreen";
 import { markRender } from "../src/observability/perf";
 import { useAuth } from "../src/auth/auth";
-import { parseStaffInviteFragment, type StaffInviteProof } from "../src/auth/staff-invite-link";
+import { useStaffInviteEntry } from "../src/auth/staff-invite-entry";
 import { clearPendingTrainerInvite, savePendingTrainerInvite } from "../src/auth/pending-invite";
 import { useOrganization } from "../src/providers/organization-context";
 import { Button } from "../src/ui/Button";
@@ -21,10 +21,7 @@ export default function StaffInviteScreen() {
   const resumeCode = typeof params.code === "string" && /^[A-Z0-9-]{4,128}$/i.test(params.code) ? params.code : "";
   const { session, loading, acceptStaffInvite, completeStaffInvite, signOut } = useAuth();
   const { setActiveOrganizationId } = useOrganization();
-  const [proof, setProof] = useState<StaffInviteProof | null>(() =>
-    Platform.OS === "web" && typeof window !== "undefined"
-      ? parseStaffInviteFragment(window.location.hash) : null
-  );
+  const { proof, clear: clearProof } = useStaffInviteEntry();
   const inFlight = useRef(false);
   const ready = true;
   const [busy, setBusy] = useState(false);
@@ -64,7 +61,7 @@ export default function StaffInviteScreen() {
       }
       await setActiveOrganizationId(result.organization_id);
       await clearPendingTrainerInvite();
-      setProof(null);
+      clearProof();
       router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível aceitar o convite.");
@@ -87,7 +84,7 @@ export default function StaffInviteScreen() {
       await setActiveOrganizationId(result.organization_id);
       await clearPendingTrainerInvite();
       setSetup(null);
-      setProof(null);
+      clearProof();
       router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível concluir o cadastro.");
@@ -113,7 +110,7 @@ export default function StaffInviteScreen() {
       onSubmit: complete,
       onCancel: () => {
         setSetup(null);
-        setProof(null);
+        clearProof();
         router.replace("/");
       },
     }} />;
