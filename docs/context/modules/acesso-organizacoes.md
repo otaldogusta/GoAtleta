@@ -44,6 +44,16 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Barra de senha no cadastro usa estimativa local por comprimento e padrões
+  previsíveis (`src/auth/password-strength.ts`), sem checklist de composição.
+  Não é consulta de vazamentos nem garantia de força; não altera aceite no Auth.
+- Cadastro público permite verificar o código antes de criar a conta, incluindo
+  códigos recebidos por link. A consulta pública retorna somente disponibilidade;
+  não consome o convite nem comprova a identidade do destinatário. Alterar o código
+  invalida a confirmação anterior. Edge publicada em 09/10/2026; cadastro público e conclusão por convite usam
+  o mesmo componente de senha. Smoke de aceite real completo permanece pendente.
+  [Contrato e validação local](../../operations/signup-invite-validation.md).
+
 - A entrada `/staff-invite` mantém a prova do link apenas em memória acima do
   bootstrap para sobreviver à remontagem da tela após limpar a URL. Ao sair ou
   concluir, descarta a prova; aceite continua explícito e validado no servidor.
