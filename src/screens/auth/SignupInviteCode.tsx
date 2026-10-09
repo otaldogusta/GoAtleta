@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, ActivityIndicator, Animated, Platform, Text, TextInput, View } from "react-native";
 import { validateTrainerInvite } from "../../api/trainer-invite";
-import { normalizeInviteCodeInput } from "../../auth/invite-code-input";
+import { getPastedStaffInviteProof, getInviteEmailSuggestion, normalizeInviteCodeInput } from "../../auth/invite-code-input";
+import type { StaffInviteProof } from "../../auth/staff-invite-link";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 
-export function SignupInviteCode({ code, disabled, onChange, onVerified, onRemove }: {
+export function SignupInviteCode({ code, disabled, submissionError = "", onChange, onVerified, onRemove }: {
   code: string;
   disabled: boolean;
-  onChange: (code: string) => void;
+  submissionError?: string;
+  onChange: (code: string, emailSuggestion?: string, proof?: StaffInviteProof | null) => void;
   onVerified: (code: string) => void;
   onRemove: () => void;
 }) {
   const { colors, mode } = useAppTheme();
   const [status, setStatus] = useState<"idle" | "checking" | "valid" | "error">("idle");
-  const [error, setError] = useState("");
+  const [validationError, setError] = useState("");
+  const error = submissionError || validationError;
   const [input, setInput] = useState({ code, disabled });
   if (input.code !== code || input.disabled !== disabled) {
     setInput({ code, disabled });
@@ -42,7 +45,7 @@ export function SignupInviteCode({ code, disabled, onChange, onVerified, onRemov
     const request = ++generation.current;
     checkAnim.stopAnimation();
     checkAnim.setValue(0);
-    if (disabled || !code.trim()) return;
+    if (disabled || submissionError || !code.trim()) return;
     const timer = setTimeout(async () => {
       if (request !== generation.current) return;
       setStatus("checking");
@@ -64,7 +67,7 @@ export function SignupInviteCode({ code, disabled, onChange, onVerified, onRemov
       }
     }, 700);
     return () => { clearTimeout(timer); generation.current += 1; };
-  }, [code, disabled, onVerified, checkAnim, shake]);
+  }, [code, disabled, submissionError, onVerified, checkAnim, shake]);
 
   return <View style={{ gap: 8, position: "relative", zIndex: error ? 50 : 1, overflow: "visible" }}>
     <Animated.View style={{ flexDirection: "row", alignItems: "center", minHeight: 50, borderRadius: 12,
@@ -91,21 +94,22 @@ export function SignupInviteCode({ code, disabled, onChange, onVerified, onRemov
         </View>
       ) : null}
       <TextInput accessibilityLabel="Código de convite" placeholder="Código de convite"
-        placeholderTextColor={colors.placeholder} value={code} editable={!disabled}
+        placeholderTextColor={colors.placeholder} value={code} editable={!disabled && (Boolean(submissionError) || status !== "valid")}
         autoCapitalize="characters" autoCorrect={false} maxLength={4096}
         onChangeText={(value) => {
+          if (disabled || (!submissionError && status === "valid")) return;
           const normalized = normalizeInviteCodeInput(value);
           if (normalized === code) return;
           generation.current += 1;
           setStatus("idle");
           setError("");
-          onChange(normalized);
+          onChange(normalized, getInviteEmailSuggestion(value), getPastedStaffInviteProof(value));
         }}
         style={{ flex: 1, minWidth: 0, padding: 0, borderWidth: 0, borderRadius: 0, fontSize: 15,
-          color: colors.inputText, backgroundColor: "transparent",
+          color: !error && status === "valid" ? colors.muted : colors.inputText, backgroundColor: "transparent",
           ...(Platform.OS === "web" ? { outlineStyle: "none" } as any : {}) }} />
       <View style={{ width: 30, alignItems: "center", justifyContent: "center" }}>
-        {status === "valid" ? (
+        {!error && status === "valid" ? (
           <Animated.View accessibilityLabel="Código verificado" accessibilityLiveRegion="polite"
             style={{ opacity: checkAnim, transform: [{ scale: checkAnim.interpolate({
               inputRange: [0, 1], outputRange: [0.65, 1],

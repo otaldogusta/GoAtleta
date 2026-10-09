@@ -331,14 +331,14 @@ code|Carregamento sem diagnóstico técnico|Tela inicial mostra indicador e Carr
 code|Indicador desde o HTML inicial|Carregando visível antes do JavaScript, com passagem para o BootstrapGate após montar e respeito a movimento reduzido.|app/+html.tsx
 code|Boas-vindas|Rota dedicada.|app/welcome.tsx
 code|Login|Entrada de autenticação.
-code|Cadastro|Barra de senha animada com cor sólida uniforme por nível, sem rótulos de força, com ajuda clicável sobre comprimento e símbolos opcionais. Convite com tipografia de 15 px igual aos demais campos, aceita código ou link com inviteCode em campo único com verificação automática após 700 ms, check animado e balão compacto igual ao da senha, com borda de erro e sobreposição correta; descarte de resposta antiga e confirmação de e-mail preservada. Hover do atalho e dos controles de visibilidade destaca texto/ícone, sem fundo. Senha compartilhada também em Conclua seu cadastro. Release local aprovado com 571 suítes e 3.211 testes; Edge v2 ACTIVE publicada em 09/10/2026. Consulta real no navegador confirmada para convite já utilizado; cadastro e aceite completo ainda pendentes.|src/screens/auth/SignupScreen.tsx
+code|Cadastro|Barra de senha animada com cor sólida uniforme por nível, sem rótulos de força, com ajuda clicável sobre comprimento e símbolos opcionais. Convite com tipografia de 15 px igual aos demais campos, aceita código ou link com inviteCode e staff-invite#code (parser local; e-mail do link sugerido somente após validação bem-sucedida, no campo vazio e editável, sem token na consulta) em campo único com verificação automática após 700 ms, check animado, código validado esmaecido e sem edição até remoção pelo ×, e balão compacto igual ao da senha, com borda de erro e sobreposição correta; descarte de resposta antiga e confirmação de e-mail preservada. Hover do atalho e dos controles de visibilidade destaca texto/ícone, sem fundo. Link completo de equipe preserva prova somente em memória e conclui conta pendente sem novo signUp; sessão já confirmada retoma setup sem reutilizar magic link; erro definitivo de aceite remove check, bloqueia nova submissão e usa balão do campo, sem revalidação automática que apague a falha; link discreto Solicitar novo código reenvia OTP para o destinatário quando a prova de acesso expira, sem renovar convite institucional; conta existente não tem senha alterada. Pacote preparado para publicação com build:verified aprovado; senha compartilhada em Conclua seu cadastro. Edge v2 ACTIVE publicada em 09/10/2026. Consulta real no navegador confirmada para convite já utilizado; cadastro e aceite completo ainda pendentes.|src/screens/auth/SignupScreen.tsx
 code|Verificar e-mail|Rota de verificação.|app/verify-email.tsx
 code|Recuperar senha|Rota com testes existentes.|app/reset-password.tsx
 code|Callback|Retorno de autenticação.|app/auth-callback.tsx
 code|Onboarding|Entrada específica.|app/onboarding.tsx
 code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
 code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
-code|Convite de equipe|Prova do link preservada em memória acima do bootstrap, sem perder contexto ao remontar a tela depois de limpar a URL. Descartada ao sair ou concluir; aceite explícito preservado. Testes de regressão e entrada fictícia conferidos; aceite real autenticado não exercitado.|app/staff-invite.tsx
+code|Convite de equipe|Prova do link preservada em memória acima do bootstrap para sobreviver à remontagem da tela após limpar a URL. Descarte ao sair ou concluir; sem aceite automático. Estado indisponível simplificado: título, orientação curta e seta para o início, sem ações de aceite ou troca de conta após recusa definitiva; sessão preservada. Build de release aprovado; ativação deste ajuste e smoke autenticado real pendentes.|app/staff-invite.tsx
 code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.
 """)
@@ -406,7 +406,7 @@ add('Interface compartilhada · padrões', 'Transversal', 'docs/ui/DENSITY_AUDIT
 code|Cabeçalho e shell de telas|Primitives comuns de apresentação.|src/components/ui/ScreenPageHeader.tsx
 code|Modais compartilhados|ModalSheet como primitive.|src/ui/ModalSheet.tsx
 code|Dropdowns e overlays|AnchoredDropdown e camadas de overlay.|src/ui/AnchoredDropdown.tsx
-code|Feedback de formulário|Contrato visual compartilhado.|src/ui/form-validation-feedback.tsx
+code|Feedback de formulário|Contrato visual e paridade com referência existente documentados em FORM_SETTINGS_PATTERNS.md, AGENTS.md e skill de design system; comparar estados renderizados antes de concluir. Não certifica uniformidade de todas as telas.|src/ui/form-validation-feedback.tsx
 recorded|Auditoria de densidade|Documento de revisão local de compactação e contexto.
 verify|Paridade e acessibilidade|Tema claro/escuro, foco, teclado e mobile exigem conferência no fluxo afetado.
 """)

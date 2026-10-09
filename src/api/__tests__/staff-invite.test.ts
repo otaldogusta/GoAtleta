@@ -1,4 +1,4 @@
-import { refreshStaffSignupSession, type StaffInviteResult } from "../staff-invite";
+import { redeemStaffInvite, StaffInviteUnavailableError, refreshStaffSignupSession, type StaffInviteResult } from "../staff-invite";
 
 const setup = (expiresAt: number): StaffInviteResult => ({
   setup_required: true,
@@ -14,6 +14,18 @@ const setup = (expiresAt: number): StaffInviteResult => ({
 describe("staff invite temporary session", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it.each(["AUTH_LINK_EXPIRED", "INVITE_INVALID"])("identifies terminal invite error %s", async (code) => {
+    global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({ code }), { status: 400 })) as jest.Mock;
+    await expect(redeemStaffInvite({ code: "TEST-CODE", token_hash: "a".repeat(64), type: "magiclink" }))
+      .rejects.toBeInstanceOf(StaffInviteUnavailableError);
+  });
+
+  it("does not classify service failures as unavailable invitations", async () => {
+    global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({ code: "INTERNAL_ERROR" }), { status: 503 })) as jest.Mock;
+    await expect(redeemStaffInvite({ code: "TEST-CODE", token_hash: "a".repeat(64), type: "magiclink" }))
+      .rejects.not.toBeInstanceOf(StaffInviteUnavailableError);
   });
 
   it("keeps a temporary session that still has enough lifetime", async () => {

@@ -44,21 +44,29 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Link completo de equipe colado no cadastro mantém a prova apenas em memória.
+  Na submissão explícita usa aceite/conclusão existentes, sem recriar a conta
+  preparada pelo convite. Sessão temporária é reaproveitada em falha de conclusão;
+  conta já concluída não recebe alteração de senha. Código isolado não é prova.
+
+- Convite de equipe indisponível mostra apenas título, orientação para pedir
+  outro convite e voltar ao início, preservando a sessão. Erros definitivos do
+  link removem as ações de aceite; falhas recuperáveis mantêm nova tentativa.
+
 - Barra de senha no cadastro usa estimativa local por comprimento e padrões
   previsíveis (`src/auth/password-strength.ts`), sem checklist de composição.
   Não é consulta de vazamentos nem garantia de força; não altera aceite no Auth.
 - Cadastro público permite verificar o código antes de criar a conta, incluindo
-  códigos recebidos por link. A consulta pública retorna somente disponibilidade;
+  códigos recebidos por link (`inviteCode` ou `/staff-invite#code=`). Extrai
+  apenas o código para a consulta. O e-mail do link é sugestão editável quando o
+  campo está vazio e somente após validação bem-sucedida do código, nunca prova de identidade. A consulta pública retorna somente disponibilidade;
   não consome o convite nem comprova a identidade do destinatário. Alterar o código
-  invalida a confirmação anterior. Edge publicada em 09/10/2026; cadastro público e conclusão por convite usam
-  o mesmo componente de senha. Smoke de aceite real completo permanece pendente.
+  invalida a confirmação anterior. Edge publicada em 09/10/2026; cadastro e conclusão compartilham o componente de senha.
   [Contrato e validação local](../../operations/signup-invite-validation.md).
-
-- A entrada `/staff-invite` mantém a prova do link apenas em memória acima do
-  bootstrap para sobreviver à remontagem da tela após limpar a URL. Ao sair ou
-  concluir, descarta a prova; aceite continua explícito e validado no servidor.
+- A prova do link `/staff-invite` permanece apenas em memória acima dos gates de
+  bootstrap, sobrevivendo à remontagem da tela após limpar a URL. É descartada
+  ao concluir ou sair da rota; não implica aceite automático. Publicada na PR #100.
   [Correção e validação](../../operations/staff-invite-entry-fix.md).
-
 - A conta sem vínculo pode solicitar acesso em `/pending`; não recebe criação livre
   de instituição. A RPC legada de provisionamento está restrita no contrato SQL.
 - Atleta e familiar não são cargos da equipe; aprovação de acesso deve preservar
