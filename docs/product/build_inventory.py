@@ -331,7 +331,7 @@ code|Carregamento sem diagnóstico técnico|Tela inicial mostra indicador e Carr
 code|Indicador desde o HTML inicial|Carregando visível antes do JavaScript, com passagem para o BootstrapGate após montar e respeito a movimento reduzido.|app/+html.tsx
 code|Boas-vindas|Rota dedicada.|app/welcome.tsx
 code|Login|Entrada de autenticação.
-code|Cadastro|Tela e rota próprias.|src/screens/auth/SignupScreen.tsx
+code|Cadastro|Barra de senha animada com cor sólida uniforme por nível, sem rótulos de força, com ajuda clicável sobre comprimento e símbolos opcionais. Convite com tipografia de 15 px igual aos demais campos, aceita código ou link com inviteCode em campo único com verificação automática após 700 ms, check animado e balão compacto igual ao da senha, com borda de erro e sobreposição correta; descarte de resposta antiga e confirmação de e-mail preservada. Hover do atalho e dos controles de visibilidade destaca texto/ícone, sem fundo. Senha compartilhada também em Conclua seu cadastro. Release local aprovado com 571 suítes e 3.211 testes; Edge v2 ACTIVE publicada em 09/10/2026. Consulta real no navegador confirmada para convite já utilizado; cadastro e aceite completo ainda pendentes.|src/screens/auth/SignupScreen.tsx
 code|Verificar e-mail|Rota de verificação.|app/verify-email.tsx
 code|Recuperar senha|Rota com testes existentes.|app/reset-password.tsx
 code|Callback|Retorno de autenticação.|app/auth-callback.tsx

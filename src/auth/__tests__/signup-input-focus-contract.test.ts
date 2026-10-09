@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const signupSource = readFileSync(
-  resolve(__dirname, "../../screens/auth/SignupScreen.tsx"),
-  "utf8",
-);
+const signupSource = ["SignupScreen.tsx", "SignupInviteCode.tsx"]
+  .map((file) => readFileSync(resolve(__dirname, "../../screens/auth", file), "utf8"))
+  .join("\n");
 
 describe("signup input focus contract", () => {
   it("suppresses the inner web outline on every signup input", () => {

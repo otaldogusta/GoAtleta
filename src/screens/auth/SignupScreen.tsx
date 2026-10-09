@@ -23,14 +23,18 @@ import { markRender } from "../../observability/perf";
 import { useAuth } from "../../auth/auth";
 import {
   savePendingTrainerInvite,
+  clearPendingTrainerInvite,
 } from "../../auth/pending-invite";
-import { shadow } from "../../theme/tokens";
+import { semanticColors, shadow } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { ScreenBackdrop } from "../../components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Button } from "../../ui/Button";
 import type { StaffSignupFields } from "../../api/staff-invite";
+
+import { estimatePasswordStrength } from "../../auth/password-strength";
+import { SignupInviteCode } from "./SignupInviteCode";
 
 export type SignupCompletion = {
   email: string;
@@ -60,6 +64,7 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showPasswordHelp, setShowPasswordHelp] = useState(false);
   const [localBusy, setBusy] = useState(false);
   const busy = localBusy || Boolean(completion?.busy);
   const [localMessage, setMessage] = useState("");
@@ -67,6 +72,8 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   const submitting = useRef(false);
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
+  const [verifiedInviteCode, setVerifiedInviteCode] = useState("");
+  const inviteNeedsVerification = !completion && Boolean(inviteCode.trim()) && verifiedInviteCode !== inviteCode.trim().toUpperCase();
   const [strengthAnim] = useState(() => new Animated.Value(0));
   const [enterAnim] = useState(() => new Animated.Value(0));
   const [emailShakeAnim] = useState(() => new Animated.Value(0));
@@ -82,33 +89,9 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
     null
   );
 
-  const passwordChecks = useMemo(() => {
-    const value = password;
-    return {
-      length: value.length >= 6,
-      lower: /[a-z]/.test(value),
-      upper: /[A-Z]/.test(value),
-      number: /\d/.test(value),
-      symbol: /[^A-Za-z0-9]/.test(value),
-    };
-  }, [password]);
-
-  const strengthScore = useMemo(() => {
-    const count =
-      Number(passwordChecks.length) +
-      Number(passwordChecks.lower) +
-      Number(passwordChecks.upper) +
-      Number(passwordChecks.number) +
-      Number(passwordChecks.symbol);
-    return count / 5;
-  }, [passwordChecks]);
-
-  const strengthLabel = useMemo(() => {
-    if (!password) return "";
-    if (strengthScore <= 0.33) return "Fraca";
-    if (strengthScore <= 0.66) return "Média";
-    return "Forte";
-  }, [password, strengthScore]);
+  const { score: strengthScore } = useMemo(
+    () => estimatePasswordStrength(password), [password],
+  );
 
   const hasInviteCodeFromLink =
     typeof inviteCodeParam === "string" && inviteCodeParam.trim().length > 0;
@@ -133,11 +116,11 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
       const normalizedCode = inviteCodeParam.trim().toUpperCase();
       Promise.resolve().then(() => {
         setInviteCode(normalizedCode);
+        setVerifiedInviteCode("");
       });
       Promise.resolve().then(() => {
         setShowInviteCode(true);
       });
-      void savePendingTrainerInvite(normalizedCode);
     }
   }, [hasInviteCodeFromLink, inviteCodeParam, completion]);
 
@@ -179,7 +162,7 @@ useEffect(() => {
   }, [confirm, password]);
 
   const handleSignup = async () => {
-    if (busy || submitting.current) return;
+    if (busy || submitting.current || inviteNeedsVerification) return;
     const normalizedEmail = email.trim();
     if (!normalizedEmail) {
       setMessage("");
@@ -238,7 +221,10 @@ useEffect(() => {
     }
     setMessage("");
     setBusy(true);
+    submitting.current = true;
     try {
+      if (inviteCode.trim()) await savePendingTrainerInvite(inviteCode.trim());
+      else await clearPendingTrainerInvite();
       const session = await signUp(normalizedEmail, password, "login", "");
       let initialCodeDeliveryFailed = false;
       if (session) {
@@ -253,6 +239,7 @@ useEffect(() => {
         params: {
           email: normalizedEmail,
           delivery: initialCodeDeliveryFailed ? "failed" : undefined,
+          ...(inviteCode.trim() ? { inviteCode: inviteCode.trim() } : {}),
         },
       };
       if (inviteCode.trim()) {
@@ -290,15 +277,18 @@ useEffect(() => {
         setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
       }
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
 
   const handleGoogleSignup = async () => {
-    if (busy) return;
+    if (busy || inviteNeedsVerification) return;
     setMessage("");
     setBusy(true);
     try {
+      if (inviteCode.trim()) await savePendingTrainerInvite(inviteCode.trim());
+      else await clearPendingTrainerInvite();
       await signInWithOAuth("google", "signup");
     } catch (error) {
       const detail = error instanceof Error ? error.message.toLowerCase() : "falha ao autenticar.";
@@ -623,7 +613,8 @@ useEffect(() => {
                   />
                   <Pressable
                     accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    onPress={() => setShowPassword((prev) => !prev)}
+                    suppressWebHoverFeedback
+                      onPress={() => setShowPassword((prev) => !prev)}
                     disabled={password.length === 0}
                     style={{
                       width: 34,
@@ -635,11 +626,11 @@ useEffect(() => {
                       opacity: password.length > 0 ? 1 : 0,
                     }}
                   >
-                    <GoAtletaIcon
+                    {({ hovered }: any) => <GoAtletaIcon
                       name={showPassword ? "eyeOffSolid" : "viewSolid"}
                       size={18}
-                      color={colors.muted}
-                    />
+                      color={hovered ? colors.primaryBg : colors.muted}
+                    />}
                   </Pressable>
                 </View>
               </Animated.View>
@@ -745,6 +736,7 @@ useEffect(() => {
                     />
                     <Pressable
                       accessibilityLabel={showConfirm ? "Ocultar confirmação" : "Mostrar confirmação"}
+                      suppressWebHoverFeedback
                       onPress={() => setShowConfirm((prev) => !prev)}
                       disabled={confirm.length === 0}
                       style={{
@@ -757,18 +749,33 @@ useEffect(() => {
                         opacity: confirm.length > 0 ? 1 : 0,
                       }}
                     >
-                      <GoAtletaIcon
+                      {({ hovered }: any) => <GoAtletaIcon
                         name={showConfirm ? "eyeOffSolid" : "viewSolid"}
                         size={18}
-                        color={colors.muted}
-                      />
+                        color={hovered ? colors.primaryBg : colors.muted}
+                      />}
                     </Pressable>
                   </View>
                 </Animated.View>
               ) : null}
 
               { password.length > 0 ? (
-                <View style={{ gap: 8 }}>
+                <View style={{ gap: 8, position: "relative", zIndex: showPasswordHelp ? 60 : 1, overflow: "visible" }}>
+                  {showPasswordHelp ? (
+                    <View pointerEvents="none" style={{ position: "absolute", bottom: 36, right: 0,
+                      width: 280, maxWidth: "100%", zIndex: 60 }}>
+                      <View style={{ backgroundColor: colors.secondaryBg, borderColor: colors.border,
+                        borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+                        ...shadow.elevated }}>
+                        <Text accessibilityLiveRegion="polite" style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                          Use uma senha longa e evite repetições. Símbolos como @, # e ! podem ajudar, mas são opcionais.
+                        </Text>
+                      </View>
+                      <View style={{ alignSelf: "flex-end", marginRight: 8, width: 0, height: 0,
+                        borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 6,
+                        borderLeftColor: "transparent", borderRightColor: "transparent", borderTopColor: colors.secondaryBg }} />
+                    </View>
+                  ) : null}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <View style={{ flex: 1, flexDirection: "row", gap: 4 }}>
                       {[0, 1, 2].map((index) => {
@@ -780,56 +787,45 @@ useEffect(() => {
                           extrapolate: "clamp",
                         });
                         const segmentColor =
-                          index === 0
-                            ? colors.dangerSolidBg
-                            : index === 1
-                            ? colors.warningBg
-                            : colors.successBg;
+                          strengthScore <= 0.33
+                            ? semanticColors[mode].danger
+                            : strengthScore <= 0.66
+                            ? semanticColors[mode].warning
+                            : semanticColors[mode].success;
                         return (
                           <View
                             key={String(index)}
                             style={[styles.strengthSegment, { backgroundColor: colors.secondaryBg }]}
                           >
                             <Animated.View
+                              testID={`password-strength-fill-${index}`}
                               style={[styles.strengthFill, { width: fillWidth, backgroundColor: segmentColor }]}
                             />
                           </View>
                         );
                       })}
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>{strengthLabel}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Ajuda sobre a senha"
+                      accessibilityState={{ expanded: showPasswordHelp }} suppressWebHoverFeedback
+                      onPress={() => setShowPasswordHelp((visible) => !visible)}
+                      onBlur={() => setShowPasswordHelp(false)}
+                      {...(Platform.OS === "web" ? { onKeyDown: (event: any) => {
+                        if (event.key === "Escape") setShowPasswordHelp(false);
+                      } } as any : {})}
+                      style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+                      {({ hovered }: any) => <Text style={{ color: hovered ? colors.primaryBg : colors.muted,
+                        fontSize: 12, fontWeight: "600", width: 16, height: 16, lineHeight: 14,
+                        textAlign: "center", borderWidth: 1, borderRadius: 8,
+                        borderColor: hovered ? colors.primaryBg : colors.muted }}>?</Text>}
+                    </Pressable>
                   </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {[
-                      { key: "minúscula", ok: passwordChecks.lower },
-                      { key: "maiúscula", ok: passwordChecks.upper },
-                      { key: "número", ok: passwordChecks.number },
-                      { key: "símbolo", ok: passwordChecks.symbol },
-                    ].map((item) => (
-                      <View
-                        key={item.key}
-                        style={styles.passwordCriterion}
-                      >
-                        <GoAtletaIcon
-                          name={item.ok ? "checkmark" : "close"}
-                          size={12}
-                          color={item.ok ? colors.successBg : colors.dangerSolidBg}
-                        />
-                        <Text style={[styles.passwordHint, { color: colors.muted }]}>
-                          {item.key}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text style={[styles.passwordHint, { color: colors.muted }]}>
-                    Exemplo: @Senha1234_
-                  </Text>
                 </View>
               ) : null}
 
-              {!completion && !hasInviteCodeFromLink && !showInviteCode ? (
+              {!completion && !showInviteCode ? (
                 <Pressable
                   onPress={() => setShowInviteCode(true)}
+                  suppressWebHoverFeedback
                   style={{
                     alignSelf: "center",
                     flexDirection: "row",
@@ -838,70 +834,21 @@ useEffect(() => {
                     paddingVertical: 6,
                   }}
                 >
-                  <GoAtletaIcon name="key" size={14} color={colors.muted} />
-                  <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                    Possui um código de convite?
-                  </Text>
+                  {({ hovered }: any) => (
+                    <>
+                      <GoAtletaIcon name="key" size={14} color={hovered ? colors.primaryBg : colors.muted} />
+                      <Text style={{ color: hovered ? colors.primaryBg : colors.muted, fontWeight: "600",
+                        textDecorationLine: hovered ? "underline" : "none" }}>
+                        Possui um código de convite?
+                      </Text>
+                    </>
+                  )}
                 </Pressable>
-              ) : !completion && !hasInviteCodeFromLink ? (
-                <View style={{ gap: 6 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <GoAtletaIcon name="key" size={13} color={colors.muted} />
-                    <Text style={{ color: colors.muted, fontSize: 11, letterSpacing: 0.4 }}>
-                      Código de convite
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 14,
-                      backgroundColor: solidInputBg,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      minHeight: 48,
-                      gap: 8,
-                    }}
-                  >
-                    <TextInput
-                      placeholder="Digite o código recebido"
-                      value={inviteCode}
-                      onChangeText={setInviteCode}
-                      placeholderTextColor={colors.placeholder}
-                      autoCapitalize="characters"
-                      style={{
-                        flex: 1,
-                        padding: 0,
-                        color: colors.inputText,
-                        backgroundColor: "transparent",
-                        borderWidth: 0,
-                        fontSize: 13,
-                        borderRadius: 0,
-                        ...(Platform.OS === "web"
-                          ? ({ outlineStyle: "none" } as any)
-                          : {}),
-                      }}
-                    />
-                    {inviteCode.length > 0 ? (
-                      <Pressable onPress={() => setInviteCode("")} style={{ paddingLeft: 4 }}>
-                        <GoAtletaIcon name="closeCircle" size={16} color={colors.muted} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  <Pressable
-                    onPress={() => {
-                      setInviteCode("");
-                      setShowInviteCode(false);
-                    }}
-                    style={{ alignSelf: "flex-end", paddingVertical: 4 }}
-                  >
-                    <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
-                      Não tenho código
-                    </Text>
-                  </Pressable>
-                </View>
+              ) : !completion ? (
+                <SignupInviteCode code={inviteCode} disabled={busy}
+                  onChange={(value) => { setInviteCode(value); setVerifiedInviteCode(""); }}
+                  onVerified={setVerifiedInviteCode}
+                  onRemove={() => { setInviteCode(""); setVerifiedInviteCode(""); setShowInviteCode(false); }} />
               ) : null}
 
               { message ? (
@@ -944,7 +891,7 @@ useEffect(() => {
                 loadingLabel={completion ? "Concluindo..." : "Criando conta..."}
                 onPress={handleSignup}
                 disabled={
-                  busy ||
+                  busy || inviteNeedsVerification ||
                   Boolean(completion && password.length > 128) ||
                   !email.trim() ||
                   !hasValidEmailFormat(email) ||
@@ -972,7 +919,7 @@ useEffect(() => {
               <View style={{ alignItems: "center" }}>
                 <Pressable
                   onPress={handleGoogleSignup}
-                  disabled={busy}
+                  disabled={busy || inviteNeedsVerification}
                   style={{
                     width: 52,
                     height: 52,
@@ -982,6 +929,7 @@ useEffect(() => {
                     backgroundColor: colors.secondaryBg,
                     alignItems: "center",
                     justifyContent: "center",
+                    opacity: busy || inviteNeedsVerification ? 0.55 : 1,
                   }}
                 >
                   <GoAtletaIcon name="google" size={20} color={colors.text} />
@@ -1032,6 +980,4 @@ useEffect(() => {
 const styles = StyleSheet.create({
   strengthFill: { height: "100%" },
   strengthSegment: { flex: 1, height: 4, borderRadius: 999, overflow: "hidden" },
-  passwordCriterion: { flexDirection: "row", alignItems: "center", gap: 6 },
-  passwordHint: { fontSize: 12 },
 });

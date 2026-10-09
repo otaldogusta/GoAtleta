@@ -22,6 +22,9 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 
 ## Contratos a preservar
 
+- Antes de criar um estado visual, reutilizar o equivalente aprovado e comparar
+  a renderização. Erros de autenticação seguem o balão da confirmação de senha;
+  ver [paridade entre campos](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
 - Marca pública **Go Atleta**, tema e primitives existentes. Selecionar tokens
   antes de criar medidas/cores independentes ou trocar bibliotecas.
 - Autenticação: bloco central de até 440 px; campo com altura 50, raio 12 e
