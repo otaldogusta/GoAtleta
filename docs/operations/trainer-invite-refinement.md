@@ -71,3 +71,18 @@ Após autorização do usuário para prosseguir com a publicação:
   Nenhum convite real foi enviado nesta tarefa.
 
 Referência de segurança de funções: [documentação Supabase](https://supabase.com/docs/guides/database/functions).
+
+## Complemento de QA Android em 08/10
+
+Teclado virtual Samsung no Galaxy S25 físico, seleção de turma
+e geração de link passaram com coordenação e backend local. O primeiro Voltar com
+teclado aberto pediu descarte; aceite/OTP seguem pendentes. Outros quatro logins
+foram exercitados, com falha de persistência no perfil do aluno.
+[Relatório de acessos e limitações](android-role-invite-qa-2026-10-08.md).
+
+Revalidação local: primeiro Voltar agora fecha somente o teclado; segundo Voltar
+solicita descarte, preservando o rascunho. Removidas instruções repetidas do convite
+e mantidas informações de permissão sensíveis. Perfil do aluno passou a persistir
+via RPC restrita, com retorno ao início após recarga. Últimos textos ainda sem
+conferência visual nativa por falha do Metro; aceite novo/OTP continuam fora desta
+evidência. Correções desta rodada e nova migration ainda não publicadas.

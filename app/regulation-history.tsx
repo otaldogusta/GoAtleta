@@ -1,3 +1,5 @@
+import { AppRefreshControl } from "../src/ui/AppRefreshControl";
+import { useScreenRefresh } from "../src/ui/useScreenRefresh";
 import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Switch, Text, TextInput, View } from "react-native";
@@ -257,6 +259,8 @@ export default function RegulationHistoryScreen() {
       setLoading(false);
     }
   }, [activeOrganizationId, isAdmin]);
+
+  const screenRefresh = useScreenRefresh(loadData);
 
   useFocusEffect(
     useCallback(() => {
@@ -621,6 +625,7 @@ export default function RegulationHistoryScreen() {
         ) : null}
       />
       <ScrollView
+        refreshControl={<AppRefreshControl {...screenRefresh} />}
         contentContainerStyle={{
           width: "100%",
           paddingTop: 2,

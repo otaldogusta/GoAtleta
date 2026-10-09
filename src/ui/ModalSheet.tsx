@@ -1,7 +1,7 @@
 import { createWebPortal } from "./web-portal";
 import { useEffect, useLayoutEffect, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable as RawPressable, View } from "react-native";
+import { Animated, Easing, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
@@ -293,7 +293,13 @@ export function ModalSheet({
       visible={visible || isMounted}
       animationType="fade"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (avoidKeyboard && Keyboard.isVisible()) {
+          Keyboard.dismiss();
+          return;
+        }
+        onClose();
+      }}
       statusBarTranslucent
       presentationStyle={Platform.OS === "ios" ? "overFullScreen" : undefined}
       hardwareAccelerated={Platform.OS === "android"}

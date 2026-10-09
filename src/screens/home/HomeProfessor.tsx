@@ -170,6 +170,7 @@ export function HomeProfessorScreen({
     activeOrganization,
     isLoading: organizationLoading,
     memberPermissions,
+    refreshMemberPermissions,
   } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const canRenderCoordinationDashboard = isOrgAdmin || effectiveProfile === "admin";
@@ -1365,6 +1366,7 @@ export function HomeProfessorScreen({
   const refreshHomeData = async () => {
 
     const tasks: Promise<unknown>[] = [
+      refreshMemberPermissions(),
       loadInbox(),
       holidayCalendar.refresh(),
     ];

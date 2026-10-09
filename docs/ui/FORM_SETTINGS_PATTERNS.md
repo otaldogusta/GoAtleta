@@ -182,3 +182,13 @@ lint sem erros/avisos, tipos, encoding, marca, JWT, escopo, assets, arquitetura,
 performance e export web. Depois disso, somente este registro documental e o
 checklist receberam o resultado; geração e diff foram conferidos novamente.
 O CI valida o commit publicado de forma independente.
+
+### Mensagens mínimas e Android — 08/10/2026
+
+Evitar toast rotineiro de sucesso quando a barra de salvar já desaparece após
+persistir. Não repetir instruções em subtítulo, aviso e descrição do campo.
+Manter erros acionáveis, confirmações de descarte e informações de permissões
+sensíveis; distintivo de telefone verificado somente quando efetivamente verificado.
+No perfil nativo, a margem inferior da barra é 12px sem duplicar o espaço das abas.
+Em `ModalSheet` com `avoidKeyboard`, Voltar fecha primeiro o teclado e depois segue
+a guarda de saída. O balão de chat permanece arrastável, sem mudança nesta rodada.

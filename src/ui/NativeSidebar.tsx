@@ -571,7 +571,8 @@ export function NativeSidebar({
                   >
                     {isPlatformWorkspace
                       ? "Administrador SaaS"
-                      : roleProfileLabel[role]}
+                      : role === "prof" && activeOrganization?.role_level === 5
+                        ? "Estagiário" : roleProfileLabel[role]}
                   </Text>
                 </View>
                 <GoAtletaIcon

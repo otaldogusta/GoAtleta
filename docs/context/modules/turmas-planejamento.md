@@ -75,3 +75,10 @@ Testes localizados, para executar conforme a mudança:
 Na edição funcional, classificar pela [escada de validação](../../../docs/operations/validation-ladder.md);
 dados/rotas exigem org-scope e smoke autenticado do fluxo afetado. Neste levantamento
 foram inspecionados código, fontes e caminhos; testes do app e backend não foram executados.
+
+## Atualização por gesto
+
+Planejamento e Periodização usam `AppRefreshControl` e feedback global. O primeiro
+reconsulta planos e turmas, preserva a biblioteca local e bloqueia o gesto quando
+há rascunho pendente. Periodização reconsulta turmas, planos e resumos de sessões.
+Validação local registrada no relatório Android de 08/10/2026.

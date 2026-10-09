@@ -2400,9 +2400,6 @@ export function CoordinationPeopleWorkspace({
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: border, flexDirection: "row" }}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>Convidar pessoa</Text>
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>
-              Defina as turmas e o acesso que serão liberados no aceite.
-            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -2421,10 +2418,7 @@ export function CoordinationPeopleWorkspace({
                   style={{ gap: 7, transform: [{ translateX: inviteEmailShakeAnim }] }}
                 >
                   <View style={{ gap: 2 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>E-mail</Text>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      Obrigatório somente para enviar o convite por e-mail.
-                    </Text>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>E-mail (opcional para gerar link)</Text>
                   </View>
                   {inviteEmailError ? (
                     <View accessibilityRole="alert" pointerEvents="none" style={{ position: "absolute", top: -38, zIndex: 20 }}>
@@ -2508,21 +2502,22 @@ export function CoordinationPeopleWorkspace({
               ) : null}
               {inviteRole === "professor" || inviteRole === "intern" ? (
                 <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Professor já cadastrado</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Vincule um nome existente para manter suas turmas e histórico.</Text>
                   {inviteProfilesError ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>Não foi possível consultar os professores. Feche e reabra o convite para tentar novamente.</Text> : null}
+                  {inviteProfiles.length ? <>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Professor já cadastrado</Text>
                   <Pressable accessibilityRole="radio" accessibilityState={{ checked: !inviteStaffProfileId }} onPress={() => { setInviteStaffProfileId(null); clearInviteOutcome(); }} style={{ minHeight: 44, justifyContent: "center" }}>
                     <Text style={{ color: !inviteStaffProfileId ? colors.primaryBg : colors.text }}>Adicionar nova pessoa</Text>
                   </Pressable>
                   {inviteProfiles.map((profile) => <Pressable key={profile.staffProfileId} accessibilityRole="radio" accessibilityState={{ checked: inviteStaffProfileId === profile.staffProfileId }} onPress={() => { setInviteStaffProfileId(profile.staffProfileId ?? null); clearInviteOutcome(); }} style={{ minHeight: 44, justifyContent: "center" }}>
                     <Text style={{ color: inviteStaffProfileId === profile.staffProfileId ? colors.primaryBg : colors.text }}>{profile.displayName}</Text>
                   </Pressable>)}
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas adicionais</Text>
+                  </> : null}
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{inviteStaffProfileId ? "Turmas adicionais" : "Turmas"}</Text>
                   {organizationClasses.length ? organizationClasses.map((item) => <Pressable key={item.id} accessibilityRole="checkbox" accessibilityLabel={`Vincular turma ${item.name}`} accessibilityState={{ checked: inviteClassIds.includes(item.id) }} onPress={() => { setInviteClassIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id]); clearInviteOutcome(); }} style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <GoAtletaIcon name={inviteClassIds.includes(item.id) ? "checkmarkCircle" : "add"} size={18} color={colors.text} />
                     <Text style={{ color: colors.text, flex: 1 }}>{item.name} · {item.unit}</Text>
                   </Pressable>) : <Text style={{ color: colors.muted }}>Nenhuma turma cadastrada.</Text>}
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>O vínculo existente será mantido. Novas turmas entram como auxiliar, sem substituir o responsável.</Text>
+                  {inviteClassIds.length || inviteStaffProfileId ? <Text style={{ color: colors.muted, fontSize: 12 }}>{inviteStaffProfileId ? "Turmas e histórico existentes serão mantidos. " : ""}{inviteClassIds.length ? inviteRole === "intern" ? "Entrará nas turmas como estagiário." : "Entrará nas novas turmas como auxiliar." : ""}</Text> : null}
                 </View>
               ) : null}
               <View style={{ gap: 7 }}>
@@ -2572,7 +2567,7 @@ export function CoordinationPeopleWorkspace({
                 gap: 14,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Acesso que será concedido</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Permissões</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <GoAtletaIcon name="circle" size={8} color={colors.successText} />
                 <Text style={{ color: colors.text }}>
@@ -2585,13 +2580,13 @@ export function CoordinationPeopleWorkspace({
                         : "Professor"}
                 </Text>
               </View>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {inviteRole === "moderator" || inviteRole === "student" ? <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {inviteRole === "moderator"
                   ? "Acesso administrativo completo à organização."
                   : inviteRole === "student"
                     ? "Selecione o aluno cadastrado para gerar um convite vinculado à matrícula correta."
-                    : "Escolha abaixo exatamente quais áreas ficarão disponíveis após o aceite."}
-              </Text>
+                    : null}
+              </Text> : null}
               {inviteRole === "student" ? (
                 <Pressable
                   onPress={() => {
@@ -2633,6 +2628,10 @@ export function CoordinationPeopleWorkspace({
                       return (
                         <Pressable
                           key={option.key}
+                          accessibilityRole="checkbox"
+                          accessibilityLabel={option.label}
+                          accessibilityHint={option.description}
+                          accessibilityState={{ checked }}
                           onPress={() => {
                             clearInviteOutcome();
                             setInvitePermissionKeys((current) =>
@@ -2659,9 +2658,9 @@ export function CoordinationPeopleWorkspace({
                             <Text style={{ color: colors.text, fontWeight: "700" }}>
                               {option.label}
                             </Text>
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            {option.key === "financial" ? <Text style={{ color: colors.muted, fontSize: 11 }}>
                               {option.description}
-                            </Text>
+                            </Text> : null}
                           </View>
                         </Pressable>
                       );

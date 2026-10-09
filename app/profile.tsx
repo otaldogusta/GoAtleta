@@ -81,7 +81,7 @@ import {
   resolveProfileDisplayName,
 } from "../src/core/profile-name";
 import { getClasses } from "../src/db/seed";
-import { updateStudent } from "../src/db/students";
+import { saveMyStudentProfile } from "../src/api/student-self-profile";
 import { setMyStudentPhoto } from "../src/api/student-self-photo";
 import { useStudentProfilePhoto } from "../src/hooks/use-student-profile-photo";
 import {
@@ -308,7 +308,7 @@ function MobileProfileSection({
 }: {
   icon: Parameters<typeof GoAtletaIcon>[0]["name"];
   title: string;
-  subtitle: string;
+  subtitle?: string;
   expanded: boolean;
   onPress: () => void;
   children: ReactNode;
@@ -389,7 +389,7 @@ function MobileProfileSection({
         </View>
         <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>{title}</Text>
-          <Text style={{ color: colors.muted, fontSize: 11.5 }} numberOfLines={1}>{subtitle}</Text>
+          {subtitle ? <Text style={{ color: colors.muted, fontSize: 11.5 }} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
         <GoAtletaIcon name={expanded ? "chevronUp" : "chevronForward"} size={18} color={colors.text} />
       </Pressable>
@@ -590,6 +590,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   const { edit, section } = useLocalSearchParams<{ edit?: string; section?: string }>();
   const allowProfileNavigation = useRef(false);
   const [staffClassIds, setStaffClassIds] = useState<string[]>([]);
+  const staffClassesScopeRef = useRef("");
   const [staffClassesLoading, setStaffClassesLoading] = useState(true);
   const [staffClassesError, setStaffClassesError] = useState(false);
   const pendingNavigationHandler = useRef<((navigate: () => void) => void) | null>(null);
@@ -828,7 +829,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     const userId = session?.user.id;
     Promise.resolve().then(async () => {
       if (!alive) return;
-      setStaffClassIds([]);
+      const scope = staffProfile && organizationId && userId ? `${organizationId}:${userId}` : "";
+      if (staffClassesScopeRef.current !== scope || !scope) setStaffClassIds([]);
+      staffClassesScopeRef.current = scope;
       setStaffClassesError(false);
       setStaffClassesLoading(true);
       if (!staffProfile || !organizationId || !userId || loadingClasses) return;
@@ -836,7 +839,10 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         const rows = await listClassStaffByClassIds({ organizationId, classIds: classes.map(item => item.id) });
         if (alive) setStaffClassIds(rows.filter(item => item.userId === userId).map(item => item.classId));
       } catch {
-        if (alive) setStaffClassesError(true);
+        if (alive) {
+          setStaffClassIds([]);
+          setStaffClassesError(true);
+        }
       } finally {
         if (alive) setStaffClassesLoading(false);
       }
@@ -1437,7 +1443,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     if (selectedProfilePreview === "professor") {
       return {
         icon: "school-outline",
-        label: "Professor",
+        label: activeOrganization?.role_level === 5 ? "Estagiário" : "Professor",
         subtitle: null,
       };
     }
@@ -1453,7 +1459,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       label: currentClass?.name || "Sem turma",
       subtitle: currentClass?.unit || "Sem unidade",
     };
-  }, [currentClass, selectedProfilePreview]);
+  }, [activeOrganization?.role_level, currentClass, selectedProfilePreview]);
 
   const accountSecurity = useMemo(() => {
     const confirmedAt =
@@ -2129,7 +2135,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     setSavingMobileProfile(true);
     try {
       if (student && birthDate) {
-        await updateStudent({
+        await saveMyStudentProfile({
           ...student,
           name: normalizedName,
           birthDate,
@@ -2220,7 +2226,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     try {
       await verifyPhoneChange(pendingPhoneVerification, phoneVerificationCode);
       if (student && birthDate) {
-        await updateStudent({
+        await saveMyStudentProfile({
           ...student,
           name: mobileNameDraft.trim(),
           birthDate,
@@ -2283,7 +2289,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         setRemovingPhone(true);
         try {
           await removeVerifiedPhone();
-          if (student) await updateStudent({ ...student, phone: "" });
+          if (student) await saveMyStudentProfile({ ...student, phone: "" });
           await refreshRole();
           setMobilePhoneDraft("");
           setMobileProfileBaseline((current) => ({ ...current, phone: "" }));
@@ -2312,7 +2318,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         medicationNotes: mobileMedicationUseDraft ? mobileMedicationNotesDraft.trim() : "",
         healthObservations: mobileHealthObservationsDraft.trim(),
       };
-      await updateStudent({
+      await saveMyStudentProfile({
         ...student,
         positionPrimary: nextValues.position,
         positionSecondary: nextValues.secondaryPosition,
@@ -2584,7 +2590,6 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 icon="personSolid"
                 title="Dados pessoais"
                 pendingMessage={pendingNoticeFor("personal")}
-                subtitle="Seus dados básicos de identificação"
                 expanded={mobileExpandedSection === "personal"}
                 onPress={() => toggleMobileSection("personal")}
               >
@@ -2813,18 +2818,18 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                       </View>
                     </View>
                   ) : null}
-                  <View style={{ minHeight: 28, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  {isDisplayedPhoneVerified ? <View style={{ minHeight: 28, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
                       <GoAtletaIcon
-                        name={isDisplayedPhoneVerified ? "checkmarkCircle" : "warningCircle"}
+                        name="checkmarkCircle"
                         size={15}
-                        color={isDisplayedPhoneVerified ? colors.primaryBg : colors.muted}
+                        color={colors.primaryBg}
                       />
                       <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
-                        {isDisplayedPhoneVerified ? "Número verificado" : "Contato informado pelo usuário"}
+                        Número verificado
                       </Text>
                     </View>
-                  </View>
+                  </View> : null}
                 </View>
                   <View style={{ gap: 10 }}>
                     {[
@@ -3574,7 +3579,6 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
             <MobileProfileSection
               icon="personSolid"
               title="Dados pessoais"
-              subtitle="Identificação e contato"
               expanded={professionalExpandedSection === "personal"}
               pendingMessage={pendingNoticeFor("personal")}
               onPress={() => setProfessionalExpandedSection((current) => current === "personal" ? null : "personal")}
@@ -4215,7 +4219,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       </ProfileSettingsBody>
   );
   const profileSaveBar = (<FloatingSaveBar
-        bottom={responsiveLayout.isMobile ? insets.bottom + 104 : 18}
+        bottom={Platform.OS !== "web" ? 12 : responsiveLayout.isMobile ? insets.bottom + 104 : 18}
         visible={Boolean(
             isStudentMobileProfile
               ? (mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)
@@ -4231,7 +4235,6 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           if ((mobileProfileHasChanges || (isStudentMobileProfile && mobileSportsHasChanges)) && !(await saveMobileStudentProfile())) return;
           if (isStudentMobileProfile && athleteModalities.dirty && !(await athleteModalities.save())) return;
           setPendingProfileNotice(null);
-          showSaveToast({ message: "Alterações salvas.", variant: "success" });
         }}
         disabled={savingMobileProfile || athleteModalities.saving || (athleteModalities.dirty && athleteModalities.loading) || (mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors)}
         loading={savingMobileProfile || athleteModalities.saving}

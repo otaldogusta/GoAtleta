@@ -48,6 +48,16 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 
 ## Decisões e fontes
 
+- Android usa `RefreshControl` nativo para gesto e indicador, mesmo com provider
+  global, sem captura manual ou overlay duplicado; mantém a guarda de alterações.
+
+- `ModalSheet` com `avoidKeyboard` fecha primeiro o teclado no Voltar nativo;
+  uma nova tentativa segue a guarda de alterações. Perfil usa barra de salvar
+  com margem nativa de 12px, sem somar novamente a altura das abas.
+- Mensagens de perfil/convite seguem o mínimo necessário: sem toast de sucesso
+  rotineiro ou explicações repetidas; erros acionáveis e permissões sensíveis
+  permanecem. Ver [padrão de formulários](../../ui/FORM_SETTINGS_PATTERNS.md).
+
 [Índice UI](../../ui/README.md) é a fonte visual existente: abra somente o guia
 de tokens, componentes, formulário ou responsividade afetado. Home do professor
 é referência de densidade. [Auditoria de densidade](../../ui/DENSITY_AUDIT.md) e
@@ -64,3 +74,21 @@ Testes existentes, não executados nesta rodada:
 Microcopy/estilo: diff e uma interação/viewport no `localhost:8081`, sem build
 amplo. Mudança de foco, estado ou primitive: testes focados, tipos e smoke do
 comportamento. Medir performance antes/depois quando esse for o objetivo.
+
+- `AppRefreshControl` publica o estado de busca no `RefreshFeedbackProvider`.
+  O provider anima a opacidade do conteúdo existente (120ms entrada/220ms saída),
+  com driver nativo e reduced motion, sem overlay nem segunda composição da tela.
+- Durante o puxar, o indicador nativo usa `colors.card` e `tintColor`/`colors.text`.
+  O indicador circular pertence apenas ao controle nativo; o provider exibe
+  somente transição de opacidade, sem shimmer sobreposto ou segundo spinner.
+- `useScreenRefresh` controla concorrência, erro e término da busca nas telas sem
+  estado próprio. Rascunhos não são descartados; Planejamento bloqueia o gesto
+  quando há alterações pendentes. Nunca reiniciar o bundle para atualizar dados.
+
+- Revisão posterior: feedback visual global desativado após relato de duplicação
+  persistente. Provider não insere View, overlay nem opacidade sobre a navegação;
+  feedback fica no RefreshControl nativo. Causa visual ainda sem reprodução estável.
+
+- Feedback atual: barra de atividade de 3px no topo, sem bloquear interação
+  nem mudar opacidade/layout do conteúdo. Aparece durante busca e esmaece em
+  420ms ao terminar, sem atrasar dados. Respeita reduced motion.
