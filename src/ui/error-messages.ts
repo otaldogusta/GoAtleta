@@ -132,6 +132,10 @@ export const getFriendlyErrorMessage = (
     return "Envio de SMS ainda não configurado.";
   }
 
+  if (comparable.includes("expired or is invalid") || comparable.includes("expired or invalid")) {
+    return "Código inválido ou expirado. Confira ou solicite um novo.";
+  }
+
   if (
     comparable.includes("otp_expired")
     || comparable.includes("token has expired")

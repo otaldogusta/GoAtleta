@@ -73,8 +73,8 @@ verify|Destinatário e abertura externa|Conferir telefone inválido, ausência d
 """)
 add('Turmas · editor e equipe', '/classes', 'docs/operations/handoff.md', """
 code|Confirmar plano sem periodização|Montar plano pede escolha antes de gerar e salvar quando não há semana para a data: plano básico ou configurar periodização. Fechar não gera plano.|src/screens/classes/application/confirm-plan-without-periodization.ts
-code|Listagem de turmas|Entradas por papel reutilizam a base.|app/classes/index.tsx
-code|Workspace da turma|Entrada principal do detalhe.|app/class/[id].tsx
+code|Listagem de turmas|Entradas por papel reutilizam a base. Lista vazia preservada também em desenvolvimento, sem turmas fictícias ou responsável inferido da sessão.|app/classes/index.tsx
+code|Workspace da turma|Entrada principal do detalhe. Menu flutuante compacto existe somente na tela com foco; telas retidas na navegação não mantêm portais duplicados.|app/class/[id].tsx
 code|Alunos da turma|Rota de elenco.|app/class/[id]/students.tsx
 code|Planejamento e periodização|Rotas com contexto da turma.|app/class/[id]/periodization.tsx
 code|Sessão e histórico|Rotas específicas.|app/class/[id]/log.tsx
@@ -331,21 +331,21 @@ code|Carregamento sem diagnóstico técnico|Tela inicial mostra indicador e Carr
 code|Indicador desde o HTML inicial|Carregando visível antes do JavaScript, com passagem para o BootstrapGate após montar e respeito a movimento reduzido.|app/+html.tsx
 code|Boas-vindas|Rota dedicada.|app/welcome.tsx
 code|Login|Entrada de autenticação.
-code|Cadastro|Tela e rota próprias.|src/screens/auth/SignupScreen.tsx
+code|Cadastro|Barra de senha animada com cor sólida uniforme por nível, sem rótulos de força, com ajuda clicável sobre comprimento e símbolos opcionais. Convite com tipografia de 15 px igual aos demais campos, aceita código ou link com inviteCode e staff-invite#code (parser local; e-mail do link sugerido somente após validação bem-sucedida, no campo vazio e editável, sem token na consulta) em campo único com verificação automática após 700 ms, check animado, código validado esmaecido e sem edição até remoção pelo ×, e balão compacto igual ao da senha, com borda de erro e sobreposição correta; descarte de resposta antiga e confirmação de e-mail preservada. Hover do atalho e dos controles de visibilidade destaca texto/ícone, sem fundo. Link completo de equipe preserva prova somente em memória e conclui conta pendente sem novo signUp; sessão já confirmada retoma setup sem reutilizar magic link; erro definitivo de aceite remove check, bloqueia nova submissão e usa balão do campo, sem revalidação automática que apague a falha; link discreto Solicitar novo código reenvia OTP para o destinatário quando a prova de acesso expira, sem renovar convite institucional; conta existente não tem senha alterada. Ajustes locais; Edge v2 ACTIVE publicada em 09/10/2026. Consulta real no navegador confirmada para convite já utilizado; cadastro e aceite completo ainda pendentes.|src/screens/auth/SignupScreen.tsx
 code|Verificar e-mail|Rota de verificação.|app/verify-email.tsx
 code|Recuperar senha|Rota com testes existentes.|app/reset-password.tsx
 code|Callback|Retorno de autenticação.|app/auth-callback.tsx
 code|Onboarding|Entrada específica.|app/onboarding.tsx
 code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
 code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
-code|Convite de equipe|Entrada própria.|app/staff-invite.tsx
+code|Convite de equipe|Prova do link preservada em memória acima do bootstrap para sobreviver à remontagem da tela após limpar a URL. Descarte ao sair ou concluir; sem aceite automático. Estado indisponível simplificado localmente: título, orientação curta e seta para o início, sem ações de aceite ou troca de conta após recusa definitiva; sessão preservada. Publicação deste ajuste e smoke autenticado real pendentes.|app/staff-invite.tsx
 code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.
 """)
 add('Confirmação de contatos', '/student/profile', 'docs/operations/security-contact-verification.md', """
 recorded|E-mail alternativo confirmado|Documento registra recebimento e confirmação em 13/09 sem mudar login.
 recorded|Proteções do desafio|Validade, tentativas, rate limit e consumo transacional.
-recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial.|docs/operations/whatsapp-auth-prototype.md
+recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial. Correção local da remoção: consulta canônica de identidades e confirmação pós-DELETE; falhas não anunciam sucesso. Sem alterar vínculos reais.|docs/operations/whatsapp-auth-prototype.md
 recorded|Hooks WhatsApp configurados|Registro de 25/09; estado remoto atual não verificado.|docs/operations/whatsapp-auth-prototype.md
 pending|OTP WhatsApp ponta a ponta|Receber, confirmar, rejeitar expirado/incorreto e reenviar em telefone controlado.|docs/operations/whatsapp-auth-prototype.md
 pending|Revisão Meta e Embedded Signup|Documento registra revisão em andamento e conclusão no servidor ainda necessária.|docs/operations/whatsapp-auth-prototype.md
@@ -392,7 +392,7 @@ code|Recomendação de feriado|Hook e componente próprios.|src/screens/home/use
 verify|Data, vazio e contexto de turma|Conferir dia sem aula, aula atual e navegação no localhost.
 """)
 add('Perfil, preferências e regulamentação', '/profile', 'app/profile.tsx', """
-code|Perfil geral|Aluno, professor e coordenação usam Configurações abaixo da mesma capa e abas; Editar perfil ativa Dados pessoais. Rascunho preservado entre abas e protegido ao sair ou trocar workspace. Cabeçalho reúne seletores autorizados de perfil e organização. Texto redundante de obrigatoriedade removido. Links /student/profile/settings, /prof/profile/settings e /coord/profile/settings mantêm compatibilidade. Release local: build:verified em 186s, 566 suítes/3.173 testes, 9 suítes SQL isoladas e todos os checks; smoke autenticado de coordenação e professor, rascunho temporário revertido, menu de workspace e entrada antiga de configurações. Professor conferido em 390 px sem overflow horizontal. Sem envio de dados pessoais/senha. Fechamento autorizado para main pelo PR #98; aceite das filas não certifica produção ou OTA aplicado.|app/profile.tsx
+code|Perfil geral|Celular confirmado e DDI (bandeira, prefixo e seta) bloqueados e esmaecidos; remoção explícita mantém confirmação existente. Confirmação do celular com seis casas no padrão do e-mail e envio automático ao completar, protegida contra duplicação; erro ambíguo preserva inválido ou expirado. Modal compacto compartilhado, com reenvio temporizado e reabertura sem novo envio; fechar preserva rascunho. Implementação local. Campo de celular sem instrução fixa de confirmação; status verificado preservado. Nome do próprio perfil editável inline no cabeçalho, sincronizado com o rascunho; Enter encerra edição, Escape restaura e Salvar alterações persiste. Campos pessoais opcionais; validação somente de conteúdo preenchido. Data de nascimento opcional na RPC aplicada no Supabase em 09/10/2026; definição e grants conferidos, sem salvar dados pessoais reais. Frontend local. Nome vazio preserva identidade atual. Cards web expandem diretamente, sem animação em JavaScript e commit adicional; conteúdo dos cards fechados é adiado, com rascunho mantido no perfil e animação nativa preservada. Medição local de 5 ciclos: mediana de script 144 para 122 ms após adiar conteúdo; não é benchmark de produção. Ação flutuante de salvar sem caixa externa, somente botão com sombra leve. Aluno, professor e coordenação usam Configurações abaixo da mesma capa e abas; Editar perfil ativa Dados pessoais. Rascunho preservado entre abas e protegido ao sair ou trocar workspace. Cabeçalho reúne seletores autorizados de perfil e organização. Texto redundante de obrigatoriedade removido. Links /student/profile/settings, /prof/profile/settings e /coord/profile/settings mantêm compatibilidade. Release local: build:verified em 186s, 566 suítes/3.173 testes, 9 suítes SQL isoladas e todos os checks; smoke autenticado de coordenação e professor, rascunho temporário revertido, menu de workspace e entrada antiga de configurações. Professor conferido em 390 px sem overflow horizontal. Sem envio de dados pessoais/senha. Fechamento autorizado para main pelo PR #98; aceite das filas não certifica produção ou OTA aplicado.|app/profile.tsx
 code|Perfil por papel|Entradas de professor, coordenação, atleta e família.|app/prof/profile/index.tsx
 code|Configuração de WhatsApp|Rota de retorno/configuração; conclusão do Embedded Signup depende do servidor.|app/whatsapp-settings.tsx
 code|Fontes regulamentares|Rota para fontes.|app/regulation-sources.tsx
@@ -406,7 +406,7 @@ add('Interface compartilhada · padrões', 'Transversal', 'docs/ui/DENSITY_AUDIT
 code|Cabeçalho e shell de telas|Primitives comuns de apresentação.|src/components/ui/ScreenPageHeader.tsx
 code|Modais compartilhados|ModalSheet como primitive.|src/ui/ModalSheet.tsx
 code|Dropdowns e overlays|AnchoredDropdown e camadas de overlay.|src/ui/AnchoredDropdown.tsx
-code|Feedback de formulário|Contrato visual compartilhado.|src/ui/form-validation-feedback.tsx
+code|Feedback de formulário|Contrato visual e paridade com referência existente documentados em FORM_SETTINGS_PATTERNS.md, AGENTS.md e skill de design system; comparar estados renderizados antes de concluir. Não certifica uniformidade de todas as telas.|src/ui/form-validation-feedback.tsx
 recorded|Auditoria de densidade|Documento de revisão local de compactação e contexto.
 verify|Paridade e acessibilidade|Tema claro/escuro, foco, teclado e mobile exigem conferência no fluxo afetado.
 """)

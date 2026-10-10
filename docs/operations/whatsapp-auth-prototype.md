@@ -92,3 +92,12 @@ Confirme a versão da Graph API exibida no painel Meta antes do teste; ela é co
 - aprovação e eventuais exigências da análise Meta acompanhadas até a conclusão.
 
 Não use Baileys, sessão por QR Code ou WhatsApp Web como fallback deste fluxo.
+
+## Correção local da desvinculação — 09/10/2026
+
+Identidades são consultadas em `GET /auth/v1/user`. Falha de consulta não
+é ausência de vínculo. Após DELETE, a sessão só é atualizada se a releitura
+confirmar ausência de telefone e identidade phone, preservando outro método
+de acesso. Vinte testes isolados passaram; nenhuma remoção real ou envio
+de OTP foi executado nesta validação. Vínculos antigos não são reparados
+automaticamente e exigem nova remoção autenticada pela conta titular.

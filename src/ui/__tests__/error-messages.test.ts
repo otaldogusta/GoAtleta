@@ -15,7 +15,7 @@ describe("error-messages", () => {
   });
 
   it.each([
-    ["Token has expired or is invalid", "O código expirou. Solicite um novo."],
+    ["Token has expired or is invalid", "Código inválido ou expirado. Confira ou solicite um novo."],
     ['{"error_code":"otp_expired","msg":"OTP expired"}', "O código expirou. Solicite um novo."],
     ['{"error_code":"otp_disabled","msg":"Invalid OTP"}', "Código inválido. Confira e tente novamente."],
     ['{"error_code":"over_sms_send_rate_limit","msg":"Too many requests"}', "Aguarde um minuto antes de solicitar outro código."],

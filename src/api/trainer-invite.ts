@@ -29,6 +29,31 @@ export type TrainerInviteItem = {
 
 const base = SUPABASE_URL.replace(/\/$/, "");
 
+export async function validateTrainerInvite(code: string): Promise<void> {
+  const normalized = code.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{4,128}$/.test(normalized)) throw new Error("Código inválido. Confira o convite recebido.");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(base + "/functions/v1/validate-trainer-invite", {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ code: normalized }),
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.status === 400 && payload?.code === "INVITE_INVALID") {
+      throw new Error("Convite inválido, expirado ou já utilizado.");
+    }
+    if (!response.ok || payload?.status !== "valid") throw new Error("unavailable");
+  } catch (error) {
+    if (error instanceof Error && error.message === "Convite inválido, expirado ou já utilizado.") throw error;
+    throw new Error("Não foi possível verificar. Tente novamente.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 type AuthOverride = {
   accessToken?: string;
   refreshToken?: string;

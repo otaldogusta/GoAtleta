@@ -3,6 +3,9 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import StaffInviteScreen from "../../../../app/staff-invite";
 import SignupScreen from "../SignupScreen";
+import { StaffInviteEntryProvider } from "../../../auth/staff-invite-entry";
+import { StaffInviteUnavailableError } from "../../../api/staff-invite";
+const entry = (key = "initial") => React.createElement(StaffInviteEntryProvider, null, React.createElement(StaffInviteScreen, { key }));
 
 const mockAccept = jest.fn();
 const mockComplete = jest.fn();
@@ -14,8 +17,8 @@ const mockClearPending = jest.fn();
 const mockRefresh = jest.fn();
 const mockSetup = { setup_required: true, organization_id: "org-1", session: { user: { id: "recipient", email: "recipient@example.com" }, access_token: "recipient-token", refresh_token: "recipient-refresh", expires_at: 1 } };
 const mockFreshSetup = { ...mockSetup, session: { ...mockSetup.session, access_token: "fresh-token", refresh_token: "fresh-refresh", expires_at: 4_000_000_000 } };
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, setParams: mockSetParams }), useLocalSearchParams: () => ({}) }));
-jest.mock("../../../api/staff-invite", () => ({ resumeStaffSignup: jest.fn(), refreshStaffSignupSession: (...args: unknown[]) => mockRefresh(...args) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, setParams: mockSetParams }), useLocalSearchParams: () => ({}), usePathname: () => "/staff-invite" }));
+jest.mock("../../../api/staff-invite", () => ({ ...jest.requireActual("../../../api/staff-invite"), resumeStaffSignup: jest.fn(), refreshStaffSignupSession: (...args: unknown[]) => mockRefresh(...args) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { email: "owner@example.com" } }, loading: false, acceptStaffInvite: mockAccept, completeStaffInvite: mockComplete, signOut: mockSignOut }) }));
 jest.mock("../../../auth/pending-invite", () => ({ savePendingTrainerInvite: jest.fn().mockResolvedValue(undefined), clearPendingTrainerInvite: (...args: unknown[]) => mockClearPending(...args) }));
 jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ setActiveOrganizationId: mockSetOrganization }) }));
@@ -40,7 +43,7 @@ describe("employee invitation screen", () => {
   afterAll(() => Object.defineProperty(Platform, "OS", { configurable: true, value: originalOS }));
   it("does not consume the email proof or log out until the user confirms", async () => {
     jest.useFakeTimers();
-    const screen = render(React.createElement(StaffInviteScreen));
+    const screen = render(entry());
     expect(screen.getByText("Convite da instituição")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Trocar conta e aceitar" })).toBeTruthy();
     expect(mockAccept).not.toHaveBeenCalled();
@@ -50,14 +53,22 @@ describe("employee invitation screen", () => {
     expect(mockSetParams).toHaveBeenCalledWith({ "#": "" });
     jest.useRealTimers();
   });
+  it("keeps the invite after the screen remounts with a cleaned URL", () => {
+    const screen = render(entry());
+    window.location.hash = "";
+    screen.rerender(entry("remounted"));
+    expect(screen.getByRole("button", { name: "Trocar conta e aceitar" })).toBeTruthy();
+    expect(mockAccept).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
   it("discards a stored invite when keeping the current account", async () => {
-    const screen = render(React.createElement(StaffInviteScreen));
-    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Manter minha conta" })));
+    const screen = render(entry());
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Voltar para o início" })));
     expect(mockClearPending).toHaveBeenCalledTimes(1);
     expect(mockReplace).toHaveBeenCalledWith("/");
   });
   it("holds new employees at the signup form until completion succeeds", async () => {
-    const screen = render(React.createElement(StaffInviteScreen));
+    const screen = render(entry());
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
     expect(screen.UNSAFE_getByType(SignupScreen)).toBeTruthy();
     expect(screen.getByText("Conclua seu cadastro")).toBeTruthy();
@@ -77,7 +88,7 @@ describe("employee invitation screen", () => {
   });
   it("keeps the credential form open when the temporary invite session cannot be renewed", async () => {
     mockRefresh.mockRejectedValue(new Error("Sua sessão expirou. Reabra o convite."));
-    const screen = render(React.createElement(StaffInviteScreen));
+    const screen = render(entry());
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
     fireEvent.changeText(screen.getByLabelText("Senha"), "secret123");
     fireEvent.changeText(screen.getByLabelText("Confirmar senha"), "secret123");
@@ -89,18 +100,39 @@ describe("employee invitation screen", () => {
   });
   it("skips signup for an existing account", async () => {
     mockAccept.mockResolvedValue({ ...mockSetup, setup_required: false });
-    const screen = render(React.createElement(StaffInviteScreen));
+    const screen = render(entry());
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
     expect(mockComplete).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith("/");
   });
   it("keeps the current account and invite pending on failure", async () => {
     mockAccept.mockRejectedValue(new Error("Convite expirado"));
-    const screen = render(React.createElement(StaffInviteScreen));
+    const screen = render(entry());
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
     expect(screen.getByText("Convite expirado")).toBeTruthy();
     expect(mockReplace).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(mockClearPending).not.toHaveBeenCalled();
+  });
+  it("replaces unavailable invite actions with a single exit without changing the session", async () => {
+    mockAccept.mockRejectedValue(new StaffInviteUnavailableError());
+    const screen = render(entry());
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
+    expect(screen.getByText("Convite indisponível")).toBeTruthy();
+    expect(screen.getByText("Peça um novo convite à instituição.")).toBeTruthy();
+    expect(screen.queryByText(/Você está conectado/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Trocar conta e aceitar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Entrar com a conta convidada" })).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Voltar para o início" })));
+    expect(mockReplace).toHaveBeenCalledWith("/");
+  });
+  it("offers the same compact exit when opened without a link", () => {
+    window.location.hash = "";
+    const screen = render(entry());
+    expect(screen.getByText("Convite indisponível")).toBeTruthy();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(mockAccept).not.toHaveBeenCalled();
   });
 });

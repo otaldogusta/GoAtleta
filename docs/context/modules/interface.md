@@ -22,6 +22,9 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 
 ## Contratos a preservar
 
+- Antes de criar um estado visual, reutilizar o equivalente aprovado e comparar
+  a renderização. Erros de autenticação seguem o balão da confirmação de senha;
+  ver [paridade entre campos](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
 - Marca pública **Go Atleta**, tema e primitives existentes. Selecionar tokens
   antes de criar medidas/cores independentes ou trocar bibliotecas.
 - Autenticação: bloco central de até 440 px; campo com altura 50, raio 12 e
@@ -36,6 +39,12 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 - Copy curta, sem repetir alertas ou atribuir cada resultado à IA.
 - Em aluno, professor e coordenação, Configurações renderiza os formulários abaixo
   das abas do próprio perfil, preservando a identidade e o rascunho entre abas.
+  Campos pessoais vazios não impedem salvar; valores preenchidos são validados.
+  Nome vazio preserva a identidade existente. Data profissional opcional exige
+  a migration `20261009230000_optional_professional_profile_birth_date.sql`
+  (aplicada no Supabase em 09/10/2026; frontend local).
+  Conteúdo de cards recolhidos é criado sob demanda; rascunhos ficam no perfil,
+  sem depender da montagem do card. Na web, expansão direta evita frames de animação em JS.
   Entradas `/profile/settings` por papel abrem a mesma composição. A edição
   reutiliza os formulários e a proteção ao sair.
   No próprio perfil, o nome do workspace abre as organizações autorizadas da
@@ -60,3 +69,11 @@ Testes existentes, não executados nesta rodada:
 Microcopy/estilo: diff e uma interação/viewport no `localhost:8081`, sem build
 amplo. Mudança de foco, estado ou primitive: testes focados, tipos e smoke do
 comportamento. Medir performance antes/depois quando esse for o objetivo.
+
+- Confirmação de celular no perfil usa ModalSheet central de até 440px, compartilhado
+  entre papéis. Abrir após envio; fechar preserva número/código e reabrir não
+  reenvia. Reenvio temporizado no modal; sucesso fecha, erro permanece no campo.
+
+- OTP de celular usa seis casas no padrão de verify-email; completar ou colar
+  seis dígitos dispara uma tentativa, sem repetição por renderização. Resposta
+  ambígua do servidor mantém a mensagem inválido ou expirado.

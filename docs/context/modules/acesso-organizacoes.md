@@ -44,6 +44,33 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Desvinculação de celular consulta identidades em `GET /auth/v1/user`; falhas
+  não equivalem a vínculo ausente. Só confirma remoção após reler o usuário e
+  verificar ausência de telefone e identidade phone. Correção local; não libera
+  automaticamente números que permaneceram vinculados após falha antiga.
+
+- Link completo de equipe colado no cadastro mantém a prova apenas em memória.
+  Na submissão explícita usa aceite/conclusão existentes, sem recriar a conta
+  preparada pelo convite. Sessão temporária é reaproveitada em falha de conclusão;
+  conta já concluída não recebe alteração de senha. Código isolado não é prova.
+
+- Convite de equipe indisponível mostra apenas título, orientação para pedir
+  outro convite e voltar ao início, preservando a sessão. Erros definitivos do
+  link removem as ações de aceite; falhas recuperáveis mantêm nova tentativa.
+
+- Barra de senha no cadastro usa estimativa local por comprimento e padrões
+  previsíveis (`src/auth/password-strength.ts`), sem checklist de composição.
+  Não é consulta de vazamentos nem garantia de força; não altera aceite no Auth.
+- Cadastro público permite verificar o código antes de criar a conta, incluindo
+  códigos recebidos por link (`inviteCode` ou `/staff-invite#code=`). Extrai
+  apenas o código para a consulta. O e-mail do link é sugestão editável quando o
+  campo está vazio e somente após validação bem-sucedida do código, nunca prova de identidade. A consulta pública retorna somente disponibilidade;
+  não consome o convite nem comprova a identidade do destinatário. Alterar o código
+  invalida a confirmação anterior. Edge publicada em 09/10/2026; frontend ainda local.
+  [Contrato e validação local](../../operations/signup-invite-validation.md).
+- A prova do link `/staff-invite` permanece apenas em memória acima dos gates de
+  bootstrap, sobrevivendo à remontagem da tela após limpar a URL. É descartada
+  ao concluir ou sair da rota; não implica aceite automático. Correção local.
 - A conta sem vínculo pode solicitar acesso em `/pending`; não recebe criação livre
   de instituição. A RPC legada de provisionamento está restrita no contrato SQL.
 - Atleta e familiar não são cargos da equipe; aprovação de acesso deve preservar

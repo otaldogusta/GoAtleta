@@ -1,5 +1,12 @@
 # Formulários e configurações
 
+## Convites indisponíveis
+
+Usar bloco central de até 440 px, seta circular para o início, título e uma
+orientação curta. Não acumular aviso vermelho, identificação da conta e botões
+de aceite quando o link já foi recusado definitivamente. Voltar preserva a sessão;
+falha de conexão não deve ser confundida com convite expirado.
+
 ## Referência e limites
 
 O perfil do atleta (`app/profile.tsx`, rota `/student/profile`) reúne os
@@ -11,7 +18,51 @@ Este documento define comportamento esperado, não certifica que toda a tela ou
 todo o app já o cumpre. Reutilizar componentes após verificar suas limitações.
 Não copiar o arquivo inteiro, estilos locais ou regras específicas do atleta.
 
+## Paridade visual entre campos
+
+Antes de implementar feedback, localizar o equivalente aprovado na própria tela,
+ler o JSX/estilo e reutilizar a primitive disponível. Não inventar outra aparência
+para o mesmo estado. Se ainda for inline, manter o contrato abaixo; uma extração
+compartilhada deve preservar a aparência e ficar restrita ao escopo da tarefa.
+
+Para autenticação, a referência concreta é o erro de confirmação de senha em
+`src/screens/auth/SignupScreen.tsx` (`confirmError`). O convite em
+`src/screens/auth/SignupInviteCode.tsx` deve seguir esse mesmo padrão:
+
+- Balão compacto, largura pelo conteúdo, alinhado à esquerda; sem esticar com
+  `right: 0` ou `flex: 1`. Limitar largura e permitir quebra em telas estreitas.
+- Fundo `colors.dangerSolidBg`; texto e ícone `colors.dangerSolidText`, nunca uma
+  cor literal diferente. Texto de 12 px, peso 600, `warningCircle` de 14 px,
+  gap 6, raio 8, padding horizontal 10 e vertical 6.
+- Sombra web `0px 4px 12px rgba(0, 0, 0, 0.24)` e equivalente nativo da referência.
+  Ponta de 6 px com margem esquerda 14 e cor igual ao fundo.
+- Overlay absoluto, `top: -38`, sem deslocar o formulário; borda do campo em
+  `colors.dangerSolidBg`. Limpar o erro imediatamente ao digitar.
+- Elevar o contêiner externo do campo com erro acima dos irmãos (na autenticação,
+  zIndex 50 e balão 60), além de preservar overflow visível. Aumentar só o zIndex
+  do balão não supera o contexto de empilhamento do pai.
+- Links secundários iluminam texto e ícone, com sublinhado e
+  `suppressWebHoverFeedback`, sem caixa de fundo.
+- Loading e sucesso preservam espaço e layout; movimento curto, interrompível e
+  compatível com movimento reduzido. Não adicionar botões ou textos redundantes.
+
+Conferir referência e alteração juntas quando possível, com o erro realmente
+ativo. Inspecionar a captura: texto legível por inteiro, ponta visível, largura
+compacta, borda correta e ausência de corte ou sobreposição indevida. Exercitar
+limpeza ao digitar. Não declarar equivalência com base apenas em DOM, screenshot
+salvo, HTTP 200 ou testes unitários. Divergências intencionais exigem motivo no
+escopo solicitado, não uma preferência visual do agente.
+
 ## Organização e conteúdo
+
+- No cadastro, a barra animada de senha é orientação, não validação de composição.
+  Todos os trechos preenchidos usam a cor sólida do nível atual (danger, warning,
+  success). Não misturar vermelho sólido com fundos amarelo/verde translúcidos.
+  Não exibir rótulos Fraca/Média/Forte; usar ajuda clicável (?) com balão neutro,
+  explicando comprimento e símbolos opcionais. Repetir o clique fecha a ajuda.
+  Não mostrar ausência de maiúscula, número ou símbolo como erro. A estimativa local
+  considera comprimento e alguns padrões previsíveis; não detecta todo dicionário,
+  dado pessoal ou senha vazada. Não modificar requisitos do Auth por causa da barra.
 
 - Nos perfis próprios de aluno, professor e coordenação, Configurações troca somente o conteúdo abaixo da capa e
   das abas, sem outra navegação ou repetição da identidade. Editar perfil ativa
@@ -49,7 +100,8 @@ Não copiar o arquivo inteiro, estilos locais ou regras específicas do atleta.
   Alterar um campo deve atualizar imediatamente o estado de salvar; clicar em
   outro card não pode ser necessário para detectar mudanças.
 - Um formulário com vários cards tem uma ação flutuante de salvar, não uma por
-  card. Ocultar quando limpo; enquanto salva, mostrar progresso e bloquear
+  card. Exibir somente o botão com sombra leve, sem caixa, borda ou fundo externo.
+  Ocultar quando limpo; enquanto salva, mostrar progresso e bloquear
   repetição. Reservar espaço para não cobrir conteúdo, teclado ou navegação.
 - Recolher/abrir cards não equivale a sair da tela: não confirmar, descartar,
   gravar automaticamente nem reinicializar campos nessa interação.

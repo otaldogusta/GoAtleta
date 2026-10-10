@@ -5,6 +5,21 @@ description: Aplicar identidade, tokens e componentes canônicos do Go Atleta em
 
 # Design system do Go Atleta
 
+## Paridade antes de criar
+
+Em ajustes de interface, localizar primeiro o estado equivalente já aprovado no
+mesmo fluxo e ler sua implementação. Reutilizar a primitive existente; se o padrão
+ainda estiver inline, preservar seus tokens e composição. Não reinterpretar o
+visual nem criar uma variante apenas porque o novo elemento está em outro campo.
+Extrair um componente compartilhado quando couber no escopo, sem refatoração ampla.
+
+Para erro, sucesso, validação e hover de formulário, seguir
+`docs/ui/FORM_SETTINGS_PATTERNS.md`, seção **Paridade visual entre campos**.
+Antes de concluir, comparar referência e alteração no mesmo estado visível:
+dimensões, cores, tipografia, ícone, borda, sombra, posição e sobreposição.
+Capturar uma imagem não basta: inspecioná-la. Testes passando não provam paridade
+visual; quando não for possível conferir, registrar esse limite explicitamente.
+
 Para mudança ou revisão real de motion, ler `references/motion.md`; não carregar por padrão em tarefas sem animação.
 
 Os caminhos partem da raiz do repositório. Ler `docs/ui/README.md` e os documentos relevantes indicados ali; tokens vivem em `src/theme/tokens.ts` e componentes em `src/ui/`.

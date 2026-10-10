@@ -7,8 +7,14 @@ import { buildClassAttendanceWorkspaceHref, parseClassWorkspaceRouteDate, resolv
 import { ClassContextStrip, ClassOperationsWorkspace, resolveDenseClassWorkspace } from "../ClassOperationsWorkspace";
 import { ClassAttendanceWorkspacePanel, resolveStackedAttendancePanel } from "../ClassAttendanceWorkspacePanel";
 import { isTodayLessonDateLabel } from "../ClassLessonDateNavigator";
+import { ClassNavigationFab } from "../ClassNavigationFab";
 
 const mockConfirmDialog = jest.fn();
+const mockIsFocused = jest.fn(() => true);
+
+jest.mock("expo-router", () => ({
+  useIsFocused: () => mockIsFocused(),
+}));
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: jest.requireActual<typeof import("react-native")>("react-native").View,
@@ -39,6 +45,7 @@ jest.mock("../../../../ui/confirm-dialog", () => ({
 beforeEach(() => {
   jest.useFakeTimers();
   mockConfirmDialog.mockReset();
+  mockIsFocused.mockReturnValue(true);
   mockConfirmDialog.mockResolvedValue(false);
 });
 
@@ -613,6 +620,18 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     const { screen } = renderWorkspace(true);
 
     expect(screen.getByLabelText("Abrir menu da turma")).toBeTruthy();
+  });
+
+  it("removes the floating menu when a retained class screen loses focus", () => {
+    const menu = () => React.createElement(ClassNavigationFab, { colors, bottom: 90, onPress: jest.fn() });
+    const screen = render(menu());
+    expect(screen.getAllByLabelText("Abrir menu da turma")).toHaveLength(1);
+    mockIsFocused.mockReturnValue(false);
+    screen.rerender(menu());
+    expect(screen.queryByLabelText("Abrir menu da turma")).toBeNull();
+    mockIsFocused.mockReturnValue(true);
+    screen.rerender(menu());
+    expect(screen.getAllByLabelText("Abrir menu da turma")).toHaveLength(1);
   });
 
   it("shows location, schedule and roster without repeating the lesson date", () => {

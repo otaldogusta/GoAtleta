@@ -77,9 +77,14 @@ To preserve visual consistency, prevent regressions, and avoid arbitrary "vibeco
 - **Chrome Autofill & Selection Fix**: Always set `borderRadius: 0` (or `border-radius: 0px !important`) on the React Native `<TextInput>` / HTML `<input>` element inside the padded parent `<View>`. This prevents browser autofill highlights and selection arcs from clipping text 14px inside the container.
 - **Theme-Aware Autofill CSS**: Web autofill `-webkit-box-shadow` MUST dynamically match the current theme (`#121c30` in dark mode, `colors.inputBg` in light mode) to eliminate dark rectangular bars in light mode inputs.
 
+### Visual parity before implementation
+- Before creating or changing a UI state, inspect the approved equivalent in the same flow and reuse its primitive, tokens and composition. Do not invent another visual variant for the same behavior.
+- Follow `docs/ui/FORM_SETTINGS_PATTERNS.md` (Paridade visual entre campos) and `.agents/skills/goatleta-design-system/SKILL.md`. For auth errors, the password-confirmation balloon in `SignupScreen.tsx` is the reference.
+- Compare the reference and changed state visually before claiming completion. Inspect the screenshot, including text, icon, width, border, shadow, pointer and stacking; merely saving it or passing tests is insufficient.
+
 ### 3. Floating Error Tooltip Balloons
-- **Absolute Overlay Layer**: Error tooltip balloons MUST use `position: "absolute"` (`top: -38`, `zIndex: 20`, `pointerEvents: "none"` on web). They MUST float on top of the targeted input without adding height or pushing down the modal card layout.
-- **Warning Icon & Triangle Tail**: Balloon badges MUST feature the red background (`colors.dangerSolidBg`), white text, an inline warning icon (`GoAtletaIcon name="warningCircle"`), and a downward-pointing triangle pointer (`borderTopColor: colors.dangerSolidBg`).
+- **Absolute Overlay Layer**: Error tooltip balloons MUST use `position: "absolute"` (`top: -38`, `pointerEvents: "none"` on web; auth field wrapper `zIndex: 50`, balloon `zIndex: 60`). They MUST float on top of the targeted input without adding height or pushing down the modal card layout.
+- **Warning Icon & Triangle Tail**: Balloon badges MUST feature the red background (`colors.dangerSolidBg`), theme-aware text/icon color (`colors.dangerSolidText`, not a hardcoded white), an inline warning icon (`GoAtletaIcon name="warningCircle"`), and a downward-pointing triangle pointer (`borderTopColor: colors.dangerSolidBg`).
 - **Auto-Dismiss on Typing**: Typing any character in a field MUST immediately clear active error balloon messages.
 - **Overflow Visibility**: Modal card containers using floating balloons MUST set `overflow: "visible"` so balloons are never clipped by container boundaries.
 

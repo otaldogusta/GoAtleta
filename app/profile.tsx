@@ -311,7 +311,7 @@ function MobileProfileSection({
   subtitle: string;
   expanded: boolean;
   onPress: () => void;
-  children: ReactNode;
+  children: ReactNode | (() => ReactNode);
   grouped?: boolean;
   pendingMessage?: string;
 }) {
@@ -320,7 +320,9 @@ function MobileProfileSection({
   const [renderChildren, setRenderChildren] = useState(expanded);
 
   useEffect(() => {
-    const useNativeDriver = Platform.OS !== "web";
+    // Web expands in the same render; avoid JS animation frames and a second commit.
+    if (Platform.OS === "web") return;
+    const useNativeDriver = true;
     if (expanded) {
       // Children must mount before the opening animation can reveal them.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -393,18 +395,18 @@ function MobileProfileSection({
         </View>
         <GoAtletaIcon name={expanded ? "chevronUp" : "chevronForward"} size={18} color={colors.text} />
       </Pressable>
-      {renderChildren ? (
+      {(Platform.OS === "web" ? expanded : renderChildren) ? (
         <Animated.View style={{
           borderTopWidth: 1,
           borderTopColor: colors.border,
           padding: 16,
           gap: 12,
-          opacity: expansionAnim,
-          transform: [{
+          opacity: Platform.OS === "web" ? 1 : expansionAnim,
+          transform: Platform.OS === "web" ? undefined : [{
             translateY: expansionAnim.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }),
           }],
         }}>
-          {children}
+          {typeof children === "function" ? children() : children}
         </Animated.View>
       ) : null}
     </View>
@@ -693,6 +695,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   const [savingMobileProfile, setSavingMobileProfile] = useState(false);
   const [mobileRequiredValidationAttempted, setMobileRequiredValidationAttempted] = useState(false);
   const [pendingPhoneVerification, setPendingPhoneVerification] = useState("");
+  const phoneCodeInputRef = useRef<TextInput | null>(null);
+  const phoneConfirmationInFlight = useRef(false);
+  const [showPhoneVerificationModal, setShowPhoneVerificationModal] = useState(false);
   const [phoneVerificationCode, setPhoneVerificationCode] = useState("");
   const [phoneVerificationError, setPhoneVerificationError] = useState<string | null>(null);
   const [requestingPhoneVerification, setRequestingPhoneVerification] = useState(false);
@@ -2032,15 +2037,15 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     return () => clearInterval(timer);
   }, [phoneVerificationRetrySeconds]);
   const mobileRequiredFieldErrors = {
-    name: mobileNameDraft.trim().length < 2 ? "Informe o nome completo." : null,
-    birthDate: parseStudentBirthDate(mobileBirthDraft) ? null : "Informe uma data válida.",
+    name: mobileNameDraft.trim() && mobileNameDraft.trim().length < 2 ? "Informe o nome completo." : null,
+    birthDate: !mobileBirthDraft.trim() || parseStudentBirthDate(mobileBirthDraft) ? null : "Informe uma data válida.",
     phone: (() => {
       const digits = mobilePhoneDraft.replace(/\D/g, "");
-      if (!digits) return "Informe o celular.";
+      if (!mobilePhoneDraft.trim()) return null;
       return digits.length < 6 || digits.length > 15 ? "Confira o número informado." : null;
     })(),
     cpf: !mobileCpfDraft.trim()
-      ? "Informe o CPF."
+      ? null
       : (mobileCpfDraft === mobileProfileBaseline.cpf && mobileCpfDraft.includes("*"))
         || validateCpf(mobileCpfDraft)
         ? null
@@ -2117,7 +2122,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     if (mobileProfileHasRequiredErrors) {
       setMobileExpandedSection("personal");
       showSaveToast({
-        message: "Revise os campos obrigatórios destacados.",
+        message: "Revise os campos inválidos destacados.",
         variant: "error",
       });
       return false;
@@ -2128,12 +2133,12 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     }
     setSavingMobileProfile(true);
     try {
-      if (student && birthDate) {
+      if (student) {
         await updateStudent({
           ...student,
-          name: normalizedName,
-          birthDate,
-          age: ageFromBirthDate(birthDate),
+          name: normalizedName || student.name,
+          birthDate: birthDate ?? "",
+          age: birthDate ? ageFromBirthDate(birthDate) : student.age,
           phone: phoneDigits ? `${mobileCountryCode.replace(/\D/g, "")}${phoneDigits}` : "",
           cpfMasked: mobileCpfDraft.trim() || null,
           rg: mobileRgDraft.trim() || null,
@@ -2150,7 +2155,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           medicationNotes: mobileMedicationUseDraft ? mobileMedicationNotesDraft.trim() : "",
           healthObservations: mobileHealthObservationsDraft.trim(),
         });
-      } else if (birthDate) {
+      } else {
         const cpfWasPreserved = mobileCpfDraft === mobileProfileBaseline.cpf
           && mobileProfileBaseline.cpf.includes("*");
         await saveMyProfessionalProfile({
@@ -2161,7 +2166,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           genderIdentity: mobileGenderIdentityDraft.trim(),
         });
       }
-      if (normalizedName !== currentAccountName) await updateProfileName(normalizedName);
+      if (normalizedName && normalizedName !== currentAccountName) await updateProfileName(normalizedName);
       await refreshRole();
       setMobileProfileBaseline({
         name: normalizedName,
@@ -2204,7 +2209,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       const requestedAt = Date.now();
       setPhoneVerificationNow(requestedAt);
       setPhoneVerificationRetryUntil(requestedAt + PHONE_VERIFICATION_RESEND_DELAY_MS);
-      showSaveToast({ message: "Código enviado pelo WhatsApp.", variant: "info" });
+      setShowPhoneVerificationModal(true);
     } catch (error) {
       setPhoneVerificationError(getFriendlyErrorMessage(error, "Não foi possível enviar o código."));
     } finally {
@@ -2212,19 +2217,20 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     }
   };
 
-  const confirmMobilePhone = async () => {
-    if (verifyingPhone || !pendingPhoneVerification) return;
+  const confirmMobilePhone = async (code = phoneVerificationCode) => {
+    if (phoneConfirmationInFlight.current || requestingPhoneVerification || code.length !== 6 || !pendingPhoneVerification) return;
+    phoneConfirmationInFlight.current = true;
     const birthDate = parseStudentBirthDate(mobileBirthDraft);
     setVerifyingPhone(true);
     setPhoneVerificationError(null);
     try {
-      await verifyPhoneChange(pendingPhoneVerification, phoneVerificationCode);
-      if (student && birthDate) {
+      await verifyPhoneChange(pendingPhoneVerification, code);
+      if (student) {
         await updateStudent({
           ...student,
-          name: mobileNameDraft.trim(),
-          birthDate,
-          age: ageFromBirthDate(birthDate),
+          name: mobileNameDraft.trim() || student.name,
+          birthDate: birthDate ?? "",
+          age: birthDate ? ageFromBirthDate(birthDate) : student.age,
           phone: pendingPhoneVerification.replace(/\D/g, ""),
           cpfMasked: mobileCpfDraft.trim() || null,
           rg: mobileRgDraft.trim() || null,
@@ -2234,7 +2240,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           guardianPhone: mobileGuardianPhoneE164,
           guardianRelation: mobileGuardianRelationDraft.trim(),
         });
-      } else if (birthDate) {
+      } else {
         const cpfWasPreserved = mobileCpfDraft === mobileProfileBaseline.cpf
           && mobileProfileBaseline.cpf.includes("*");
         await saveMyProfessionalProfile({
@@ -2245,7 +2251,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           genderIdentity: mobileGenderIdentityDraft.trim(),
         });
       }
-      if (mobileNameDraft.trim() !== currentAccountName) await updateProfileName(mobileNameDraft.trim());
+      if (mobileNameDraft.trim() && mobileNameDraft.trim() !== currentAccountName) await updateProfileName(mobileNameDraft.trim());
       await refreshRole();
       setMobileProfileBaseline({
         name: mobileNameDraft.trim(),
@@ -2263,10 +2269,12 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       });
       setPendingPhoneVerification("");
       setPhoneVerificationCode("");
+      setShowPhoneVerificationModal(false);
       showSaveToast({ message: "Celular verificado e perfil atualizado.", variant: "success" });
     } catch (error) {
       setPhoneVerificationError(getFriendlyErrorMessage(error, "Código inválido ou expirado."));
     } finally {
+      phoneConfirmationInFlight.current = false;
       setVerifyingPhone(false);
     }
   };
@@ -2472,7 +2480,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     });
   };
 
-  const accountSecuritySectionContent = (
+  const accountSecuritySectionContent = () => (
     <>
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail da conta</Text>
@@ -2588,8 +2596,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 expanded={mobileExpandedSection === "personal"}
                 onPress={() => toggleMobileSection("personal")}
               >
+                {() => (<>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo (obrigatório)</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo</Text>
                   <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
                     <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.name : null} />
                     <TextInput
@@ -2602,7 +2611,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   </View>
                 </View>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento (obrigatória)</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento</Text>
                   <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", position: "relative", overflow: "visible" }}>
                     <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.birthDate : null} />
                     <NativeDateInput
@@ -2621,13 +2630,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   </View>
                 </View>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do atleta (obrigatório)</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do atleta</Text>
                   <View style={{ flexDirection: "row", gap: 8 }}>
-                    <View ref={mobileCountryTriggerRef} collapsable={false}>
+                    <View ref={mobileCountryTriggerRef} collapsable={false} style={{ opacity: isDisplayedPhoneVerified ? 0.55 : 1 }}>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="Selecionar código do país"
-                        accessibilityState={{ expanded: mobileCountryMenuOpen }}
+                        accessibilityState={{ expanded: mobileCountryMenuOpen, disabled: isDisplayedPhoneVerified }}
+                      disabled={isDisplayedPhoneVerified}
                         onPress={() => {
                           if (mobileCountryMenuOpen) {
                             setMobileCountryMenuOpen(false);
@@ -2648,7 +2658,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                     <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                       <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
                       <TextInput
-                        accessibilityLabel="Celular"
+                        accessibilityLabel="Celular" editable={!isDisplayedPhoneVerified} accessibilityState={{ disabled: isDisplayedPhoneVerified }}
                         keyboardType="phone-pad"
                         placeholder="(00) 00000-0000"
                         placeholderTextColor={colors.muted}
@@ -2661,7 +2671,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                           setPhoneVerificationError(null);
                           setPhoneVerificationRetryUntil(0);
                         }}
-                        style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
+                        style={{ flex: 1, minWidth: 0, color: isDisplayedPhoneVerified ? colors.muted : colors.text, opacity: isDisplayedPhoneVerified ? 0.65 : 1, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
                       />
                       {isDisplayedPhoneVerified ? (
                         <Pressable
@@ -2686,9 +2696,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                       ) : phoneVerificationEnabled && mobilePhoneNeedsVerification && Boolean(mobilePhoneE164) ? (
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={phoneVerificationRequested ? "Reenviar código pelo WhatsApp" : "Validar celular pelo WhatsApp"}
-                          onPress={() => void requestMobilePhoneVerification()}
-                          disabled={requestingPhoneVerification || phoneVerificationRetrySeconds > 0}
+                          accessibilityLabel={phoneVerificationRequested ? "Confirmar celular" : "Validar celular pelo WhatsApp"}
+                          onPress={() => { if (phoneVerificationRequested) setShowPhoneVerificationModal(true); else void requestMobilePhoneVerification(); }}
+                          disabled={requestingPhoneVerification}
                           disableWebPressScale
                           style={({ pressed }) => ({
                             minHeight: 38,
@@ -2697,16 +2707,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                             alignItems: "center",
                             justifyContent: "center",
                             backgroundColor: colors.primaryBg,
-                            opacity: requestingPhoneVerification || phoneVerificationRetrySeconds > 0 ? 0.55 : pressed ? 0.84 : 1,
+                            opacity: requestingPhoneVerification ? 0.55 : pressed ? 0.84 : 1,
                           })}
                         >
                           <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
                             {requestingPhoneVerification
                               ? "Enviando..."
-                              : phoneVerificationRetrySeconds > 0
-                                ? `Reenviar em ${phoneVerificationRetrySeconds}s`
                               : phoneVerificationRequested
-                                ? "Reenviar"
+                                ? "Confirmar celular"
                                 : "Validar"}
                           </Text>
                         </Pressable>
@@ -2766,53 +2774,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                       );
                     })}
                   </AnchoredDropdown>
-                  {phoneVerificationEnabled && phoneVerificationRequested ? (
-                    <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.secondaryBg, overflow: "visible" }}>
-                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Código recebido pelo WhatsApp</Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <View style={{ minHeight: 46, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
-                          <FloatingFieldError message={phoneVerificationError} />
-                          <TextInput
-                            accessibilityLabel="Código de confirmação do celular"
-                            keyboardType="number-pad"
-                            autoComplete="one-time-code"
-                            placeholder="000000"
-                            placeholderTextColor={colors.muted}
-                            maxLength={6}
-                            value={phoneVerificationCode}
-                            onChangeText={(value) => {
-                              setPhoneVerificationCode(value.replace(/\D/g, "").slice(0, 6));
-                              setPhoneVerificationError(null);
-                            }}
-                            onSubmitEditing={() => {
-                              if (phoneVerificationCode.length === 6 && !verifyingPhone) void confirmMobilePhone();
-                            }}
-                            style={{ color: colors.text, fontSize: 17, fontWeight: "800", letterSpacing: 4, textAlign: "center", paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
-                          />
-                        </View>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Confirmar código do celular"
-                          onPress={() => void confirmMobilePhone()}
-                          disabled={phoneVerificationCode.length !== 6 || verifyingPhone}
-                          disableWebPressScale
-                          style={({ pressed }) => ({
-                            minHeight: 46,
-                            paddingHorizontal: 14,
-                            borderRadius: 12,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: colors.primaryBg,
-                            opacity: phoneVerificationCode.length !== 6 || verifyingPhone ? 0.55 : pressed ? 0.84 : 1,
-                          })}
-                        >
-                          <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
-                            {verifyingPhone ? "Confirmando..." : "Confirmar"}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  ) : null}
+
                   <View style={{ minHeight: 28, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
                       <GoAtletaIcon
@@ -2828,7 +2790,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 </View>
                   <View style={{ gap: 10 }}>
                     {[
-                      { label: "CPF (obrigatório)", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const },
+                      { label: "CPF", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const },
                       { label: "RG (opcional)", accessibilityLabel: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG", keyboardType: "default" as const },
                     ].map((field) => {
                       const fieldError = field.accessibilityLabel === "CPF" && mobileRequiredValidationAttempted
@@ -2855,6 +2817,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   </View>
                 <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
                 <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
+              </>)}
               </MobileProfileSection>
               <MobileProfileSection
                 icon="personSolid"
@@ -2864,6 +2827,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 expanded={mobileExpandedSection === "guardian"}
                 onPress={() => toggleMobileSection("guardian")}
               >
+                {() => (<>
                 <View style={{ gap: 10 }}>
                   <View style={{ gap: 7 }}>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>Nome do responsável</Text>
@@ -2980,6 +2944,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                       </View>
                     </View>
                   </View>
+              </>)}
               </MobileProfileSection>
 
               <MobileProfileSection
@@ -2989,6 +2954,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 expanded={mobileExpandedSection === "organization"}
                 onPress={() => toggleMobileSection("organization")}
               >
+                {() => (<>
                 {!profileInstitution ? (
                   <Button label="Encontrar instituição" onPress={() => router.push({ pathname: "/pending", params: { returnTo: "/student/profile" } })} />
                 ) : institutionClasses.loading || loadingClasses ? (
@@ -3008,6 +2974,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                     </View>
                   ))
                 ) : <Text style={{ color: colors.muted }}>Nenhuma turma vinculada.</Text>}
+              </>)}
               </MobileProfileSection>
 
               <MobileProfileSection
@@ -3018,6 +2985,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 expanded={mobileExpandedSection === "sports"}
                 onPress={() => toggleMobileSection("sports")}
               >
+                {() => (<>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: 13 }}>Modalidades</Text>
                   {athleteModalities.loading ? <Text style={{ color: colors.muted }}>Carregando modalidades...</Text> : athleteModalities.ready ? <PositionPicker value={athleteModalities.selected} lockedValues={athleteModalities.automatic} options={CLASS_MODALITY_OPTIONS} maxSelections={CLASS_MODALITY_OPTIONS.length} searchLabel="Pesquisar modalidades" onChange={athleteModalities.change} /> : null}
@@ -3032,6 +3000,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   }} />
                 </View>
                 </> : null}
+              </>)}
               </MobileProfileSection>
               <MobileProfileSection
                 icon="engagement"
@@ -3041,6 +3010,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 expanded={mobileExpandedSection === "health"}
                 onPress={() => toggleMobileSection("health")}
               >
+                {() => (<>
                 <SettingsRow
                   icon="engagement"
                   iconBg="transparent"
@@ -3079,6 +3049,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                     <TextInput accessibilityLabel="Observações de saúde" multiline textAlignVertical="top" placeholder="Alergias, restrições ou cuidados importantes" placeholderTextColor={colors.muted} value={mobileHealthObservationsDraft} onChangeText={setMobileHealthObservationsDraft} style={{ minHeight: 56, color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none", resize: "none" } as any) : {}) }} />
                   </View>
                 </View>
+              </>)}
               </MobileProfileSection>
 
               <View style={{ overflow: "hidden", borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
@@ -3090,6 +3061,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 onPress={() => toggleMobileSection("notifications")}
                 grouped
               >
+                {() => (<>
                 <SettingsRow
                   icon="notifications"
                   iconBg="transparent"
@@ -3098,6 +3070,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   onPress={handleToggleNotifications}
                   rightContent={<ProfileToggle enabled={notificationsEnabled} />}
                 />
+              </>)}
               </MobileProfileSection>
 
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
@@ -3110,7 +3083,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 onPress={() => toggleMobileSection("appearance")}
                 grouped
               >
+                {() => (<>
                 <SettingsRow icon="darkMode" iconBg="transparent" label="Modo escuro" subtitle={mode === "dark" ? "Ativado" : "Desativado"} onPress={toggleMode} rightContent={<ProfileToggle enabled={mode === "dark"} />} />
+              </>)}
               </MobileProfileSection>
 
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
@@ -3123,6 +3098,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 onPress={() => toggleMobileSection("google")}
                 grouped
               >
+                {() => (<>
                 <SettingsRow icon="google" iconBg="transparent" label="Google" subtitle={linkingGoogle ? "Conectando…" : accountSecurity.googleLabel} onPress={accountSecurity.googleConnected ? undefined : handleLinkGoogle} rightContent={<View />} />
                 {accountSecurity.googleConnected ? (
                   <Button
@@ -3133,6 +3109,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   />
                 ) : null}
                 <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>{accountSecurity.providerDescription}</Text>
+              </>)}
               </MobileProfileSection>
 
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
@@ -3149,7 +3126,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 }}
                 grouped
               >
-                {accountSecuritySectionContent}
+                {() => (<>
+                {accountSecuritySectionContent()}
+              </>)}
               </MobileProfileSection>
               </View>
 
@@ -3579,15 +3558,16 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               pendingMessage={pendingNoticeFor("personal")}
               onPress={() => setProfessionalExpandedSection((current) => current === "personal" ? null : "personal")}
             >
+                {() => (<>
               <View style={{ gap: 7 }}>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo (obrigatório)</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo</Text>
                 <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
                   <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.name : null} />
                   <TextInput accessibilityLabel="Nome completo" autoCapitalize="words" value={mobileNameDraft} onChangeText={setMobileNameDraft} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
                 </View>
               </View>
               <View style={{ gap: 7 }}>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento (obrigatória)</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento</Text>
                 <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                   <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.birthDate : null} />
                   <NativeDateInput
@@ -3604,13 +3584,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 </View>
               </View>
               <View style={{ gap: 7 }}>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Celular (obrigatório)</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Celular</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <View ref={mobileCountryTriggerRef} collapsable={false}>
+                  <View ref={mobileCountryTriggerRef} collapsable={false} style={{ opacity: isDisplayedPhoneVerified ? 0.55 : 1 }}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Selecionar código do país"
-                      accessibilityState={{ expanded: mobileCountryMenuOpen }}
+                      accessibilityState={{ expanded: mobileCountryMenuOpen, disabled: isDisplayedPhoneVerified }}
+                      disabled={isDisplayedPhoneVerified}
                       onPress={() => {
                         if (mobileCountryMenuOpen) {
                           setMobileCountryMenuOpen(false);
@@ -3630,11 +3611,11 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   </View>
                   <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: 6, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                     <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
-                    <TextInput accessibilityLabel="Celular" keyboardType="phone-pad" placeholder="(00) 00000-0000" placeholderTextColor={colors.muted} value={mobilePhoneDraft} onChangeText={(value) => { const digits = value.replace(/\D/g, "").slice(0, 15); setMobilePhoneDraft(digits.length <= 11 ? (digits ? formatStudentPhone(digits) : "") : digits); setPendingPhoneVerification(""); setPhoneVerificationCode(""); setPhoneVerificationError(null); setPhoneVerificationRetryUntil(0); }} style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0 }} />
+                    <TextInput accessibilityLabel="Celular" editable={!isDisplayedPhoneVerified} accessibilityState={{ disabled: isDisplayedPhoneVerified }} keyboardType="phone-pad" placeholder="(00) 00000-0000" placeholderTextColor={colors.muted} value={mobilePhoneDraft} onChangeText={(value) => { const digits = value.replace(/\D/g, "").slice(0, 15); setMobilePhoneDraft(digits.length <= 11 ? (digits ? formatStudentPhone(digits) : "") : digits); setPendingPhoneVerification(""); setPhoneVerificationCode(""); setPhoneVerificationError(null); setPhoneVerificationRetryUntil(0); }} style={{ flex: 1, minWidth: 0, color: isDisplayedPhoneVerified ? colors.muted : colors.text, opacity: isDisplayedPhoneVerified ? 0.65 : 1, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0 }} />
                     {isDisplayedPhoneVerified ? (
                       <Pressable accessibilityRole="button" accessibilityLabel="Remover número de celular" onPress={() => void removeMobilePhone()} disabled={removingPhone} suppressWebHoverFeedback disableWebPressScale style={{ width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", opacity: removingPhone ? 0.55 : 1 }}><GoAtletaIcon name="trash" size={17} color={colors.dangerText} /></Pressable>
                     ) : mobilePhoneNeedsVerification && Boolean(mobilePhoneE164) ? (
-                      <Pressable accessibilityRole="button" accessibilityLabel="Validar celular pelo WhatsApp" onPress={() => void requestMobilePhoneVerification()} disabled={requestingPhoneVerification || phoneVerificationRetrySeconds > 0} disableWebPressScale style={{ minHeight: 38, paddingHorizontal: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: requestingPhoneVerification || phoneVerificationRetrySeconds > 0 ? 0.55 : 1 }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>{requestingPhoneVerification ? "Enviando..." : phoneVerificationRetrySeconds > 0 ? `Reenviar em ${phoneVerificationRetrySeconds}s` : "Validar"}</Text></Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel={phoneVerificationRequested ? "Confirmar celular" : "Validar celular pelo WhatsApp"} onPress={() => { if (phoneVerificationRequested) setShowPhoneVerificationModal(true); else void requestMobilePhoneVerification(); }} disabled={requestingPhoneVerification} disableWebPressScale style={{ minHeight: 38, paddingHorizontal: 12, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: requestingPhoneVerification ? 0.55 : 1 }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>{requestingPhoneVerification ? "Enviando..." : phoneVerificationRequested ? "Confirmar celular" : "Validar"}</Text></Pressable>
                     ) : null}
                   </View>
                 </View>
@@ -3691,29 +3672,19 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                     );
                   })}
                 </AnchoredDropdown>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{isDisplayedPhoneVerified ? "Número verificado" : "Confirme o número pelo WhatsApp"}</Text>
+                {isDisplayedPhoneVerified ? <Text style={{ color: colors.muted, fontSize: 12 }}>Número verificado</Text> : null}
               </View>
-              {phoneVerificationRequested ? (
-                <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.secondaryBg, overflow: "visible" }}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Código recebido pelo WhatsApp</Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <View style={{ minHeight: 46, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
-                      <FloatingFieldError message={phoneVerificationError} />
-                      <TextInput accessibilityLabel="Código de confirmação do celular" keyboardType="number-pad" autoComplete="one-time-code" placeholder="000000" placeholderTextColor={colors.muted} maxLength={6} value={phoneVerificationCode} onChangeText={(value) => { setPhoneVerificationCode(value.replace(/\D/g, "").slice(0, 6)); setPhoneVerificationError(null); }} style={{ color: colors.text, fontSize: 17, fontWeight: "800", letterSpacing: 4, textAlign: "center", paddingVertical: 0, borderRadius: 0 }} />
-                    </View>
-                    <Pressable accessibilityRole="button" accessibilityLabel="Confirmar código do celular" onPress={() => void confirmMobilePhone()} disabled={phoneVerificationCode.length !== 6 || verifyingPhone} disableWebPressScale style={{ minHeight: 46, paddingHorizontal: 14, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: phoneVerificationCode.length !== 6 || verifyingPhone ? 0.55 : 1 }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>{verifyingPhone ? "Confirmando..." : "Confirmar"}</Text></Pressable>
-                  </View>
-                </View>
-              ) : null}
+
               <View style={{ gap: 10 }}>
-                {[{ label: "CPF (obrigatório)", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(value.includes("*") ? value : maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const }, { label: "RG (opcional)", accessibilityLabel: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG", keyboardType: "default" as const }].map((field) => {
+                {[{ label: "CPF", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(value.includes("*") ? value : maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const }, { label: "RG (opcional)", accessibilityLabel: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG", keyboardType: "default" as const }].map((field) => {
                   const fieldError = field.accessibilityLabel === "CPF" && mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.cpf : null;
                   return <View key={field.label} style={{ gap: 7 }}><Text style={{ color: colors.muted, fontSize: 13 }}>{field.label}</Text><View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}><FloatingFieldError message={fieldError} /><TextInput accessibilityLabel={field.accessibilityLabel} keyboardType={field.keyboardType} placeholder={field.placeholder} placeholderTextColor={colors.muted} value={field.value} onChangeText={field.onChangeText} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0 }} /></View></View>;
                 })}
               </View>
               <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
               <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
-            </MobileProfileSection>
+            </>)}
+              </MobileProfileSection>
             <MobileProfileSection
               icon="management"
               title="Preferências"
@@ -3721,6 +3692,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               expanded={professionalExpandedSection === "preferences"}
               onPress={() => setProfessionalExpandedSection((current) => current === "preferences" ? null : "preferences")}
             >
+                {() => (<>
               <SettingsRow
                 icon="notifications"
                 iconBg="rgba(135, 120, 255, 0.14)"
@@ -3756,7 +3728,8 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 onPress={toggleMode}
                 rightContent={<ProfileToggle enabled={mode === "dark"} />}
               />
-            </MobileProfileSection>
+            </>)}
+              </MobileProfileSection>
 
             <MobileProfileSection
               icon="shield"
@@ -3766,8 +3739,10 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               pendingMessage={pendingNoticeFor("security")}
               onPress={() => setProfessionalExpandedSection((current) => current === "account" ? null : "account")}
             >
-              {accountSecuritySectionContent}
-            </MobileProfileSection>
+                {() => (<>
+              {accountSecuritySectionContent()}
+            </>)}
+              </MobileProfileSection>
 
             <MobileProfileSection
               icon="google"
@@ -3776,6 +3751,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               expanded={professionalExpandedSection === "integrations"}
               onPress={() => setProfessionalExpandedSection((current) => current === "integrations" ? null : "integrations")}
             >
+                {() => (<>
 
               {!student && isOrgAdmin ? (
                 <SettingsRow
@@ -4122,7 +4098,8 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   </Pressable>
                 </View>
               ) : null}
-            </MobileProfileSection>
+            </>)}
+              </MobileProfileSection>
             <SettingsRow
               icon="logout"
               iconBg="rgba(255, 130, 130, 0.16)"
@@ -4224,7 +4201,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         label={savingMobileProfile
           ? "Salvando..."
           : mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors
-            ? "Preencha os dados obrigatórios"
+            ? "Revise os dados informados"
             : "Salvar alterações"}
         onPress={async () => {
           if (savingMobileProfile || athleteModalities.saving) return;
@@ -4290,7 +4267,8 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       {settingsPage || inlineProfile ? <ProfileSettingsNavigationGuard blocked={mobileHasUnsavedChanges || savingMobileProfile || athleteModalities.saving || savingSecurityContact} onLeave={(navigate) => allowProfileNavigation.current ? navigate() : leaveMobileProfile(navigate)} /> : null}
       {isStudentMobileProfile ? <PersonProfilePage
         testID="own-student-profile"
-        name={student?.name || displayName}
+        name={mobileNameDraft}
+        onNameChange={setMobileNameDraft}
         role="Atleta"
         roleControl={roleControl}
         organizationName={profileInstitution?.name ?? "Go Atleta"}
@@ -4315,7 +4293,8 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         key={`${activeOrganization?.id}:${session?.user.id}`}
         organizationId={activeOrganization?.id}
         userId={session?.user.id}
-        name={displayName}
+        name={mobileNameDraft}
+        onNameChange={setMobileNameDraft}
         role={profileDisplay.label}
         roleControl={roleControl}
         workspaceControl={workspaceControl}
@@ -4334,7 +4313,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         onEditPhoto={() => setShowPhotoSheet(true)}
         onEditProfile={() => { setProfessionalExpandedSection("personal"); setProfileTab("settings"); }}
       /> : settingsContent}
-      {(inlineProfile ? profileTab === "settings" : true) ? profileSaveBar : null}
+      {profileSaveBar}
       <Modal
         visible={googleMenuOpen && Boolean(googleMenuAnchor)}
         animationType="none"
@@ -4698,6 +4677,54 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           </View>
         </SafeAreaView>
       </Modal>
+      <ModalSheet
+        visible={showPhoneVerificationModal && phoneVerificationRequested}
+        onClose={() => { if (!verifyingPhone && !requestingPhoneVerification) setShowPhoneVerificationModal(false); }}
+        position="center"
+        cardStyle={{ width: "100%", maxWidth: 440, padding: 24, gap: 20, borderRadius: 24, backgroundColor: colors.card, overflow: "visible" }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>Confirmar celular</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Fechar confirmação do celular" disabled={verifyingPhone || requestingPhoneVerification} onPress={() => setShowPhoneVerificationModal(false)} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: colors.muted, fontSize: 24 }}>×</Text>
+          </Pressable>
+        </View>
+        <Text style={{ color: colors.muted, fontSize: 14 }}>Digite o código recebido pelo WhatsApp.</Text>
+        <View style={{ minHeight: 74, justifyContent: "center", position: "relative", overflow: "visible" }}>
+          <FloatingFieldError message={phoneVerificationError} />
+          <TextInput
+            ref={phoneCodeInputRef}
+            autoFocus
+            editable={!verifyingPhone && !requestingPhoneVerification}
+            accessibilityLabel="Código de confirmação do celular"
+            keyboardType="number-pad"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={phoneVerificationCode}
+            onChangeText={(value) => {
+              const nextCode = value.replace(/\D/g, "").slice(0, 6);
+              setPhoneVerificationCode(nextCode);
+              setPhoneVerificationError(null);
+              if (nextCode.length === 6 && nextCode !== phoneVerificationCode) void confirmMobilePhone(nextCode);
+            }}
+            onSubmitEditing={() => void confirmMobilePhone()}
+            style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
+          />
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
+            {Array.from({ length: 6 }, (_, index) => (
+              <Pressable key={`phone-otp-${index}`} accessibilityLabel={`Dígito ${index + 1} do código`} onPress={() => phoneCodeInputRef.current?.focus()} suppressWebHoverFeedback style={({ hovered }: any) => ({ flex: 1, maxWidth: 52, height: 52, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : phoneVerificationCode.length === index || hovered ? colors.text : colors.border, backgroundColor: hovered ? colors.inputBg : colors.card, alignItems: "center", justifyContent: "center" })}>
+                <Text style={{ color: colors.text, fontSize: 24, fontWeight: "700", lineHeight: 26 }}>{phoneVerificationCode[index] || " "}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Confirmar código do celular" onPress={() => void confirmMobilePhone()} disabled={phoneVerificationCode.length !== 6 || verifyingPhone || requestingPhoneVerification} style={{ minHeight: 50, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: phoneVerificationCode.length !== 6 || verifyingPhone || requestingPhoneVerification ? 0.55 : 1 }}>
+          <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{verifyingPhone ? "Confirmando..." : "Confirmar"}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Reenviar código pelo WhatsApp" onPress={() => void requestMobilePhoneVerification()} disabled={requestingPhoneVerification || verifyingPhone || phoneVerificationRetrySeconds > 0} suppressWebHoverFeedback style={{ minHeight: 40, alignItems: "center", justifyContent: "center", opacity: requestingPhoneVerification || verifyingPhone || phoneVerificationRetrySeconds > 0 ? 0.55 : 1 }}>
+          <Text style={{ color: colors.muted }}>{requestingPhoneVerification ? "Enviando..." : phoneVerificationRetrySeconds > 0 ? `Reenviar em ${Math.floor(phoneVerificationRetrySeconds / 60)}:${String(phoneVerificationRetrySeconds % 60).padStart(2, "0")}` : "Reenviar código"}</Text>
+        </Pressable>
+      </ModalSheet>
       <ModalSheet
         visible={showAccountEditor}
         onClose={requestCloseAccountEditor}
