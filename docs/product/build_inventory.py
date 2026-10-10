@@ -345,7 +345,7 @@ verify|Links expirados e autorização|Conferir recuperação, confirmação e l
 add('Confirmação de contatos', '/student/profile', 'docs/operations/security-contact-verification.md', """
 recorded|E-mail alternativo confirmado|Documento registra recebimento e confirmação em 13/09 sem mudar login.
 recorded|Proteções do desafio|Validade, tentativas, rate limit e consumo transacional.
-recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial.|docs/operations/whatsapp-auth-prototype.md
+recorded|Telefone por Supabase Auth|phone_change com transporte WhatsApp oficial. Remoção consulta usuário canônico e confirma ausência do telefone após DELETE; falhas não anunciam sucesso. Testes isolados, sem remover vínculos reais.|docs/operations/whatsapp-auth-prototype.md
 recorded|Hooks WhatsApp configurados|Registro de 25/09; estado remoto atual não verificado.|docs/operations/whatsapp-auth-prototype.md
 pending|OTP WhatsApp ponta a ponta|Receber, confirmar, rejeitar expirado/incorreto e reenviar em telefone controlado.|docs/operations/whatsapp-auth-prototype.md
 pending|Revisão Meta e Embedded Signup|Documento registra revisão em andamento e conclusão no servidor ainda necessária.|docs/operations/whatsapp-auth-prototype.md

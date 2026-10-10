@@ -92,3 +92,11 @@ Confirme a versão da Graph API exibida no painel Meta antes do teste; ela é co
 - aprovação e eventuais exigências da análise Meta acompanhadas até a conclusão.
 
 Não use Baileys, sessão por QR Code ou WhatsApp Web como fallback deste fluxo.
+
+## Desvinculação de celular
+
+A remoção consulta o usuário canônico e confirma no servidor a ausência do
+telefone e identidade phone após DELETE. Falhas não anunciam sucesso nem
+limpam o perfil. Vínculos antigos exigem nova remoção autenticada pela conta
+titular. Testes isolados cobrem consulta, recusa, ausência de método alternativo
+e confirmação pós-DELETE; nenhuma remoção real ou envio de OTP na validação.

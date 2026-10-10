@@ -96,3 +96,9 @@ do aplicativo, smoke autenticado ou verificações remotas.
   e [useCoordinationDashboard.test.ts](../../../src/screens/coordination/hooks/__tests__/useCoordinationDashboard.test.ts).
 - Aplicar o nível de dados/segurança da [escada de validação](../../operations/validation-ladder.md):
   testes focados, typecheck, org-scope e smoke autenticado do fluxo afetado.
+
+## Desvinculação de celular
+
+Consultar identidades em GET /auth/v1/user; falhas não equivalem a vínculo
+ausente. Após DELETE, confirmar ausência de telefone e identidade phone antes
+de atualizar sessão e anunciar sucesso. Preservar outro método de acesso.
