@@ -46,7 +46,7 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 - Desvinculação de celular consulta identidades em `GET /auth/v1/user`; falhas
   não equivalem a vínculo ausente. Só confirma remoção após reler o usuário e
-  verificar ausência de telefone e identidade phone. Correção local; não libera
+  verificar ausência de telefone e identidade phone. Publicada na PR #103; não libera
   automaticamente números que permaneceram vinculados após falha antiga.
 
 - Link completo de equipe colado no cadastro mantém a prova apenas em memória.
@@ -66,11 +66,12 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
   apenas o código para a consulta. O e-mail do link é sugestão editável quando o
   campo está vazio e somente após validação bem-sucedida do código, nunca prova de identidade. A consulta pública retorna somente disponibilidade;
   não consome o convite nem comprova a identidade do destinatário. Alterar o código
-  invalida a confirmação anterior. Edge publicada em 09/10/2026; frontend ainda local.
+  invalida a confirmação anterior. Edge publicada em 09/10/2026; cadastro e conclusão compartilham o componente de senha.
   [Contrato e validação local](../../operations/signup-invite-validation.md).
 - A prova do link `/staff-invite` permanece apenas em memória acima dos gates de
   bootstrap, sobrevivendo à remontagem da tela após limpar a URL. É descartada
-  ao concluir ou sair da rota; não implica aceite automático. Correção local.
+  ao concluir ou sair da rota; não implica aceite automático. Publicada na PR #100.
+  [Correção e validação](../../operations/staff-invite-entry-fix.md).
 - A conta sem vínculo pode solicitar acesso em `/pending`; não recebe criação livre
   de instituição. A RPC legada de provisionamento está restrita no contrato SQL.
 - Atleta e familiar não são cargos da equipe; aprovação de acesso deve preservar
@@ -100,3 +101,9 @@ do aplicativo, smoke autenticado ou verificações remotas.
   e [useCoordinationDashboard.test.ts](../../../src/screens/coordination/hooks/__tests__/useCoordinationDashboard.test.ts).
 - Aplicar o nível de dados/segurança da [escada de validação](../../operations/validation-ladder.md):
   testes focados, typecheck, org-scope e smoke autenticado do fluxo afetado.
+
+## Desvinculação de celular
+
+Consultar identidades em GET /auth/v1/user; falhas não equivalem a vínculo
+ausente. Após DELETE, confirmar ausência de telefone e identidade phone antes
+de atualizar sessão e anunciar sucesso. Preservar outro método de acesso.

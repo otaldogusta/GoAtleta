@@ -93,11 +93,10 @@ Confirme a versão da Graph API exibida no painel Meta antes do teste; ela é co
 
 Não use Baileys, sessão por QR Code ou WhatsApp Web como fallback deste fluxo.
 
-## Correção local da desvinculação — 09/10/2026
+## Desvinculação de celular
 
-Identidades são consultadas em `GET /auth/v1/user`. Falha de consulta não
-é ausência de vínculo. Após DELETE, a sessão só é atualizada se a releitura
-confirmar ausência de telefone e identidade phone, preservando outro método
-de acesso. Vinte testes isolados passaram; nenhuma remoção real ou envio
-de OTP foi executado nesta validação. Vínculos antigos não são reparados
-automaticamente e exigem nova remoção autenticada pela conta titular.
+A remoção consulta o usuário canônico e confirma no servidor a ausência do
+telefone e identidade phone após DELETE. Falhas não anunciam sucesso nem
+limpam o perfil. Vínculos antigos exigem nova remoção autenticada pela conta
+titular. Testes isolados cobrem consulta, recusa, ausência de método alternativo
+e confirmação pós-DELETE; nenhuma remoção real ou envio de OTP na validação.

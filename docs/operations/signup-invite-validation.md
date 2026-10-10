@@ -94,3 +94,11 @@ O parser também extrai `code` da query/fragmento de `/staff-invite`, inclusive
 com letras maiúsculas, sem navegar nem enviar token/e-mail. Códigos duplicados
 ou conflitantes são rejeitados. 29 testes de parser/cadastro e typecheck passaram.
 Correção local; disponibilidade do convite continua sendo decisão do servidor.
+
+## Pacote final de convite — 09/10/2026
+
+Branch codex/invite-completion-release preparada a partir de main 1045e3a6.
+Build:verified passou em 306s, sem reaproveitamento; inclui lint, tipos, testes, SQL,
+escopo, arquitetura, performance e export web. Depois disso, apenas documentação
+e checklist receberam o registro de entrega. Reenvio e conclusão cobertos por mocks;
+nenhum e-mail real ou aceite real foi enviado na validação desta publicação.
