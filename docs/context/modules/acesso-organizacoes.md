@@ -44,6 +44,11 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Desvinculação de celular consulta identidades em `GET /auth/v1/user`; falhas
+  não equivalem a vínculo ausente. Só confirma remoção após reler o usuário e
+  verificar ausência de telefone e identidade phone. Publicada na PR #103; não libera
+  automaticamente números que permaneceram vinculados após falha antiga.
+
 - Link completo de equipe colado no cadastro mantém a prova apenas em memória.
   Na submissão explícita usa aceite/conclusão existentes, sem recriar a conta
   preparada pelo convite. Sessão temporária é reaproveitada em falha de conclusão;

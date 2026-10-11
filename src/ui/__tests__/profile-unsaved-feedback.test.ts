@@ -52,7 +52,7 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('Platform.OS === "web"');
     expect(source).toContain('mobileExpandedSection === "personal"');
     expect(source).toContain('(mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)');
-    expect(source).toContain('? "Preencha os dados obrigatórios"');
+    expect(source).toContain('? "Revise os dados informados"');
     expect(source).toContain(': "Salvar alterações"}');
   });
 
@@ -66,9 +66,12 @@ describe("profile unsaved feedback", () => {
 
   it("enables phone verification through WhatsApp without presenting it as SMS", () => {
     expect(source).toContain("const phoneVerificationEnabled = true;");
-    expect(source).toContain('message: "Código enviado pelo WhatsApp."');
+    expect(source).toContain("setShowPhoneVerificationModal(true)");
     expect(source).toContain('"Validar celular pelo WhatsApp"');
-    expect(source).toContain("Código recebido pelo WhatsApp");
+    expect(source).toContain("Digite o código recebido pelo WhatsApp.");
+    expect(source.match(/accessibilityLabel="Código de confirmação do celular"/g)).toHaveLength(1);
+    expect(source).toContain("visible={showPhoneVerificationModal && phoneVerificationRequested}");
+    expect(source).toContain("setShowPhoneVerificationModal(false)");
     expect(source).not.toContain("Código enviado por SMS.");
   });
 
@@ -87,8 +90,8 @@ describe("profile unsaved feedback", () => {
   });
 
   it("reuses the complete account and security card across profile types", () => {
-    expect(source).toContain("const accountSecuritySectionContent = (");
-    expect(source.match(/\{accountSecuritySectionContent\}/g)).toHaveLength(2);
+    expect(source).toContain("const accountSecuritySectionContent = () => (");
+    expect(source.match(/\{accountSecuritySectionContent\(\)\}/g)).toHaveLength(2);
     expect(source).toContain("<SecurityContactFields");
     expect(source).toContain('label="Nova senha"');
     expect(source).toContain('label="Confirmar nova senha"');
@@ -106,12 +109,14 @@ describe("profile unsaved feedback", () => {
     expect(studentProfile).not.toContain("maxWidth: responsiveLayout.isMobile ? undefined : 760");
   });
 
-  it("makes the student completion requirements explicit before saving", () => {
-    expect(source).toContain("Nome completo (obrigatório)");
+  it("validates supplied values without requiring empty profile fields", () => {
+    expect(source).not.toContain("(obrigatório)");
+    expect(source).toContain("!mobileBirthDraft.trim() || parseStudentBirthDate(mobileBirthDraft)");
+    expect(source).toContain("if (!mobilePhoneDraft.trim()) return null;");
     expect(source).not.toContain("Os demais dados são opcionais.");
-    expect(source).toContain('message: "Revise os campos obrigatórios destacados."');
+    expect(source).toContain('message: "Revise os campos inválidos destacados."');
     expect(source).toContain("mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors");
-    expect(source).toContain('"Preencha os dados obrigatórios"');
+    expect(source).toContain('"Revise os dados informados"');
     expect(source).toContain("validateCpf(mobileCpfDraft)");
     expect(source).toContain("<FloatingFieldError message={fieldError} />");
     expect(source).toContain("setMobileExpandedSection(\"personal\")");

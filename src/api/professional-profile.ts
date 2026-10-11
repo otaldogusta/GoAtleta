@@ -42,7 +42,7 @@ export const getMyProfessionalProfile = async (): Promise<ProfessionalProfile> =
 };
 
 export const saveMyProfessionalProfile = async (profile: {
-  birthDate: string;
+  birthDate: string | null;
   cpfInput: string | null;
   rg: string;
   address: string;
@@ -51,7 +51,7 @@ export const saveMyProfessionalProfile = async (profile: {
   await supabaseRestPost<null>(
     "/rpc/save_my_professional_profile",
     {
-      p_birth_date: profile.birthDate,
+      p_birth_date: profile.birthDate || null,
       p_cpf_input: profile.cpfInput,
       p_rg: profile.rg,
       p_address: profile.address,

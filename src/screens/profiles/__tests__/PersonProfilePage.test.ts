@@ -49,3 +49,31 @@ it("keeps the caller's workspace control on the own profile across tabs only", (
   expect(view.root.findAllByType(Text).filter(n => n.props.testID === "workspace-control")).toHaveLength(0);
   act(() => view.unmount());
 });
+
+it("shares inline name edits with the parent draft and cancels with Escape", () => {
+  function Profile() {
+    const [name, setName] = useState("Ana");
+    return React.createElement(PersonProfilePage, { name, onNameChange: setName, role: "Professor", organizationName: "Rede", classes: [], ownProfile: true, onBack: jest.fn() });
+  }
+  let view!: TestRenderer.ReactTestRenderer;
+  act(() => { view = TestRenderer.create(React.createElement(Profile)); });
+  const open = () => view.root.findAll(n => n.props.accessibilityLabel === "Editar nome do perfil" && n.props.onPress)[0];
+  act(() => open().props.onPress());
+  act(() => view.root.findByType(TextInput).props.onChangeText("Ana Silva"));
+  expect(view.root.findByType(TextInput).props.value).toBe("Ana Silva");
+  act(() => view.root.findByType(TextInput).props.onKeyPress({ nativeEvent: { key: "Escape" }, stopPropagation: jest.fn() }));
+  act(() => open().props.onPress());
+  expect(view.root.findByType(TextInput).props.value).toBe("Ana");
+  act(() => view.root.findByType(TextInput).props.onChangeText("Ana Silva"));
+  act(() => view.root.findByType(TextInput).props.onSubmitEditing());
+  act(() => open().props.onPress());
+  expect(view.root.findByType(TextInput).props.value).toBe("Ana Silva");
+  act(() => view.unmount());
+});
+
+it("never offers inline renaming for another person's profile", () => {
+  let view!: TestRenderer.ReactTestRenderer;
+  act(() => { view = TestRenderer.create(React.createElement(PersonProfilePage, { name: "Ana", onNameChange: jest.fn(), role: "Professor", organizationName: "Rede", classes: [], onBack: jest.fn() })); });
+  expect(view.root.findAll(n => n.props.accessibilityLabel === "Editar nome do perfil")).toHaveLength(0);
+  act(() => view.unmount());
+});

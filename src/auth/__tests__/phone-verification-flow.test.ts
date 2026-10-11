@@ -62,7 +62,7 @@ const mountAuth = async (initialSession = session) => {
 
 it.each([
   ["wrong", { error_code: "otp_expired", msg: "Token is invalid" }, "Código inválido. Confira e tente novamente."],
-  ["expired", { error_code: "otp_expired", msg: "Token has expired or is invalid" }, "O código expirou. Solicite um novo."],
+  ["expired", { error_code: "otp_expired", msg: "Token has expired or is invalid" }, "Código inválido ou expirado. Confira ou solicite um novo."],
 ])("keeps the session unverified after a %s code, without retrying or sending a new message", async (_label, body, message) => {
   fetchMock.mockResolvedValueOnce(response(403, body));
   const { result } = await mountAuth();

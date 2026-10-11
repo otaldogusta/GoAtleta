@@ -47,6 +47,13 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 ## Decisões atuais e histórico
 
+- O menu flutuante compacto acompanha o foco da tela; seu portal e os listeners
+  de arraste são desmontados ao sair para evitar botões de turmas retidas na pilha.
+
+- A lista usa somente turmas retornadas pela consulta, inclusive em desenvolvimento.
+  Ausência de turmas não injeta exemplos nem atribui o usuário atual como responsável.
+
+
 O [perfil pedagógico](../../../docs/operations/class-pedagogical-profile.md) é a
 referência detalhada de segurança, interpretação e revisão de planos. Seu relato
 de ativação/smoke é datado; não é uma nova verificação deste levantamento.

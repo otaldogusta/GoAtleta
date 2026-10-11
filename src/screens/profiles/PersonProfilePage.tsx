@@ -1,6 +1,6 @@
 import { PageBreadcrumbHeader } from "../../components/ui/PageBreadcrumbHeader";
-import { useState, type ReactNode } from "react";
-import { Image, Platform, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { useState, useRef, type ReactNode } from "react";
+import { Image, Platform, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ScrollViewProps } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import type { OrgClass } from "../../api/members";
@@ -23,6 +23,7 @@ export type PersonProfilePageProps = {
   aboutItems?: { label: string; value?: string | null }[];
   testID?: string;
   name: string;
+  onNameChange?: (name: string) => void;
   role: string;
   roleControl?: ReactNode;
   organizationName: string;
@@ -45,6 +46,25 @@ export type PersonProfilePageProps = {
   onManageClasses?: () => void;
   onMessage?: () => void;
 };
+
+export function EditableProfileName({ name, onChange, color, fontSize }: {
+  name: string; onChange: (name: string) => void; color: string; fontSize: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const original = useRef(name);
+  const style = { color, fontSize, fontWeight: "700" as const };
+  return editing ? <TextInput
+    accessibilityLabel="Editar nome do perfil"
+    autoFocus selectTextOnFocus value={name} onChangeText={onChange}
+    onBlur={() => { if (!name.trim()) onChange(original.current); setEditing(false); }}
+    onSubmitEditing={() => { if (!name.trim()) onChange(original.current); setEditing(false); }}
+    onKeyPress={event => { if (event.nativeEvent.key === "Escape") { event.stopPropagation(); onChange(original.current); setEditing(false); } }}
+    returnKeyType="done"
+    style={[style, { minWidth: 180, maxWidth: "100%", flexShrink: 1, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: "transparent" }, Platform.OS === "web" ? { outlineStyle: "none" } as never : null]}
+  /> : <Pressable accessibilityRole="button" accessibilityLabel="Editar nome do perfil" suppressWebHoverFeedback disableWebPressScale onPress={() => { original.current = name; setEditing(true); }}>
+    <Text style={[style, { textDecorationLine: "underline" }]}>{name}</Text>
+  </Pressable>;
+}
 
 /** Person-first presentation. Callers own scoped reads and authorized actions. */
 export function PersonProfilePage(props: PersonProfilePageProps) {
@@ -122,7 +142,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
                 {props.onMessage ? action("Mensagem", props.onMessage, false, compact) : null}
               </View>
             </View>
-            <View style={{ flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}><Text style={{ color: colors.text, fontSize: compact ? 22 : 24, fontWeight: "700" }}>{props.name}</Text>{props.ownProfile && props.roleControl ? props.roleControl : <Text style={{ color: colors.muted, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, fontSize: 12 }}>{props.role}</Text>}</View>
+            <View style={{ flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}><>{props.ownProfile && props.onNameChange ? <EditableProfileName name={props.name} onChange={props.onNameChange} color={colors.text} fontSize={compact ? 22 : 24} /> : <Text style={{ color: colors.text, fontSize: compact ? 22 : 24, fontWeight: "700" }}>{props.name}</Text>}</>{props.ownProfile && props.roleControl ? props.roleControl : <Text style={{ color: colors.muted, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, fontSize: 12 }}>{props.role}</Text>}</View>
             {props.ownProfile && props.workspaceControl ? props.workspaceControl : <Text style={{ color: colors.muted, fontSize: compact ? 13 : 14, marginTop: 4 }}>{props.organizationName}</Text>}
             {props.locationLabel || (props.joinedAt && Number.isFinite(Date.parse(props.joinedAt))) ? <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 18, rowGap: 8, marginTop: 12 }}>
               {props.locationLabel ? <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><GoAtletaIcon name="location" size={13} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: 12 }}>{props.locationLabel}</Text></View> : null}

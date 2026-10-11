@@ -2,7 +2,6 @@ import { View } from "react-native";
 
 import { radius, shadow, zIndex } from "../theme/tokens";
 import { Button } from "./Button";
-import { useAppTheme } from "./app-theme";
 
 type FloatingSaveBarProps = {
   visible: boolean;
@@ -25,8 +24,6 @@ export function FloatingSaveBar({
   maxWidth = 728,
   bottom = 18,
 }: FloatingSaveBarProps) {
-  const { colors } = useAppTheme();
-
   if (!visible) return null;
 
   return (
@@ -46,12 +43,8 @@ export function FloatingSaveBar({
         style={{
           width: "100%",
           maxWidth,
-          padding: 8,
-          borderRadius: radius.container,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          ...shadow.elevated,
+          borderRadius: radius.internal,
+          ...shadow.card,
         }}
       >
         <Button

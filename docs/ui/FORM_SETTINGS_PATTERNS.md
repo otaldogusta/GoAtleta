@@ -100,7 +100,8 @@ escopo solicitado, não uma preferência visual do agente.
   Alterar um campo deve atualizar imediatamente o estado de salvar; clicar em
   outro card não pode ser necessário para detectar mudanças.
 - Um formulário com vários cards tem uma ação flutuante de salvar, não uma por
-  card. Ocultar quando limpo; enquanto salva, mostrar progresso e bloquear
+  card. Exibir somente o botão com sombra leve, sem caixa, borda ou fundo externo.
+  Ocultar quando limpo; enquanto salva, mostrar progresso e bloquear
   repetição. Reservar espaço para não cobrir conteúdo, teclado ou navegação.
 - Recolher/abrir cards não equivale a sair da tela: não confirmar, descartar,
   gravar automaticamente nem reinicializar campos nessa interação.

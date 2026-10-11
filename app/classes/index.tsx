@@ -164,159 +164,6 @@ function SelectOption({
   );
 }
 
-const CLASS_LIST_PREVIEW_ITEMS: ClassGroup[] = [
-  {
-    id: "preview_cidadania_1",
-    name: "Turma 10-12",
-    organizationId: "preview",
-    unit: "Cidadania Boa Vista",
-    unitId: "preview_cidadania",
-    colorKey: "default",
-    modality: "voleibol",
-    ageBand: "10-12",
-    gender: "misto",
-    startTime: "15:00",
-    endTime: "16:00",
-    durationMinutes: 60,
-    daysOfWeek: [2, 4],
-    daysPerWeek: 2,
-    goal: "Fundamentos",
-    equipment: "quadra",
-    level: 1,
-    mvLevel: "MV1",
-    cycleStartDate: "2026-01-06",
-    cycleLengthWeeks: 52,
-    acwrLow: 0.8,
-    acwrHigh: 1.3,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  },
-  {
-    id: "preview_cidadania_2",
-    name: "Iniciação Vôlei",
-    organizationId: "preview",
-    unit: "Cidadania Boa Vista",
-    unitId: "preview_cidadania",
-    colorKey: "default",
-    modality: "voleibol",
-    ageBand: "08-11",
-    gender: "misto",
-    startTime: "16:15",
-    endTime: "17:15",
-    durationMinutes: 60,
-    daysOfWeek: [3],
-    daysPerWeek: 1,
-    goal: "Fundamentos",
-    equipment: "quadra",
-    level: 1,
-    mvLevel: "MV1",
-    cycleStartDate: "2026-01-06",
-    cycleLengthWeeks: 52,
-    acwrLow: 0.8,
-    acwrHigh: 1.3,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  },
-  {
-    id: "preview_rede_1",
-    name: "Turma 07-09",
-    organizationId: "preview",
-    unit: "Rede Esperança",
-    unitId: "preview_rede",
-    colorKey: "default",
-    modality: "voleibol",
-    ageBand: "06-08",
-    gender: "misto",
-    startTime: "13:00",
-    endTime: "14:00",
-    durationMinutes: 60,
-    daysOfWeek: [2, 4],
-    daysPerWeek: 2,
-    goal: "Fundamentos",
-    equipment: "quadra",
-    level: 1,
-    mvLevel: "MV1",
-    cycleStartDate: "2026-01-06",
-    cycleLengthWeeks: 52,
-    acwrLow: 0.8,
-    acwrHigh: 1.3,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  },
-  {
-    id: "preview_rede_2",
-    name: "Primeiros Saques",
-    organizationId: "preview",
-    unit: "Rede Esperança",
-    unitId: "preview_rede",
-    colorKey: "default",
-    modality: "voleibol",
-    ageBand: "09-11",
-    gender: "misto",
-    startTime: "15:15",
-    endTime: "16:15",
-    durationMinutes: 60,
-    daysOfWeek: [3],
-    daysPerWeek: 1,
-    goal: "Saque",
-    equipment: "quadra",
-    level: 1,
-    mvLevel: "MV1",
-    cycleStartDate: "2026-01-06",
-    cycleLengthWeeks: 52,
-    acwrLow: 0.8,
-    acwrHigh: 1.3,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  },
-  {
-    id: "preview_unibrasil_1",
-    name: "ElCartel Base",
-    organizationId: "preview",
-    unit: "UniBrasil",
-    unitId: "preview_unibrasil",
-    colorKey: "default",
-    modality: "voleibol",
-    ageBand: "13-15",
-    gender: "masculino",
-    startTime: "16:00",
-    endTime: "17:15",
-    durationMinutes: 75,
-    daysOfWeek: [2, 4],
-    daysPerWeek: 2,
-    goal: "Fundamentos",
-    equipment: "quadra",
-    level: 2,
-    mvLevel: "MV2",
-    cycleStartDate: "2026-01-06",
-    cycleLengthWeeks: 52,
-    acwrLow: 0.8,
-    acwrHigh: 1.3,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  },
-  {
-    id: "preview_unibrasil_2",
-    name: "ElCartel Sub-18",
-    organizationId: "preview",
-    unit: "UniBrasil",
-    unitId: "preview_unibrasil",
-    colorKey: "default",
-    modality: "voleibol",
-    ageBand: "16-18",
-    gender: "feminino",
-    startTime: "19:15",
-    endTime: "20:30",
-    durationMinutes: 75,
-    daysOfWeek: [3],
-    daysPerWeek: 1,
-    goal: "Jogo",
-    equipment: "quadra",
-    level: 2,
-    mvLevel: "MV2",
-    cycleStartDate: "2026-01-06",
-    cycleLengthWeeks: 52,
-    acwrLow: 0.8,
-    acwrHigh: 1.3,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  },
-];
-
 export default function ClassesScreen() {
   markRender("screen.classes.render.root");
 
@@ -751,14 +598,7 @@ export default function ClassesScreen() {
     options: { value: string; label: string }[]
   ) => options.find((option) => option.value === value)?.label ?? value ?? "";
 
-  const displayClasses = useMemo(() => {
-    if (!__DEV__ || classes.length > 0) return classes;
-    const realIds = new Set(classes.map((item) => item.id));
-    const previewItems = CLASS_LIST_PREVIEW_ITEMS.filter((item) => {
-      return !realIds.has(item.id);
-    });
-    return [...classes, ...previewItems];
-  }, [classes]);
+  const displayClasses = classes;
 
   const studentsByClassId = useMemo(() => groupStudentsByClassId(students), [students]);
   const classCardPhotoCandidates = useMemo(() => {
@@ -814,21 +654,6 @@ void Promise.all(
     },
     [studentPhotoAccessUrls]
   );
-  const currentTeacher = useMemo(() => {
-    const metadata = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
-    const getText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-    const name =
-      getText(metadata.full_name) ||
-      getText(metadata.name) ||
-      getText(metadata.display_name) ||
-      getText(session?.user?.email);
-    const photoUrl = getText(metadata.avatar_url) || getText(metadata.picture);
-    return {
-      name: name || null,
-      photoUrl: photoUrl || null,
-    };
-  }, [session?.user?.email, session?.user?.user_metadata]);
-
   const classCardViewModelsById = useMemo(() => {
     return displayClasses.reduce<Record<string, ReturnType<typeof buildClassCardViewModel>>>(
       (acc, classGroup) => {
@@ -838,9 +663,7 @@ void Promise.all(
               name: responsible.displayName,
               photoUrl: responsible.photoUrl,
             }
-          : classGroup.id.startsWith("preview_")
-            ? currentTeacher
-            : null;
+          : null;
         acc[classGroup.id] = buildClassCardViewModel({
           classGroup,
           students: (studentsByClassId[classGroup.id] ?? []).map((student) => {
@@ -864,7 +687,6 @@ void Promise.all(
     classCoverageSummariesByClassId,
     classHeadsById,
     classStaffById,
-    currentTeacher,
     displayClasses,
     resolveClassCardStudentPhotoUrl,
     studentsByClassId,

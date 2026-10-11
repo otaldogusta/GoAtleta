@@ -1,3 +1,4 @@
+import { useIsFocused } from "expo-router";
 import { Animated, Platform, StyleSheet } from "react-native";
 import { COPILOT_FAB_SIZE } from "../../../copilot/components/CopilotFab";
 import type { ThemeColors } from "../../../ui/app-theme";
@@ -6,11 +7,19 @@ import { Pressable } from "../../../ui/Pressable";
 import { useDraggableFab } from "../../../ui/useDraggableFab";
 import { createWebPortal } from "../../../ui/web-portal";
 
-export function ClassNavigationFab({ colors, bottom, onPress }: {
+type ClassNavigationFabProps = {
   colors: ThemeColors;
   bottom: number;
   onPress: () => void;
-}) {
+};
+
+export function ClassNavigationFab(props: ClassNavigationFabProps) {
+  const isFocused = useIsFocused();
+  // A web portal escapes the hidden screen retained by the navigation stack.
+  return isFocused ? <FocusedClassNavigationFab {...props} /> : null;
+}
+
+function FocusedClassNavigationFab({ colors, bottom, onPress }: ClassNavigationFabProps) {
   const { position, wrapperRef, panHandlers, canOpen } = useDraggableFab(bottom, "class-navigation-fab-position:v1");
   const button = (
     <Animated.View
