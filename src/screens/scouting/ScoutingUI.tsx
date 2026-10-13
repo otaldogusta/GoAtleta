@@ -39,10 +39,10 @@ export function ErrorNotice({ text }: { text: string }) {
   const { colors } = useAppTheme();
   return text ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ color: colors.dangerText, fontSize: 13, lineHeight: 20 }}>{text}</Text> : null;
 }
-export function ScoutingModal({ title, subtitle, onClose, children, footer, summary }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode }>) {
+export function ScoutingModal({ title, subtitle, onClose, children, footer, summary, compact = false }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode; compact?: boolean }>) {
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
-  const card = useModalCardStyle({ maxWidth: 640, padding: 0, gap: 0 });
+  const card = useModalCardStyle({ maxWidth: compact ? 480 : 640, padding: 0, gap: 0 });
   const inset = width < 600 ? 16 : 20;
   const root = useRef<View>(null);
   const closeRef = useRef(onClose);
@@ -66,14 +66,14 @@ export function ScoutingModal({ title, subtitle, onClose, children, footer, summ
     return () => { document.removeEventListener("keydown", keydown, true); if (previous?.isConnected) previous.focus(); };
   }, []);
   return <ModalSheet visible onClose={onClose} position="center" containerPadding={width < 600 ? 8 : 16}
-    cardStyle={[card, { height: width < 600 ? height - 16 : Math.min(684, height - 32), maxHeight: "100%", backgroundColor: colors.surface, paddingBottom: 0, marginBottom: 0, overflow: "hidden" }, Platform.OS === "web" ? { backgroundImage: "none" } as never : null]}>
-    <View ref={root} role="dialog" aria-modal={true} accessibilityLabel={title} style={{ flex: 1, minHeight: 0 }}>
+    cardStyle={[card, { height: compact ? undefined : width < 600 ? height - 16 : Math.min(684, height - 32), maxHeight: height - (width < 600 ? 16 : 32), backgroundColor: colors.surface, paddingBottom: 0, marginBottom: 0, overflow: "hidden" }, Platform.OS === "web" ? { backgroundImage: "none" } as never : null]}>
+    <View ref={root} role="dialog" aria-modal={true} accessibilityLabel={title} style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }}>
       <View style={{ flexDirection: "row", gap: 16, paddingHorizontal: inset, paddingVertical: 16, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <View style={{ flex: 1, gap: 3 }}><Copy title>{title}</Copy>{subtitle ? <Copy muted>{subtitle}</Copy> : null}</View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fechar análise" onPress={onClose} style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, justifyContent: "center", alignItems: "center" }}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable>
       </View>
       {summary ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 10 }}>{summary}</View> : null}
-      <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: inset, paddingVertical: 12, gap: 14 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+      <ScrollView style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: inset, paddingVertical: compact ? 20 : 12, gap: 14 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
       {footer ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 8, gap: 4, borderTopWidth: 1, borderTopColor: colors.border }}>{footer}</View> : null}
     </View>
   </ModalSheet>;

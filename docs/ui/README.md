@@ -19,6 +19,9 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Scouting — proposta visual e pesquisa de domínio | [SCOUTING_MOCKUP_2026-10-06.md](SCOUTING_MOCKUP_2026-10-06.md) |
 | Scouting — coleta por jogada, app local e banco ativado | [SCOUTING_IMPLEMENTACAO_2026-10-07.md](SCOUTING_IMPLEMENTACAO_2026-10-07.md) |
 
+[Scouting em vídeo — mockup dedicado e proposta técnica](SCOUTING_VIDEO_MOCKUP_2026-10-12.md).
+[Implementação web local do estúdio](SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md): player, anotações, timeline, processamento local e compartilhamento por link; conferência autenticada local registrada, ativação remota pendente. [Continuidade e fonte YouTube](../operations/scouting-video-handoff-2026-10-13.md).
+
 ## Regra central
 
 Web não é mobile esticado. Em desktop, usar a largura para criar hierarquia e

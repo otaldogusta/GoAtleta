@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +20,7 @@ import { ScoutingMetrics } from "./ScoutingMetrics";
 import { ScoutingSelect, ScoutingTabs } from "./ScoutingNavigation";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { NewScoutingModal } from "./NewScoutingModal";
+const ScoutingVideoStudio = lazy(() => import('./video/ScoutingVideoStudio'));
 
 export function ScoutingScreen({ classId, initialSessionId }: { classId: string; initialSessionId?: string }) {
   const { activeOrganizationId } = useOrganization();
@@ -50,6 +51,8 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
   const [criteria, setCriteria] = useState(false);
   const [current, setCurrent] = useState(initialSessionId ?? null);
   const [creating, setCreating] = useState(false);
+  const [studio, setStudio] = useState<string | null>(null);
+  const [creatingVideo, setCreatingVideo] = useState(false);
   const alive = useRef(true);
   const epoch = useRef(0);
   const dirty = useRef(false);
@@ -98,7 +101,7 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
   const close = () => { restoreFocus.current = true; setCurrent(null); if (dirty.current) { dirty.current = false; reloadRows(); } if (initialSessionId) router.replace({ pathname: "/class/[id]/scouting", params: { id: classId } }); };
   const shell = { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 18, padding: 20, gap: 16 } as const;
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-    <ScreenPageHeader title="Scouting" eyebrow={cls?.name} onBack={back} right={<Button label="+ Nova análise" variant={active ? "outline" : "primary"} disabled={!ready || loading} onPress={() => setCreating(true)} />} />
+    <ScreenPageHeader title="Scouting" eyebrow={cls?.name} onBack={back} right={<View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{Platform.OS === 'web' ? <Button label="Estúdio de vídeo" variant="outline" disabled={!ready || loading} onPress={() => { setCreatingVideo(true); setCreating(true); }} /> : null}<Button label="+ Nova análise" variant={active ? "outline" : "primary"} disabled={!ready || loading} onPress={() => { setCreatingVideo(false); setCreating(true); }} /></View>} />
     <ScrollView contentContainerStyle={{ paddingTop: 24, paddingBottom: 48 }}>
       <ResponsivePage gap={24}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><ScoutingTabs segmented value={mode} onChange={v => setMode(v as "treino" | "jogo")} items={[{ value: "treino", label: "Treinos" }, { value: "jogo", label: "Jogos" }]} /><Copy muted>{cls?.name}</Copy></View>
@@ -108,7 +111,7 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
       {loading ? <ActivityIndicator color={colors.text} /> : null}
       {active ? <View style={[shell, { flexDirection: width >= 650 ? "row" : "column", justifyContent: "space-between", alignItems: width >= 650 ? "center" : "stretch" }]}>
         <GoAtletaIcon name="scouting" size={20} color={colors.muted} /><View style={{ gap: 5, flex: 1 }}><Copy muted>Em andamento{inProgress.length > 1 ? ` · ${inProgress.length} análises` : ""}</Copy><Copy title>{active.session.title}</Copy><Copy muted>{shortDate(active.session.date)} · {active.session.format ?? "Contexto não informado"}</Copy></View>
-        <Button label={ready ? "Continuar análise" : "Ver análise"} onPress={() => setCurrent(active.session.id)} />
+        {Platform.OS === 'web' ? <Button label="Abrir estúdio" onPress={() => setStudio(active.session.id)} /> : null}<Button label={Platform.OS === "web" ? "Coletor manual" : ready ? "Continuar análise" : "Ver análise"} variant={Platform.OS === "web" ? "outline" : "primary"} onPress={() => setCurrent(active.session.id)} />
       </View> : null}
       <View style={{ gap: 16 }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -147,7 +150,8 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
       {hasMore ? <Button label="Carregar análises anteriores" variant="outline" loading={loading} onPress={() => reloadRows(rows.length)} /> : null}
       </ResponsivePage>
     </ScrollView>
-    {current ? <ScoutingCollector key={current} org={org} sessionId={current} userId={userId} students={students} onClose={close} onSaved={() => { dirty.current = true; }} /> : null}
-    {creating ? <NewScoutingModal org={org} classId={classId} mode={mode} onClose={() => setCreating(false)} onCreated={id => { setCreating(false); setCurrent(id); reloadRows(); }} /> : null}
+    {current && !studio ? <ScoutingCollector key={current} org={org} sessionId={current} userId={userId} students={students} onClose={close} onSaved={() => { dirty.current = true; }} onOpenVideo={Platform.OS === 'web' ? () => setStudio(current) : undefined} /> : null}
+    {studio ? <Suspense fallback={<ActivityIndicator accessibilityLabel="Carregando estúdio de vídeo" />}><ScoutingVideoStudio org={org} userId={userId} classId={classId} sessionId={studio} teamName={cls?.name ?? ''} students={students} onClose={() => setStudio(null)} /></Suspense> : null}
+    {creating ? <NewScoutingModal org={org} classId={classId} mode={mode} onClose={() => setCreating(false)} onCreated={id => { setCreating(false); if (creatingVideo) setStudio(id); else setCurrent(id); reloadRows(); }} /> : null}
   </SafeAreaView>;
 }

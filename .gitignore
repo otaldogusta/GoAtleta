@@ -108,3 +108,6 @@ testvoleiapp
 # Python tooling caches
 __pycache__/
 *.py[cod]
+
+# Generated from pinned onnxruntime-web dependency
+/public/scouting-ai/runtime/

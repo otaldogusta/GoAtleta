@@ -71,3 +71,15 @@ test("the next set remains accessible even when the current set has no recorded 
   expect(screen.getByText("Set 2")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Começar coleta" })).toBeEnabled();
 });
+
+
+test("setter position P6 keeps its numeric value when starting the next set", async () => {
+  const screen = setup();
+  expect(screen.getByText("Set 1 · P3")).toBeTruthy();
+  fireEvent.press(screen.getByRole("button", { name: "Ver pontos" }));
+  fireEvent.press(screen.getByRole("button", { name: "Próximo set" }));
+  fireEvent.press(screen.getByRole("button", { name: "P6" }));
+  expect(screen.getByRole("button", { name: "P6" }).props.accessibilityState.selected).toBe(true);
+  await act(async () => { fireEvent.press(screen.getByRole("button", { name: "Começar coleta" })); });
+  expect(mockExecute).toHaveBeenCalledWith({ name: "start_set", payload: { setNumber: 2, scoreUs: 0, scoreThem: 0, serve: "us", rotation: 6 } });
+});

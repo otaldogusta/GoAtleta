@@ -10,8 +10,8 @@ import { useScoutingCollection } from "./use-scouting-collection";
 import { CaptureText, ContactCourt, ContactPad, ContactSequence } from "./ScoutingCaptureUI";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 
-export function ScoutingCollector({ org, sessionId, userId, students, onClose, onSaved }: {
-  org: string; sessionId: string; userId: string; students: Student[]; onClose: () => void; onSaved: () => void;
+export function ScoutingCollector({ org, sessionId, userId, students, onClose, onSaved, onOpenVideo }: {
+  org: string; sessionId: string; userId: string; students: Student[]; onClose: () => void; onSaved: () => void; onOpenVideo?: () => void;
 }) {
   const flow = useScoutingCollection(org, sessionId, userId, onSaved);
   const { colors } = useAppTheme();
@@ -85,7 +85,7 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
     </View>
   </> : undefined;
   const scoreboard = state ? <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-    <View style={{ flex: 1, gap: 3 }}><CaptureText muted>Set {state.setNumber}{state.rotation ? ` · R${state.rotation}` : ""}</CaptureText><CaptureText>{state.serve === "us" ? "Nosso saque" : "Saque adversário"}</CaptureText></View>
+    <View style={{ flex: 1, gap: 3 }}><CaptureText muted>Set {state.setNumber}{state.rotation ? ` · P${state.rotation}` : ""}</CaptureText><CaptureText>{state.serve === "us" ? "Nosso saque" : "Saque adversário"}</CaptureText></View>
     <View accessibilityLabel={`Placar: nós ${state.scoreUs}, adversário ${state.scoreThem}`} style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
       <View style={{ alignItems: "center" }}><CaptureText muted>Nós</CaptureText><Text style={{ color: colors.text, fontSize: 26, lineHeight: 32, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{state.scoreUs}</Text></View>
       <CaptureText muted>:</CaptureText><View style={{ alignItems: "center" }}><CaptureText muted>Adversário</CaptureText><Text style={{ color: colors.text, fontSize: 26, lineHeight: 32, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{state.scoreThem}</Text></View>
@@ -93,20 +93,33 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
     <View style={{ flex: 1, alignItems: "flex-end" }}><Link label={history ? "Voltar à jogada" : "Ver pontos"} onPress={() => setHistory(!history)} /></View>
   </View> : null;
   return <ScoutingModal title={editable ? isGame ? "Registrar jogada" : "Registrar treino" : session?.title || "Análise"} subtitle={session ? `${session.title} · ${session.format ?? "Contexto não informado"} · ${shortDate(session.date)}` : undefined}
-    onClose={() => { if (!flow.busy) onClose(); }} footer={footer} summary={scoreboard}>
+    onClose={() => { if (!flow.busy) onClose(); }} compact={!!configuring} footer={footer} summary={configuring ? undefined : scoreboard}>
     {flow.loading ? <ActivityIndicator color={colors.text} /> : null}
     <ErrorNotice text={flow.error} />
+    {onOpenVideo && detail ? <Link label="Abrir estúdio de vídeo" disabled={flow.busy} onPress={() => { if (athleteChosen || editing != null || configure) { flow.setError("Conclua ou cancele a edição atual antes de abrir o vídeo."); return; } onOpenVideo(); }} /> : null}
     {!detail && !flow.loading ? <Button label="Tentar carregar novamente" onPress={() => { void flow.reload(); }} /> : null}
     {detail && !detail.captureReady ? <Copy muted>A atualização de coleta ainda não está disponível. O histórico continua acessível.</Copy> : null}
     {flow.conflict ? <View style={{ gap: 10 }}><Copy>Placar atual: {state?.scoreUs ?? "—"} × {state?.scoreThem ?? "—"}. Confira se estes contatos ainda pertencem à jogada.</Copy>
       <Button label="Manter contatos e continuar" onPress={() => { void flow.reconcile(true); }} /><Link label="Usar somente o registro salvo" onPress={() => { void flow.reconcile(false); }} /></View> : null}
-    {configuring ? <View style={{ gap: 16 }}>
-      <Copy title>{state ? "Próximo set" : "Preparar o placar"}</Copy>
-      {!!detail?.actions.length && !state ? <Copy muted>As ações anteriores permanecem no histórico. Informe o placar a partir de agora.</Copy> : null}
-      {!state ? <Input label="Set" value={initialSet} onChangeText={setInitialSet} keyboardType="number-pad" maxLength={2} /> : <Copy>Set {nextSet}</Copy>}
-      <View style={{ flexDirection: "row", gap: 12 }}><Input label="Nós" value={scoreUs} onChangeText={setScoreUs} keyboardType="number-pad" maxLength={3} /><Input label="Adversário" value={scoreThem} onChangeText={setScoreThem} keyboardType="number-pad" maxLength={3} /></View>
-      <Copy>Quem começa sacando?</Copy><View style={{ flexDirection: "row", gap: 8 }}><Choice label="Nossa equipe" selected={serve === "us"} onPress={() => setServe("us")} /><Choice label="Adversário" selected={serve === "them"} onPress={() => setServe("them")} /></View>
-      {session?.format === "6x6" ? <><Copy>Posição do levantador · opcional</Copy><View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>{[1, 2, 3, 4, 5, 6].map(n => <Choice key={n} label={`R${n}`} selected={rotation === n} onPress={() => setRotation(rotation === n ? null : n)} />)}</View></> : null}
+    {configuring ? <View style={{ gap: 24 }}>
+      <View style={{ gap: 12 }}>
+        <Copy title>{state ? "Próximo set" : "Placar atual"}</Copy>
+        {!state && !detail?.actions.length ? <Copy muted>Informe o placar de agora. Se o jogo ainda não começou, mantenha 0 a 0.</Copy> : null}
+        {!!detail?.actions.length && !state ? <Copy muted>As ações anteriores permanecem no histórico. Informe o placar a partir de agora.</Copy> : null}
+        <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-end" }}>
+          <View style={{ width: 64 }}>{!state ? <Input label="Set" value={initialSet} onChangeText={setInitialSet} keyboardType="number-pad" maxLength={2} /> : <Copy>Set {nextSet}</Copy>}</View>
+          <Input label="Nós" value={scoreUs} onChangeText={setScoreUs} keyboardType="number-pad" maxLength={3} />
+          <Input label="Adversário" value={scoreThem} onChangeText={setScoreThem} keyboardType="number-pad" maxLength={3} />
+        </View>
+      </View>
+      <View style={{ gap: 8 }}>
+        <Copy>Primeiro saque</Copy>
+        <View style={{ flexDirection: "row", gap: 8 }}><Choice label="Nossa equipe" selected={serve === "us"} onPress={() => setServe("us")} /><Choice label="Adversário" selected={serve === "them"} onPress={() => setServe("them")} /></View>
+      </View>
+      {session?.format === "6x6" ? <View style={{ gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}><Copy>Posição do levantador</Copy><Copy muted>Opcional</Copy></View>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>{[1, 6, 5, 4, 3, 2].map(n => <Choice key={n} label={`P${n}`} selected={rotation === n} onPress={() => setRotation(rotation === n ? null : n)} />)}</View>
+      </View> : null}
       <Button label={flow.pending ? "Tentar novamente" : "Começar coleta"} loading={flow.busy} disabled={!validSet || flow.conflict} onPress={() => { void flow.execute({ name: "start_set", payload: { setNumber: nextSet, scoreUs: Number(scoreUs), scoreThem: Number(scoreThem), serve, rotation: session?.format === "6x6" ? rotation : null } }).then(ok => { if (ok) setConfigure(false); }); }} />
       {state ? <Link label="Cancelar" disabled={flow.busy || !!flow.pending} onPress={() => setConfigure(false)} /> : null}
     </View> : editable && !history ? <>

@@ -360,6 +360,7 @@ function RootLayoutContent() {
     "/privacy",
     "/terms",
     "/data-deletion",
+    "/scouting/shared",
     ...(__DEV__ ? ["/admin", "/family-access-preview"] : []),
   ];
   const publicPrefixes = ["/invite", "/family-invite", "/staff-invite"];

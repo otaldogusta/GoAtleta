@@ -1,0 +1,39 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Go Atleta · teste ONNX local</title>
+<style>body{font:15px system-ui;background:#0b1423;color:#eef3fc;max-width:1000px;margin:28px auto;padding:16px}button{padding:12px;margin:6px;background:#30d783;border:0;border-radius:10px}canvas{width:100%;max-width:600px}pre{white-space:pre-wrap;color:#afbdd2}#samples{display:flex;flex-wrap:wrap}#samples canvas{width:30%;margin:1%}</style>
+<h1>Teste de processamento no navegador</h1><p>3 segundos de vídeo · 90 quadros · nenhum envio remoto</p>
+<button id="cpu">Testar CPU</button><button id="gpu">Testar GPU</button><button id="cancel">Cancelar</button><p id="status">Aguardando teste</p><progress id="progress" max="90" value="0"></progress>
+<video id="video" src="./sample.mp4" muted playsinline preload="auto" hidden></video><canvas id="preview" width="768" height="432"></canvas><pre id="report"></pre><div id="samples"></div>
+<script type="module">
+const $=id=>document.getElementById(id),video=$('video'),canvas=$('preview'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+let worker,stopped=false;window.benchmarkResults=[];
+$('cancel').onclick=()=>{stopped=true;worker?.terminate();$('status').textContent='Cancelado';$('cpu').disabled=$('gpu').disabled=false};
+async function run(backend){
+ stopped=false;$('cpu').disabled=$('gpu').disabled=true;$('samples').replaceChildren();$('progress').value=0;
+ worker=new Worker('./worker.js',{type:'module'});
+ const call=(message,transfer=[])=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Tempo limite de 60 s')),60000);worker.onmessage=({data})=>{clearTimeout(timer);data.type==='error'?reject(Error(data.error)):resolve(data)};worker.onerror=e=>{clearTimeout(timer);reject(Error(e.message))};worker.postMessage(message,transfer)});
+ const result={backend,frames:0,detected:0,times:[],heapStart:performance.memory?.usedJSHeapSize,heapPeak:0,predictions:[]};const start=performance.now();
+ try{
+  $('status').textContent='Carregando modelo…';result.initMs=(await call({type:'init',backend})).ms;
+  if(video.readyState<2) await new Promise((resolve,reject)=>{video.onloadeddata=resolve;video.onerror=reject});
+  for(let batch=0;batch<10;batch++){
+   const input=new Float32Array(9*768*432);
+   for(let f=0;f<9;f++){
+    if(stopped)throw Error('Cancelado');
+    const time=(batch*9+f+.1)/30;
+    await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Falha ao ler quadro')),10000);video.onseeked=()=>{clearTimeout(timer);resolve()};video.currentTime=time});
+    ctx.drawImage(video,0,0,768,432);const pixels=ctx.getImageData(0,0,768,432).data;
+    for(let i=0;i<768*432;i++)input[f*768*432+i]=Math.round(.299*pixels[i*4]+.587*pixels[i*4+1]+.114*pixels[i*4+2])/255;
+   }
+   $('status').textContent=`Analisando ${batch*9+9}/90 quadros (${backend})`;
+   const output=await call({type:'run',input},[input.buffer]);result.times.push(output.ms);result.frames+=9;result.detected+=output.predictions.filter(p=>p.score>=.5).length;result.predictions.push(...output.predictions);
+   const point=output.predictions[8];if(point.score>=.5){ctx.strokeStyle='#30df88';ctx.lineWidth=3;ctx.beginPath();ctx.arc(point.x*768,point.y*432,12,0,Math.PI*2);ctx.stroke()}
+   const shot=document.createElement('canvas');shot.width=384;shot.height=216;shot.getContext('2d').drawImage(canvas,0,0,384,216);$('samples').append(shot);
+   $('progress').value=result.frames;result.heapPeak=Math.max(result.heapPeak,performance.memory?.usedJSHeapSize||0);
+  }
+  result.totalMs=performance.now()-start;result.inferenceMs=result.times.reduce((a,b)=>a+b,0);result.inferenceFps=90000/result.inferenceMs;
+  $('status').textContent='Teste concluído — marcações experimentais para revisão';
+ }catch(e){result.error=String(e);$('status').textContent=result.error}
+ finally{worker.terminate();$('cpu').disabled=$('gpu').disabled=false;window.benchmarkResults.push(result);$('report').textContent=JSON.stringify({...result,predictions:undefined},null,2)}
+}
+$('cpu').onclick=()=>run('wasm');$('gpu').onclick=()=>run('webgpu');
+</script></html>

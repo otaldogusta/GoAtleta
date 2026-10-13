@@ -1,0 +1,442 @@
+# Estúdio de scouting em vídeo — implementação web local
+
+Data: 12/10/2026. Implementado no aplicativo web; sem publicação nesta rodada.
+Referência visual: [mockup aprovado](SCOUTING_VIDEO_MOCKUP_2026-10-12.md).
+
+## Entrada e autorização
+
+A tela de scouting da turma oferece **Estúdio de vídeo** ao criar uma análise e
+**Abrir estúdio** como ação principal da sessão em andamento; **Coletor manual** permanece como ação secundária. O coletor também oferece a entrada, preservando seu
+rascunho e exigindo concluir/cancelar a edição do contato antes de trocar de tela.
+A autorização continua no fluxo existente de organização/turma e em
+`loadScoutingDetail`; a sessão retornada precisa corresponder à organização,
+turma e ID solicitados. Sessões concluídas abrem sem edição. Não há nova rota
+pública nem bypass de autenticação no aplicativo.
+
+## Comportamento entregue
+
+- Player de arquivo local, reprodução/pausa, velocidade, busca e passos de 0,033 s.
+  Esses passos não prometem precisão de um quadro em vídeos com taxa variável.
+- Cabeçalho flutuante recolhível, painel lateral em desktop e painel inferior
+  responsivo com recolhimento, expansão por rolagem/toque e temas do aplicativo.
+- Rallies manuais, miniaturas, divisão/união, ponto por equipe e quantidade na aba.
+  A abertura inicial contém um único intervalo completo, sem cortes inventados.
+- Timeline com capítulos clicáveis e detalhe ao passar o ponteiro/focar; modos de
+  vídeo completo e rally selecionado, contatos e cobertura da bola na mesma escala.
+- Contatos com instante, equipe, atleta real da turma ou sem atleta; nome/camisa
+  manual opcional. Oito fundamentos, incluindo bola de graça e cobertura de ataque,
+  com resultados próprios; ponto do rally é uma anotação separada do resultado do contato.
+- Desfazer/refazer por teclado e histórico; salvar/reabrir rascunho explicitamente.
+- Download do original, recorte individual e seleção de rallies em ZIP, com progresso
+  e cancelamento. Recortes são gravados pelo navegador em tempo real, normalmente
+  WebM, sem a camada da bola; limites não são garantidos no quadro exato. Lote limitado
+  a dez minutos. Navegadores sem captura de vídeo recebem erro e mantêm o original disponível.
+- Importação/exportação de marcações JSON validada e correção manual de coordenadas.
+  Trajetória pode ser importada por identidade do vídeo com posições normalizadas
+  `{fingerprint, positions: [{time, x, y}]}`; não é uma execução do detector.
+
+## Persistência e limites
+
+`src/core/scouting-video.ts` é um documento de anotação v1 separado dos contatos e
+pontos oficiais. Marcações de vídeo **não alteram placar, métricas ou estatísticas
+oficiais**. Os contratos `ScoutingContact`, comandos idempotentes e Supabase seguem
+inalterados; não foi criada nem executada migration.
+
+O rascunho usa AsyncStorage por usuário/organização/sessão/arquivo. A identidade
+local usa tamanho e SHA-256 de amostras inicial/final de 1 MiB, com validação de
+metadados; não constitui hash integral ou autorização. O arquivo deve ser escolhido
+novamente ao reabrir. Falhas de quota mantêm o documento na memória e o erro visível.
+Histórico: até cinquenta alterações em memória; até vinte persistidas, reduzidas
+conforme orçamento de tamanho de 1,5 milhão de caracteres, sem cortar o documento atual.
+Desfazer não apaga contatos fora do corte; divisão/união exigem reconfirmar o ponto.
+
+Exportar JSON remove vínculos `studentId`, mas mantém nomes e marcações visíveis.
+Importar não concede acesso a sessão, não aceita URL externa e verifica identidade,
+limites e estrutura. Não há envio da mídia a servidor.
+
+Continuam pendentes: serviço de processamento automático, recortes sugeridos,
+upload/storage privado, sincronização remota das anotações, publicação nas estatísticas
+oficiais e link de compartilhamento com atletas. A prévia de leitura não cria link.
+A entrada em vídeo está disponível no **web**, incluindo navegador móvel; aplicativo
+nativo mantém o scouting existente. O detector experimental do mockup não foi
+incorporado como se fosse um serviço de produção.
+
+## Validação registrada
+
+- 17 testes focados aprovados: domínio temporal, contatos preservados, divisão/união,
+  ponto, desfazer/refazer, importação, escopo, salvar/reabrir/histórico e falha de quota,
+  além dos testes existentes do coletor.
+- ZIP validado com leitor independente: duas entradas, CRC e conteúdo preservados.
+- `npm run typecheck:app`, `npm run check:org-scope` e higiene de performance aprovados.
+- Componentes reais compilados pelo Metro em `localhost:8081`, usando sessão fictícia
+  em fixture temporária: importar arquivo, play/pause, dois contatos coexistindo,
+  atalhos de desfazer/refazer, corte e foco do rally, download real WebM com áudio/vídeo.
+  Exportação de um intervalo de 6 s produziu aproximadamente 6,24 s: limite do gravador,
+  não exportação exata por PTS. Layout conferido em desktop, celular 393×852, horizontal 852×393 e tablet 834×1194, incluindo tema claro.
+- Smoke autenticado pendente: este checkout está sem as duas configurações públicas
+  de Supabase necessárias ao app. A fixture não prova autorização ou gravação remota.
+  Nenhuma credencial foi copiada/modificada. Build de publicação e deploy não executados.
+
+Fontes: [entrada](../../src/screens/scouting/ScoutingScreen.tsx),
+[estúdio](../../src/screens/scouting/video/ScoutingVideoStudio.web.tsx),
+[domínio](../../src/core/scouting-video.ts),
+[rascunho](../../src/screens/scouting/video/use-video-draft.ts).
+
+### Acesso pela sessão existente — 12/10
+
+Abrir estúdio passou a ser a ação principal; Coletor manual ficou secundário. Conferência autenticada em localhost:8081: a sessão Jogo · Regenerados abriu o estúdio integrado e o estado Adicionar vídeo. Esta conferência valida a entrada, não a edição/persistência autenticada completa. Vídeo e marcações do mockup independente não são transferidos automaticamente.
+
+Modal de importacao alinhado ao mockup: largura de 540 px, cartoes de modo com descricao, area tracejada de arquivo e resumo da midia escolhida. Automatico permanece indisponivel; exemplos locais e links do prototipo nao representam integracoes do aplicativo. Conferencia visual no localhost:8081.
+
+Teste de viabilidade do modelo no navegador: [CPU e WebGPU](SCOUTING_BROWSER_BENCHMARK_2026-10-12.md). Integração descrita na atualização abaixo.
+
+### Automático no navegador — 13/10/2026
+
+Esta etapa substitui a indisponibilidade do processamento local descrita acima.
+No modal, selecionar Automático, escolher o arquivo e acionar Analisar vídeo.
+VballNet ONNX roda em Worker, com WebGPU e fallback de inicialização para WASM.
+Modelo e runtime vêm da mesma origem; vídeo e quadros não são enviados a servidor.
+ONNX Runtime Web 1.30.0 é fixado no lockfile. `prepare:scouting` prepara recursos
+estáticos antes dos comandos npm start/web/dev:web/build; execuções diretas de
+`expo export` precisam preparar os recursos primeiro.
+
+Processamento limitado a 30 minutos e lotes de nove amostras de 768×432.
+Amostragem temporal a 30 Hz por busca no player; não garante correspondência
+exata a todos os quadros de vídeos VFR. Pré-processamento fica no navegador,
+inferência no Worker. Cancelamento, erro ou saída encerram o Worker e liberam
+o player auxiliar e a URL de objeto. Falha não apaga o documento aberto.
+
+O resultado só entra no rascunho por **Usar sugestões**. Coordenadas automáticas
+são separadas das correções humanas e ficam no documento exportável/persistido,
+com versão do processador. Desfazer/refazer preserva essa separação. Contatos,
+equipes e pontos não são inferidos nem alterados automaticamente.
+
+Cortes são candidatos por mudança visual. A versão inicial usava diferença média
+de luminância >12 em 128×72; a revisão abaixo substitui esse limiar.
+Não são reconhecimento semântico de rallies. Na aba Validação, cada candidato pode ser visto e aceito com Criar rally aqui;
+aplica as mesmas regras de divisão e reconfirmação de ponto do corte manual.
+Quadros com confiança do modelo abaixo de 0,5 ficam sem marcação. Precisão em
+outros vídeos e desempenho/memória total no celular ainda não validados.
+
+Validação: 14 testes de domínio/rascunho, typecheck:app, check:org-scope,
+check:perf-hygiene e diff check aprovados. Sem publicação ou serviço remoto.
+
+Smoke autenticado local de 13/10: cancelar e reiniciar analise; clipe de 30 s concluido com 434 posicoes candidatas e zero cortes; Usar sugestoes, salvar, sair e reabrir o mesmo arquivo recuperou as 434 posicoes sem reprocessamento. Resultado de teste apenas local; nao mede precisao.
+
+
+### Composicao e timeline — 13/10/2026
+
+Revisao local comparada ao mockup em 8093: painel desktop de 300 px,
+cabecalho com acoes nomeadas, cards alinhados a esquerda com tempo ao lado
+do titulo, contatos com horario alinhado e controles sobre o video no retrato.
+Acoes de edicao ficam em faixa sticky; menu de rallies fecha ao executar acao.
+
+Timeline ocupa a largura disponivel: macro mostra os rallies como segmentos
+na propria barra, com todos os contatos abaixo; micro limita o intervalo ao
+rally e divide a barra pelos contatos, incluindo o trecho anterior ao primeiro.
+Clique no segmento abre rally/contato; arraste do cursor e teclado permitem
+busca continua. Hover/foco mostra detalhes. Faixas de contatos e bola usam
+a mesma origem e escala temporal. Marcadores adversarios usam azul.
+
+Conferencia autenticada local: 1384x704, 643x704 e 390x844; sem overflow
+horizontal da timeline em 390 px. Fixture temporaria de quatro rallies e dez
+contatos no clipe de 30 s, navegacao macro/micro, clique no contato em 4 s,
+arraste para 5,899 s e desfazer a importacao conferidos. Rascunho original
+restaurado sem salvar a fixture. 14 testes e typecheck:app aprovados.
+Esta revisao nao altera a precisao do processamento automatico nem publica o app.
+
+### Reprodução e recuperação dos resultados originais — 13/10/2026
+
+A implementação inicial não carregava os resultados já processados do mockup.
+Além disso, desenhava a trajetória no evento `timeupdate` (aproximadamente 4 Hz
+na amostra), redesenhava a galeria com o relógio e serializava o documento inteiro
+durante a reprodução. Essas diferenças explicam parte da distância percebida;
+não eram apenas diferenças de aparência.
+
+O desenho agora usa canvas sobre o vídeo, sincronizado por
+`requestVideoFrameCallback`, com fallback para animation frame. A busca temporal
+é binária; a trilha interrompe em lacunas, saltos e limites de rally. O editor
+continua separado do desenho por quadro. Galeria e serialização são memorizadas;
+miniaturas usam um único decodificador auxiliar por vez e cache limitado.
+
+`scripts/convert-scouting-analysis.py` converte os arquivos locais de processamento
+para o formato de análise do estúdio, incluindo fingerprint do vídeo e proveniência
+`vballnet-v2b-local`. A opção **Importar análise processada** no modal aplica a mesma
+validação da importação existente. Não envia vídeo nem resultados a servidores.
+Contato/ponto manual do antigo armazenamento do mockup não é inferido na conversão.
+
+Conferência autenticada em localhost:8081 com o vídeo completo de El Cartel ×
+Regenerados: 80 inícios de rally e 20.222 coordenadas correspondem exatamente aos
+arquivos originais após normalização. Importar, salvar e reabrir o mesmo vídeo
+recuperou os resultados sem processamento. Em uma amostra de 2 s com a galeria
+aberta, houve 50 callbacks de apresentação e 50 desenhos da trajetória, 58 quadros
+decodificados e zero descartados; é uma medição curta deste aparelho, não garantia
+para outros dispositivos. A pausa e a navegação pelos recortes foram conferidas.
+
+Para análises novas, o corte de cena usa 160×90, limiar adaptativo
+`max(3, mediana + 8 × MAD)` e supressão dos cortes mais fracos próximos (2 s), como
+no processamento local do protótipo. Aceitar sugestões inicializa os recortes
+somente em documento vazio; alterações humanas existentes são preservadas.
+O detector de bola do navegador continua experimental e não equivale ao pipeline
+local de candidatos e filtros temporais usado nesse jogo. Importar seus resultados
+não comprova precisão em novos vídeos; não há contatos ou pontos automáticos.
+
+Validação desta revisão: 19 testes focados, typecheck:app, check:org-scope e
+check:perf-hygiene. Sem publicação, mudança de banco ou estatísticas oficiais.
+
+### Imagem preta ao pausar/trocar rally — 13/10/2026
+
+Reproduzido no navegador integrado: rally 1 em 00:00, player com `readyState=4`,
+quadro decodificado válido (1202×676), mas superfície de vídeo preta na tela.
+A camada de apresentação dos quadros que já existia no mockup ainda faltava no app.
+
+`VideoFrame.web.tsx` apresenta os pixels decodificados em canvas, abaixo da
+trajetória e com a mesma proporção do vídeo. O elemento de mídia continua como
+única fonte de decodificação, relógio e áudio. A camada atualiza por quadro, ao
+carregar, pausar, buscar e retornar à aba; limpa a imagem ao trocar/encerrar a
+fonte e cancela listeners/callbacks na saída. Buffer limitado a 1920 no maior
+eixo, sem reduzir o arquivo original ou a exportação.
+
+Conferência local autenticada: primeiro rally pausado em 00:00, troca para rallies
+2 e 43, retorno ao início, reprodução/pausa e redimensionamento. A imagem ficou
+visível nesses estados. Na amostra curta de reprodução de 2 s, 56 quadros foram
+decodificados e 2 descartados; isso não constitui garantia de desempenho contínuo.
+Oito testes focados (ciclo da apresentação e busca temporal), typecheck:app e
+check:perf-hygiene aprovados. Sem mudança de rascunhos, reprocessamento ou publicação.
+
+### Navegação macro/micro e contatos — 13/10/2026
+
+Clicar nos capítulos da timeline usa busca temporal sem alterar a escala. O modo
+micro continua disponível pelo controle Rally selecionado ou por um cartão da
+galeria. Hover e foco de teclado mostram os contatos do rally no macro e o contato
+da etapa no micro, com equipe, atleta quando informado, resultado e instante.
+A prévia permite navegar diretamente a cada contato, preservando o modo atual.
+
+Marcas separadas por menos de 24 px agrupam com contador e lista completa; a
+escala do rally separa novamente os contatos quando há espaço. ResizeObserver
+mede apenas a faixa, e os agrupamentos são memorizados. Estado vazio informa
+Sem contatos registrados. Corrigir posição da bola usa a mira `crosshair`
+(`locate-outline`) do registro canônico de ícones.
+
+A análise local do vídeo completo tinha 80 rallies e 20.222 posições, mas nenhum
+contato. Cinco registros confirmados e presentes no histórico do mockup foram
+recuperados, convertendo frame/30 para segundos e preservando fundamento, equipe
+e resultado. A análise anterior foi exportada como backup; a recuperação passou
+pela importação validada do app e foi salva no mesmo escopo de rascunho. Nenhum
+contato foi inferido automaticamente nem enviado às estatísticas oficiais.
+
+Validação: quatro testes de regressão para navegação, hover/foco, recorte e
+agrupamento; typecheck:app e check:perf-hygiene aprovados. Smoke autenticado em
+localhost:8081 confirmou clique no Rally 07 mantendo o macro e sua duração total,
+hover do Rally 01 com quatro contatos, clique na recepção em 00:05.600 mantendo
+macro e visualização dos quatro marcadores separados no micro.
+Em 643 px, a faixa permaneceu sem overflow horizontal e a prévia agrupada dos
+cinco contatos ficou dentro do viewport. Tamanho do navegador restaurado após a
+conferência. Checklist regenerado; nenhuma publicação realizada.
+
+Microajuste visual em 13/10: cores categóricas por fundamento na timeline e na
+lista da prévia, independentes da equipe/resultado. Saque laranja, recepção azul,
+levantamento lilás, ataque coral, bloqueio rosa, defesa verde, bola de graça ciano
+e cobertura cinza claro. Letras e nomes continuam disponíveis. Grupos usam corpo
+neutro com contador e faixa das cores presentes. Quatro testes existentes passaram.
+
+
+### Refinamento dos resultados dos contatos — 13/10
+
+A faixa categórica continua identificando o fundamento (ataque agora em índigo,
+reservando vermelho ao erro). O corpo do marcador e a avaliação escrita na prévia
+seguem o resultado: vermelho/× para Erro; laranja/! para recepção que limita o
+ataque ou devolve direto, levantamento fora de condição ou enviado ao adversário,
+e ataque Bloqueado; azul/✓ para Controlada/Atacável; verde/★ para Ace e pontos
+diretos registrados. Em jogo, Bola segue em jogo e Não avaliado ficam neutros.
+A classificação é específica por fundamento, sem transformar bola de graça em
+recepção ruim, nem inferir erro terminal de um bloqueio. Nenhum vencedor é atribuído.
+
+Grupos permanecem neutros com as faixas dos fundamentos e um símbolo de resultado
+prioritário; o hover/foco discrimina as contagens de erros, contatos comprometidos,
+pontos diretos e positivos. Cores usam os tokens semânticos do tema, acompanhadas
+por símbolo e texto. A escala macro/micro e os instantes dos contatos não mudam.
+
+Validação localizada: 23 testes da timeline aprovados, incluindo classificação,
+grupo misto e preservação de documento/vencedores; typecheck:app aprovado.
+Conferência em localhost:8081 confirmou passe devolvido direto em laranja, ataque
+Erro em vermelho e grupo misto com 1 erro / 2 comprometidos. As duas alterações
+temporárias de avaliação foram desfeitas, restaurando as cinco marcações salvas.
+
+
+Microajuste visual posterior em 13/10: o marcador individual passa a usar a cor
+sólida do resultado, removendo a faixa categórica por fundamento. Letras e nomes
+preservam a identificação da ação. Bordas das prévias e faixas dos grupos também
+seguem os resultados, usando os tokens semânticos já existentes; a classificação
+dos contatos e o documento permanecem iguais. Os 23 testes existentes passaram.
+
+
+### Cabeçalho, painel responsivo e contatos integrados — 13/10
+
+Removidos Alternar tema, o botão de recolher análise sobre o vídeo e o atalho
+redundante Ver vídeo completo na galeria. A escala permanece no controle da
+timeline. Cabeçalho recolhido centralizado no topo, conforme a Quadra Visual;
+as abas deixam de reservar os 66 px do cabeçalho expandido.
+
+Tipografia do estúdio e dos botões usa o token Inter; abas têm alinhamento,
+peso e estado ativo consistentes. No retrato, o painel ocupa o espaço restante
+abaixo do player com rolagem própria, sem gesto de rolagem que altere sua altura.
+A alça do painel permanece somente no layout estreito; no desktop o painel
+continua visível mesmo ao retornar de um estado recolhido no celular.
+
+Contatos foram integrados à própria barra, sobre as divisões temporais,
+removendo a linha separada. Agrupamento, cores por resultado, prévias e instantes
+são preservados. Novo teste cobre integração à barra e busca em macro/micro
+sem troca de escala: 24 testes da timeline e typecheck:app aprovados.
+
+Conferência autenticada local em 390×844, 834×1194 e 1440×1024 sem overflow
+horizontal: cabeçalho central, painel com intervalo de 8 px no retrato e abas
+compactas no desktop. Busca pela recepção confirmou 00:05.600 mantendo o rally.
+O controle móvel foi recolhido e reaberto; os 80 rallies e cinco contatos salvos
+foram reabertos sem alterar o documento. Viewport restaurado. Nenhuma publicação.
+
+
+Refino pontual em 13/10: clique na área de um capítulo agora busca a posição
+proporcional dentro do intervalo visível, em vez de sempre retornar ao início
+da seção. Marcadores e teclado mantêm seus destinos exatos. A busca pela timeline
+preserva reprodução/pausa; avanço quadro a quadro continua pausando. Dois casos
+focados de clique passaram; conferência local confirmou 60% do vídeo completo
+em 09:06.420 e 60% do Rally 05 em 01:04.246, mantendo a escala escolhida.
+Sem repetição da suíte ampla ou da matriz responsiva.
+
+
+Refino pontual em 13/10: escolha do contato abre Informações com o formulário
+alinhado ao topo. A timeline recebe uma prévia separada do documento, cria a
+etapa no micro e mantém a marca em edição visível também no macro, sem agrupá-la
+aos contatos salvos. Borda tracejada e legenda com fundamento/instante indicam
+Em edição; fundamento, resultado e instante acompanham o formulário. Confirmar
+registra normalmente; cancelar remove a prévia ou restaura o contato original.
+Um teste focado passou cobrindo prévia, alterações, macro/micro e cancelamento
+sem mutar o documento. Conferência local confirmou Informações ativa e recepção
+em 00:18.681 na barra antes de registrar. A prévia de teste foi cancelada.
+
+
+### Instante do ponto — 13/10
+
+Seleção do vencedor em três colunas: equipe à esquerda, N/D ao centro, adversário
+à direita. Bandeira Marcar ponto no player pausa no instante atual e abre
+Informações. A marca aparece no macro e no micro; no micro também delimita a
+etapa Ponto. Painel permite ir ao instante, substituí-lo pelo atual ou removê-lo.
+A marca representa o fim observado do rally, sem inferir a causa ou o vencedor.
+
+Campo opcional `VideoRally.pointTime` em segundos, restrito ao intervalo do rally.
+A serialização validada mantém a marca no rascunho/exportação/histórico e aceita
+rascunhos anteriores sem o campo. Não altera contato, contagem oficial ou chaves
+de escopo. Dividir/unir o recorte limpa o instante e exige nova marcação, seguindo
+a reconfirmação existente do vencedor. Análise automática não sobrescreve rally
+com instante de ponto já marcado.
+
+Validação restrita: dois testes focados (domínio/serialização/undo/cortes e
+marcador/etapa macro-micro) e typecheck:app aprovados. Conferência autenticada
+mostrou a ordem ElCartel / N/D / Regenerados, bandeira em 00:25.035 e abertura
+de Informações. Marca temporária removida ao concluir; seis contatos do usuário
+preservados em rascunho local antes da atualização do app. Sem publicação.
+
+## Compartilhamento por arquivo — 13/10 (substituído)
+
+Registro histórico: abordagem rejeitada pelo usuário e removida. O contrato atual
+é o compartilhamento por link abaixo; não usar o leitor HTML como referência.
+
+`Compartilhar` prepara `go-atleta-analise.zip` com `analise.html`, o vídeo original
+e `LEIA-ME.txt`. O leitor portátil permite navegar pelo vídeo completo, selecionar
+rally, buscar contatos e pontos e ver avaliações e posições da bola. Nenhuma ação
+edita o rascunho do treinador. Nomes de atletas são opcionais e desmarcados por
+padrão; a projeção exclui IDs de aluno/contato/rally, nome original do arquivo,
+fingerprint e histórico. Conteúdo textual usa JSON escapado e `textContent`; CSP
+impede chamadas de rede e carregamento de scripts externos.
+
+O treinador envia o ZIP por um canal de sua escolha. O destinatário deve extrair
+todos os arquivos e abrir `analise.html` no computador. A abertura de HTML local
+no celular depende do navegador; o vídeo também está disponível separadamente.
+É uma cópia sem revogação. Nenhum upload, mensagem, banco, política de acesso ou
+link remoto foi criado. O serviço hospedado continua pendente.
+
+Exportação ZIP sem recodificar a mídia, com leitura de 2 MB por bloco, progresso,
+cancelamento inclusive durante leitura assíncrona e limite ZIP32 verificado antes
+do processamento. Validação funcional localizada: três testes de projeção,
+conteúdo hostil, ZIP/CRC/leitura limitada/cancelamento e `typecheck:app` aprovados.
+Geração real pelo app autenticado com vídeo de 860.741.220 bytes, 80 rallies e
+12 contatos preservados. Leitor conferido em prévia HTTP local com suporte a
+Range: navegação por contato, cores e troca macro/micro; abertura `file:` direta
+não exercitada pela ferramenta de navegador. Sem publicação.
+
+
+## Compartilhamento por link — 13/10
+
+Pedido reconciliado: o destinatário abre **o mesmo estúdio**, com vídeo, rallies,
+contatos, pontos, cores, trajetória e timeline macro/micro. Não há outro leitor
+ou pacote ZIP. `Studio` recebe documento publicado e capacidades de visualização;
+`useVideoDraft` não lê nem grava armazenamento nesse modo. A prévia do treinador
+preserva seu documento e oferece retorno explícito à edição. Edição pelo atleta
+fica futura: o contrato enumera capacidades, mas banco/servidor aceitam somente
+`viewer`. Nenhum rascunho do treinador é sincronizado implicitamente.
+
+### Contrato local
+
+- Modal: equipe desta turma ou qualquer pessoa com link; visualização; validade de
+  7/30 dias; envio privado com progresso, cancelamento e retomada; cópia e revogação.
+- Restrito: usuário autenticado com e-mail confirmado e vínculo ativo de atleta na
+  turma, ou acesso canônico da comissão. Matrícula revogada não é contornada pelo
+  `classid` legado. O link não abre lista de atletas, outras análises ou telas da turma.
+- Aberto: prova aleatória de 256 bits. Quem recebe pode encaminhar o link; a UI
+  informa isso. Não concede gestão de permissões. O acesso restrito evita esse
+  alargamento para pessoas sem vínculo.
+- Prova no fragmento da URL e hash no banco. Novo link gira a prova e substitui o
+  anterior; o modal atual permite copiar a prova recém-criada, sem persistir segredo
+  no banco/rascunho. Ao reabrir, é possível revogar ou gerar novo link.
+- `scouting_video_assets` e `scouting_video_shares` sem acesso direto dos clientes;
+  RPCs de gestão exigem `scouting_can_access`. Conteúdo publicado não contém
+  histórico local, nome original do arquivo, fingerprint ou IDs de aluno.
+- Bucket privado `scouting-videos`, caminho imutável por organização/asset;
+  Storage INSERT/SELECT somente para o autor autorizado. Nenhuma policy de UPDATE.
+  TUS usa blocos de 6 MiB e identidade autenticada fixa durante envio/retomada.
+- Edge verifica o usuário com Auth, resolve prova/permissão e só então assina o
+  caminho devolvido pelo banco. Sem URLs públicas e sem `service_role` no cliente.
+- URL da mídia válida por 5 minutos. Consulta do acesso a cada minuto e ao retornar
+  à aba; uma URL já emitida pode continuar válida até expirar, e bytes já recebidos
+  não podem ser recolhidos. Visualização não é proteção DRM contra cópias.
+- Nova publicação atualiza o snapshot, com prova nova. Não promete colaboração
+  simultânea ou edição remota. Reaproveita vídeo já enviado para o mesmo autor,
+  organização, sessão e fingerprint.
+
+### Ativação pendente
+
+Não foram aplicadas migrations, publicado app/função, gerado link externo ou
+feito upload. A UI local informa essa limitação e não oferece localhost como link
+para a equipe. A ativação exige autorização de publicação e validação hospedada:
+
+1. Rever/aplicar `supabase/migrations/20261013150000_scouting_video_sharing.sql`.
+2. Publicar `scouting-video-share` com o `verify_jwt=false` definido no config;
+   a função faz autenticação própria para links abertos e restritos. Usa somente
+   as variáveis Supabase já existentes no runtime.
+3. Conferir limite de arquivo, quota e custo do projeto antes do envio. O original
+   tem 860.741.220 bytes. [Supabase Free limita a 50 MB por arquivo](https://supabase.com/docs/guides/storage/uploads/file-limits);
+   o teto de 2 GiB do bucket não aumenta o limite global nem muda o plano.
+4. Publicar o app e verificar com duas contas: dono e atleta vinculado; negar outra
+   turma, conta removida, prova inválida, link vencido/revogado e qualquer escrita.
+5. Conferir TUS interrompido/retomado, reprodução por Range e renovação da URL,
+   inclusive CORS. Inventariar/limpar objetos órfãos e uploads abandonados antes
+   de uma disponibilização ampla; revogar link não apaga o vídeo do armazenamento.
+
+### Evidência local
+
+Classificação: nível 3 (dados/segurança), com build por nova rota/dependência.
+SQL isolado passou: permissão da comissão, negação de atleta/outra organização,
+matrícula revogada, RLS do storage, mídia imutável, rotação, expiração e revogação.
+Teste isolado da função passou: limites de corpo, identidade verificada, negação
+sem assinar mídia, projeção e TTL privado. Doze testes Jest focados passaram,
+incluindo tentativas diretas de mutação no hook de leitura. `typecheck:app`,
+`check:org-scope`, `check:perf-hygiene` e build web com 122 rotas passaram.
+O build valida o app, não substitui a ativação/teste de upload remoto acima.
+
+Conferência autenticada no localhost: modal de acesso no padrão de campos do
+estúdio; prévia do mesmo player com 80 rallies/20 contatos e busca pela recepção
+em 00:05.600; controles de salvar, marcar contato/ponto, compartilhar e baixar
+não aparecem em leitura. Retorno à edição mantém o rascunho. Rota pública sem
+prova mostra estado de link inválido. O fluxo remoto completo com upload e duas
+contas segue pendente de ativação, como indicado acima.

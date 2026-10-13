@@ -138,3 +138,8 @@ verify_jwt = false
 
 [functions.meta-whatsapp-webhook]
 verify_jwt = false
+
+# Public proofs are validated in the function; restricted links additionally
+# require a verified Supabase user and current class membership.
+[functions.scouting-video-share]
+verify_jwt = false

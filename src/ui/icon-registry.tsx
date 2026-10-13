@@ -133,6 +133,7 @@ export const GOATLETA_ICON_NAMES = {
   key: "key-outline",
   lock: "lock-closed-outline",
   location: "location",
+  crosshair: "locate-outline",
   arrowForward: "arrow-forward",
   arrowUp: "arrow-up",
   arrowDown: "arrow-down",
