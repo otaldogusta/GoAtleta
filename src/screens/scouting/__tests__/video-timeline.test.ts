@@ -115,7 +115,7 @@ test('contacts share the chapter time axis and remain directly seekable in both 
     expect(onSeek).toHaveBeenLastCalledWith(5);
     expect(onFocus).not.toHaveBeenCalled();
     act(() => { view.update(React.createElement(VideoTimeline, { doc, focus: null, time: 5, tracking: [], teams: { us: 'El Cartel', them: 'Regenerados' }, onFocus, onSeek })); });
-    const group = view.root.findByProps({ className: 'sv-seek' }).findByProps({ className: 'sv-marker grouped' });
+    const group = view.root.findByProps({ className: 'sv-seek' }).findByProps({ className: 'sv-marker grouped macro' });
     act(() => group.findByType('button').props.onPress());
     expect(onSeek).toHaveBeenLastCalledWith(3);
     expect(onFocus).not.toHaveBeenCalled();
@@ -151,7 +151,7 @@ test('micro evaluates each contact; mixed macro groups stay neutral and expose e
     expect(view.root.findAllByProps({ className: 'sv-marker' }).map(n => n.props['data-outcome'])).toEqual(['error', 'warning']);
     expect(button('Recepção · 00:05.000 · Bola devolvida direto')).toBeDefined();
     act(() => { view.update(React.createElement(VideoTimeline, { doc: document, focus: null, time: 5, tracking: [], teams: { us: 'El Cartel', them: 'Regenerados' }, onFocus, onSeek })); });
-    const group = view.root.findByProps({ className: 'sv-marker grouped' });
+    const group = view.root.findByProps({ className: 'sv-marker grouped macro' });
     expect(group.props['data-outcome']).toBe('neutral');
     expect(contactOutcomeSummary(document.contacts).map(s => s.label)).toEqual(['1 erro', '1 comprometido', '1 ponto direto']);
     act(() => group.props.onPointerEnter(bounds));
@@ -166,4 +166,14 @@ test('dense macro markers retain every contact; the micro scale separates them w
     expect(timelineContactGroups(doc.contacts.slice(0, 2), 0, 15, 900).map(g => g.contacts.length)).toEqual([1, 1]);
     expect(timelineContactGroups([], 0, 15, 400)).toEqual([]);
     expect(doc.contacts.map(c => c.time)).toEqual([3, 5, 18]);
+});
+
+
+test('contact clicks open the contact editor without changing macro/micro scale', () => {
+    const onContact = jest.fn(), onFocus = jest.fn(), onSeek = jest.fn();
+    act(() => { view = create(React.createElement(VideoTimeline, { doc, focus: 'r1', time: 5, tracking: [], teams: { us: 'Equipe', them: 'Adversário' }, onFocus, onSeek, onContact })); });
+    act(() => button('Saque · 00:03.000 · Em jogo').props.onPress());
+    expect(onContact).toHaveBeenCalledWith(doc.contacts[0]);
+    expect(onFocus).not.toHaveBeenCalled();
+    expect(onSeek).not.toHaveBeenCalled();
 });

@@ -149,3 +149,78 @@ Migração `20261013150000_scouting_video_sharing.sql` e função
 Hospedagem do vídeo de 821 MiB depende do limite real do projeto (Free: 50 MB por
 arquivo). Não houve upload nem mudança de plano. Ver
 [contrato e ativação](../../ui/SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md#compartilhamento-por-link--1310).
+
+
+Fonte YouTube (web, 13/10): o mesmo estúdio aceita links validados e conserva
+marcações temporais com rascunho separado por ID; arquivo local e correção por
+canvas permanecem disponíveis. O IFrame não fornece frames. Tracking produzido
+com o original pode ser associado ao link e aparece no painel lateral; recortes
+continuam exclusivos da fonte local. UI e tooltips ficam fora do player YouTube.
+Compartilhamento sem upload usa `prepare_scouting_youtube_share`, migration
+`20261013170000_scouting_video_youtube.sql` e a mesma autorização de leitura.
+Código local, sem ativação remota; não listado não oferece privacidade da mídia.
+Evidências e limites no guia de implementação acima.
+
+Piloto Gemini para YouTube (13/10): botão Automático no mesmo estúdio local,
+serviço loopback `scripts/scouting-youtube-service.mjs`, análise por trechos com
+cache/cancelamento e sugestões validadas em `core/scouting-video-ai.ts`. Aceite
+explícito preserva dados humanos e não confirma pontos. Precisão experimental;
+API de produção e ativação remota pendentes. Ver seção de análise Gemini no guia.
+O lote de 94/296 do vídeo `mdfgd1K3HTc` foi reprovado visualmente para aplicação
+em bloco; a correção visual posterior está registrada abaixo, cache não validado. Ver
+[revisão esportiva](../../operations/scouting-youtube-review-2026-10-13.md).
+
+
+Atualização final de 13/10: revisão visual sequencial de todo o vídeo (0–910,7 s), com ampliação dos contatos candidatos. Aplicados e salvos no rascunho YouTube 78 segmentos de rally e 201 contatos observáveis; exportação da UI idêntica ao documento validado. Contatos encobertos ou ambíguos excluídos, sem atribuir atletas/resultados/pontos. Cobertura temporal completa não significa anotação de todos os toques nem precisão automática certificada. Detalhes em `docs/operations/scouting-youtube-review-2026-10-13.md`. Rascunho do arquivo original preservado.
+
+
+Tracking por link (13/10): `core/scouting-video-tracking.ts` associa somente a
+trajetória do original após confirmação da mesma edição e offset explícito,
+preservando rallies/contatos/correções. Origem e alinhamento são validados e
+persistidos, sem URL/caminho/credenciais. `YouTubeTrackingSetup.web.tsx` oferece
+processamento local ou importação da análise do original; `YouTubeTrackingPanel.web.tsx`
+exibe coordenadas na vista da câmera, fora do IFrame, com correção manual e leitura
+sem escrita. A sincronização YouTube é aproximada; não é uma projeção 3D/quadra.
+VballNet GridV2b permanece padrão, V4c é comparação explícita. Seleção conservadora
+rejeita candidatos fracos e saltos isolados sem preencher lacunas. Rascunho YouTube
+atual salvo/reaberto com 78 rallies/201 contatos/20.222 posições; original preservado.
+Ver [comparação, licenças, avaliação e caminho de treino](../../operations/scouting-ball-model-comparison-2026-10-13.md)
+e guia de implementação. Sem endpoint remoto, treinamento ou download de jogos externos.
+
+Reprodução **Original com tracking** no mesmo documento YouTube: selecionar o
+arquivo com fingerprint/duração/dimensões da origem associada apresenta imagem e
+trajetória no player local. Trocar para YouTube conserva tempo, velocidade,
+rallies, contatos e editor; o offset continua relativo à timeline do link. O arquivo
+permanece em memória nesta abertura, sem upload ou nova persistência. Pelo IFrame,
+a trajetória permanece no painel. Leitores não podem selecionar/processar mídia.
+
+Piloto isolado de coordenadas somente pelo link: `scripts/scouting-youtube-ball-pilot.mjs`,
+sem aplicação ao documento. Uma chamada Gemini 3.1 Flash Lite em 20–40 s foi
+reprovada na referência visual (0/8 coordenadas dentro de 15 px, seis omissões em
+14 frames observáveis). Não é um modo do produto; tracking pelo original segue.
+Ver [execução e limites](../../operations/scouting-youtube-ball-pilot-2026-10-13.md).
+
+Comparação offline adicional (14/10): WASB Volleyball Step3 e GridV3 não
+superaram os atuais na referência independente do trecho 20–40 s. GridV2b padrão
+e opção V4c preservados; nenhuma trajetória candidata aplicada. CLI de avaliação
+em `scripts/validation/scouting-wasb-benchmark.py`; pesos/insumos ficam locais,
+fora do app e do Git. Ver [resultado e limites](../../operations/scouting-wasb-evaluation-2026-10-14.md).
+
+Piloto Roboflow por link (14/10): tentativa autenticada em Stream rejeitada
+antes de frames/inferência; entrada aceita RTSP/RTSPS, não a watch URL testada.
+Draft de avaliação salvo sem publicação; nenhuma trajetória importada ou mudança
+no app. Ver [evidências e limites](../../operations/scouting-roboflow-youtube-pilot-2026-10-14.md).
+
+Drive no estúdio (14/10): `DriveTrackingSetup.web.tsx` associa um arquivo público
+ao mesmo documento YouTube, com confirmação da edição/offset. Streaming por Range
+no companion local `scouting-drive-service.mjs`, com cache RAM global de 32 MiB,
+contorna o CORS do Drive sem salvar
+MP4; `processScoutingVideoUrl` reutiliza VballNet na aba. Aplicar muda só `analysis`,
+preservando marcações; URL/capacidade/chave ficam em RAM. Roboflow é opção
+experimental separada, ainda sem validação completa do resultado real. Não usar
+o OAuth acadêmico nem expor o companion como API pública. Ver
+[fluxo, segurança e evidências](../../operations/scouting-drive-tracking-2026-10-14.md).
+
+Estúdio compacto (14/10): Rallies em lista com miniaturas; Contatos abre o editor pela timeline e habilita Salvar somente após mudança; Informações reúne trajetória/fonte/ferramentas. Entrada única reconhece YouTube/Drive, com opções avançadas recolhidas. Contratos e rascunhos preservados; ver [validação local](../../operations/scouting-studio-ui-2026-10-14.md).
+
+Publicação autorizada (14/10): migrations de compartilhamento/YouTube aplicadas e `scouting-video-share` ACTIVE v1; RLS, bucket privado e rejeição de links inválidos conferidos. Drive/Gemini continuam locais. Ver [registro e limites do release](../../operations/scouting-release-2026-10-14.md).

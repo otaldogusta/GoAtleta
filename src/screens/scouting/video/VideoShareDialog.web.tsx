@@ -3,7 +3,7 @@ import type { VideoDocument } from '../../../core/scouting-video';
 import { videoShareLink, type VideoShareAudience } from '../../../core/scouting-video-sharing';
 import { assertSessionIdentity, getSessionIdentity } from '../../../auth/session';
 import { StudioAction, StudioDialog } from './StudioUI.web';
-import { getVideoShare, prepareVideoShare, publishVideoShare, revokeVideoShare, videoShareError, type VideoShare, type VideoShareScope } from '../../../api/scouting-video-sharing';
+import { getVideoShare, prepareVideoShare, prepareYouTubeShare, publishVideoShare, revokeVideoShare, videoShareError, type VideoShare, type VideoShareScope } from '../../../api/scouting-video-sharing';
 import { uploadSharedVideo } from '../../../api/scouting-video-upload.web';
 
 export function VideoShareDialog({ doc, file, teams, scope, onClose, onPreview }: {
@@ -22,13 +22,13 @@ export function VideoShareDialog({ doc, file, teams, scope, onClose, onPreview }
     return () => { alive.current = false; controller.current?.abort(); };
   }, [scope.org, scope.sessionId, doc.media.fingerprint]);
   const publish = async () => {
-    if (!file || controller.current) return;
+    if ((!file && !doc.media.youtubeId) || controller.current) return;
     const task = new AbortController(), identity = getSessionIdentity(); controller.current = task;
-    setBusy(true); setError(''); setMessage(''); setProgress(0);
+    setBusy(true); setError(''); setMessage(''); setProgress(doc.media.youtubeId ? null : 0);
     try {
-      const asset = await prepareVideoShare(scope, doc, file);
+      const asset = doc.media.youtubeId ? await prepareYouTubeShare(scope, doc.media.youtubeId) : await prepareVideoShare(scope, doc, file!);
       assertSessionIdentity(identity); task.signal.throwIfAborted();
-      await uploadSharedVideo(file, asset, task.signal, value => { if (alive.current) setProgress(value); });
+      if (!doc.media.youtubeId && file && 'objectPath' in asset) await uploadSharedVideo(file, asset as import('../../../api/scouting-video-sharing').VideoShareAsset, task.signal, value => { if (alive.current) setProgress(value); });
       assertSessionIdentity(identity); task.signal.throwIfAborted(); setProgress(null);
       const code = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
       const result = await publishVideoShare(scope, asset, doc, teams.us, audience, code, days);
@@ -58,6 +58,7 @@ export function VideoShareDialog({ doc, file, teams, scope, onClose, onPreview }
     <label className="sv-field">Validade<span><select aria-label="Validade do link" value={days} disabled={busy || loading} onChange={e => { setDays(Number(e.target.value)); setLink(''); }}><option value={7}>7 dias</option><option value={30}>30 dias</option></select></span></label></div>
     <p className="sv-share-hint">Sem editar marcações, salvar rascunhos ou gerenciar acessos.</p>
     {share && !share.revoked ? <p className="sv-share-hint">Acesso atual até {new Date(share.expiresAt).toLocaleDateString('pt-BR')}. Um novo link desativa o anterior e publica as marcações atuais.</p> : <p className="sv-share-hint">Inclui o vídeo, as marcações e os nomes visíveis nesta versão da análise.</p>}
+    {doc.media.youtubeId ? <p className="sv-share-hint">Sem envio do vídeo. O acesso à análise não impede que o link do YouTube seja repassado.</p> : null}
     {local && !error ? <p className="sv-share-hint">Publique esta versão do Go Atleta para criar um link para a equipe.</p> : null}
     {loading ? <p role="status">Conferindo acesso…</p> : null}
     {error ? <p role="alert">{error}</p> : null}
@@ -65,7 +66,7 @@ export function VideoShareDialog({ doc, file, teams, scope, onClose, onPreview }
     {message ? <p role="status">{message}</p> : null}
     {link ? <label className="sv-field">Link da análise<span><input aria-label="Link da análise" readOnly value={link} onFocus={e => e.target.select()}/></span></label> : null}
     <div className="sv-wrap">
-      {link ? <StudioAction primary icon="copy" label="Copiar link" onPress={() => { void navigator.clipboard.writeText(link).then(() => setMessage('Link copiado.')).catch(() => setError('Selecione e copie o link acima.')); }}>Copiar link</StudioAction> : <StudioAction primary icon="share" label={share && !share.revoked ? 'Gerar novo link' : 'Criar link'} disabled={busy || loading || !file || local} onPress={() => void publish()}>{share && !share.revoked ? 'Gerar novo link' : 'Criar link'}</StudioAction>}
+      {link ? <StudioAction primary icon="copy" label="Copiar link" onPress={() => { void navigator.clipboard.writeText(link).then(() => setMessage('Link copiado.')).catch(() => setError('Selecione e copie o link acima.')); }}>Copiar link</StudioAction> : <StudioAction primary icon="share" label={share && !share.revoked ? 'Gerar novo link' : 'Criar link'} disabled={busy || loading || (!file && !doc.media.youtubeId) || local} onPress={() => void publish()}>{share && !share.revoked ? 'Gerar novo link' : 'Criar link'}</StudioAction>}
       <StudioAction label="Prévia de leitura" disabled={busy} onPress={onPreview}>Prévia de leitura</StudioAction>
       {share && !share.revoked ? <StudioAction label="Revogar acesso" disabled={busy} onPress={() => void revoke()}>Revogar acesso</StudioAction> : null}
       {busy && progress !== null ? <StudioAction label="Cancelar envio" onPress={() => controller.current?.abort()}>Cancelar envio</StudioAction> : null}

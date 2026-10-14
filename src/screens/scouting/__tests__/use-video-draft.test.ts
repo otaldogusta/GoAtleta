@@ -65,3 +65,19 @@ test('shared studio never opens local drafts or persists edits, including direct
   expect(result.current.doc).toEqual(refreshed);
   expect(result.current.history?.past).toEqual([]);
 });
+
+test('YouTube and local drafts remain independent across source changes', async () => {
+  const { result } = renderHook(() => useVideoDraft('org', 'user', 'session'));
+  await act(async () => { await result.current.open(media); });
+  act(() => result.current.change(splitVideoRally(result.current.doc!, 5, 'local-cut'), 'Local'));
+  await act(async () => { await result.current.save(); });
+  const youtube = { ...media, youtubeId: 'M7lc1UVf-VE', fingerprint: 'youtube:M7lc1UVf-VE' };
+  await act(async () => { await result.current.open(youtube); });
+  expect(result.current.doc?.rallies).toHaveLength(1);
+  act(() => result.current.change(splitVideoRally(result.current.doc!, 8, 'youtube-cut'), 'YouTube'));
+  await act(async () => { await result.current.save(); await result.current.open(media); });
+  expect(result.current.doc?.rallies[1].id).toBe('local-cut');
+  await act(async () => { await result.current.open(youtube); });
+  expect(result.current.doc?.media.youtubeId).toBe('M7lc1UVf-VE');
+  expect(result.current.doc?.rallies[1].id).toBe('youtube-cut');
+});

@@ -42,6 +42,7 @@ try {
   await db.exec(fn(permissions, 'can_manage_class')); await db.exec(fn(permissions, 'is_class_staff'));
   await db.exec(fn(await migration('20261007112922_scouting_rallies.sql'), 'scouting_can_access'));
   await db.exec(await migration('20261013150000_scouting_video_sharing.sql'));
+  await db.exec(await migration('20261013170000_scouting_video_youtube.sql'));
   await asUser(null, 'anon'); await assert.rejects(prepare(), /permission denied/);
   await asUser(outsider); await assert.rejects(prepare(), /access denied/);
   await asUser(athlete); await assert.rejects(prepare(), /access denied/);
@@ -78,5 +79,26 @@ try {
   assert.equal((await resolve(null, rotated)).error, 'LINK_UNAVAILABLE');
   await db.exec('reset role');
   assert.equal((await db.query("select public from storage.buckets where id='scouting-videos'")).rows[0].public, false);
+  const prepareYouTube = (scope = org, id = 'M7lc1UVf-VE') => rpc('select prepare_scouting_youtube_share($1,$2,$3) result', [scope, 'game', id]);
+  await asUser(outsider); await assert.rejects(prepareYouTube(), /access denied/);
+  await asUser(staff); await assert.rejects(prepareYouTube(other), /access denied/);
+  await assert.rejects(prepareYouTube(org, 'https://evil.invalid'), /invalid media/);
+  asset = await prepareYouTube();
+  await assert.rejects(publish('link'), /media mismatch/);
+  doc.media.youtubeId = 'M7lc1UVf-VE';
+  share = await publish('link');
+  const yt = await resolve(null);
+  assert.equal(yt.mediaProvider, 'youtube'); assert.equal(yt.youtubeId, 'M7lc1UVf-VE');
+  assert.equal(yt.document.media.youtubeId, yt.youtubeId); assert.equal(yt.objectPath, null);
+  await asUser(staff); share = await publish('team');
+  assert.equal((await resolve(null)).error, 'LOGIN_REQUIRED');
+  assert.equal((await resolve(outsider)).error, 'ACCESS_DENIED');
+  await db.exec("reset role; update student_class_enrollments set status='active'");
+  assert.equal((await resolve(athlete)).permission, 'viewer');
+  await asUser(staff); share = await publish('link', rotated);
+  assert.equal((await resolve(null, proof)).error, 'LINK_UNAVAILABLE');
+  assert.equal((await resolve(null, rotated)).permission, 'viewer');
+  await asUser(staff); await db.query('select revoke_scouting_video_share($1,$2,$3)', [org, 'game', share.id]);
+  assert.equal((await resolve(null, rotated)).error, 'LINK_UNAVAILABLE');
   console.log('scouting-video-sharing-sql: passed (scope, membership, revoked enrollment, storage RLS, immutable media, proof rotation, expiry, revocation, read-only grants)');
 } finally { await db.close(); }

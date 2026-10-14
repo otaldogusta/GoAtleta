@@ -440,3 +440,247 @@ em 00:05.600; controles de salvar, marcar contato/ponto, compartilhar e baixar
 não aparecem em leitura. Retorno à edição mantém o rascunho. Rota pública sem
 prova mostra estado de link inválido. O fluxo remoto completo com upload e duas
 contas segue pendente de ativação, como indicado acima.
+
+
+## Fonte YouTube integrada localmente — 13/10
+
+Adicionar vídeo agora oferece arquivo local ou link HTTPS do YouTube. O parser
+aceita apenas hosts e formatos conhecidos e guarda o ID, nunca uma URL arbitrária
+para o iframe. A prévia verifica metadados antes de abrir; erros de vídeo privado,
+removido, incorporação bloqueada e conexão são apresentados sem substituir o
+rascunho anterior. Trocar de fonte salva mudanças pendentes antes da abertura.
+
+O transporte do estúdio usa uma interface comum de tempo, pausa, reprodução e
+velocidade. A fonte local mantém `HTMLVideoElement`, canvas e tracking. YouTube
+usa a API IFrame oficial, com controles próprios preservados, sincronização de
+200 ms, passos de um segundo (sem prometer busca exata por quadro), rallies,
+contatos, pontos, histórico e timeline macro/micro. Cabeçalho, painel, controles
+e dicas ficam fora do player. Não baixa mídia, não extrai miniaturas/frames nem
+executa ONNX sobre o iframe. O rascunho `youtube:<ID>` é separado do arquivo local;
+marcações existentes não são transferidas automaticamente entre fontes.
+
+O contrato `VideoMedia.youtubeId` é opcional e validado, preservando rascunhos
+anteriores. Publicação mantém o mesmo estúdio somente leitura. A migration
+complementar `20261013170000_scouting_video_youtube.sql` adiciona fonte exclusiva
+Storage/YouTube e `prepare_scouting_youtube_share`; o RPC existente publica a
+projeção vinculada ao ID validado sem exigir objeto no Storage. A Edge Function
+não assina URLs de Storage para YouTube. Vínculo, escopo, prova, rotação,
+expiração e revogação seguem as mesmas verificações. Ativação remota pendente;
+nenhuma migration aplicada, mídia enviada ou link publicado nesta etapa.
+
+Validação local: 42 casos focados (parser, playback, descarte de callbacks,
+rascunhos separados, core e compartilhamento), SQL PGlite com dados sintéticos
+e handler Edge isolado passaram; tipos, lint focado, org-scope e perf-hygiene
+strict passaram. Smoke autenticado no localhost: rejeição de domínio externo,
+vídeo público da documentação, marcação de ponto/divisão de rally, busca sem
+mudar macro e desfazer; fixture não salva. Link informado pelo usuário incorporou
+e reproduziu com duração 15:11. Rascunho original conferido no armazenamento com
+80 rallies, 20 contatos, 7 pontos e 20.222 posições. Testes offline não certificam
+publicação remota nem acesso hospedado com duas contas.
+
+Referências oficiais: [API IFrame](https://developers.google.com/youtube/iframe_api_reference)
+e [regras do player](https://developers.google.com/youtube/terms/required-minimum-functionality).
+Vídeo não listado pode ser repassado: permissões da análise não tornam a mídia privada.
+
+Conferência visual adicional: 390×844, 834×1194 e 1440×1024, sem sobreposição
+do player pelos controles/painel; prévia de leitura sem edição conferida no
+mesmo estúdio. O original local foi reaberto com imagem e 80 rallies/20 contatos.
+Teste de regressão cobre a desmontagem do iframe sem apagar a referência do
+player local que o substitui. Captura local ignorada: `.tmp/scouting-youtube-final.png`.
+
+
+## Análise de YouTube por Gemini — piloto local em 13/10
+
+Implementada no mesmo estúdio por `YouTubeAnalysis.web.tsx`, API em
+`src/api/scouting-video-ai.ts` e serviço `scripts/scouting-youtube-service.mjs`.
+Iniciar com `npm run dev:scouting-ai` neste checkout. A chave
+fica no arquivo privado `%USERPROFILE%/.config/goatleta/gemini.local.env`, variável
+`GEMINI_API_KEY`, fora do Git e sem prefixo público. Não imprimir seu conteúdo.
+O serviço escuta somente 127.0.0.1:8094, exige Host e Origin exatos, JSON e
+cabeçalho anti-CSRF; o cliente só está habilitado em desenvolvimento localhost:8081.
+Não é uma API pública nem substitui a autorização Supabase da sessão. Produção
+requer endpoint autenticado com cota por usuário/organização; não houve deploy.
+
+Diagnóstico real: chave/listagem de modelos HTTP 200; 3.8 Flash falhou também
+com texto simples (503), 3.5 teve timeout, 3 Flash Preview retornou 503; Pro
+retornou 429 com cota gratuita zero. 3.1 Flash Lite respondeu com tokens de vídeo.
+A primeira amostragem customizada produziu saques suspeitos na inspeção visual.
+O piloto passou a usar amostragem padrão, raciocínio high e instrução conservadora.
+Precisão de contatos/tempos continua experimental; retorno HTTP 200 não certifica
+qualidade esportiva. Não apresentar contagens como eventos confirmados.
+
+Processamento sequencial em blocos de até 60 s, máximo 30 min, timeout de 75 s,
+cancelamento e cache por vídeo/trecho/modelo/versão de prompt fora do repositório.
+O navegador recebe um job e consulta o progresso por requisições curtas; uma
+reconexão ao mesmo trecho reutiliza o job em andamento. Uma repetição automática
+é permitida após 503 explícito, nunca após timeout de consumo desconhecido.
+Respostas MAX_TOKENS são descartadas e o trecho pode ser subdividido até 15 s,
+ainda dentro do timeout geral; JSON truncado nunca é aplicado.
+Repetir recupera blocos concluídos sem cobrar novamente por eles. Sem upload do
+original: a única fonte enviada é o URL canônico YouTube. O provedor documenta
+suporte a vídeos públicos; privados/não listados não são garantidos.
+
+O serviço solicita `responseSchema` explícito (o formato JSON Schema alternativo
+foi recusado por esta combinação de API/modelo). Sugestões são validadas
+novamente por formato, intervalo e fundamentos. Observações individuais inválidas
+são descartadas com aviso, sem ajustar tempos por suposição; resposta inteiramente
+inválida continua sendo rejeitada. Aplicação explícita
+exige mapear lado próximo/distante à equipe; conferir trocas de lado antes do
+aceite. Lado incerto é ignorado. IDs/nomes de atletas, avaliação, placar e vencedor
+não são inventados. Marcas anteriores são preservadas, recortes pontuados não
+são divididos automaticamente, duplicatas próximas são ignoradas e o histórico
+permite desfazer. O rascunho original do arquivo local não é alterado.
+
+Referências: [vídeo Gemini](https://ai.google.dev/gemini-api/docs/video-understanding),
+[clipping no GenerateContent](https://ai.google.dev/gemini-api/docs/generate-content/video-understanding).
+
+Validação local do pacote: 16 testes focados (core, UI, cliente e serviço),
+tipos do app, lint focado, escopo, arquitetura, performance strict e diff.
+Casos incluem origem/Host/cabeçalho, limites de tempo, quota, retry limitado,
+job assíncrono/cache, rejeição de resposta inválida, cancelamento e ausência de
+aplicação automática. Conferência visual desktop/celular e execução real via
+localhost realizadas; sem commit/push, deploy ou alteração de plano.
+
+Execução real concluída em 13/10 para `mdfgd1K3HTc`: 16 trechos contíguos,
+15:11 processados, 94 rallies e 296 contatos sugeridos. Resultado exibido no
+mesmo estúdio; aceite habilitado somente após mapear a equipe. Nenhuma sugestão
+foi aplicada ao rascunho real durante a validação. Não confundir essas contagens
+com eventos esportivos confirmados. Evidência visual local ignorada:
+`.tmp/scouting-gemini/youtube-analysis-complete.png`.
+
+Conferência esportiva posterior reprovou o lote 94/296 para aplicação em bloco:
+saques/cortes propostos divergem das imagens em múltiplos trechos. Nenhuma
+sugestão aplicada; reconstrução completa ainda pendente. Testes técnicos acima
+não validam a precisão esportiva. Ver [evidências e limites da revisão](../operations/scouting-youtube-review-2026-10-13.md).
+
+
+Atualização final de 13/10: revisão visual sequencial de todo o vídeo (0–910,7 s), com ampliação dos contatos candidatos. Aplicados e salvos no rascunho YouTube 78 segmentos de rally e 201 contatos observáveis; exportação da UI idêntica ao documento validado. Contatos encobertos ou ambíguos excluídos, sem atribuir atletas/resultados/pontos. Cobertura temporal completa não significa anotação de todos os toques nem precisão automática certificada. Detalhes em `docs/operations/scouting-youtube-review-2026-10-13.md`. Rascunho do arquivo original preservado.
+
+
+Hover YouTube corrigido em 13/10: removido o tooltip estático que aumentava a altura dos controles e deslocava a timeline. Balão fixo limitado ao painel lateral, fora do vídeo. Conferência local: marcador permaneceu em y=641 antes/depois do hover (antes deslocava para y=524); 28 testes focados da timeline aprovados. Sem alteração nas marcações.
+
+
+## Tracking associado ao YouTube e comparação de modelos — 13/10
+
+Implementado localmente no mesmo estúdio, sem serviço novo nem upload. Em
+**Validação > Tracking da bola** (também em Vídeo e análise), escolher o original
+ou importar a exportação de sua análise. Confirmar mesma edição e offset em
+segundos: `tempo YouTube = tempo original + offset`. Apenas posições/cortes são
+associados; rallies, contatos e correções existentes não são substituídos.
+Aplicar e salvar são ações explícitas. Novos links repetem esse fluxo com o
+original correspondente uma vez; depois bastam link e rascunho salvo neste aparelho.
+Somente o link não oferece os quadros para o detector. Não foram implementados
+extração do stream, download de terceiros ou sobreposição no IFrame.
+
+O painel mostra a **vista da câmera**, com posição/trilha normalizadas e ausência
+quando não há amostra. Não representa coordenadas de quadra ou altura/velocidade
+3D. Pausa, seek, macro/micro e esconder trajetória permanecem no estúdio. Correção
+manual é possível no painel quando a edição está autorizada; leitor não recebe
+ações de processamento/correção. A consulta do tempo do IFrame é aproximada.
+
+`VideoAnalysis.source` guarda apenas fingerprint do original, basename, duração,
+dimensões e offset; parser sanitiza/valida limites e timestamps. Históricos e
+rascunhos antigos sem source permanecem compatíveis. Nenhuma migration nova
+é necessária para o rascunho local; compartilhamento remoto permanece inativo.
+
+Modelos: VballNet GridV2b recomendado/padrão e V4c comparação opt-in, ambos ONNX
+MIT pinados e servidos pela própria origem. Worker valida formatos e libera
+tensores; WebGPU preferencial, WASM fallback. Pesos/formatos/licenças e estudo de
+11 famílias em [comparação técnica](../operations/scouting-ball-model-comparison-2026-10-13.md).
+Filtro de confiança/continuidade remove apenas excursão isolada fraca com
+vizinhos confiáveis, respeitando cortes e lacunas. Não infere contatos/pontos
+nem interpola bola encoberta. Os 20.222 pontos antigos foram reutilizados, não
+recalculados pelo filtro novo.
+
+Evidência real: comparação CPU de 450 quadros/3 trechos do original, sem ground
+truth; ambos têm perdas, sem superioridade geral demonstrada. Os dois workers
+também executaram um lote de nove quadros no IAB/WebGPU. Esse teste não mede
+precisão esportiva nem runtime sustentado; não comparar scores entre modelos
+como probabilidades calibradas. Resultado privado em
+`.tmp/scouting-model-research/browser-worker-result.json`.
+
+Aplicação no rascunho real YouTube: **78 rallies / 201 contatos / 20.222 posições**,
+origem vinculada e offset 0. Exportação pela UI confirmou anotações intactas;
+reabrir o link recuperou o tracking sem selecionar original novamente. Original
+local preservado. Evidência `.tmp/scouting-gemini/review/tracked-youtube-export.json`.
+
+Preparo para treino assistido: `scripts/scouting-ball-review-dataset.py` exporta
+frames originais/candidatos/correções/lacunas, com manifesto por jogo e partição.
+Execução no rascunho criou 27.322 linhas: 20.222 candidatos e 7.100 desconhecidos,
+todos ainda exigindo revisão. Nenhum treinamento foi executado; ONNX não implica
+checkpoint treinável disponível. Revisão/dados autorizados/checkpoint e teste em
+outros jogos continuam necessários antes de promover um detector treinado.
+
+Validação local: 74 testes Jest focados no conjunto afetado, 8 de decoder e 13 da
+ferramenta Python; tipos app/core, lint focado, escopo, arquitetura e performance
+strict e build web passaram. Smoke autenticado: associação, salvar/exportar,
+reabertura, seek e painel. Sem commit, push, deploy, migration ou gasto remoto.
+
+Retomada do IFrame: enquanto um modal estiver aberto, o player é pausado e ocultado por opacidade, preservando sua superfície carregada. Conferida ida/volta com imagem, tempo e tracking em 24,7 s. Tela de 390 px sem overflow horizontal; painel e controles externos ao vídeo.
+
+### Trajetória sobre o original no mesmo estúdio — 13/10
+
+Os controles **Reproduzir pelo YouTube / Original com tracking** alternam a fonte
+de reprodução mantendo o documento do link. Para mostrar a linha sobre a imagem,
+selecionar o original que gerou o tracking: fingerprint, duração e dimensões devem
+coincidir com `analysis.source`. Selecionar um arquivo diferente é rejeitado antes
+da troca. O arquivo entregue pelo processamento local já fica disponível para
+reprodução após Aplicar; importar JSON exige selecionar o original separadamente.
+
+`original-playback.web.ts` traduz o relógio local pelo offset associado, limita
+seek à mídia disponível e mantém a velocidade. A troca pausa e conserva o instante;
+não cria outro rascunho, altera contatos/rallies, cancela o editor ou exige novo
+processamento. Overlay usa a resolução original e o tempo de cada quadro, respeita
+cortes e lacunas, e permanece compatível com correções existentes. O original não
+é enviado nem arquivado por este seletor; após fechar/recarregar, selecionar de novo.
+No player YouTube, a trajetória continua somente no painel externo. As permissões
+de leitura impedem seleção de mídia, processamento e correção.
+
+Validação desta mudança: 39 testes focados (identidade, offset/seek, overlay,
+handoff do File e propriedade/restauração do player), tipos do app, lint focado e
+diff aprovados. Smoke autenticado no localhost: arquivo de 30 s rejeitado;
+original correto aberto com linha sobre a imagem; reprodução/pausa e troca
+YouTube/original conservaram 36,5 s, velocidade 0,5× e contato em edição. Velocidade
+restaurada a 1× ao terminar. As exportações antes/depois são idênticas em SHA256
+(`24fb8f0cbc31f6540c1e84e6bba28177084264f32a2ea29ca81af767d688dac2`):
+78 rallies, 201 contatos, 20.222 posições. Evidência local ignorada:
+`.tmp/scouting-model-research/tracking-overlay-final.png`. Leitura conferida pelo
+guard de capacidades; não foi exercitada uma sessão remota de compartilhamento.
+
+### Piloto de coordenadas pelo link — 13/10
+
+Executado separadamente da UI: Gemini 3.1 Flash Lite recebeu somente a URL em
+20–40 s, com 80 instantes solicitados. Retornou 48 posições e 32 desconhecidos,
+mas foi reprovado visualmente: oito coordenadas comparáveis ficaram a 43–407 px
+da bola e houve seis omissões em 14 frames observáveis. Nenhuma posição aplicada;
+tracking original e marcações do rascunho preservados. 12 testes mockados e lint
+do piloto passaram. Ver [método, evidências, consumo e limites](../operations/scouting-youtube-ball-pilot-2026-10-13.md).
+
+### Original do Drive — 14/10
+
+O controle Drive abre o mesmo estúdio/documento YouTube com um original público
+em streaming, sem seleção ou gravação de MP4 local. A confirmação de mesma edição
+e offset permite reaproveitar posições existentes ou rastrear o vídeo na aba com
+VballNet. O gateway loopback usa Range limitado e capacidades temporárias para
+compatibilizar CORS; não é um backend de produção. Roboflow é outra ação explícita,
+experimental e dependente de credencial somente em memória.
+
+O aceite aplica exclusivamente `analysis` sobre o documento atual e apresenta a
+trajetória sobre o vídeo do Drive. Marcações humanas e identidade YouTube ficam
+preservadas. Links, IDs e tokens de acesso não entram no rascunho/exportação.
+Leitores não podem iniciar esse fluxo. Ver
+[contratos, validação e limites](../operations/scouting-drive-tracking-2026-10-14.md).
+
+Smoke completo pelo Drive concluído: 17.508 posições geradas, aplicadas e salvas;
+78 rallies e 201 contatos idênticos na exportação antes/depois. Reprodução com
+overlay e reassociação do original sem recalcular conferidas no localhost.
+Buffer de 2 MiB por janela e cache global de 32 MiB somente em RAM reduzem seeks
+repetidos; estimativas e lacunas permanecem revisáveis.
+
+### Organização compacta — 14/10
+
+Entrada única para YouTube/Drive, lista de rallies com miniaturas, editor contextual em Contatos e trajetória em Informações. Salvar desabilitado sem alteração; layout responsivo nos dois temas. Exportação integral preservada. Ver [composição e evidências locais](../operations/scouting-studio-ui-2026-10-14.md).
+
+### Fechamento para main — 14/10
+
+Backend de compartilhamento ativado (migrations e função v1), com verificação de permissões e erros remotos. Publicação web autorizada; Drive/Gemini permanecem locais. Ver [validação, escopo e limites](../operations/scouting-release-2026-10-14.md).

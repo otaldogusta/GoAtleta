@@ -6,14 +6,15 @@ import { contactOutcomeSummary, contactOutcomeSymbols, contactOutcomeTone } from
 
 type Preview = { label: string; detail: string; contacts: VideoContact[] };
 
-export function VideoTimeline({ doc, focus, time, tracking, teams, onFocus, onSeek, draftContact }: {
+export function VideoTimeline({ doc, focus, time, tracking, teams, onFocus, onSeek, onContact, draftContact }: {
     doc: VideoDocument; focus: string | null; time: number; tracking: BallPosition[];
     draftContact?: VideoContact | null;
+    onContact?: (contact: VideoContact) => void;
     teams: Record<VideoSide, string>;
     onFocus: (id: string | null) => void; onSeek: (time: number) => void;
 }) {
     const tipContext = useMemo(() => ({ focus, contacts: doc.contacts, draftContact }), [focus, doc.contacts, draftContact]);
-    const [tipState, setTip] = useState<(Preview & { left: number; bottom: number; maxHeight: number; context: typeof tipContext }) | null>(null);
+    const [tipState, setTip] = useState<(Preview & { left: number; bottom: number; maxHeight: number; width?: number; context: typeof tipContext }) | null>(null);
     const tip = tipState?.context === tipContext ? tipState : null;
     const tipId = useId(), track = useRef<HTMLDivElement>(null);
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,6 +48,11 @@ export function VideoTimeline({ doc, focus, time, tracking, teams, onFocus, onSe
     const hideTip = () => { keepTip(); closeTimer.current = setTimeout(() => setTip(null), 140); };
     const showTip = (preview: Preview, rect: DOMRect) => {
         keepTip();
+        const inspector = track.current?.closest('.sv[data-youtube=true]')?.querySelector('.sv-inspector')?.getBoundingClientRect();
+        if (inspector) {
+            setTip({ ...preview, context: tipContext, left: inspector.left + 8, bottom: innerHeight - inspector.bottom + 8, maxHeight: Math.max(80, inspector.height - 16), width: inspector.width - 16 });
+            return;
+        }
         setTip({ ...preview, context: tipContext, left: Math.max(8, Math.min(innerWidth - 308, rect.left + rect.width / 2 - 150)), bottom: innerHeight - rect.top + 8, maxHeight: Math.max(80, rect.top - 16) });
     };
     useEffect(() => {
@@ -60,6 +66,7 @@ export function VideoTimeline({ doc, focus, time, tracking, teams, onFocus, onSe
     useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
     const selectedRally = doc.rallies[videoRallyIndex(doc, time)];
     const seek = (position: number) => { keepTip(); setTip(null); onSeek(position); };
+    const editContact = (contact: VideoContact) => { keepTip(); setTip(null); if (onContact) onContact(contact); else onSeek(contact.time); };
     return <div className="sv-timeline" onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
       <div className="sv-modes"><StudioAction label="Vídeo completo" active={!focus} onPress={() => onFocus(null)}>Vídeo completo</StudioAction><StudioAction label="Rally selecionado" active={!!focus} onPress={() => onFocus(selectedRally.id)}>Rally selecionado</StudioAction><small>{focus ? `Rally ${String(doc.rallies.findIndex(r => r.id === focus) + 1).padStart(2, '0')}` : `${doc.rallies.length} rallies`}</small></div>
       <div className="sv-tracks" role="region" aria-label={focus ? 'Timeline do rally' : 'Timeline do vídeo completo'}>
@@ -89,9 +96,9 @@ export function VideoTimeline({ doc, focus, time, tracking, teams, onFocus, onSe
             const flag = many ? summary[0]?.tone ?? 'neutral' : tone;
             const evaluation = pending ? 'Em edição' : many ? summary.map(s => s.label).join(' · ') : c.outcome || 'Não avaliado';
             const preview = { label, detail: many ? `${videoTime(c.time)} – ${videoTime(group.contacts.at(-1)!.time)}` : '', contacts: group.contacts };
-            return <div key={c.id} className={`sv-marker${many ? ' grouped' : ''}`} data-draft={pending || undefined} data-outcome={tone} style={{ left: `clamp(12px, ${group.position * 100}%, calc(100% - 12px))` } as React.CSSProperties}
+            return <div key={c.id} className={`sv-marker${many ? ' grouped' : ''}${!focus ? ' macro' : ''}`} data-draft={pending || undefined} data-outcome={tone} style={{ left: `clamp(12px, ${group.position * 100}%, calc(100% - 12px))` } as React.CSSProperties}
               onPointerEnter={e => showTip(preview, e.currentTarget.getBoundingClientRect())} onPointerLeave={hideTip} onFocus={e => showTip(preview, e.currentTarget.getBoundingClientRect())} onBlur={hideTip}>
-              <StudioAction label={`${label} · ${videoTime(c.time, true)}${evaluation ? ` · ${evaluation}` : ''}`} describedBy={tip?.contacts === group.contacts ? tipId : undefined} onPress={() => seek(c.time)}>{many ? group.contacts.length : videoSkillLetters[c.skill]}{flag !== 'neutral' ? <span className="sv-outcome-symbol" data-outcome={flag} aria-hidden="true">{contactOutcomeSymbols[flag]}</span> : null}{many ? <span className="sv-marker-colors" aria-hidden="true">{group.contacts.map(contact => <i key={contact.id} data-outcome={contactOutcomeTone(contact)}/>)}</span> : null}</StudioAction>
+              <StudioAction label={`${label} · ${videoTime(c.time, true)}${evaluation ? ` · ${evaluation}` : ''}`} describedBy={tip?.contacts === group.contacts ? tipId : undefined} onPress={() => editContact(c)}>{!focus ? <span className="sv-contact-tick" data-outcome={flag} aria-hidden="true"/> : many ? group.contacts.length : videoSkillLetters[c.skill]}{flag !== 'neutral' ? <span className="sv-outcome-symbol" data-outcome={flag} aria-hidden="true">{contactOutcomeSymbols[flag]}</span> : null}{many ? <span className="sv-marker-colors" aria-hidden="true">{group.contacts.map(contact => <i key={contact.id} data-outcome={contactOutcomeTone(contact)}/>)}</span> : null}</StudioAction>
             </div>;
         })}{points.map(r => <div key={`point-${r.id}`} className="sv-point-marker" style={{ left: `clamp(12px, ${(r.pointTime! - start) / span * 100}%, calc(100% - 12px))` }}>
             <StudioAction label={`Ponto · ${videoTime(r.pointTime!, true)} · ${r.winner ? teams[r.winner] : 'N/D'}`} icon="flag" onPress={() => seek(r.pointTime!)}/>
@@ -100,11 +107,11 @@ export function VideoTimeline({ doc, focus, time, tracking, teams, onFocus, onSe
         <div className="sv-timeline-caption"><span>{visibleDraft ? `${visibleDraft.skill} · ${videoTime(visibleDraft.time, true)} · Em edição` : current?.label ?? 'Vídeo completo'}</span><small>{videoTime(start)} – {videoTime(end)}</small></div>
         <div className="sv-lane"><small>Bola</small><div className="sv-ball" aria-label={tracking.length || doc.corrections.length ? 'Bola: marcações e correções disponíveis' : 'Bola: sem rastreamento'}>{coverage.map((state, i) => <i key={i} className={state === 2 ? 'corrected' : state ? 'detected' : ''}/>)}</div></div>
       </div>
-      {tip ? <div id={tipId} className="sv-floating-tip" style={{ left: tip.left, bottom: tip.bottom, maxHeight: tip.maxHeight }} role="tooltip" onPointerEnter={keepTip} onPointerLeave={hideTip} onFocus={keepTip} onBlur={hideTip}>
+      {tip ? <div id={tipId} className="sv-floating-tip" style={{ left: tip.left, bottom: tip.bottom, maxHeight: tip.maxHeight, width: tip.width }} role="tooltip" onPointerEnter={keepTip} onPointerLeave={hideTip} onFocus={keepTip} onBlur={hideTip}>
         <div className="sv-tip-heading"><b>{tip.label}</b><small>{tip.detail}</small></div>
         {tip.contacts.length > 1 ? <div className="sv-tip-summary">{contactOutcomeSummary(tip.contacts).map(s => <span key={s.tone} className="sv-outcome-label" data-outcome={s.tone}><span aria-hidden="true">{contactOutcomeSymbols[s.tone]} </span>{s.label}</span>)}</div> : null}
         {tip.contacts.length ? <ul>{tip.contacts.map(c => <li key={c.id} data-outcome={contactOutcomeTone(c)}>
-          <StudioAction label={`Ir para ${c.skill} em ${videoTime(c.time, true)}`} onPress={() => seek(c.time)}><span className="sv-tip-contact"><b>{c.skill}</b><time>{videoTime(c.time, true)}</time><small>{teams[c.team]}{c.athlete ? ` · ${c.athlete}` : ''}</small><span className="sv-outcome-label" data-outcome={contactOutcomeTone(c)}><span aria-hidden="true">{contactOutcomeSymbols[contactOutcomeTone(c)]} </span>{c.outcome || 'Não avaliado'}</span></span></StudioAction>
+          <StudioAction label={`Ir para ${c.skill} em ${videoTime(c.time, true)}`} onPress={() => editContact(c)}><span className="sv-tip-contact"><b>{c.skill}</b><time>{videoTime(c.time, true)}</time><small>{teams[c.team]}{c.athlete ? ` · ${c.athlete}` : ''}</small><span className="sv-outcome-label" data-outcome={contactOutcomeTone(c)}><span aria-hidden="true">{contactOutcomeSymbols[contactOutcomeTone(c)]} </span>{c.outcome || 'Não avaliado'}</span></span></StudioAction>
         </li>)}</ul> : <p>{tip.label === 'Ponto' ? 'Fim do rally' : focus && contacts.length ? 'Antes do primeiro contato' : 'Sem contatos registrados'}</p>}
       </div> : null}
     </div>;

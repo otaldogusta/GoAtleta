@@ -11,6 +11,7 @@ export const videoOutcomes: Record<VideoSkill, readonly string[]> = {
 };
 export const videoSkillLetters: Record<VideoSkill, string> = { Saque: 'S', Recepção: 'P', Levantamento: 'L', Ataque: 'A', Bloqueio: 'B', Defesa: 'D', 'Bola de graça': 'F', 'Cobertura de ataque': 'C' };
 export type VideoMedia = {
+    youtubeId?: string;
     fingerprint: string;
     name: string;
     duration: number;
@@ -38,7 +39,17 @@ export type BallPosition = {
     x: number;
     y: number;
 };
-export type VideoAnalysis = { model: 'vballnet-v2b-browser-1' | 'vballnet-v2b-local'; sampledFps: 30; positions: BallPosition[]; cuts: number[] };
+/** Identity of an explicitly matched original; never a playable URL or local path. */
+export type VideoAnalysisSource = {
+    fingerprint: string;
+    name: string;
+    duration: number;
+    width: number;
+    height: number;
+    /** youtubeTime = originalTime + offsetSeconds. */
+    offsetSeconds: number;
+};
+export type VideoAnalysis = { model: 'vballnet-v2b-browser-1' | 'vballnet-v2b-local' | 'vballnet-v4c-browser-1' | 'roboflow-volleyball-v2-3'; sampledFps: 30; positions: BallPosition[]; cuts: number[]; source?: VideoAnalysisSource };
 export type VideoDocument = {
     analysis?: VideoAnalysis;
     version: 1;
@@ -125,11 +136,23 @@ export function videoTime(time: number, precise = false) {
     return `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}${precise ? '.' + String(ms % 1000).padStart(3, '0') : ''}`;
 }
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+function parseAnalysisSource(value: unknown, media: VideoMedia): VideoAnalysisSource {
+    const s = value as VideoAnalysisSource;
+    if (!media.youtubeId || media.fingerprint !== `youtube:${media.youtubeId}` || !s ||
+        typeof s.fingerprint !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(s.fingerprint) ||
+        typeof s.name !== 'string' || !s.name.trim() || s.name.length > 300 || /[\\/:\u0000-\u001f\u007f]/.test(s.name) ||
+        !finite(s.duration) || s.duration <= 0 || s.duration > 86400 ||
+        !Number.isInteger(s.width) || !Number.isInteger(s.height) || s.width <= 0 || s.height <= 0 || s.width > 16384 || s.height > 16384 ||
+        !finite(s.offsetSeconds) || Math.abs(s.offsetSeconds) > 1800)
+        throw new Error('Fonte original do tracking inválida.');
+    return { fingerprint: s.fingerprint, name: s.name, duration: s.duration, width: s.width, height: s.height, offsetSeconds: s.offsetSeconds };
+}
 export function parseVideoDocument(value: unknown, media?: VideoMedia): VideoDocument {
     const d = value as VideoDocument;
     if (!d || d.version !== 1 || !d.media || typeof d.media.fingerprint !== 'string' || !d.media.fingerprint || typeof d.media.name !== 'string' || d.media.name.length > 300 || !finite(d.media.duration) || d.media.duration <= 0 || d.media.duration > 86400 || !finite(d.media.width) || !finite(d.media.height) || d.media.width <= 0 || d.media.height <= 0)
         throw new Error('Arquivo de análise inválido.');
-    if (media && (d.media.fingerprint !== media.fingerprint || Math.abs(d.media.duration - media.duration) > .1))
+    if (d.media.youtubeId !== undefined && (typeof d.media.youtubeId !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(d.media.youtubeId))) throw new Error('Vídeo do YouTube inválido.');
+    if (media && (d.media.youtubeId !== media.youtubeId || d.media.fingerprint !== media.fingerprint || Math.abs(d.media.duration - media.duration) > .1))
         throw new Error('Esta análise pertence a outro vídeo.');
     if (!Array.isArray(d.rallies) || !d.rallies.length || d.rallies.length > 2000 || !Array.isArray(d.contacts) || d.contacts.length > 20000 || !Array.isArray(d.corrections) || d.corrections.length > 20000)
         throw new Error('Limites da análise inválidos.');
@@ -143,11 +166,17 @@ export function parseVideoDocument(value: unknown, media?: VideoMedia): VideoDoc
         throw new Error('Contatos inválidos.');
     if (d.corrections.some(p => !p || !finite(p.time) || p.time < 0 || p.time >= d.media.duration || !finite(p.x) || !finite(p.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1))
         throw new Error('Posições inválidas.');
-    if (d.analysis && (!['vballnet-v2b-browser-1', 'vballnet-v2b-local'].includes(d.analysis.model) || d.analysis.sampledFps !== 30 ||
+    if (d.analysis && (!['vballnet-v2b-browser-1', 'vballnet-v2b-local', 'vballnet-v4c-browser-1', 'roboflow-volleyball-v2-3'].includes(d.analysis.model) || d.analysis.sampledFps !== 30 ||
         !Array.isArray(d.analysis.positions) || d.analysis.positions.length > 54000 ||
         d.analysis.positions.some((p, i, rows) => !p || !finite(p.time) || p.time < 0 || p.time >= d.media.duration || (i > 0 && p.time <= rows[i - 1].time) || !finite(p.x) || !finite(p.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) ||
         !Array.isArray(d.analysis.cuts) || d.analysis.cuts.length > 2000 || d.analysis.cuts.some((t, i, rows) => !finite(t) || t <= 0 || t >= d.media.duration || (i > 0 && t <= rows[i - 1]))))
         throw new Error('Invalid automatic analysis');
+    const source = d.analysis?.source !== undefined ? parseAnalysisSource(d.analysis.source, d.media) : undefined;
+    if (source && [...d.analysis!.positions.map(p => p.time), ...d.analysis!.cuts].some(time => {
+        const originalTime = time - source.offsetSeconds;
+        // Addition and subtraction of the offset can round at a frame boundary.
+        return originalTime < -1e-6 || originalTime >= source.duration;
+    })) throw new Error('Tracking fora do intervalo do vídeo original.');
     // Pick fields explicitly: imported data cannot introduce source URLs or access grants.
-    return { ...(d.analysis ? { analysis: { model: d.analysis.model, sampledFps: d.analysis.sampledFps, positions: d.analysis.positions.map(({time, x, y}) => ({time, x, y})), cuts: [...d.analysis.cuts] } } : {}), version: 1, media: { fingerprint: d.media.fingerprint, name: d.media.name, duration: d.media.duration, width: d.media.width, height: d.media.height }, rallies: d.rallies.map(({ id, start, winner, reviewed, pointTime }) => ({ id, start, winner, reviewed, ...(pointTime !== undefined ? { pointTime } : {}) })), contacts: d.contacts.map(({ id, time, skill, team, athlete, studentId, outcome }) => ({ id, time, skill, team, athlete, studentId, outcome })), corrections: d.corrections.map(({ time, x, y }) => ({ time, x, y })) };
+    return { ...(d.analysis ? { analysis: { model: d.analysis.model, sampledFps: d.analysis.sampledFps, positions: d.analysis.positions.map(({time, x, y}) => ({time, x, y})), cuts: [...d.analysis.cuts], ...(source ? { source } : {}) } } : {}), version: 1, media: { ...(d.media.youtubeId ? { youtubeId: d.media.youtubeId } : {}), fingerprint: d.media.fingerprint, name: d.media.name, duration: d.media.duration, width: d.media.width, height: d.media.height }, rallies: d.rallies.map(({ id, start, winner, reviewed, pointTime }) => ({ id, start, winner, reviewed, ...(pointTime !== undefined ? { pointTime } : {}) })), contacts: d.contacts.map(({ id, time, skill, team, athlete, studentId, outcome }) => ({ id, time, skill, team, athlete, studentId, outcome })), corrections: d.corrections.map(({ time, x, y }) => ({ time, x, y })) };
 }

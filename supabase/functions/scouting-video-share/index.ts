@@ -36,6 +36,13 @@ Deno.serve(async req => {
     // Whitelist the domain projection again at the public boundary. No internal
     // identifiers, unknown properties, storage paths or editing APIs are exposed.
     const document = parseVideoDocument(data.document);
+    if (data.mediaProvider === 'youtube') {
+      if (!document.media.youtubeId || document.media.youtubeId !== data.youtubeId) return reply({ error: 'MEDIA_UNAVAILABLE' }, 503);
+      return reply({ document, teamName: data.teamName, title: data.title, opponent: data.opponent,
+        updatedAt: data.updatedAt, expiresAt: data.expiresAt, permission: 'viewer', mediaProvider: 'youtube', youtubeId: data.youtubeId,
+        mediaUrl: `youtube:${data.youtubeId}`, mediaExpiresAt: Date.now() + 300000 });
+    }
+    if (document.media.youtubeId) return reply({ error: 'MEDIA_UNAVAILABLE' }, 503);
     const { data: media, error: mediaError } = await client.storage.from('scouting-videos').createSignedUrl(data.objectPath, 300);
     if (mediaError || !media) return reply({ error: 'MEDIA_UNAVAILABLE' }, 503);
     return reply({ document, teamName: data.teamName, title: data.title, opponent: data.opponent,

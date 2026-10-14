@@ -1,0 +1,25 @@
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { VideoContactEditor } from '../video/VideoContactEditor.web';
+import type { VideoContact } from '../../../core/scouting-video';
+jest.mock('../video/StudioUI.web', () => ({ StudioAction: (props: object) => jest.requireActual('react').createElement('button', props) }));
+test('Save follows the normalized baseline and selecting the current skill preserves its outcome', () => {
+    const contact: VideoContact = { id: 'c', time: 4, team: 'us', skill: 'Recepção', studentId: null, athlete: '', outcome: 'Controlada' };
+    const onChange = jest.fn(), onSave = jest.fn();
+    const props = { contact, students: [], teams: { us: 'Equipe', them: 'Adversário' }, onChange, onSave, onTime: jest.fn(), onCancel: jest.fn(), onDelete: jest.fn() };
+    let view!: ReactTestRenderer;
+    act(() => { view = create(createElement(VideoContactEditor, { ...props, changed: false })); });
+    const button = (label: string) => view.root.findByProps({ label });
+    expect(button('Salvar contato').props.disabled).toBe(true);
+    act(() => view.root.findByProps({ 'aria-label': 'Fundamento' }).props.onChange({ target: { value: 'Recepção' } }));
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => view.root.findByProps({ 'aria-label': 'Fundamento' }).props.onChange({ target: { value: 'Ataque' } }));
+    expect(onChange).toHaveBeenCalledWith({ ...contact, skill: 'Ataque', outcome: '' });
+    act(() => view.update(createElement(VideoContactEditor, { ...props, changed: true })));
+    expect(button('Salvar contato').props.disabled).toBe(false);
+    act(() => button('Salvar contato').props.onPress());
+    expect(onSave).toHaveBeenCalledTimes(1);
+    act(() => view.update(createElement(VideoContactEditor, { ...props, changed: false })));
+    expect(button('Salvar contato').props.disabled).toBe(true);
+    act(() => view.unmount());
+});

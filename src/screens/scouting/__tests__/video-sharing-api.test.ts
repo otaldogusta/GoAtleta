@@ -29,3 +29,12 @@ test('external media URLs are refused before the studio can load them', async ()
   (fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ permission: 'viewer', mediaUrl: 'https://external.invalid/video' }) });
   await expect(readSharedVideo('id', 'proof', new AbortController().signal)).rejects.toMatchObject({ code: 'MEDIA_UNAVAILABLE' });
 });
+
+test('YouTube source uses only validated ID and rejects provider mismatch', async () => {
+  const document = { version: 1, media: { youtubeId: 'M7lc1UVf-VE', fingerprint: 'shared', name: 'Video', duration: 20, width: 1280, height: 720 }, rallies: [{ id: 'r', start: 0, winner: null, reviewed: false }], contacts: [], corrections: [] };
+  const response = { permission: 'viewer', mediaProvider: 'youtube', youtubeId: 'M7lc1UVf-VE', mediaUrl: 'https://untrusted.invalid', document };
+  (fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => response });
+  expect((await readSharedVideo('id', 'proof', new AbortController().signal)).mediaUrl).toBe('youtube:M7lc1UVf-VE');
+  response.youtubeId = 'abcdefghijk';
+  await expect(readSharedVideo('id', 'proof', new AbortController().signal)).rejects.toMatchObject({ code: 'MEDIA_UNAVAILABLE' });
+});

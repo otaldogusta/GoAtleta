@@ -17,6 +17,9 @@ export const videoShareError = (failure: unknown) => {
 export function prepareVideoShare(scope: VideoShareScope, doc: VideoDocument, file: File) {
   return supabasePost<VideoShareAsset>('/rpc/prepare_scouting_video_share', { p_org: scope.org, p_session: scope.sessionId, p_fingerprint: doc.media.fingerprint, p_size: file.size, p_type: videoContentType(file) });
 }
+export function prepareYouTubeShare(scope: VideoShareScope, id: string) {
+  return supabasePost<Pick<VideoShareAsset, 'assetId'>>('/rpc/prepare_scouting_youtube_share', { p_org: scope.org, p_session: scope.sessionId, p_video_id: id });
+}
 export function videoContentType(file: File) {
   if (/\.mov$/i.test(file.name)) return 'video/quicktime';
   if (/\.webm$/i.test(file.name)) return 'video/webm';
@@ -25,7 +28,7 @@ export function videoContentType(file: File) {
 export function getVideoShare(scope: VideoShareScope, fingerprint: string) {
   return supabasePost<VideoShare | null>('/rpc/get_scouting_video_share', { p_org: scope.org, p_session: scope.sessionId, p_fingerprint: fingerprint });
 }
-export function publishVideoShare(scope: VideoShareScope, asset: VideoShareAsset, doc: VideoDocument, team: string, audience: VideoShareAudience, code: string, days: number) {
+export function publishVideoShare(scope: VideoShareScope, asset: Pick<VideoShareAsset, 'assetId'>, doc: VideoDocument, team: string, audience: VideoShareAudience, code: string, days: number) {
   return supabasePost<VideoShare>('/rpc/publish_scouting_video_share', { p_org: scope.org, p_session: scope.sessionId, p_asset: asset.assetId, p_document: publishableVideoDocument(doc), p_team: team, p_audience: audience, p_proof: code, p_days: days });
 }
 export function revokeVideoShare(scope: VideoShareScope, id: string) {
@@ -44,7 +47,14 @@ export async function readSharedVideo(id: string, code: string, signal: AbortSig
   const value = await res.json();
   assertSessionIdentity(identity);
   if (!res.ok || value.permission !== 'viewer') throw new SharedVideoError(value.error || 'LINK_UNAVAILABLE');
+  if (value.mediaProvider === 'youtube') {
+    const document = parseVideoDocument(value.document);
+    if (!document.media.youtubeId || value.youtubeId !== document.media.youtubeId) throw new SharedVideoError('MEDIA_UNAVAILABLE');
+    return { ...value, mediaUrl: `youtube:${document.media.youtubeId}`, document };
+  }
   const media = new URL(value.mediaUrl), base = new URL(SUPABASE_URL);
   if (media.origin !== base.origin || !media.pathname.startsWith('/storage/v1/object/sign/scouting-videos/')) throw new SharedVideoError('MEDIA_UNAVAILABLE');
-  return { ...value, document: parseVideoDocument(value.document) };
+  const document = parseVideoDocument(value.document);
+  if (document.media.youtubeId) throw new SharedVideoError('MEDIA_UNAVAILABLE');
+  return { ...value, document };
 }

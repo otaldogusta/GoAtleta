@@ -8,6 +8,7 @@
   "scripts": {
     "dev:setup": "node scripts/dev-setup.mjs",
     "dev:doctor": "node scripts/dev-setup.mjs --check",
+    "dev:scouting-ai": "node scripts/scouting-youtube-service.mjs",
     "dev:web": "expo start --web --port 8081 --max-workers 2",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
