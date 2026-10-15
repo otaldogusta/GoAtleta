@@ -800,3 +800,14 @@ Validação: 29 testes de ajuste fino/adaptadores passaram, mais typecheck, lint
 - 15/10: visão completa agrupa contatos por intervalo de rally, com bloco no centro do trecho correspondente. Não agrega contatos de rallies vizinhos por proximidade em pixels; visão do rally mantém contatos individuais e agrupamento por densidade.
 
 - 15/10: por ajuste solicitado, marcadores de ponto ficam ocultos no vídeo completo e aparecem somente no rally selecionado; registros de ponto preservados.
+
+- 15/10: ajuste local de início/fim em segundos no topo de Contatos. Aplicar recorte move a divisa compartilhada com os rallies vizinhos, preservando IDs e horários dos contatos. Impede cruzar limites e deslocar a marca ou contato decisivo para fora do rally; primeiro início e último fim permanecem fixos. Nove testes de domínio e typecheck aprovados; campos conferidos no navegador local. Não publicado.
+
+- 15/10: recorte visual local com seis miniaturas reais, alças de início/fim acessíveis por teclado e prévia no player. Mantém aplicação explícita e validação do recorte. Régua compacta sob as imagens; waveform de áudio ainda não extraída.
+`n- 15/10: alças usam captura do ponteiro, deslocamento relativo e prévia ao soltar; painel mantém o rally em edição ao atravessar uma divisa. Arraste local conferido; atualização do componente reiniciou a reprodução em YouTube, exigindo reconectar o original para novas miniaturas.
+
+- Editor de recorte: Resetar restaura os limites salvos; Ver trecho e espaço no editor reproduzem o intervalo provisório sem salvar, com pausa no fim.
+
+- Agulha independente com captura do ponteiro e buscas limitadas a cada 120 ms, mais busca final. Miniaturas do trim usam cache local escopado; aviso abre importação. Offset do original subtraído como na galeria.
+
+- Importador lista YouTube conectado e original ativo em linhas discretas; remoção exige confirmação. Remover YouTube limpa vínculo de reprodução e identidade do original associado, preservando análise e marcações; alteração fica no rascunho.

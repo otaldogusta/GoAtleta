@@ -4,8 +4,8 @@ import { trackingIndex, trackingTrail } from '../../../core/scouting-video-playb
 const emptyPositions: BallPosition[] = [];
 
 /** Image coordinates, not a court homography or a reconstructed 3D flight. */
-export const YouTubeTrackingPanel = memo(function YouTubeTrackingPanel({ doc, time, correcting, onCorrect }: {
-    doc: VideoDocument; time: number; correcting: boolean; onCorrect?: (x: number, y: number) => void;
+export const YouTubeTrackingPanel = memo(function YouTubeTrackingPanel({ doc, time, correcting, onCorrect, youtube = true }: {
+    youtube?: boolean; doc: VideoDocument; time: number; correcting: boolean; onCorrect?: (x: number, y: number) => void;
 }) {
     const positions = doc.analysis?.positions ?? emptyPositions, original = doc.analysis?.source ?? doc.media;
     const index = trackingIndex(positions, time);
@@ -25,6 +25,6 @@ export const YouTubeTrackingPanel = memo(function YouTubeTrackingPanel({ doc, ti
         <path d="M0 500H1000M500 0V1000" className="sv-tracking-grid"/>
         {visible ? <><polyline points={correction ? '' : trail} className="sv-tracking-trail" vectorEffect="non-scaling-stroke"/><ellipse cx={point.x * 1000} cy={point.y * 1000} rx={18} ry={18 * original.width / original.height} className="sv-tracking-dot"/></> : null}
       </svg>
-      <small>{correcting ? 'Clique no painel para corrigir a posição da bola.' : 'Vista da câmera · sincronização aproximada do YouTube'}</small>
+      <small>{correcting ? 'Clique no painel para corrigir a posição da bola.' : youtube ? 'Vista da câmera · sincronização aproximada do YouTube' : 'Vista da câmera · sincronizada com o vídeo'}</small>
     </section>;
 });

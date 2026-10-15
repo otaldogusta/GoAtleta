@@ -1,4 +1,4 @@
-import { editVideo, markVideoPoint, mergeVideoRally, newVideoDocument, parseVideoDocument, splitVideoRally, undoVideo, videoContacts, videoDraftKey, videoRange, type VideoHistory } from '../scouting-video';
+import { resizeVideoRally, editVideo, markVideoPoint, mergeVideoRally, newVideoDocument, parseVideoDocument, splitVideoRally, undoVideo, videoContacts, videoDraftKey, videoRange, type VideoHistory } from '../scouting-video';
 const media = { fingerprint: 'video-a', name: 'partida.mp4', duration: 60, width: 1280, height: 720 };
 const make = () => ({ ...newVideoDocument(media, 'r1'), contacts: [
   { id: 'serve', time: 2, skill: 'Saque' as const, team: 'them' as const, athlete: '', studentId: null, outcome: 'Em jogo' },
@@ -69,3 +69,16 @@ test('import strips extra fields so embedded URLs or grants cannot affect playba
   const parsed = parseVideoDocument({ ...make(), source: 'https://untrusted.example', permission: 'editor', media: { ...media, url: 'javascript:alert(1)' } });
   expect(parsed).not.toHaveProperty('source'); expect(parsed.media).not.toHaveProperty('url');
 });
+
+ test('resizing moves shared boundaries without adding rallies or altering contacts', () => {
+   const doc = splitVideoRally(splitVideoRally(make(), 17, 'r2'), 28, 'r3');
+   const next = resizeVideoRally(doc, 'r2', 13, 28);
+   expect(next.rallies).toHaveLength(3);
+   expect(videoRange(next, 'r1')).toEqual([0, 13]);
+   expect(videoRange(next, 'r2')).toEqual([13, 28]);
+   expect(next.contacts).toEqual(doc.contacts);
+   expect(parseVideoDocument(next)).toEqual(next);
+   expect(() => resizeVideoRally(doc, 'r2', 0, 28)).toThrow();
+   expect(() => resizeVideoRally(doc, 'r2', 29, 28)).toThrow();
+   expect(() => resizeVideoRally(markVideoPoint(doc, 'r1', 16), 'r2', 13, 28)).toThrow('marca do ponto');
+ });

@@ -297,3 +297,5 @@ Escolha manual remove essa origem. Instante do ponto e recortes são preservados
 Reprodução suspende extração de miniaturas. Player nativo mostra espera por
 quadro e permite recarregar apenas a mídia após 8 s, restaurando posição.
 Não recarrega documento nem salva/descarta anotações.
+
+- No estúdio de vídeo, Início/Fim em Contatos ajustam as divisas compartilhadas via `resizeVideoRally`, sem criar rallies ou mudar horários dos contatos. Marcas de ponto fora do intervalo e resultados automáticos cujo contato mudaria de rally bloqueiam o ajuste com aviso.

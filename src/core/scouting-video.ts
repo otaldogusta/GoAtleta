@@ -98,6 +98,24 @@ export function videoRange(doc: VideoDocument, id: string | null): [
     const i = doc.rallies.findIndex(r => r.id === id);
     return i < 0 ? [0, doc.media.duration] : [doc.rallies[i].start, doc.rallies[i + 1]?.start ?? doc.media.duration];
 }
+/** Move shared boundaries without creating rallies or changing contact timestamps. */
+export function resizeVideoRally(doc: VideoDocument, id: string, start: number, end: number): VideoDocument {
+    const index = doc.rallies.findIndex(r => r.id === id);
+    if (index < 0 || !Number.isFinite(start) || !Number.isFinite(end) || start >= end
+        || (index === 0 ? start !== 0 : start <= doc.rallies[index - 1].start)
+        || (index === doc.rallies.length - 1 ? end !== doc.media.duration : end >= (doc.rallies[index + 2]?.start ?? doc.media.duration)))
+        throw new Error('O recorte deve respeitar os rallies vizinhos e a duração do vídeo.');
+    const rallies = doc.rallies.map((r, i) => i === index ? { ...r, start } : i === index + 1 ? { ...r, start: end } : { ...r });
+    for (let i = 0; i < rallies.length; i++) {
+        const r = rallies[i], limit = rallies[i + 1]?.start ?? doc.media.duration;
+        if (r.pointTime !== undefined && (r.pointTime < r.start || r.pointTime >= limit))
+            throw new Error('A marca do ponto ficaria fora do rally. Ajuste o instante do ponto antes do recorte.');
+        if (r.winnerContactId && !doc.contacts.some(c => c.id === r.winnerContactId && c.time >= r.start && c.time < limit))
+            throw new Error('O contato que definiu o ponto mudaria de rally. Revise o resultado antes do recorte.');
+        if (r.start !== doc.rallies[i].start || limit !== (doc.rallies[i + 1]?.start ?? doc.media.duration)) r.reviewed = false;
+    }
+    return { ...doc, rallies };
+}
 export function videoContacts(doc: VideoDocument, id: string) {
     const [start, end] = videoRange(doc, id);
     return doc.contacts.filter(c => c.time >= start && c.time < end).sort((a, b) => a.time - b.time);

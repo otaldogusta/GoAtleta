@@ -7,7 +7,7 @@ import { videoThumbnail } from './video-media.web';
 function ThumbnailPlaceholder() {
     return <span className="sv-thumb-unavailable" role="img" aria-label="Miniatura indisponível ou carregando"><GoAtletaIcon name="gallery" size={28} color="currentColor"/></span>;
 }
-function Thumbnail({ source, time, poster, cacheKey, enabled = true }: {
+export function Thumbnail({ source, time, poster, cacheKey, enabled = true }: {
     cacheKey?: string;
     enabled?: boolean;
     poster?: string;
