@@ -31,6 +31,7 @@ export type VideoRally = {
     id: string;
     start: number;
     winner: VideoSide | null;
+    winnerContactId?: string;
     reviewed: boolean;
     pointTime?: number;
 };
@@ -97,9 +98,41 @@ export function videoRange(doc: VideoDocument, id: string | null): [
     const i = doc.rallies.findIndex(r => r.id === id);
     return i < 0 ? [0, doc.media.duration] : [doc.rallies[i].start, doc.rallies[i + 1]?.start ?? doc.media.duration];
 }
+/** Move shared boundaries without creating rallies or changing contact timestamps. */
+export function resizeVideoRally(doc: VideoDocument, id: string, start: number, end: number): VideoDocument {
+    const index = doc.rallies.findIndex(r => r.id === id);
+    if (index < 0 || !Number.isFinite(start) || !Number.isFinite(end) || start >= end
+        || (index === 0 ? start !== 0 : start <= doc.rallies[index - 1].start)
+        || (index === doc.rallies.length - 1 ? end !== doc.media.duration : end >= (doc.rallies[index + 2]?.start ?? doc.media.duration)))
+        throw new Error('O recorte deve respeitar os rallies vizinhos e a duração do vídeo.');
+    const rallies = doc.rallies.map((r, i) => i === index ? { ...r, start } : i === index + 1 ? { ...r, start: end } : { ...r });
+    for (let i = 0; i < rallies.length; i++) {
+        const r = rallies[i], limit = rallies[i + 1]?.start ?? doc.media.duration;
+        if (r.pointTime !== undefined && (r.pointTime < r.start || r.pointTime >= limit))
+            throw new Error('A marca do ponto ficaria fora do rally. Ajuste o instante do ponto antes do recorte.');
+        if (r.winnerContactId && !doc.contacts.some(c => c.id === r.winnerContactId && c.time >= r.start && c.time < limit))
+            throw new Error('O contato que definiu o ponto mudaria de rally. Revise o resultado antes do recorte.');
+        if (r.start !== doc.rallies[i].start || limit !== (doc.rallies[i + 1]?.start ?? doc.media.duration)) r.reviewed = false;
+    }
+    return { ...doc, rallies };
+}
 export function videoContacts(doc: VideoDocument, id: string) {
     const [start, end] = videoRange(doc, id);
     return doc.contacts.filter(c => c.time >= start && c.time < end).sort((a, b) => a.time - b.time);
+}
+/** Apply an explicit contact result without changing cuts or point timestamps. */
+export function saveVideoContact(doc: VideoDocument, contact: VideoContact | null, id = contact?.id): VideoDocument {
+    const contacts = doc.contacts.filter(c => c.id !== id);
+    if (contact) contacts.push(contact);
+    contacts.sort((a, b) => a.time - b.time);
+    const rallies = doc.rallies.map(r => id && r.winnerContactId === id ? { ...r, winner: null, winnerContactId: undefined } : { ...r });
+    if (contact) {
+        const winner = contact.outcome === 'Erro' ? (contact.team === 'us' ? 'them' : 'us')
+            : ['Ace', 'Ponto de ataque', 'Ponto de bloqueio', 'Ponto direto'].includes(contact.outcome) ? contact.team : null;
+        const index = rallies.findIndex((r, i) => contact.time >= r.start && contact.time < (rallies[i + 1]?.start ?? doc.media.duration));
+        if (winner && index >= 0) rallies[index] = { ...rallies[index], winner, winnerContactId: contact.id };
+    }
+    return { ...doc, contacts, rallies };
 }
 export function markVideoPoint(doc: VideoDocument, id: string, time: number | null): VideoDocument {
     const [start, end] = videoRange(doc, id);
@@ -112,13 +145,13 @@ export function splitVideoRally(doc: VideoDocument, time: number, id: string): V
         throw new Error('Escolha outro instante para iniciar o rally.');
     // Splitting a scored segment requires reconfirming both results.
     const current = videoRallyIndex(doc, time);
-    return { ...doc, rallies: [...doc.rallies.map((r, i) => i === current ? { ...r, winner: null, pointTime: undefined, reviewed: false } : r), { id, start: time, winner: null, reviewed: false }].sort((a, b) => a.start - b.start) };
+    return { ...doc, rallies: [...doc.rallies.map((r, i) => i === current ? { ...r, winner: null, winnerContactId: undefined, pointTime: undefined, reviewed: false } : r), { id, start: time, winner: null, reviewed: false }].sort((a, b) => a.start - b.start) };
 }
 export function mergeVideoRally(doc: VideoDocument, id: string): VideoDocument {
     const i = doc.rallies.findIndex(r => r.id === id);
     if (i <= 0)
         throw new Error('Este rally não tem um recorte anterior.');
-    return { ...doc, rallies: doc.rallies.filter(r => r.id !== id).map((r, index) => index === i - 1 ? { ...r, winner: null, pointTime: undefined, reviewed: false } : r) };
+    return { ...doc, rallies: doc.rallies.filter(r => r.id !== id).map((r, index) => index === i - 1 ? { ...r, winner: null, winnerContactId: undefined, pointTime: undefined, reviewed: false } : r) };
 }
 export function editVideo(history: VideoHistory, next: VideoDocument, label: string): VideoHistory {
     if (JSON.stringify(next) === JSON.stringify(history.present))
@@ -158,7 +191,7 @@ export function parseVideoDocument(value: unknown, media?: VideoMedia): VideoDoc
         throw new Error('Limites da análise inválidos.');
     const ids = new Set<string>();
     const validId = (id: string) => typeof id === 'string' && id.length > 0 && id.length <= 120 && !ids.has(id) && !!ids.add(id);
-    if (d.rallies.some((r, i) => !r || !validId(r.id) || !finite(r.start) || (i === 0 ? r.start !== 0 : r.start <= d.rallies[i - 1].start) || r.start >= d.media.duration || ![null, 'us', 'them'].includes(r.winner) || typeof r.reviewed !== 'boolean'))
+    if (d.rallies.some((r, i) => !r || !validId(r.id) || !finite(r.start) || (i === 0 ? r.start !== 0 : r.start <= d.rallies[i - 1].start) || r.start >= d.media.duration || ![null, 'us', 'them'].includes(r.winner) || (r.winnerContactId !== undefined && (typeof r.winnerContactId !== 'string' || !r.winnerContactId.length || r.winnerContactId.length > 120)) || typeof r.reviewed !== 'boolean'))
         throw new Error('Rallies inválidos.');
     if (d.rallies.some((r, i) => r.pointTime !== undefined && (!finite(r.pointTime) || r.pointTime < r.start || r.pointTime >= (d.rallies[i + 1]?.start ?? d.media.duration))))
         throw new Error('Instante do ponto inválido.');
@@ -178,5 +211,5 @@ export function parseVideoDocument(value: unknown, media?: VideoMedia): VideoDoc
         return originalTime < -1e-6 || originalTime >= source.duration;
     })) throw new Error('Tracking fora do intervalo do vídeo original.');
     // Pick fields explicitly: imported data cannot introduce source URLs or access grants.
-    return { ...(d.analysis ? { analysis: { model: d.analysis.model, sampledFps: d.analysis.sampledFps, positions: d.analysis.positions.map(({time, x, y}) => ({time, x, y})), cuts: [...d.analysis.cuts], ...(source ? { source } : {}) } } : {}), version: 1, media: { ...(d.media.youtubeId ? { youtubeId: d.media.youtubeId } : {}), fingerprint: d.media.fingerprint, name: d.media.name, duration: d.media.duration, width: d.media.width, height: d.media.height }, rallies: d.rallies.map(({ id, start, winner, reviewed, pointTime }) => ({ id, start, winner, reviewed, ...(pointTime !== undefined ? { pointTime } : {}) })), contacts: d.contacts.map(({ id, time, skill, team, athlete, studentId, outcome }) => ({ id, time, skill, team, athlete, studentId, outcome })), corrections: d.corrections.map(({ time, x, y }) => ({ time, x, y })) };
+    return { ...(d.analysis ? { analysis: { model: d.analysis.model, sampledFps: d.analysis.sampledFps, positions: d.analysis.positions.map(({time, x, y}) => ({time, x, y})), cuts: [...d.analysis.cuts], ...(source ? { source } : {}) } } : {}), version: 1, media: { ...(d.media.youtubeId ? { youtubeId: d.media.youtubeId } : {}), fingerprint: d.media.fingerprint, name: d.media.name, duration: d.media.duration, width: d.media.width, height: d.media.height }, rallies: d.rallies.map(({ id, start, winner, winnerContactId, reviewed, pointTime }) => ({ id, start, winner, ...(winnerContactId ? { winnerContactId } : {}), reviewed, ...(pointTime !== undefined ? { pointTime } : {}) })), contacts: d.contacts.map(({ id, time, skill, team, athlete, studentId, outcome }) => ({ id, time, skill, team, athlete, studentId, outcome })), corrections: d.corrections.map(({ time, x, y }) => ({ time, x, y })) };
 }

@@ -1,0 +1,24 @@
+import { createElement } from 'react';
+import { act, create } from 'react-test-renderer';
+import { VideoBufferStatus } from '../video/VideoBufferStatus.web';
+jest.mock('../video/StudioUI.web', () => ({ StudioAction: (props: object) => jest.requireActual('react').createElement('button', props) }));
+test('stalled media exposes recovery and restores position without replacing its source', () => {
+    jest.useFakeTimers();
+    const events = new Map<string, () => void>();
+    const node = { readyState: 1, seeking: false, currentTime: 558.2, pause: jest.fn(), play: jest.fn().mockResolvedValue(undefined), load: jest.fn(), addEventListener: (n: string, fn: () => void) => events.set(n, fn), removeEventListener: (n: string) => events.delete(n) };
+    let view: ReturnType<typeof create>;
+    act(() => { view = create(createElement(VideoBufferStatus, { video: { current: node as unknown as HTMLVideoElement }, source: 'fixture' })); });
+    act(() => jest.advanceTimersByTime(8000));
+    act(() => view!.root.findByType('button').props.onPress());
+    expect(node.load).toHaveBeenCalledTimes(1);
+    node.currentTime = 0;
+    act(() => events.get('loadedmetadata')!());
+    expect(node.currentTime).toBe(558.2);
+    expect(node.play).toHaveBeenCalledTimes(1);
+    node.readyState = 4;
+    act(() => events.get('canplay')!());
+    expect(view!.toJSON()).toBeNull();
+    act(() => view!.unmount());
+    expect(events.size).toBe(0);
+    jest.useRealTimers();
+});

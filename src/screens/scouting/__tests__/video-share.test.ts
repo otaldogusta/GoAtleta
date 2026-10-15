@@ -1,7 +1,7 @@
 import { Blob as NodeBlob } from 'node:buffer';
 import { publishableVideoDocument, videoShareLink, videoStudioPermissions } from '../../../core/scouting-video-sharing';
 import { videoArchive } from '../video/video-archive.web';
-import type { VideoDocument } from '../../../core/scouting-video';
+import { parseVideoDocument, type VideoDocument } from '../../../core/scouting-video';
 
 const document: VideoDocument = {
     version: 1, media: { fingerprint: 'private-fingerprint', name: 'private-video.mp4', duration: 30, width: 1280, height: 720 },
@@ -56,4 +56,19 @@ test('ZIP preserves binary media with bounded reads, UTF-8 filenames, standard C
         expect(slice).toHaveBeenCalledTimes(1);
         expect(slice).toHaveBeenCalledWith(0, 2 * 1024 * 1024);
     } finally { Object.assign(globalThis, { Blob: previous }); }
+});
+
+test('local authoring generates a public reader URL', () => {
+  const link = new URL(videoShareLink('12345678-1234-1234-1234-123456789abc', 'a'.repeat(64), 'http://localhost:8081'));
+  expect(link.origin).toBe('https://goatleta.com');
+  expect(link.pathname).toBe('/scouting/shared');
+  expect(link.hash).toContain('code=');
+});
+
+test('shared tracking does not carry the local original binding and can be reopened', () => {
+  const doc: VideoDocument = { ...document, media: { ...document.media, youtubeId: 'abcdefghijk', fingerprint: 'youtube:abcdefghijk' }, analysis: { model: 'vballnet-v2b-local', sampledFps: 30, positions: [{ time: 1, x: .5, y: .5 }], cuts: [], source: { fingerprint: 'original', name: 'original.mp4', duration: 30, width: 1280, height: 720, offsetSeconds: 0 } } };
+  const shared = publishableVideoDocument(doc);
+  expect(shared.analysis?.source).toBeUndefined();
+  expect(parseVideoDocument(shared).analysis?.positions).toEqual(doc.analysis?.positions);
+  expect(doc.analysis?.source).toBeDefined();
 });

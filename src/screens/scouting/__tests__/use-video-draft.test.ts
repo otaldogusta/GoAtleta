@@ -5,7 +5,7 @@ const mockStored = new Map<string, string>();
 const mockSet = jest.fn(async (key: string, value: string) => { mockStored.set(key, value); });
 const mockIdentity = jest.fn();
 jest.mock('../../../auth/session', () => ({ getSessionIdentity: () => ({ userId: 'user', generation: 1 }), assertSessionIdentity: () => mockIdentity() }));
-jest.mock('@react-native-async-storage/async-storage', () => ({ __esModule: true, default: { getItem: async (key: string) => mockStored.get(key) ?? null, setItem: (...args: [string, string]) => mockSet(...args) } }));
+jest.mock('@react-native-async-storage/async-storage', () => ({ __esModule: true, default: { getAllKeys: async () => [...mockStored.keys()], getItem: async (key: string) => mockStored.get(key) ?? null, setItem: (...args: [string, string]) => mockSet(...args) } }));
 const media = { fingerprint: 'file-a', duration: 20, width: 1202, height: 676, name: 'jogo.mp4' };
 beforeEach(() => { mockStored.clear(); mockSet.mockClear(); mockIdentity.mockReset(); });
 test('save and reopen retain cuts and contacts only in the exact user/org/session/video scope', async () => {
@@ -80,4 +80,13 @@ test('YouTube and local drafts remain independent across source changes', async 
   await act(async () => { await result.current.open(youtube); });
   expect(result.current.doc?.media.youtubeId).toBe('M7lc1UVf-VE');
   expect(result.current.doc?.rallies[1].id).toBe('youtube-cut');
+});
+
+ test('reopening a session automatically restores its saved video and contacts', async () => {
+  const document = newVideoDocument({ ...media, youtubeId: 'M7lc1UVf-VE', fingerprint: 'youtube:M7lc1UVf-VE' }, 'rally');
+  mockStored.set(videoDraftKey('user', 'org', 'session', document.media.fingerprint), JSON.stringify({ document, past: [] }));
+  const reopened = renderHook(() => useVideoDraft('org', 'user', 'session'));
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+  expect(reopened.result.current.doc).toEqual(document);
+  expect(reopened.result.current.dirty).toBe(false);
 });

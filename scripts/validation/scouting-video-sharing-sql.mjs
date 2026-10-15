@@ -14,7 +14,7 @@ const prepare = (scope = org) => rpc('select prepare_scouting_video_share($1,$2,
 const proof = 'a'.repeat(64), rotated = 'b'.repeat(64);
 const doc = { version: 1, media: { fingerprint: 'local-file', name: 'private.mp4', duration: 20, width: 1280, height: 720 }, rallies: [{ id: 'r1', start: 0, winner: 'us', reviewed: true, pointTime: 15 }], contacts: [{ id: 'c1', studentId: 'private-id', skill: 'Saque', team: 'us', time: 3, athlete: 'Atleta', outcome: 'Ace' }], corrections: [], secret: 'not-shared' };
 let asset, share;
-const publish = (audience = 'team', code = proof) => rpc('select publish_scouting_video_share($1,$2,$3,$4::jsonb,$5,$6,$7,$8) result', [org, 'game', asset.assetId, JSON.stringify(doc), 'Equipe', audience, code, 7]);
+const publish = (audience = 'team', code = proof, days = null) => rpc('select publish_scouting_video_share($1,$2,$3,$4::jsonb,$5,$6,$7,$8) result', [org, 'game', asset.assetId, JSON.stringify(doc), 'Equipe', audience, code, days]);
 const resolve = async (user, code = proof) => { await asUser(null, 'service_role'); return rpc('select resolve_scouting_video_share($1,$2,$3) result', [share.id, code, user]); };
 try {
   await db.exec(`create role anon; create role authenticated; create role service_role; create schema auth; create schema storage;
@@ -43,6 +43,7 @@ try {
   await db.exec(fn(await migration('20261007112922_scouting_rallies.sql'), 'scouting_can_access'));
   await db.exec(await migration('20261013150000_scouting_video_sharing.sql'));
   await db.exec(await migration('20261013170000_scouting_video_youtube.sql'));
+  await db.exec(await migration('20261014162412_scouting_video_share_no_expiry.sql'));
   await asUser(null, 'anon'); await assert.rejects(prepare(), /permission denied/);
   await asUser(outsider); await assert.rejects(prepare(), /access denied/);
   await asUser(athlete); await assert.rejects(prepare(), /access denied/);
@@ -55,6 +56,8 @@ try {
   assert.equal((await prepare()).uploaded, true);
   assert.equal((await db.query("update storage.objects set metadata='{}' where name=$1 returning id", [asset.objectPath])).rows.length, 0, 'published media cannot be overwritten');
   share = await publish();
+  assert.equal(share.expiresAt, null, 'new storage links have no expiry');
+  await assert.rejects(publish('team', proof, 0), /invalid share/);
   await assert.rejects(db.query('select * from scouting_video_shares'), /permission denied/);
   await assert.rejects(db.query('select resolve_scouting_video_share($1,$2,$3)', [share.id, proof, staff]), /permission denied/);
   assert.equal((await resolve(null)).error, 'LOGIN_REQUIRED');
@@ -72,10 +75,15 @@ try {
   await asUser(staff); share = await publish('link', rotated);
   assert.equal((await resolve(null, proof)).error, 'LINK_UNAVAILABLE', 'rotation invalidates old proof');
   assert.equal((await resolve(null, rotated)).permission, 'viewer');
+  await asUser(staff); share = await publish('link', rotated, 7);
+  assert.ok(Date.parse(share.expiresAt) > Date.now(), 'legacy clients can still request a deadline');
   await db.exec("reset role; update scouting_video_shares set expires_at=now()-interval '1 second'");
+  await db.exec(await migration('20261014162412_scouting_video_share_no_expiry.sql'));
   assert.equal((await resolve(null, rotated)).error, 'LINK_UNAVAILABLE');
   await asUser(staff); share = await publish('link', rotated);
   await db.query('select revoke_scouting_video_share($1,$2,$3)', [org, 'game', share.id]);
+  await db.exec('reset role');
+  await db.exec(await migration('20261014162412_scouting_video_share_no_expiry.sql'));
   assert.equal((await resolve(null, rotated)).error, 'LINK_UNAVAILABLE');
   await db.exec('reset role');
   assert.equal((await db.query("select public from storage.buckets where id='scouting-videos'")).rows[0].public, false);
@@ -87,7 +95,9 @@ try {
   await assert.rejects(publish('link'), /media mismatch/);
   doc.media.youtubeId = 'M7lc1UVf-VE';
   share = await publish('link');
+  assert.equal(share.expiresAt, null, 'new YouTube links have no expiry');
   const yt = await resolve(null);
+  assert.equal(yt.expiresAt, null);
   assert.equal(yt.mediaProvider, 'youtube'); assert.equal(yt.youtubeId, 'M7lc1UVf-VE');
   assert.equal(yt.document.media.youtubeId, yt.youtubeId); assert.equal(yt.objectPath, null);
   await asUser(staff); share = await publish('team');
