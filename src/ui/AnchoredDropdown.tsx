@@ -1,6 +1,6 @@
 import { createWebPortal } from "./web-portal";
 import { usePathname } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     Animated,
     Dimensions,
@@ -37,6 +37,8 @@ type AnchoredDropdownProps = {
   density?: "default" | "compact" | "menu" | "popover";
   fitContent?: boolean;
   preferredWidth?: number;
+  align?: "start" | "end";
+  surface?: "glass" | "solid";
   activeItemId?: string;
 };
 
@@ -62,9 +64,20 @@ export function AnchoredDropdown({
   density = "default",
   fitContent = true,
   preferredWidth,
+  align = "start",
+  surface = "glass",
   activeItemId,
 }: AnchoredDropdownProps) {
   const { colors, mode } = useAppTheme();
+  const [layoutViewport, setLayoutViewport] = useState<{ clientWidth: number; clientHeight: number } | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible || typeof document === "undefined") return;
+    // Read again on each opening: browser resizing does not invalidate a
+    // compiler-memoized DOM property read. Resize already dismisses the menu.
+    const viewport = document.documentElement;
+    const frame = requestAnimationFrame(() => setLayoutViewport({ clientWidth: viewport.clientWidth, clientHeight: viewport.clientHeight }));
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     if (Platform.OS !== "web" || !visible || !activeItemId) return;
@@ -251,9 +264,6 @@ export function AnchoredDropdown({
   const useViewportCoordinates = Platform.OS === "web" && portalToBodyOnWeb;
   // Fixed portals and measureInWindow use CSS layout pixels. RN's visual
   // viewport dimensions can differ when browser zoom/scaling is active.
-  const layoutViewport = useViewportCoordinates && typeof document !== "undefined"
-    ? document.documentElement
-    : null;
   const windowWidth = layoutViewport?.clientWidth || Dimensions.get("window").width;
   const windowHeight = layoutViewport?.clientHeight || Dimensions.get("window").height;
   const useWindowCoordinates = Platform.OS !== "web" || useViewportCoordinates;
@@ -280,7 +290,8 @@ export function AnchoredDropdown({
     )
   );
   const leftBase = useWindowCoordinates || !container ? layout.x : layout.x - container.x;
-  const left = Math.max(16, Math.min(leftBase, windowWidth - 16 - resolvedWidth));
+  const alignedLeft = align === "end" ? leftBase + layout.width - resolvedWidth : leftBase;
+  const left = Math.max(16, Math.min(alignedLeft, windowWidth - 16 - resolvedWidth));
   const defaultTop = useWindowCoordinates || !container
     ? layout.y + layout.height + 8
     : layout.y - container.y + layout.height + 8;
@@ -290,7 +301,7 @@ export function AnchoredDropdown({
       ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight - 16)
       : defaultTop;
   const webGlassPanelStyle =
-    Platform.OS === "web"
+    Platform.OS === "web" && surface === "glass"
       ? ({
           backgroundColor:
             mode === "dark"

@@ -27,9 +27,21 @@ function loadAPI(): Promise<YouTubeAPI> {
     return loading;
 }
 export function youtubePlayback(player: YouTubePlayer): VideoPlayback {
+    let pending: { time: number; from: number; until: number } | null = null;
     return {
-        get currentTime() { return player.getCurrentTime(); },
-        set currentTime(time) { const paused = player.getPlayerState() !== 1; player.seekTo(time, true); if (paused) player.pauseVideo(); },
+        get currentTime() {
+            const actual = player.getCurrentTime();
+            // The iframe reports its previous time until seekTo is acknowledged.
+            if (pending && (actual === pending.time || (actual !== pending.from && Math.abs(actual - pending.time) < .5) || Date.now() >= pending.until)) pending = null;
+            return pending?.time ?? actual;
+        },
+        set currentTime(time) {
+            if (!Number.isFinite(time)) return;
+            const paused = player.getPlayerState() !== 1;
+            pending = { time, from: player.getCurrentTime(), until: Date.now() + 2000 };
+            player.seekTo(time, true);
+            if (paused) player.pauseVideo();
+        },
         get paused() { return player.getPlayerState() !== 1; },
         get playbackRate() { return player.getPlaybackRate(); },
         set playbackRate(rate) { player.setPlaybackRate(rate); },

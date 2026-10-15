@@ -1,5 +1,7 @@
 import { getSessionIdentity, assertSessionIdentity, getValidAccessToken } from '../../../auth/session';
-import { readSharedVideo } from '../../../api/scouting-video-sharing';
+import { publishVideoShare, readSharedVideo } from '../../../api/scouting-video-sharing';
+import { supabasePost } from '../../../db/client';
+import { newVideoDocument } from '../../../core/scouting-video';
 jest.mock('../../../api/config', () => ({ SUPABASE_URL: 'https://share-test.supabase.co', SUPABASE_ANON_KEY: 'test-anon' }));
 jest.mock('../../../db/client', () => ({ supabasePost: jest.fn() }));
 jest.mock('../../../auth/session', () => ({ getSessionIdentity: jest.fn(), assertSessionIdentity: jest.fn(), getValidAccessToken: jest.fn() }));
@@ -12,6 +14,14 @@ beforeEach(() => {
   (assertSessionIdentity as jest.Mock).mockImplementation(() => undefined);
 });
 afterAll(() => { global.fetch = originalFetch; });
+test('new shares explicitly request no deadline and preserve their audience and projection', async () => {
+  const doc = newVideoDocument({ fingerprint: 'local-file', name: 'private.mp4', duration: 20, width: 1280, height: 720 }, 'rally');
+  await publishVideoShare({ org: 'org', sessionId: 'session' }, { assetId: 'asset' }, doc, 'Equipe', 'team', 'proof');
+  expect(supabasePost).toHaveBeenCalledWith('/rpc/publish_scouting_video_share', expect.objectContaining({
+    p_org: 'org', p_session: 'session', p_asset: 'asset', p_audience: 'team', p_days: null,
+    p_document: expect.objectContaining({ media: expect.objectContaining({ fingerprint: 'shared', name: 'Vídeo da análise' }) }),
+  }));
+});
 test('account change during token refresh refuses the request before sending the proof', async () => {
   (getValidAccessToken as jest.Mock).mockImplementation(async () => {
     (getSessionIdentity as jest.Mock).mockReturnValue({ userId: 'other', generation: 2 });

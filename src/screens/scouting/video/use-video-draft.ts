@@ -41,6 +41,25 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
         setSaved(JSON.stringify(doc));
         setError('');
     }, [org, user, session, readOnlyDocument]);
+    useEffect(() => {
+        if (readOnlyDocument) return;
+        let cancelled = false;
+        const identity = getSessionIdentity(), token = generation.current;
+        const prefix = videoDraftKey(user, org, session, '_').slice(0, -1);
+        void (async () => {
+            const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(prefix));
+            const entries = await Promise.all(keys.map(async key => ({ key, raw: await AsyncStorage.getItem(key) })));
+            assertSessionIdentity(identity);
+            if (identity.userId !== user) throw new Error('Sessão alterada.');
+            if (cancelled || !alive.current || generation.current !== token || current.current) return;
+            const candidates = entries.filter(entry => entry.raw).map(entry => {
+                const stored = JSON.parse(entry.raw!);
+                return { doc: parseVideoDocument(stored.document ?? stored), savedAt: stored.savedAt ?? '' };
+            }).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+            if (candidates[0]) await open(candidates[0].doc.media);
+        })().catch(() => { if (!cancelled && alive.current) setError('Não foi possível recuperar o vídeo salvo neste aparelho. Tente abrir o vídeo novamente.'); });
+        return () => { cancelled = true; };
+    }, [org, user, session, readOnlyDocument, open]);
     const change = (doc: VideoDocument, label: string) => {
         if (readOnlyDocument || !current.current)
             return;
@@ -66,11 +85,11 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
             if (!identity.userId || identity.userId !== user)
                 throw new Error('Sessão alterada.');
             const past = current.current.past.slice(-20);
-            let data = JSON.stringify({ document: doc, past });
+            let data = JSON.stringify({ document: doc, past, savedAt: new Date().toISOString() });
             // Bound the persisted history, keeping the current document in full.
             while (data.length > 1500000 && past.length) {
                 past.shift();
-                data = JSON.stringify({ document: doc, past });
+                data = JSON.stringify({ document: doc, past, savedAt: new Date().toISOString() });
             }
             await AsyncStorage.setItem(videoDraftKey(user, org, session, doc.media.fingerprint), data);
             assertSessionIdentity(identity);

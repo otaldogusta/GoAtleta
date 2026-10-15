@@ -4,10 +4,10 @@ import { supabasePost } from '../db/client';
 import { parseVideoDocument, type VideoDocument } from '../core/scouting-video';
 import { publishableVideoDocument, type VideoShareAudience } from '../core/scouting-video-sharing';
 
-export type VideoShare = { id: string; audience: VideoShareAudience; expiresAt: string; revoked: boolean; updatedAt: string };
+export type VideoShare = { id: string; audience: VideoShareAudience; expiresAt: string | null; revoked: boolean; updatedAt: string };
 export type VideoShareAsset = { assetId: string; objectPath: string; uploaded: boolean; share: VideoShare | null };
 export type VideoShareScope = { org: string; sessionId: string };
-export type SharedVideo = { document: VideoDocument; teamName: string; title: string; opponent: string; updatedAt: string; expiresAt: string; permission: 'viewer'; mediaUrl: string; mediaExpiresAt: number };
+export type SharedVideo = { document: VideoDocument; teamName: string; title: string; opponent: string; updatedAt: string; expiresAt: string | null; permission: 'viewer'; mediaUrl: string; mediaExpiresAt: number };
 export const videoShareError = (failure: unknown) => {
   const message = failure instanceof Error ? failure.message : '';
   if (/PGRST202|42P01|42883/.test(message)) return 'O compartilhamento por link ainda precisa ser ativado no servidor.';
@@ -28,7 +28,7 @@ export function videoContentType(file: File) {
 export function getVideoShare(scope: VideoShareScope, fingerprint: string) {
   return supabasePost<VideoShare | null>('/rpc/get_scouting_video_share', { p_org: scope.org, p_session: scope.sessionId, p_fingerprint: fingerprint });
 }
-export function publishVideoShare(scope: VideoShareScope, asset: Pick<VideoShareAsset, 'assetId'>, doc: VideoDocument, team: string, audience: VideoShareAudience, code: string, days: number) {
+export function publishVideoShare(scope: VideoShareScope, asset: Pick<VideoShareAsset, 'assetId'>, doc: VideoDocument, team: string, audience: VideoShareAudience, code: string, days: 7 | 30 | null = null) {
   return supabasePost<VideoShare>('/rpc/publish_scouting_video_share', { p_org: scope.org, p_session: scope.sessionId, p_asset: asset.assetId, p_document: publishableVideoDocument(doc), p_team: team, p_audience: audience, p_proof: code, p_days: days });
 }
 export function revokeVideoShare(scope: VideoShareScope, id: string) {

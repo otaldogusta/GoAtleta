@@ -37,11 +37,13 @@ export function StudioAction({ label, icon, children, onPress, disabled, active,
 
 }
 
-export function StudioDialog({ title, onClose, children, className = '' }: {
+export function StudioDialog({ title, onClose, children, className = '', headerActions }: {
 
     title: string;
 
     className?: string;
+
+    headerActions?: ReactNode;
 
     onClose: () => void;
 
@@ -53,6 +55,6 @@ export function StudioDialog({ title, onClose, children, className = '' }: {
 
     useEffect(() => { const node = ref.current; node?.showModal(); return () => node?.close(); }, []);
 
-    return <dialog className={`sv-dialog ${className}`} ref={ref} onCancel={e => { e.preventDefault(); onClose(); }} aria-labelledby="sv-dialog-title"><div className="sv-row"><h2 id="sv-dialog-title">{title}</h2><StudioAction label="Fechar" icon="close" onPress={onClose}/></div>{children}</dialog>;
+    return <dialog className={`sv-dialog ${className}`} ref={ref} onCancel={e => { e.preventDefault(); onClose(); }} aria-labelledby="sv-dialog-title"><div className="sv-row"><h2 id="sv-dialog-title">{title}</h2>{headerActions}<StudioAction label="Fechar" icon="close" onPress={onClose}/></div>{children}</dialog>;
 
 }

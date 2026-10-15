@@ -5,7 +5,7 @@ test.each([1, 2, 5])('seeking preserves playing/paused state %s', state => {
     transport.currentTime = 20;
     expect(player.seekTo).toHaveBeenCalledWith(20, true);
     expect(player.pauseVideo).toHaveBeenCalledTimes(state === 1 ? 0 : 1);
-    expect(transport.currentTime).toBe(14);
+    expect(transport.currentTime).toBe(20);
     expect(transport.paused).toBe(state !== 1);
     transport.playbackRate = .5;
     expect(player.setPlaybackRate).toHaveBeenCalledWith(.5);
@@ -34,4 +34,29 @@ test('embedded player polls time, reports metadata, and disposes without late ca
         jest.advanceTimersByTime(30000);
         expect(callbacks.error).toHaveBeenCalledTimes(1);
     } finally { Object.assign(globalThis, { window: previousWindow, document: previousDocument }); jest.useRealTimers(); }
+});
+
+test('late iframe samples cannot undo the latest seek and failed seeks eventually recover', () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+    let actual = 14;
+    const player = { getCurrentTime: () => actual, getDuration: () => 60, getPlayerState: () => 2, getPlaybackRate: () => 1, setPlaybackRate: jest.fn(), seekTo: jest.fn(), playVideo: jest.fn(), pauseVideo: jest.fn(), destroy: jest.fn() };
+    try {
+        const transport = youtubePlayback(player);
+        transport.currentTime = 20;
+        transport.currentTime = 25;
+        actual = 20;
+        expect(transport.currentTime).toBe(25);
+        actual = 25.1;
+        expect(transport.currentTime).toBe(25.1);
+        actual = 26;
+        expect(transport.currentTime).toBe(26);
+        transport.currentTime = 26.1;
+        expect(transport.currentTime).toBe(26.1);
+        actual = 26.1;
+        expect(transport.currentTime).toBe(26.1);
+        transport.currentTime = 40;
+        expect(transport.currentTime).toBe(40);
+        now.mockReturnValue(3001);
+        expect(transport.currentTime).toBe(26.1);
+    } finally { now.mockRestore(); }
 });

@@ -115,21 +115,54 @@ com equipe, resultado e tempo; marcas densas agrupam por espaço disponível. Ve
 validação e recuperação das cinco anotações do mockup no guia de implementação.
 Marcadores usam preenchimento sólido e símbolo por resultado: erro vermelho,
 comprometido laranja, positivo azul e ponto direto verde. Letra/nome identificam o
-fundamento, sem cor categórica. Grupos neutros mostram faixas por resultado dos
+fundamento, sem cor categórica. Marcadores individuais têm formato de balão,
+com ponta superior voltada para a barra temporal. Grupos neutros mostram faixas por resultado dos
 contatos e resumo no hover/foco. Essa apresentação
 não atribui vencedor nem converte a avaliação em estatística oficial.
 
 Cabeçalho recolhido usa a alça central da Quadra Visual; abas removem a reserva
-de altura nesse estado. No retrato, o painel preenche o espaço após o player,
-com rolagem própria. Contatos ficam sobre as divisões da barra segmentada,
+de altura nesse estado. A partir de 900 px, o painel fica à direita, com largura
+adaptável de 300 a 340 px e rolagem própria; abaixo disso, fica após o player.
+Contatos ficam em uma faixa compacta abaixo da barra segmentada,
 compartilhando a escala macro/micro e preservando cores, prévias e busca temporal.
+O balão de hover/foco abre acima do marcador, com largura e altura limitadas à tela.
+Contato individual usa 220 px, com fundamento, instante e equipe, sem título
+duplicado; avaliação aparece quando registrada. Grupos têm limite de 260 × 240 px.
 
-Clique na área da barra busca o instante proporcional à posição do ponteiro,
-preservando macro/micro e o estado de reprodução; marcadores mantêm busca exata.
+Clique diretamente na linha de progresso busca o instante proporcional à posição
+do ponteiro. A faixa clicável tem 8 px, alinhada à linha; espaço acima/abaixo não
+busca. Macro/micro e reprodução são preservados; marcadores mantêm busca exata.
+Arrastar o indicador mantém a prévia local (posição, progresso e horário) e
+envia uma única busca ao soltar; cancelar ou trocar de rally não aplica a prévia.
+O adaptador YouTube mantém o destino até a confirmação do iframe, com limite
+de 2 s para recuperar falhas, evitando que amostras antigas façam a barra saltar.
 
-Ao escolher um fundamento, Informações revela o formulário e a timeline antecipa
+A galeria de Rallies retoma a grade do mockup, com duas colunas no painel lateral,
+miniatura acima do nome/intervalo e colunas adaptáveis quando o painel fica abaixo.
+Vídeo completo é o primeiro item; selecionar um rally abre sua escala, e a
+timeline não repete os controles de modo.
+Miniaturas dos rallies mostram duas bolinhas com as iniciais das equipes,
+sem fundo envolvendo o par, com × entre as bolinhas. Somente `winner` acende a equipe vencedora; resultado indefinido
+mantém ambas apagadas, sem inferir vencedor dos contatos. Nomes e resultado
+estão na descrição acessível e no hover; Vídeo completo não recebe indicadores.
+Setas esquerda/direita ajustam um quadro aproximado (1/30 s), inclusive no slider,
+preservando digitação em campos e navegação em menus.
+Botões Marcação anterior/Próxima marcação percorrem
+os instantes dos contatos e pontos visíveis, preservando milissegundos e pausando
+no destino. Respeitam o rally selecionado ou o vídeo completo e a prévia em edição;
+sem marca na direção escolhida, não avançam e o botão fica desabilitado. Não
+interceptam campos ou menus. Espaço alterna reprodução fora dos botões/campos.
+Seletores usam o menu ancorado sólido do app.
+Ao lado do play, Voltar/Avançar um quadro oferecem ajuste fino separado das
+etapas: passo de referência de 1/30 s (aproximado), com pausa e limites do rally
+e do original disponível. Não detecta o FPS da fonte nem garante um quadro
+decodificado por clique no iframe YouTube; os botões informam o passo aproximado.
+
+Ao escolher um fundamento, Contatos revela o formulário compacto e a timeline antecipa
 a etapa/contato em edição no instante marcado. A prévia é separada do documento:
 confirmar registra; cancelar restaura a apresentação dos contatos salvos.
+Clique fora ou Escape desmarca uma seleção sem alterações; edições pendentes
+permanecem abertas até salvar ou cancelar, sem descarte silencioso.
 
 O rally pode guardar `pointTime` opcional, validado dentro do seu intervalo.
 A bandeira marca o instante do ponto sem criar contato ou atribuir vencedor;
@@ -144,8 +177,8 @@ Vídeo privado via TUS e URL assinada de 5 minutos; expiração, revogação e r
 validadas no servidor. Revisões são publicadas explicitamente, sem sincronizar
 rascunhos automaticamente. O pacote/leitor HTML anterior foi removido.
 
-Migração `20261013150000_scouting_video_sharing.sql` e função
-`scouting-video-share` preparadas localmente, ainda **não ativadas remotamente**.
+Migrações de compartilhamento/YouTube e função `scouting-video-share` ativadas
+em 14/10; ver o registro de release ao final deste guia.
 Hospedagem do vídeo de 821 MiB depende do limite real do projeto (Free: 50 MB por
 arquivo). Não houve upload nem mudança de plano. Ver
 [contrato e ativação](../../ui/SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md#compartilhamento-por-link--1310).
@@ -224,3 +257,43 @@ o OAuth acadêmico nem expor o companion como API pública. Ver
 Estúdio compacto (14/10): Rallies em lista com miniaturas; Contatos abre o editor pela timeline e habilita Salvar somente após mudança; Informações reúne trajetória/fonte/ferramentas. Entrada única reconhece YouTube/Drive, com opções avançadas recolhidas. Contratos e rascunhos preservados; ver [validação local](../../operations/scouting-studio-ui-2026-10-14.md).
 
 Publicação autorizada (14/10): migrations de compartilhamento/YouTube aplicadas e `scouting-video-share` ACTIVE v1; RLS, bucket privado e rejeição de links inválidos conferidos. Drive/Gemini continuam locais. Ver [registro e limites do release](../../operations/scouting-release-2026-10-14.md).
+
+Compartilhamento refinado localmente em 14/10: modal na composição do Drive, sem
+validade na UI. Nova migration `20261014162412_scouting_video_share_no_expiry.sql`
+permite novos links sem prazo (`expires_at = null`); prazos legados e revogações
+continuam válidos, sem backfill. URL assinada da mídia mantém TTL de cinco minutos.
+Aplicar essa migration antes do novo cliente; ativação remota desta mudança pendente.
+Ver [contrato e validação](../../ui/SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md#modal-de-compartilhamento-como-o-drive--1410).
+
+Importação YouTube: link inicia conferência automática após 500 ms sem edição.
+Campo reutiliza spinner/check do convite; sucesso depende dos metadados do player.
+Editar limpa a confirmação e cancela a espera anterior; Usar vídeo confirma a escolha.
+Drive mantém seu fluxo próprio.
+
+Marcar ponto abre a seção Ponto e recorte do rally e rola até seus controles.
+A bandeira da timeline também abre essa seção no rally correspondente, sem alterar o ponto.
+
+Espaço na timeline é capturado antes dos botões de etapas/marcadores: alterna
+reprodução sem ativar a busca do botão focado; repetição e keyup são consumidos.
+
+Painel do estúdio mantém posição de rolagem por aba durante a sessão do vídeo,
+restaurada em layout effect para evitar salto visual. Trocar mídia reinicia posições.
+
+Miniaturas: a capa do YouTube fica apenas no card Vídeo completo. Rally sem
+fonte decodificável mostra Prévia indisponível; com original associado, captura
+o instante inicial ajustado pelo offset. Imagens de fonte/tempo anteriores não
+são reaproveitadas durante troca. Obtenção de quadros apenas pelo link YouTube
+não está implementada; o serviço Gemini retorna marcações, não mídia.
+
+Miniaturas são solicitadas somente ao entrar na área visível do painel; sair
+cancela extração pendente. Retornar reutiliza cache ou tenta novamente, com um
+decodificador auxiliar por vez.
+
+Salvar contato com Erro atribui vencedor à equipe oposta; Ace/Ponto de ataque/
+bloqueio/direto atribui à própria equipe. winnerContactId opcional identifica
+a origem para limpar somente atribuições automáticas ao editar/excluir/mover.
+Escolha manual remove essa origem. Instante do ponto e recortes são preservados.
+
+Reprodução suspende extração de miniaturas. Player nativo mostra espera por
+quadro e permite recarregar apenas a mídia após 8 s, restaurando posição.
+Não recarrega documento nem salva/descarta anotações.

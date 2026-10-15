@@ -684,3 +684,119 @@ Entrada única para YouTube/Drive, lista de rallies com miniaturas, editor conte
 ### Fechamento para main — 14/10
 
 Backend de compartilhamento ativado (migrations e função v1), com verificação de permissões e erros remotos. Publicação web autorizada; Drive/Gemini permanecem locais. Ver [validação, escopo e limites](../operations/scouting-release-2026-10-14.md).
+
+### Modal de compartilhamento como o Drive — 14/10
+
+Título com o nome do jogo, Pessoas com acesso (conta atual, sem atribuir propriedade), Acesso geral em faixa com Leitor e rodapé Copiar link / Concluído. Prévia e revogação ficam na engrenagem. Removidos contadores, explicações repetidas, opções de validade e acordeão. O primeiro Copiar link publica e tenta copiar; falha de clipboard exibe o campo para cópia manual. Gerar novo link continua explícito quando substitui um link anterior. Permissões de equipe/link e leitura preservadas; convites individuais e edição continuam fora do contrato.
+
+Novos links solicitam `p_days: null`. A migration `20261014162412_scouting_video_share_no_expiry.sql` permite prazo nulo e o resolver aceita esse estado, mantendo prova, revogação, organização e matrícula. Clientes anteriores continuam podendo enviar 7/30 dias. Não há backfill: links antigos vencidos ou revogados não são reativados. A URL assinada da mídia continua durando cinco minutos e sendo renovada pelo leitor. Aplicar a migration antes de publicar o novo cliente; ela está preparada e testada localmente, não aplicada remotamente nesta rodada.
+
+Validação proporcional: nove testes Jest de compartilhamento/API, integração SQL isolada (sem prazo para Storage/YouTube, compatibilidade, expiração legada, revogação, rotação e escopo), typecheck, org-scope e perf-hygiene dos dois componentes aprovados. Modal autenticado conferido em desktop e 390 px, seletor e engrenagem exercitados, sem overflow. A consulta remota de acesso respondeu HTTP 200 após renovação da sessão. Nenhum link real criado e nenhuma marcação editada. Evidências privadas em `.tmp/scouting-share-ui/drive-desktop.png` e `drive-mobile.png`. Ajuste local, posterior ao release.
+
+Menus de compartilhamento (14/10): acesso e função usam o mesmo componente com Pressable e AnchoredDropdown dentro do dialog, sem select nativo. A opção `surface="solid"` mantém o fundo do tema sem degradê/desfoque; hover segue o Pressable do app e foco de teclado usa superfície/ênfase, sem contorno. Leitor permanece selecionado; Comentador e Editor continuam desabilitados. A escolha da audiência só informa mudança se o valor for diferente. Menus limitados ao viewport CSS; Escape, seleção e clique fora fecham a lista. Cinco testes focados e typecheck aprovados; troca de audiência, hover, fundo sólido e encaixe em desktop/413 px conferidos no localhost. Nenhuma ativação remota nesta rodada.
+
+Timeline (14/10): removido o `gap: 7px` herdado de StudioAction que zerava segmentos curtos. No macro, traços dos contatos substituídos por marcadores com contagem (ou letra do fundamento quando isolado). O agrupamento reserva 44 px no macro e mantém 24 px no micro, preservando todos os contatos e instantes; hover e clique continuam disponíveis. Cabeçalho informa rallies e contatos. Etapas menores ficam na faixa abaixo da barra temporal, alinhadas ao mesmo eixo. O balão abre acima do marcador com no máximo 300 x 280 px, também no YouTube, substituindo a ancoragem antiga no painel de informações. Trinta e dois testes focados e typecheck aprovados, incluindo limites de 320 e 1063 px. Após recarregar a aba que retinha o bundle anterior, a conferência local mostrou 22 grupos legíveis, nenhum traço antigo e rascunho recuperado com 78 rallies, 201 contatos e 17.508 posições.
+
+Layout lateral (14/10): limite de duas colunas ajustado de 1200 para 900 px. Painel com largura adaptável de 300 a 340 px e rolagem própria; abaixo de 900 px, composição empilhada. Conferência local em 1063 e 834 px sem transbordamento horizontal, preservando o contato em edição e os 78 rallies/201 contatos. Ajuste apenas de CSS, sem nova execução de testes ou build.
+
+Controles e seleção (14/10): Vídeo completo passou ao primeiro item da galeria, com miniatura, título e duração; removida a faixa de modos acima da timeline. Editor em Contatos com campos de cerca de 40 px, espaçamento compacto e StudioSelect baseado em Pressable/AnchoredDropdown sólido, também na velocidade. Foco por ênfase sem contorno verde, ícones do cabeçalho centralizados sem texto oculto reservando largura. Setas esquerda/direita seguem o passo do transporte; atalhos ignoram campos, menus e modais. Clique fora/Escape desmarca contato sem alterações; pendências permanecem abertas até salvar/cancelar. Menus suportam seleção atual, setas, Home/End, Escape e foco sem rolagem da página.
+
+Validação desta rodada: 37 testes focados (timeline, galeria, editor, interações e seletor), typecheck e lint dos componentes aprovados. Conferência autenticada em 943 e 413 px: seleção macro/micro pela galeria, menu de fundamento/velocidade, setas deslocando 1 s no YouTube, desmarcação, proteção e cancelamento de uma edição temporária, alinhamento e ausência de transbordamento. Rascunho recuperado com 78 rallies e 201 contatos; nenhuma marcação salva nesta rodada. Evidências privadas em `.tmp/scouting-share-ui/studio-galeria-completo.png` e `.tmp/scouting-share-ui/studio-editor-compacto.png`.
+
+Galeria (14/10): composição restaurada ao mockup aprovado (`mockups/scouting-video-2026-10-12.html`): grade com duas colunas no painel lateral, miniaturas acima do nome e intervalo; Vídeo completo permanece primeiro item. Colunas adaptáveis em painéis mais largos, sem overflow na largura conferida de 943 px. Ajuste de CSS, sem alteração de seleção, dados ou persistência. Conferência visual local e diff, sem repetir testes funcionais/build.
+
+
+Resultado na galeria (14/10): duas bolinhas com iniciais das equipes sobre cada miniatura de rally, usando os tokens do tema, sem fundo envolvendo o par, com × entre as bolinhas. A primeira identifica a equipe da turma, a segunda o adversário; `winner` acende somente a vencedora, e indefinido mantém as duas apagadas. Nomes e resultado no hover e na descrição acessível do botão; Vídeo completo sem indicadores. Substitui a linha de texto Ponto para manter a altura dos cards. Dois testes focados aprovados cobrindo indefinido/A/B, leitura compartilhada e ausência de inferência a partir de contato com ponto; conferência visual no localhost em 943 px. Nenhum resultado salvo foi modificado.
+
+
+Balão da linha do tempo (15/10): contato individual em 220 px, sem cabeçalho duplicando o fundamento, sem intervalo repetindo o instante e sem linha Não avaliado. Equipe/atleta, avaliação registrada e estado Em edição permanecem disponíveis. Grupos limitados a 260 × 240 px; posicionamento acima e ações existentes preservados. Hover de Ataque conferido no localhost em 943 px (220 × 58 px); 32 testes focados aprovados.
+
+
+Marcadores das etapas (15/10): letras individuais em balões compactos com ponta superior voltada para a linha do tempo, conforme referência desenhada. Ponta herda o preenchimento do marcador e o contorno do tema, preservando cores de avaliação, dimensões e interação. Ajuste somente de CSS; conferência visual local.
+
+
+Arraste da linha do tempo (15/10): `useTimelineScrub` separa a posição provisória do tempo assíncrono do player. Durante o gesto, posição, barra e legenda usam a prévia local; uma única busca é enviada ao soltar. Captura do ponteiro mantém o arraste fora do controle; cancelamento/perda de captura e troca de rally não aplicam uma prévia antiga. Teclado e cliques continuam com busca imediata. O adaptador YouTube retorna o destino enquanto aguarda uma amostra nova do iframe, sem aceitar a amostra de origem como confirmação de buscas curtas; limite de 2 s evita congelamento em falha. Estado pausado/reproduzindo preservado.
+
+Comparação no localhost em 943 px: nos mesmos cinco deslocamentos horizontais (320/360/400/440/480 px), antes a UI reportou 22.433/22.433/22.433/24.712/25.460 s; depois, 23.218/23.965/24.712/25.460/26.207 s, acompanhando cada posição e mantendo 26.207 s ao soltar. 60 testes em quatro suítes passaram (timeline, YouTube, original e galeria), além de typecheck e perf-hygiene dos três módulos afetados; teste específico do adaptador repetido após cobrir buscas curtas. Análise e resultados do usuário não foram salvos nem alterados pela validação.
+
+
+Navegação por marcações (15/10): o usuário esclareceu que as setinhas devem percorrer os instantes anotados dos fundamentos, não segundos ou quadros arbitrários. Marcação anterior/Próxima marcação e setas do teclado agora buscam os contatos e pontos visíveis em ordem temporal, incluindo milissegundos, com pausa no destino. Rally selecionado limita a busca ao recorte; Vídeo completo permite percorrer todos os contatos. A prévia em edição substitui seu instante salvo sem gravar; sem marca na direção, o botão fica desabilitado. Campos, menus e modais mantêm seus atalhos. No original parcial, marcas fora do intervalo disponível são excluídas.
+
+Validação: 41 testes focados (navegação, timeline e interações), typecheck, lint e perf-hygiene dos dois módulos aprovados. No localhost, cliques produziram 17.500 → 18.850 → 20.350 → 21.600 s e retorno a 20.350 s; teclado conferido em 22.600 ↔ 23.300 s, com pausa. Durante Fast Refresh, a mudança na assinatura de hooks reiniciou o Studio e descartou estado não salvo; incidente informado ao usuário. Mesmo vídeo reaberto com o rascunho salvo de 78 rallies; ElCartel recolocado como vencedor do Rally 01 conforme evidência visual anterior, mantendo a alteração sem salvar. Não houve gravação de rascunho ou publicação. Não há garantia de recuperação de outras alterações não salvas que não estavam visíveis. Evidência privada: `.tmp/scouting-share-ui/timeline-mark-navigation.png`.
+
+
+Foco da linha do tempo (15/10): regra genérica de input:focus-visible aplicava o fundo de formulário ao range sobreposto, ocultando os segmentos. O fundo passa a excluir inputs do tipo range. Regressão reproduzida com Tab no localhost: fundo rgb(22, 32, 51) antes e transparente depois, com a linha de progresso visível no mesmo instante 27.356 s. Ajuste somente de CSS, validado visualmente e por diff; análise aberta e alterações pendentes preservadas. Evidência privada: `.tmp/scouting-share-ui/timeline-focus-line.png`.
+
+
+Área de clique da linha do tempo (15/10): busca proporcional movida do container de 42 px para a própria faixa de progresso, com 8 px de altura. Espaço acima/abaixo deixa de buscar; capítulos e seus botões acompanham essa faixa sem deslocamento por alinhamento de texto. Teclado, balões de contato e arraste do indicador preservados. No localhost, cliques acima/abaixo mantiveram 27.356 s, clique na linha levou a 23.766 s e arraste chegou a 25.273 s. 34 testes da timeline e typecheck aprovados; sem reiniciar o estúdio ou salvar a análise. Evidência privada: `.tmp/scouting-share-ui/timeline-click-track.png`.
+
+
+Ajuste fino separado das etapas (15/10): adicionados Voltar/Avançar um quadro junto ao play, mantendo as setas externas para marcações. Passo de referência fixo de 1/30 s, explicitamente aproximado no nome acessível/tooltip; não infere FPS a partir do sampledFps do tracking. Pausa antes da busca, limita ao rally e à interseção com o original disponível e ignora intervalo vazio. Sem nova assinatura de hooks do Studio, mantendo análise e pendências abertas. No iframe, seekTo pode arredondar para um keyframe se o trecho não estiver carregado, portanto não se promete quadro decodificado exato: https://developers.google.com/youtube/iframe_api_reference#seekTo .
+
+Validação: 29 testes de ajuste fino/adaptadores passaram, mais typecheck, lint e perf-hygiene da tela. Sequência real no localhost: 18.850 → 18.883 → 18.917 → 18.950 → 18.917 s, pausada e estabilizada no destino. Em 413 px, controles quebram linha sem overflow; viewport original restaurado. Evidência privada em `.tmp/scouting-share-ui/frame-controls.png`. Nenhuma alteração da análise salva ou publicação nesta rodada.
+
+- 15/10: verificação automática do link YouTube após 500 ms, sem Continuar.
+  Spinner e check no campo seguem o convite; confirmação depende do player.
+  Dois testes focados cobrem debounce/cancelamento, troca e isolamento do Drive.
+
+- 15/10: miniaturas de rally deixam de reutilizar capa genérica do YouTube.
+  Fonte original fornecida pelo usuário associada pelo fluxo Drive existente;
+  quadros distintos conferidos nos cards visíveis e no início do Rally 08 (01:38.300).
+  Vínculo em RAM, sem persistência de URL privada; reabertura exige reassociação.
+  Três testes da galeria e typecheck aprovados. Fonte/tempo alterados invalidam
+  imagem anterior. Sem original, estado explícito Prévia indisponível.
+
+- 15/10: carregamento de miniaturas por rolagem usa o painel como raiz do
+  IntersectionObserver, sem margem de antecipação. Sair da área visível aborta
+  extração/fila; retornar tenta novamente ou reutiliza cache. Um decodificador
+  auxiliar por vez. Quatro testes da galeria e typecheck aprovados.
+  Medição local anterior ao ajuste: JPEG 240×135, aproximadamente 7,8 KB cada;
+  em janela de 39,49 s, main thread registrou 389 ms de tarefas e heap JS subiu
+  0,24 MiB. Houve 35.303.441 bytes de tráfego de mídia durante a janela, incluindo
+  buffering do player: não representa custo isolado de oito novas miniaturas.
+  Não medidos memória nativa/GPU nem quadros perdidos; sessão já tinha cache.
+
+- 15/10: placeholder neutro com ícone canônico gallery no lugar da miniatura
+  ausente ou aguardando geração. Mantém proporção 16:9, sem baixar outra imagem.
+
+- 15/10: resultado terminal salvo no contato preenche vencedor do rally; Erro
+  favorece adversário, Ace e pontos diretos favorecem equipe do contato.
+  Origem opcional winnerContactId preservada na exportação. Editar/excluir
+  limpa somente atribuição de sua origem; ajuste manual remove vínculo.
+  Não altera instante da bandeira, recortes ou estatísticas oficiais.
+
+- Correção 15/10: referência winnerContactId não participa do conjunto de IDs
+  únicos; evita rejeitar o contato referenciado ao salvar. Regressão cobre
+  validação após serialização e exclusão do contato reaberto.
+
+- 15/10: tela preta reproduzida no original Drive com readyState 1, sem quadro,
+  inclusive após play e seek. Recuperação local da mídia restaurou readyState 4
+  e imagem no Rally 52 sem reabrir análise. Estado Carregando e nova tentativa
+  após 8 s; miniaturas suspensas no play. Não há comprovação de eliminação de
+  todos os stalls da fonte remota. Evidência: .tmp/scouting-share-ui/video-buffer-recovered.png.
+
+- 15/10: AbortError de play interrompido por pause/load não gera alerta de
+  reprodução; sucesso/playing limpa apenas o erro genérico anterior do player.
+  Erros de edição/salvamento não são apagados por essa recuperação.
+
+- 15/10: migration scouting_video_share_no_expiry aplicada no projeto de produção
+  com autorização explícita; coluna expires_at nullable conferida. Criação pelo
+  localhost habilitada com URL pública goatleta.com; 10 testes focados aprovados.
+  Análise publicada como leitor por link, UI confirmou Link copiado.
+
+- 15/10: leitor rejeitava analysis.source vinculado ao fingerprint local após
+  projeção shared. Publicação agora omite esse vínculo, mantendo posições/cortes.
+  Cópia já publicada reparada sem trocar prova/link: 78 rallies, 201 contatos,
+  17.508 posições. Endpoint retornou 200/viewer e navegador abriu Somente leitura.
+  Seis testes da projeção aprovados. UI pública ainda é a versão anterior ao
+  pacote local; refinamentos locais não foram publicados nesta correção.
+
+- 15/10: correção visual local: conteúdo do botão de rally ocupa 100% da largura, mantendo a mesma área 16:9 com foto ou placeholder. Estados do leitor compartilhado usam bloco de 440 px centralizado nos dois eixos, com seletor específico para não ser sobrescrito pelo layout geral do estúdio.
+
+- 15/10: ao abrir a análise, recupera o rascunho salvo mais recente no escopo usuário/organização/sessão, incluindo YouTube. Importação salva o documento inicial. Arquivos locais ainda exigem nova seleção para reprodução; URLs temporárias do Drive não são persistidas. Abas permanecem visíveis sem documento; cabeçalho sempre aberto e botão Vídeo com ícone de câmera. Sete testes do hook passaram; recuperação autenticada no navegador ainda pendente.
+
+- 15/10: miniaturas extraídas são guardadas em cache local por conta/organização/sessão/vídeo/instante, no máximo 160 por vídeo e 120 KB por imagem. Leitura sob demanda funciona sem original e durante reprodução; cache antigo apenas em RAM não é recuperável após recarga. Pontos na visão completa usam traços compactos, preservando clique e bandeira no rally selecionado.
+
+- 15/10: visão completa agrupa contatos por intervalo de rally, com bloco no centro do trecho correspondente. Não agrega contatos de rallies vizinhos por proximidade em pixels; visão do rally mantém contatos individuais e agrupamento por densidade.
+
+- 15/10: por ajuste solicitado, marcadores de ponto ficam ocultos no vídeo completo e aparecem somente no rally selecionado; registros de ponto preservados.

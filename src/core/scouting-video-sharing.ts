@@ -11,7 +11,7 @@ export function videoStudioPermissions(shared: boolean, preview: boolean, editab
 /** Published review snapshot. Never includes draft history or linked student identities. */
 export function publishableVideoDocument(value: VideoDocument): VideoDocument {
     const doc = parseVideoDocument(value);
-    return { ...doc, media: { ...doc.media, fingerprint: 'shared', name: 'Vídeo da análise' },
+    return { ...doc, ...(doc.analysis ? { analysis: { model: doc.analysis.model, sampledFps: doc.analysis.sampledFps, positions: doc.analysis.positions, cuts: doc.analysis.cuts } } : {}), media: { ...doc.media, fingerprint: 'shared', name: 'Vídeo da análise' },
         rallies: doc.rallies.map((r, i) => ({ ...r, id: `rally-${i + 1}` })),
         contacts: doc.contacts.map((c, i) => ({ ...c, id: `contact-${i + 1}`, studentId: null })),
     };
@@ -23,5 +23,6 @@ export function videoShareLink(id: string, code: string, origin: string) {
     const url = new URL(origin);
     if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) throw new Error('Endereço inválido.');
     // Proof remains in the fragment, outside HTTP paths, referrers and navigation telemetry.
-    return `${url.origin}/scouting/shared#id=${id}&code=${code}`;
+    const publicOrigin = ['localhost', '127.0.0.1'].includes(url.hostname) ? 'https://goatleta.com' : url.origin;
+    return `${publicOrigin}/scouting/shared#id=${id}&code=${code}`;
 }
