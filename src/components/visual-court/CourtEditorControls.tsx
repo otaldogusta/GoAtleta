@@ -33,25 +33,31 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
 }
 
 const SHORTCUTS: Record<string, string> = { "Selecionar e mover": "V · Arraste no vazio para selecionar", Desfazer: "Ctrl/Cmd + Z", Refazer: "Ctrl/Cmd + Shift + Z", "Apagar seleção": "Delete" };
-export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false, dragKind, onAdd }: {
-  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void;
+export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false, dragKind, onAdd, compact = false, tooltipScale = 1 }: {
+  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; tooltipScale?: number;
 }) {
   const { colors } = useAppTheme();
-  const [tip, setTip] = useState<{ left: number; top: number } | null>(null);
+  const tipScale = Number.isFinite(tooltipScale) && tooltipScale > 0 ? tooltipScale : 1;
+  const [tip, setTip] = useState<{ position: { left: number; top: number }; scale: number } | null>(null);
+  if (tip && tip.scale !== tipScale) setTip(null);
+  const visibleTip = tip?.scale === tipScale ? tip : null;
   useEffect(() => {
-    if (!tip || Platform.OS !== "web") return;
+    if (!visibleTip || Platform.OS !== "web") return;
     const hide = () => setTip(null);
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") hide(); };
     window.addEventListener("resize", hide);
     window.addEventListener("scroll", hide, true);
     window.addEventListener("keydown", key);
     return () => { window.removeEventListener("resize", hide); window.removeEventListener("scroll", hide, true); window.removeEventListener("keydown", key); };
-  }, [tip]);
+  }, [visibleTip]);
   const show = (event: unknown) => {
     if (Platform.OS !== "web" || text || tile) return;
     const rect = (event as { currentTarget?: HTMLElement }).currentTarget?.getBoundingClientRect?.();
     if (!rect) return;
-    setTip({ left: Math.max(8, Math.min(window.innerWidth - 228, rect.left < 80 ? rect.right + 10 : rect.left - 80)), top: Math.max(8, Math.min(window.innerHeight - 52, rect.left < 80 ? rect.top : rect.top < 64 ? rect.bottom + 8 : rect.top - 48)) });
+    // The button's DOM rect already includes its parent's scale; only the portal's
+    // own dimensions and offsets need scaling in viewport coordinates.
+    const margin = 8 * tipScale, side = rect.left < 80 * tipScale;
+    setTip({ scale: tipScale, position: { left: Math.max(margin, Math.min(window.innerWidth - 220 * tipScale - margin, side ? rect.right + 10 * tipScale : rect.left - 80 * tipScale)), top: Math.max(margin, Math.min(window.innerHeight - 52 * tipScale, side ? rect.top : rect.top < 64 * tipScale ? rect.bottom + 8 * tipScale : rect.top - 48 * tipScale)) } });
   };
   const dragRef = useRef<View>(null);
   useEffect(() => {
@@ -76,16 +82,16 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
   const ink = danger ? colors.dangerText : active ? colors.primaryText : colors.text;
   return <>
     <View ref={dragRef} style={onAdd ? { position: "relative", width: "47%" } : Platform.OS === "web" ? { display: "contents" } as unknown as ViewStyle : undefined}>
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
+    <Pressable suppressWebHoverFeedback={compact} disableWebPressScale={compact} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
       onHoverIn={show} onHoverOut={() => setTip(null)} onFocus={show} onBlur={() => setTip(null)}
       onPress={() => { setTip(null); onPress(); }}
-      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
-      <CourtToolIcon name={icon} size={tile ? 22 : 21} color={ink} />
+      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: 34, minHeight: 34, ...(!text ? { width: 34 } : {}), borderRadius: 999, overflow: "hidden" }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
+      <CourtToolIcon name={icon} size={tile ? 22 : compact ? 18 : 21} color={ink} />
       {text || tile ? <Text style={{ color: ink, fontSize: 12, fontWeight: "600", textAlign: tile ? "center" : "left" }}>{label}</Text> : null}
     </Pressable>
     {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${label.toLowerCase()}`} disabled={disabled} onPress={onAdd} style={{ position: "absolute", top: 2, right: 2, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={16} color={ink} /></Pressable> : null}
     </View>
-    {tip && Platform.OS === "web" ? createWebPortal(<View pointerEvents="none" style={{ position: "fixed", ...tip, zIndex: 10000, maxWidth: 220, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 } as unknown as ViewStyle}>
+    {visibleTip && Platform.OS === "web" ? createWebPortal(<View pointerEvents="none" style={{ position: "fixed", ...visibleTip.position, zIndex: 10000, maxWidth: 220, ...(tipScale !== 1 ? { transform: [{ scale: tipScale }], transformOrigin: "top left" } : {}), paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 } as unknown as ViewStyle}>
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>{label}</Text>
       {SHORTCUTS[label] ? <Text style={{ color: colors.muted, fontSize: 11, marginTop: 3 }}>{SHORTCUTS[label]}</Text> : null}
     </View>, document.body) : null}

@@ -299,3 +299,91 @@ quadro e permite recarregar apenas a mídia após 8 s, restaurando posição.
 Não recarrega documento nem salva/descarta anotações.
 
 - No estúdio de vídeo, Início/Fim em Contatos ajustam as divisas compartilhadas via `resizeVideoRally`, sem criar rallies ou mudar horários dos contatos. Marcas de ponto fora do intervalo e resultados automáticos cujo contato mudaria de rally bloqueiam o ajuste com aviso.
+
+## Representações 2D e 3D da mesma jogada — 16/10/2026
+
+O editor web troca a representação no mesmo workspace, com documento, seleção,
+etapa, reprodução e histórico compartilhados. O renderer local em
+`public/visual-court-3d/` recebe quadros derivados e devolve comandos validados;
+não tem persistência ou simulação independentes. Cabeçalho compacto, modos,
+painel recolhível e transporte incorporam as ferramentas do mockup ao editor.
+O cabeçalho permanece sempre visível, sem ação para recolher ou reabrir.
+
+Overlays web compactos acompanham a proporção do mockup, com escala desktop
+entre 0,8 e 1, sem escalar canvas/coordenadas. O renderer atualiza a resolução
+ao mudar densidade/tamanho, com framebuffer até 2×. A densidade web compacta
+também vale até 700 px; tamanhos nativos são preservados.
+Controles compartilham fade/deslize de 200 ms e alça animada entre as duas
+vistas, com reversão imediata e respeito à preferência de movimento reduzido.
+No celular, a alça é uma barra horizontal centralizada: no topo interno do
+painel aberto, acima das abas, e visível na posição recolhida. O mesmo botão
+permanece acessível durante o fade; desktop conserva a alça lateral.
+`court-overlay-layout.ts` reserva apenas a timeline atual: zoom em uma linha,
+alça a 8 px do dock e separação vertical adicional só onde faltaria largura.
+Cabeçalho, ferramentas, menus e ajustes usam a variante compacta existente.
+O renderer aplica a proporção exata entre perfis de câmera ao cruzar 600 px,
+preservando órbita e zoom, sem acumular distância a cada redimensionamento.
+`CourtWorkspacePanel` reúne Ajustes, Etapas e Biblioteca em abas no mesmo painel.
+Camadas integra as categorias dos ajustes; `CourtStepGallery` apresenta as etapas
+em duas colunas, preservando seleção, reordenação e comandos. A barra de reprodução
+é única; trocar abas mantém busca/rolagem e não altera o documento.
+O transporte mantém uma linha também no celular (42 px de altura e botões de
+40 px). Velocidade é um número clicável que percorre 0,25×–2× em passos de
+0,25×, voltando ao início; somente o progresso usa slider. Ambas as vistas
+compartilham esses controles, sem alterar a etapa ou seus dados autorais.
+
+`CourtVisualStep.simulation` referencia atores/bola canônicos; as bases continuam
+em `actorPositions`. `core/court-simulation.ts` amostra os mesmos motores puros
+do mockup para 2D e 3D: recepção, nove presets de ataque, saltos, contatos,
+bloqueio de até três jogadores e rebotes em mãos/rede/fita/piso. Configuração,
+alças, restauração e rodízio pertencem ao mesmo histórico e rascunho. Atores
+adversários auxiliares não substituem companheiros; importação e duplicação
+preservam referências válidas. Câmera não altera dados autorais.
+Escolher um preset de ataque reposiciona a base inicial do atacante para o lado
+e a profundidade da jogada no modelo compartilhado, visível também em pausa no
+2D. Altura/tempo continuam distinguindo presets que usam a mesma zona do piso.
+
+No modo Ataque, a ferramenta Selecionar e mover também arrasta o ponto de ataque
+e o destino da bola na vista 2D. As alças projetam os mesmos pontos e limites da
+3D e enviam `updateCourtSimulationHandle`; a prévia fica local até soltar, com
+um comando no histórico. Cancelar ou mudar etapa/ferramenta/documento descarta
+a prévia. Contato não desloca bloqueadores nem a mira; alternar vistas preserva
+os ajustes e o histórico compartilhados.
+
+A curva da cortada é independente do arco do levantamento: a alça azul no meio
+da intenção 3D e o controle Curva do ataque em Ajustes alteram
+`attackSettings.attackArc`. Contato, destino e bases permanecem fixos; o motor
+recalcula voo, duração e colisões. Ausente/null conserva o lançamento anterior.
+O mesmo ajuste é compartilhado pela projeção 2D e pelo renderer 3D.
+
+O modelo de recepção do editor usa seis etapas completas, P1/P6/P5/P4/P3/P2,
+com o motor compartilhado e 4,1 s por rotação. `court-simulation-sequence.ts`
+substitui os 12 pares antigos somente por comando explícito, em uma transação
+reversível; o preset tático histórico continua disponível aos outros consumidores.
+Galeria, setas do transporte e rádios selecionam o mesmo `stepIndex`, sem editar
+a rotação de outra etapa ou consumir Undo. A troca de sistema alcança a sequência.
+Selecionar Ataque ou Recepção no conjunto de seis altera os modos e rótulos em
+um comando, mantendo a etapa selecionada e os ajustes de cada rotação. Ataque
+também apresenta setas/radios de rodízio nessa sequência; uma etapa avulsa mantém
+a edição individual. Navegar não reposiciona atores nem recalcula a configuração.
+O motor de ataque é o mesmo dos presets; não gera formações táticas diferentes
+automaticamente para cada rotação. Trocar modo reaplica as bases do motor.
+
+A câmera orbital 3D conserva brevemente a velocidade ao soltar o fundo e
+desacelera em até 350 ms, no mesmo RAF do renderer. Novo gesto/comando,
+troca de contexto e movimento reduzido interrompem a inércia. Esse estado é
+somente de apresentação; jogadores, alças e documento não recebem impulso.
+
+Arrastes partem da posição amostrada. Animação desenhada explicitamente conserva
+a cena e passa a trajetória autoral, desativando a simulação daquela etapa.
+Autosave conserva a volta ao estado limpo após Undo e a etapa selecionada.
+Defesa e nove jogadores permanecem indisponíveis; coeficientes calibrados do
+motor local não comprovam igualdade física com o serviço de referência.
+
+Contrato, validação local e limites estão em
+[Integração 3D](../../ui/QUADRA_3D_INTEGRACAO_2026-10-16.md).
+O mockup e sua auditoria permanecem como referência histórica. O protótipo
+independente e evidências privadas não compõem a publicação. Testes de paridade
+usam fixtures locais em `src/core/__tests__/fixtures/court-reference/`; o gate
+`court-runtime` inclui os testes Node do motor e do renderizador na validação
+de release e CI. O smoke local desta ampliação não gravou a jogada no backend.

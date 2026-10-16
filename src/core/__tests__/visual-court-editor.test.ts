@@ -144,6 +144,50 @@ describe("court editor document commands", () => {
     expect(next.timeline.steps[0].trajectories).toHaveLength(0);
     expect(next.timeline.steps[0].baselineActorPositions?.[id]).toEqual(actorPoint(next, 0, id));
   });
+  it.each([0, 0.5, 1])("anchors a static drag at the actor shown at progress %s", progress => {
+    const initial = newCourtBoard(), id = initial.actors[0].id, other = initial.actors[1].id;
+    const animated = moveSelection(moveSelection(initial, 0, [id], { x: 0.2, y: 0.1 }, true), 0, [other], { x: -0.1, y: 0.05 }, true);
+    const step = animated.timeline.steps[0];
+    const visible = pointAlong(step.trajectories!.find(trajectory => trajectory.actorId === id)!.points, progress);
+    const untouched = step.trajectories!.find(trajectory => trajectory.actorId === other);
+    const before = JSON.stringify(animated);
+    const delta = { x: 0.04, y: -0.02 };
+    const moved = moveSelection(animated, 0, [id], delta, false, undefined, progress);
+    expect(actorPoint(moved, 0, id)).toEqual({ x: visible.x + delta.x, y: visible.y + delta.y });
+    expect(moved.timeline.steps[0].baselineActorPositions?.[id]).toEqual(actorPoint(moved, 0, id));
+    expect(moved.timeline.steps[0].trajectories).toEqual([untouched]);
+    expect(JSON.stringify(animated)).toBe(before);
+  });
+  it.each([0, 0.5, 1])("starts a new actor animation at the displayed progress %s", progress => {
+    const initial = newCourtBoard(), id = initial.actors[0].id;
+    const animated = moveSelection(initial, 0, [id], { x: 0.2, y: 0.1 }, true);
+    const visible = pointAlong(animated.timeline.steps[0].trajectories![0].points, progress);
+    const path = [{ x: 0, y: 0 }, { x: 0.02, y: -0.03 }, { x: 0.05, y: -0.01 }];
+    const moved = moveSelection(animated, 0, [id], path[2], true, path, progress);
+    expect(moved.timeline.steps[0].trajectories![0].points).toEqual(path.map(point => ({ x: visible.x + point.x, y: visible.y + point.y })));
+    expect(actorPoint(moved, 0, id)).toEqual(pointAlong(moved.timeline.steps[0].trajectories![0].points, 1));
+  });
+  it.each([0, 0.5, 1])("anchors a moving ball drag at displayed progress %s", progress => {
+    const ball = { id: "ball", kind: "ball" as const, points: [{ x: 0.8, y: 0.3 }], motion: [{ x: 0.2, y: 0.7 }, { x: 0.8, y: 0.3 }], color: "#fff", size: 32, rotation: 0 };
+    const board = changeDrawings(newCourtBoard(), 0, [ball]);
+    const visible = pointAlong(ball.motion, progress), delta = { x: 0.04, y: 0.02 };
+    const moved = frameDrawings(moveSelection(board, 0, [ball.id], delta, false, undefined, progress), 0)[0];
+    expect(moved.points).toEqual([{ x: visible.x + delta.x, y: visible.y + delta.y }]);
+    expect(moved.motion).toBeUndefined();
+    const animated = frameDrawings(moveSelection(board, 0, [ball.id], delta, true, [{ x: 0, y: 0 }, delta], progress), 0)[0];
+    expect(animated.motion).toEqual([visible, moved.points[0]]);
+    expect(animated.points).toEqual(moved.points);
+  });
+  it("keeps legacy endpoint and ball-start semantics when progress is omitted", () => {
+    const initial = newCourtBoard(), id = initial.actors[0].id;
+    const board = changeDrawings(moveSelection(initial, 0, [id], { x: 0.2, y: 0.1 }, true), 0, [{ id: "ball", kind: "ball", points: [{ x: 0.8, y: 0.3 }], motion: [{ x: 0.2, y: 0.7 }, { x: 0.8, y: 0.3 }], color: "#fff", size: 32, rotation: 0 }]);
+    const delta = { x: 0.04, y: 0.02 };
+    const moved = moveSelection(board, 0, [id, "ball"], delta, true);
+    const oldEndpoint = actorPoint(board, 0, id);
+    expect(moved.timeline.steps[0].trajectories![0].points[0]).toEqual(oldEndpoint);
+    expect(actorPoint(moved, 0, id)).toEqual({ x: oldEndpoint.x + delta.x, y: oldEndpoint.y + delta.y });
+    expect(frameDrawings(moved, 0)[0].motion).toEqual([{ x: 0.2, y: 0.7 }, { x: 0.8 + delta.x, y: 0.3 + delta.y }]);
+  });
   it("starts a replacement trajectory at the actor current final position", () => {
     const p = newCourtBoard(), id = p.actors[0].id;
     const first = moveSelection(p, 0, [id], { x: 0.1, y: 0 }, true);

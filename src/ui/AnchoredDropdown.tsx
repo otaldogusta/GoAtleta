@@ -40,6 +40,8 @@ type AnchoredDropdownProps = {
   align?: "start" | "end";
   surface?: "glass" | "solid";
   activeItemId?: string;
+  /** Opt-in visual density. Trigger coordinates remain physical viewport pixels. */
+  visualScale?: number;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
@@ -67,8 +69,14 @@ export function AnchoredDropdown({
   align = "start",
   surface = "glass",
   activeItemId,
+  visualScale = 1,
 }: AnchoredDropdownProps) {
   const { colors, mode } = useAppTheme();
+  const scale = Platform.OS === "web" && Number.isFinite(visualScale) && visualScale > 0 ? visualScale : 1;
+  const scaled = scale !== 1;
+  const [panelMeasurement, setPanelMeasurement] = useState<{ visible: boolean; height: number | null }>({ visible, height: null });
+  if (panelMeasurement.visible !== visible) setPanelMeasurement({ visible, height: null });
+  const measuredPanelHeight = panelMeasurement.visible === visible ? panelMeasurement.height : null;
   const [layoutViewport, setLayoutViewport] = useState<{ clientWidth: number; clientHeight: number } | null>(null);
   useEffect(() => {
     if (Platform.OS !== "web" || !visible || typeof document === "undefined") return;
@@ -87,11 +95,11 @@ export function AnchoredDropdown({
       if (!viewport || !item || !viewport.contains(item)) return;
       const bounds = viewport.getBoundingClientRect();
       const row = item.getBoundingClientRect();
-      if (row.top < bounds.top + 8) viewport.scrollTop -= bounds.top + 8 - row.top;
-      else if (row.bottom > bounds.bottom - 8) viewport.scrollTop += row.bottom - bounds.bottom + 8;
+      if (row.top < bounds.top + 8 * scale) viewport.scrollTop -= (bounds.top + 8 * scale - row.top) / scale;
+      else if (row.bottom > bounds.bottom - 8 * scale) viewport.scrollTop += (row.bottom - bounds.bottom + 8 * scale) / scale;
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeItemId, visible, layout]);
+  }, [activeItemId, visible, layout, scale]);
   const panelRef = useRef<View | null>(null);
   const pathname = usePathname();
   const previousPathnameRef = useRef<string | null>(null);
@@ -271,8 +279,9 @@ export function AnchoredDropdown({
     ? resolveFloatingListZIndex(zIndex)
     : zIndex;
   const availableWidth = Math.max(180, windowWidth - 24);
-  const measuredWidth = layout.width > 0 ? layout.width : 240;
-  const resolvedWidth = Math.min(preferredWidth ?? measuredWidth, availableWidth);
+  const measuredWidth = layout.width > 0 ? layout.width : 240 * scale;
+  const resolvedWidth = Math.min(preferredWidth !== undefined ? preferredWidth * scale : measuredWidth, availableWidth);
+  const logicalWidth = resolvedWidth / scale;
   const isCompact = density === "compact";
   const isMenu = density === "menu";
   const isPopover = density === "popover";
@@ -287,18 +296,21 @@ export function AnchoredDropdown({
         : DEFAULT_DROPDOWN_MAX_HEIGHT,
     Math.floor(
       windowHeight * (isPopover ? 0.72 : isMenu ? 0.45 : isCompact ? 0.35 : 0.23),
-    )
+    ) / scale
   );
+  const visualPanelHeight = (scaled && fitContent && measuredPanelHeight !== null
+    ? Math.min(measuredPanelHeight, resolvedMaxHeight)
+    : resolvedMaxHeight) * scale;
   const leftBase = useWindowCoordinates || !container ? layout.x : layout.x - container.x;
   const alignedLeft = align === "end" ? leftBase + layout.width - resolvedWidth : leftBase;
   const left = Math.max(16, Math.min(alignedLeft, windowWidth - 16 - resolvedWidth));
   const defaultTop = useWindowCoordinates || !container
-    ? layout.y + layout.height + 8
-    : layout.y - container.y + layout.height + 8;
+    ? layout.y + layout.height + 8 * scale
+    : layout.y - container.y + layout.height + 8 * scale;
   const availableBottom = windowHeight - 24;
   const top =
-    defaultTop + resolvedMaxHeight > availableBottom
-      ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight - 16)
+    defaultTop + visualPanelHeight > availableBottom
+      ? Math.max(8, defaultTop - layout.height - visualPanelHeight - 16 * scale)
       : defaultTop;
   const webGlassPanelStyle =
     Platform.OS === "web" && surface === "glass"
@@ -322,7 +334,8 @@ export function AnchoredDropdown({
 
   const dropdown = (
     <Animated.View
-      ref={panelRef}
+      ref={scaled ? undefined : panelRef}
+      pointerEvents={scaled ? "box-none" : undefined}
       style={[
         {
           position: Platform.OS === "web" ? "fixed" : "absolute",
@@ -330,6 +343,7 @@ export function AnchoredDropdown({
           top,
           width: resolvedWidth,
           minWidth: resolvedWidth,
+          ...(scaled ? { height: visualPanelHeight } : {}),
           zIndex: resolvedZIndex,
           elevation: resolvedZIndex,
         } as unknown as ViewStyle,
@@ -337,6 +351,11 @@ export function AnchoredDropdown({
       ]}
     >
       <View
+        ref={scaled ? panelRef : undefined}
+        onLayout={scaled ? event => {
+          const next = event.nativeEvent.layout.height;
+          if (Number.isFinite(next) && next >= 0) setPanelMeasurement(previous => previous.visible === visible && previous.height !== null && Math.abs(previous.height - next) < 0.5 ? previous : { visible, height: next });
+        } : undefined}
         style={[
           panelStyle,
           {
@@ -354,6 +373,10 @@ export function AnchoredDropdown({
             elevation: 14,
           },
           webGlassPanelStyle,
+          scaled ? {
+            position: "absolute", left: 0, top: 0, width: logicalWidth,
+            transform: [{ scale }], transformOrigin: "top left",
+          } : null,
         ]}
       >
         <ScrollView

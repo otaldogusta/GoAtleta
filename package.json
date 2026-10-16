@@ -19,6 +19,7 @@
     "build": "expo export -p web",
     "build:verified": "node scripts/release/validate.cjs --build",
     "test": "jest --passWithNoTests",
+    "test:court-runtime": "node --test \"public/visual-court-3d/*.test.mjs\" \"src/core/court-simulation/*.test.mjs\"",
     "test:e2e": "node scripts/test-e2e.js",
     "test:attendance-artifacts": "node scripts/validate-attendance-artifacts.mjs",
     "test:core": "jest src/core/consultation/__tests__ src/copilot/__tests__ src/api/__tests__ src/push/__tests__ supabase/functions/assistant/__tests__ --passWithNoTests",

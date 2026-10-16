@@ -1,4 +1,6 @@
 import { buildRotation5x1Preset, normalizeReceive5x1Timeline, type CourtPoint, type CourtVisualPayload, type CourtVisualStep } from "./visual-court";
+import { normalizeCourtSimulation } from "./court-simulation-model";
+import { configureCourtSimulation, sampleCourtSimulation } from "./court-simulation";
 
 export type DrawingKind = "arrow" | "curve" | "pen" | "area" | "text" | "ball" | "cone" | "target" | "ladder";
 export type CourtDrawing = { id: string; kind: DrawingKind; points: CourtPoint[]; color: string; text?: string; dashed?: boolean; size: number; rotation: number; locked?: boolean; motion?: CourtPoint[] };
@@ -11,7 +13,7 @@ export type CourtEditorMetadata = {
   favorite: boolean;
   showActorNumbers?: boolean;
   actorRepresentation?: "circle" | "person";
-  actorMeta: Record<string, { team?: "A" | "B"; locked?: boolean; studentId?: string }>;
+  actorMeta: Record<string, { team?: "A" | "B"; locked?: boolean; studentId?: string; simulationSupport?: boolean }>;
   drawings: Record<string, CourtDrawing[]>;
   hiddenLayers: string[];
   lessonLink?: { date: string; block: string; revision: string };
@@ -102,19 +104,27 @@ export function changeStep(p: CourtVisualPayload, index: number, change: (s: Cou
 export function changeDrawings(p: CourtVisualPayload, index: number, drawings: CourtDrawing[]): CourtVisualPayload {
   return { ...p, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [p.timeline.steps[index].id]: drawings } } };
 }
-export function moveSelection(p: CourtVisualPayload, index: number, ids: string[], delta: CourtPoint, animate: boolean, path?: CourtPoint[]): CourtVisualPayload {
+export function moveSelection(p: CourtVisualPayload, index: number, ids: string[], delta: CourtPoint, animate: boolean, path?: CourtPoint[], progress?: number): CourtVisualPayload {
+  const simulation = sampleCourtSimulation(p, index, typeof progress === "number" ? progress : 0);
+  if (simulation && ids.some(id => id === simulation.ballId && !frameDrawings(p, index).find(drawing => drawing.id === id)?.locked
+    || animate && simulation.config.actorIds.includes(id) && !p.editor?.actorMeta[id]?.locked)) {
+    const sampled = Object.fromEntries(simulation.actors.map(actor => [actor.id, { x: actor.position[0] / 9 + .5, y: actor.position[2] / 18 + .5 }]));
+    p = changeStep(p, index, step => ({ ...step, simulation: undefined, actorPositions: { ...step.actorPositions, ...sampled }, baselineActorPositions: { ...step.actorPositions, ...sampled }, visibleActorIds: (step.visibleActorIds ?? p.actors.map(actor => actor.id)).filter(id => !simulation.config.actorIds.includes(id) || simulation.visibleIds.includes(id)) }));
+    p = changeDrawings(p, index, frameDrawings(p, index).map(drawing => drawing.id === simulation.ballId ? { ...drawing, points: [{ x: simulation.ball[0] / 9 + .5, y: simulation.ball[2] / 18 + .5 }], motion: undefined } : drawing));
+  }
   const movable = ids.filter(id => !p.editor?.actorMeta[id]?.locked);
   let next = changeStep(p, index, s => {
     const actorPositions = { ...s.actorPositions };
     let trajectories = [...(s.trajectories ?? s.transitions ?? [])];
     const baseline = { ...(s.baselineActorPositions ?? s.actorPositions) };
     for (const a of p.actors.filter(a => movable.includes(a.id))) {
-      const from = actorPoint(p, index, a.id);
+      const existing = trajectories.find(t => t.actorId === a.id);
+      const sampled = !animate ? simulation?.actors.find(actor => actor.id === a.id) : undefined;
+      const from = sampled ? { x: sampled.position[0] / 9 + .5, y: sampled.position[2] / 18 + .5 } : typeof progress === "number" && existing?.points.length ? pointAlong(existing.points, progress) : actorPoint(p, index, a.id);
       const to = limitPoint({ x: from.x + delta.x, y: from.y + delta.y });
       actorPositions[a.id] = to;
       if (animate) {
-        const old = trajectories.find(t => t.actorId === a.id);
-        trajectories = [...trajectories.filter(t => t.actorId !== a.id), { id: old?.id ?? editorId(), actorId: a.id, points: path?.length ? path.map(pt => limitPoint({ x: from.x + pt.x, y: from.y + pt.y })) : [from, to], color: a.color }];
+        trajectories = [...trajectories.filter(t => t.actorId !== a.id), { id: existing?.id ?? editorId(), actorId: a.id, points: path?.length ? path.map(pt => limitPoint({ x: from.x + pt.x, y: from.y + pt.y })) : [from, to], color: a.color }];
       } else {
         baseline[a.id] = to;
         trajectories = trajectories.filter(t => t.actorId !== a.id);
@@ -124,9 +134,16 @@ export function moveSelection(p: CourtVisualPayload, index: number, ids: string[
   });
   next = changeDrawings(next, index, frameDrawings(p, index).map(d => {
     if (!ids.includes(d.id) || d.locked) return d;
-    const points = d.points.map(pt => limitPoint({ x: pt.x + delta.x, y: pt.y + delta.y }));
-    return { ...d, points, motion: animate && d.kind === "ball" ? path?.length ? path.map(pt => limitPoint({ x: (d.motion?.[0] ?? d.points[0]).x + pt.x, y: (d.motion?.[0] ?? d.points[0]).y + pt.y })) : [d.motion?.[0] ?? d.points[0], points[0]] : undefined };
+    const sampled = drawingAtProgress(d, progress);
+    const points = sampled.points.map(pt => limitPoint({ x: pt.x + delta.x, y: pt.y + delta.y }));
+    const from = typeof progress === "number" ? sampled.points[0] : d.motion?.[0] ?? d.points[0];
+    return { ...d, points, motion: animate && d.kind === "ball" ? path?.length ? path.map(pt => limitPoint({ x: from.x + pt.x, y: from.y + pt.y })) : [from, points[0]] : undefined };
   }));
+  if (simulation && !animate && next.timeline.steps[index].simulation) {
+    const manualBlockers = [...simulation.config.attackSettings.manualBlockers];
+    for (const slot of [1, 2, 5]) if (movable.includes(simulation.config.actorIds[slot]) && !manualBlockers.includes(slot)) manualBlockers.push(slot);
+    return configureCourtSimulation(next, index, { attackSettings: { manualBlockers } });
+  }
   return next;
 }
 export function alignSelection(p: CourtVisualPayload, index: number, ids: string[], axis: "x" | "y") {
@@ -149,7 +166,9 @@ export function resetStepAnimation(p: CourtVisualPayload, index: number): CourtV
 }
 export function deleteSelection(p: CourtVisualPayload, index: number, ids: string[]) {
   const next = changeStep(p, index, s => ({ ...s, visibleActorIds: (s.visibleActorIds ?? p.actors.map(a => a.id)).filter(id => !ids.includes(id) || p.editor?.actorMeta[id]?.locked),
-    trajectories: (s.trajectories ?? s.transitions)?.filter(t => !ids.includes(t.actorId) || p.editor?.actorMeta[t.actorId]?.locked), transitions: undefined }));
+    trajectories: (s.trajectories ?? s.transitions)?.filter(t => !ids.includes(t.actorId) || p.editor?.actorMeta[t.actorId]?.locked), transitions: undefined,
+    ...(s.simulation && ids.some(id => (s.simulation!.actorIds.includes(id) && !p.editor?.actorMeta[id]?.locked) || id === s.simulation!.ballId && !frameDrawings(p, index).find(drawing => drawing.id === id)?.locked) ? { simulation: undefined } : {}),
+  }));
   return changeDrawings(next, index, frameDrawings(next, index).filter(d => !ids.includes(d.id) || d.locked));
 }
 export function duplicateSelection(p: CourtVisualPayload, index: number, ids: string[], offset: CourtPoint = { x: 0.06, y: 0.03 }) {
@@ -170,7 +189,9 @@ export function duplicateStep(p: CourtVisualPayload, index: number): EditorSnaps
   const id = editorId();
   const step = { ...JSON.parse(JSON.stringify(source)), id, label: `${source.label} · cópia` } as CourtVisualStep;
   const steps = [...p.timeline.steps]; steps.splice(index + 1, 0, step);
-  return { payload: { ...p, timeline: { steps }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [id]: frameDrawings(p, index).map(d => ({ ...d, id: editorId() })) } } }, stepIndex: index + 1 };
+  const drawings = frameDrawings(p, index).map(d => ({ ...d, id: editorId() }));
+  if (step.simulation) step.simulation.ballId = drawings[frameDrawings(p, index).findIndex(d => d.id === source.simulation!.ballId)]?.id ?? step.simulation.ballId;
+  return { payload: { ...p, timeline: { steps }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [id]: drawings } } }, stepIndex: index + 1 };
 }
 export function continueStepFromEnd(p: CourtVisualPayload, index: number): EditorSnapshot {
   const source = p.timeline.steps[index];
@@ -189,6 +210,7 @@ export function continueStepFromEnd(p: CourtVisualPayload, index: number): Edito
     const end = d.motion?.[d.motion.length - 1];
     return { ...d, id: editorId(), points: end ? [end] : d.points.map(point => ({ ...point })), motion: undefined };
   });
+  if (step.simulation) step.simulation.ballId = drawings[frameDrawings(p, index).findIndex(d => d.id === source.simulation!.ballId)]?.id ?? step.simulation.ballId;
   const steps = [...p.timeline.steps];
   steps.splice(index + 1, 0, step);
   return {
@@ -373,6 +395,13 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
     if (!["arrow", "curve", "pen", "area", "text", "ball", "cone", "target", "ladder"].includes(d.kind) || !Array.isArray(d.points) || !d.points.length) throw new Error("Objeto inválido.");
     return { id: text(d.id), kind: d.kind, points: d.points.slice(0, 500).map(point), text: text(d.text, 200), color: color(d.color), dashed: Boolean(d.dashed), size: Math.max(12, Math.min(80, Number(d.size) || 28)), rotation: Number(d.rotation) % 360 || 0, locked: Boolean(d.locked), motion: d.kind === "ball" && Array.isArray(d.motion) ? d.motion.slice(0, 300).map(point) : undefined };
   })]));
+  steps.forEach((step: CourtVisualStep, index: number) => {
+    if (p.timeline.steps[index].simulation === undefined) return;
+    const simulation = normalizeCourtSimulation(p.timeline.steps[index].simulation, actors.map((actor: { id: string }) => actor.id),
+      (drawings[step.id] as CourtDrawing[]).filter(drawing => drawing.kind === "ball").map(drawing => drawing.id));
+    if (!simulation) throw new Error("Simulação de quadra inválida.");
+    step.simulation = simulation;
+  });
   const layouts = ["didactic_slots", "official_volleyball_zones", "official_zones"];
   const labels = ["slots", "official_zones"];
   const views = ["full_court", "team_half"];
@@ -395,6 +424,6 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
     markers,
     layers: layers.length ? layers : newCourtBoard().layers,
     timeline: { steps },
-    editor: { version: 1, coordinates: "regulation", title: text(p.editor.title) || "Jogada importada", folder: text(p.editor.folder), tags: text(p.editor.tags), favorite: false, actorMeta: Object.fromEntries(actors.map((a: { id: string }) => [a.id, { team: p.editor.actorMeta?.[a.id]?.team === "B" ? "B" : "A", locked: Boolean(p.editor.actorMeta?.[a.id]?.locked) }])), hiddenLayers: Array.isArray(p.editor.hiddenLayers) ? p.editor.hiddenLayers.map((id: unknown) => text(id)).slice(0, 20) : [], drawings },
+    editor: { version: 1, coordinates: "regulation", title: text(p.editor.title) || "Jogada importada", folder: text(p.editor.folder), tags: text(p.editor.tags), favorite: false, actorMeta: Object.fromEntries(actors.map((a: { id: string }) => [a.id, { team: p.editor.actorMeta?.[a.id]?.team === "B" ? "B" : "A", locked: Boolean(p.editor.actorMeta?.[a.id]?.locked), ...(p.editor.actorMeta?.[a.id]?.simulationSupport === true ? { simulationSupport: true } : {}) }])), hiddenLayers: Array.isArray(p.editor.hiddenLayers) ? p.editor.hiddenLayers.map((id: unknown) => text(id)).slice(0, 20) : [], drawings },
   } as CourtVisualPayload;
 }

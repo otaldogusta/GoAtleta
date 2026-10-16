@@ -1,4 +1,5 @@
 import canonical5x1Reception from "./presets/5x1-reception.goatleta.json";
+import { normalizeCourtSimulation } from "./court-simulation-model";
 
 export type CourtVisualSourceKind = "rotation" | "lesson" | "scouting" | "free";
 
@@ -108,6 +109,7 @@ export type CourtVisualLayer = {
 };
 
 export type CourtVisualStep = {
+  simulation?: import("./court-simulation-model").CourtSimulation;
   id: string;
   label: string;
   durationMs: number;
@@ -290,6 +292,9 @@ export const normalizeCourtPayload = (
   timeline: {
     steps: payload.timeline.steps.map((step) => ({
       ...step,
+      ...(step.simulation ? { simulation: normalizeCourtSimulation(step.simulation,
+        payload.actors.map(actor => actor.id),
+        (payload.editor?.drawings[step.id] ?? []).filter(drawing => drawing.kind === "ball").map(drawing => drawing.id)) ?? undefined } : {}),
       actorPositions: Object.fromEntries(
         Object.entries(step.actorPositions).map(([actorId, point]) => [
           actorId,

@@ -4,7 +4,8 @@ import { useAuth } from "../../auth/auth";
 import { measureAsync } from "../../observability/perf";
 import { getClassById, getStudentsByClass, listTechnicalVisualsByClass, saveTechnicalVisual } from "../../db/seed";
 import type { ClassGroup, Student } from "../../core/models";
-import { buildEditable5x1ReceptionPreset, type CourtVisualDocument, type CourtVisualPayload } from "../../core/visual-court";
+import { type CourtVisualDocument, type CourtVisualPayload } from "../../core/visual-court";
+import { buildSimulatedReceptionRotationPreset } from "../../core/court-simulation-sequence";
 import { editorId, newCourtBoard, upgradeCourtEditor, type EditorSnapshot } from "../../core/visual-court-editor";
 
 type History = { present: EditorSnapshot; past: EditorSnapshot[]; future: EditorSnapshot[] };
@@ -22,9 +23,16 @@ export function useCourtEditor(classId: string) {
   const [opening, setOpening] = useState(false);
   const openingRef = useRef(false);
   const [saving, setSaving] = useState(false);
+  const [departing, setDeparting] = useState(false);
+  const departureRef = useRef(false);
+  const protectedDepartureRef = useRef(false);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftWrite = useRef<Promise<void>>(Promise.resolve());
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [savedSignature, setSavedSignature] = useState("");
+  const [savedSignature, setSavedSignatureState] = useState("");
+  const savedSignatureRef = useRef("");
+  const setSavedSignature = useCallback((value: string) => { savedSignatureRef.current = value; setSavedSignatureState(value); }, []);
   const [draftStatus, setDraftStatus] = useState("");
   const [draftError, setDraftError] = useState("");
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
@@ -34,20 +42,28 @@ export function useCourtEditor(classId: string) {
   const signature = JSON.stringify(history.present.payload);
   const dirty = signature !== savedSignature;
   const needsSync = !activeDocumentId || activeDocumentId.startsWith("local_") || activeDocumentId.startsWith("template_");
-  const canSave = !loading && !saving && !opening && Boolean(cls?.organizationId) && (dirty || needsSync);
+  const canSave = !loading && !saving && !opening && !departing && Boolean(cls?.organizationId) && (dirty || needsSync);
   const draftKey = cls?.organizationId && userId ? `goatleta:court-draft:v2:${userId}:${cls.organizationId}:${classId}` : null;
   const current = useRef(history.present);
   const setHistory = useCallback((change: History | ((old: History) => History)) => {
     const next = typeof change === "function" ? change(historyRef.current) : change;
+    if (next.present !== historyRef.current.present) protectedDepartureRef.current = false;
     historyRef.current = next;
     current.current = next.present;
     setHistoryState(next);
   }, []);
+  const writeDraft = useCallback((key: string, value: string, shouldWrite: () => boolean = () => true) => {
+    const write = draftWrite.current.catch(() => undefined).then(() => shouldWrite() ? AsyncStorage.setItem(key, value) : undefined);
+    draftWrite.current = write;
+    return write;
+  }, []);
   useEffect(() => {
     const run = ++generation.current;
+    protectedDepartureRef.current = false;
+    departureRef.current = false;
     let active = true;
-    Promise.resolve().then(() => { if (active) { setLoading(true); setError(""); setClass(null); setRoster([]); setDocuments([]); } });
-    if (!userId || !classId) { Promise.resolve().then(() => { if (active) { setLoading(false); setError("Entre na sua conta para abrir a turma."); } }); return () => { active = false; }; }
+    Promise.resolve().then(() => { if (active) { setLoading(true); setDeparting(false); setError(""); setClass(null); setRoster([]); setDocuments([]); } });
+    if (!userId || !classId) { Promise.resolve().then(() => { if (active) { setLoading(false); setError("Entre na sua conta para abrir a turma."); } }); return () => { active = false; generation.current = run + 1; }; }
     void (async () => {
       try {
         const classData = await measureAsync("screen.visualCourt.load.class", () => getClassById(classId));
@@ -59,7 +75,7 @@ export function useCourtEditor(classId: string) {
         try { const parsed: unknown = JSON.parse(trashRaw || "[]"); if (Array.isArray(parsed)) trash = parsed.filter((id): id is string => typeof id === "string"); } catch { /* Keep the library accessible if preferences are damaged. */ }
         if (!active || run !== generation.current) return;
         setTrashedIds(trash);
-        const templates = [["5×1 · Recepção", buildEditable5x1ReceptionPreset()]] as [string, CourtVisualPayload][];
+        const templates = [["5×1 · Recepção", buildSimulatedReceptionRotationPreset()]] as [string, CourtVisualPayload][];
         const locals: CourtVisualDocument[] = templates.map(([title, payload], i) => ({ id: `template_${i}`, classId, organizationId: classData.organizationId!, sourceKind: "rotation", title, payload, createdAt: "", updatedAt: "" }));
         const backupPrefix = `goatleta:court-draft:v2:${userId}:${classData.organizationId}:${classId}:backup:`;
         const backups: CourtVisualDocument[] = [];
@@ -92,22 +108,31 @@ export function useCourtEditor(classId: string) {
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "Não foi possível abrir a quadra."); }
       finally { if (active) setLoading(false); }
     })();
-    return () => { active = false; };
-  }, [classId, userId, setHistory]);
+    return () => { active = false; generation.current = run + 1; };
+  }, [classId, userId, setHistory, setSavedSignature]);
 
   useEffect(() => {
-    if (!draftKey || loading || opening || !dirty) return;
+    if (!draftKey || loading || opening || departing) return;
+    const run = generation.current, snapshot = history.present, documentId = activeDocumentRef.current;
     let active = true;
+    const canWrite = () => active && run === generation.current && snapshot === current.current && documentId === activeDocumentRef.current && !openingRef.current && !departureRef.current;
     const timer = setTimeout(() => {
-      void AsyncStorage.setItem(draftKey, JSON.stringify({ ...history.present, documentId: activeDocumentRef.current })).then(() => { if (active) { setDraftStatus("Neste dispositivo"); setDraftError(""); } }).catch(() => { if (active) setDraftError("Falha no rascunho. Exporte uma cópia."); });
+      draftTimer.current = null;
+      if (!canWrite()) return;
+      // Returning to the saved baseline must replace the older dirty draft too.
+      // The same snapshot also preserves the selected step of an untouched board.
+      void writeDraft(draftKey, JSON.stringify({ ...snapshot, documentId, unsaved: dirty }), canWrite).then(() => { if (canWrite()) { setDraftStatus(dirty ? "Neste dispositivo" : ""); setDraftError(""); } }).catch(() => { if (canWrite()) setDraftError("Falha no rascunho. Exporte uma cópia."); });
     }, 300);
-    return () => { active = false; clearTimeout(timer); };
-  }, [draftKey, dirty, history.present, loading, opening]);
+    draftTimer.current = timer;
+    return () => { active = false; clearTimeout(timer); if (draftTimer.current === timer) draftTimer.current = null; };
+  }, [draftKey, dirty, history.present, loading, opening, departing, writeDraft]);
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
-    const before = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+    const before = (e: BeforeUnloadEvent) => { if (dirty && !protectedDepartureRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    const resume = () => { protectedDepartureRef.current = false; };
     window.addEventListener("beforeunload", before);
-    return () => window.removeEventListener("beforeunload", before);
+    window.addEventListener("pageshow", resume);
+    return () => { window.removeEventListener("beforeunload", before); window.removeEventListener("pageshow", resume); };
   }, [dirty]);
 
   const commit = useCallback((update: (p: CourtVisualPayload) => CourtVisualPayload, stepIndex?: number) => {
@@ -122,7 +147,7 @@ export function useCourtEditor(classId: string) {
   const undo = useCallback(() => { setDraftStatus(""); setHistory(h => h.past.length ? { present: h.past[h.past.length - 1], past: h.past.slice(0, -1), future: [h.present, ...h.future] } : h); }, [setHistory]);
   const redo = useCallback(() => { setDraftStatus(""); setHistory(h => h.future.length ? { present: h.future[0], past: [...h.past, h.present], future: h.future.slice(1) } : h); }, [setHistory]);
   const open = async (payload: CourtVisualPayload, documentId?: string | null) => {
-    if (savingRef.current || openingRef.current) return false;
+    if (savingRef.current || openingRef.current || departureRef.current) return false;
     if (documentId && documentId === activeDocumentRef.current) return true;
     const run = generation.current;
     openingRef.current = true;
@@ -154,7 +179,7 @@ export function useCourtEditor(classId: string) {
     } finally { openingRef.current = false; setOpening(false); }
   };
   const save = async (title?: string) => {
-    if (!cls?.organizationId || savingRef.current || openingRef.current) return false;
+    if (!cls?.organizationId || savingRef.current || openingRef.current || departureRef.current) return false;
     const currentSnapshot = current.current;
     const snapshot = title ? { ...currentSnapshot, payload: { ...currentSnapshot.payload, editor: { ...currentSnapshot.payload.editor!, title: title.trim() } } } : currentSnapshot;
     if (JSON.stringify(snapshot.payload) === savedSignature && activeDocumentRef.current && !activeDocumentRef.current.startsWith("local_") && !activeDocumentRef.current.startsWith("template_")) return true;
@@ -193,9 +218,35 @@ export function useCourtEditor(classId: string) {
     finally { savingRef.current = false; setSaving(false); }
   };
   const preserveDraft = async () => {
-    if (!draftKey) return false;
-    try { await AsyncStorage.setItem(draftKey, JSON.stringify({ ...current.current, documentId: activeDocumentRef.current })); setDraftError(""); return true; }
-    catch { setError("Não foi possível guardar o rascunho. Exporte uma cópia antes de sair."); return false; }
+    if (!draftKey) { setError("Não foi possível guardar o rascunho. Aguarde a abertura da turma."); return false; }
+    const run = generation.current, snapshot = current.current, documentId = activeDocumentRef.current;
+    if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
+    try {
+      await writeDraft(draftKey, JSON.stringify({ ...snapshot, documentId, unsaved: JSON.stringify(snapshot.payload) !== savedSignatureRef.current }));
+      if (run !== generation.current) return false;
+      if (snapshot !== current.current || documentId !== activeDocumentRef.current) { setError("A jogada mudou enquanto o rascunho era guardado. Tente novamente."); return false; }
+      setDraftError(""); return true;
+    }
+    catch { if (run === generation.current) setError("Não foi possível guardar o rascunho. Exporte uma cópia antes de sair."); return false; }
+  };
+  const leaveWithDraft = async (navigate: () => void): Promise<boolean> => {
+    if (loading || savingRef.current || openingRef.current || departureRef.current) return false;
+    const run = generation.current;
+    departureRef.current = true;
+    setDeparting(true);
+    protectedDepartureRef.current = false;
+    try {
+      if (!await preserveDraft() || run !== generation.current) return false;
+      protectedDepartureRef.current = true;
+      navigate();
+      return true;
+    } catch {
+      protectedDepartureRef.current = false;
+      if (run === generation.current) setError("Não foi possível sair da quadra. Seu rascunho está neste dispositivo.");
+      return false;
+    } finally {
+      if (run === generation.current) { departureRef.current = false; setDeparting(false); }
+    }
   };
   const trashBusy = useRef(false);
   const setDocumentTrashed = async (id: string, removed: boolean) => {
@@ -211,5 +262,5 @@ export function useCourtEditor(classId: string) {
     } catch { setError("Não foi possível atualizar a lixeira. Tente novamente."); }
     finally { trashBusy.current = false; }
   };
-  return { ...history.present, cls, roster, documents, trashedIds, activeDocumentId, setDocumentTrashed, loading, opening, saving, error, notice, dirty, needsSync, canSave, draftStatus, draftError, canUndo: !!history.past.length, canRedo: !!history.future.length, commit, selectStep, undo, redo, open, save, preserveDraft, setError, setNotice };
+  return { ...history.present, cls, roster, documents, trashedIds, activeDocumentId, setDocumentTrashed, loading, opening, saving, departing, error, notice, dirty, needsSync, canSave, draftStatus, draftError, canUndo: !!history.past.length, canRedo: !!history.future.length, commit, selectStep, undo, redo, open, save, preserveDraft, leaveWithDraft, setError, setNotice };
 }

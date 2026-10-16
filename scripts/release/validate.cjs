@@ -8,6 +8,8 @@ const gates = [
   { id: 'lint', args: ['scripts/check-lint-hygiene.js'], roots: ['app/', 'src/', 'scripts/'] },
   { id: 'types', args: ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.app-check.json', '--noEmit'], roots: ['app/', 'src/'] },
   { id: 'tests', args: ['node_modules/jest/bin/jest.js', '--passWithNoTests', '--runInBand'] },
+  { id: 'court-runtime', args: ['--test', 'public/visual-court-3d/*.test.mjs', 'src/core/court-simulation/*.test.mjs'],
+    roots: ['public/visual-court-3d/', 'src/core/court-simulation/', 'src/core/__tests__/fixtures/court-reference/'] },
   { id: 'sql', args: ['scripts/validation/run-sql-tests.mjs'], roots: ['supabase/', 'scripts/'] },
   ...[
     ['encoding', 'check-encoding.js'], ['brand', 'check-brand-name.js'], ['jwt', 'check-edge-jwt.js'],

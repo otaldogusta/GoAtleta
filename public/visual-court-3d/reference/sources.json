@@ -1,0 +1,194 @@
+[
+  {
+    "file": "ball.webp",
+    "source": "https://app.setoptics.com/textures/balls/mikasa_albedo.webp"
+  },
+  {
+    "file": "setter\\front\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/front/ready.png?v=569bc472"
+  },
+  {
+    "file": "setter\\front\\load.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/front/load.png?v=f6995738"
+  },
+  {
+    "file": "setter\\front\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/front/follow.png?v=469f83d2"
+  },
+  {
+    "file": "setter\\front\\rise.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/front/rise.png?v=d0c9c386"
+  },
+  {
+    "file": "setter\\front\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/front/contact.png?v=b783c6c2"
+  },
+  {
+    "file": "setter\\front\\backfollow.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/front/backfollow.png?v=596a2b5a"
+  },
+  {
+    "file": "setter\\side\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/side/ready.png?v=f307b85b"
+  },
+  {
+    "file": "setter\\side\\rise.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/side/rise.png?v=fdb8b4f9"
+  },
+  {
+    "file": "setter\\side\\load.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/side/load.png?v=7652a979"
+  },
+  {
+    "file": "setter\\side\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/side/contact.png?v=55447c31"
+  },
+  {
+    "file": "setter\\side\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/side/follow.png?v=cf411302"
+  },
+  {
+    "file": "setter\\side\\backfollow.png",
+    "source": "https://app.setoptics.com/silhouettes/setter/side/backfollow.png?v=a6abaeb0"
+  },
+  {
+    "file": "passer\\front\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/front/ready.png?v=bae136c4"
+  },
+  {
+    "file": "passer\\front\\load.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/front/load.png?v=8d5f5de2"
+  },
+  {
+    "file": "passer\\side\\load.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/side/load.png?v=c436cb25"
+  },
+  {
+    "file": "passer\\front\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/front/contact.png?v=89485d4e"
+  },
+  {
+    "file": "passer\\front\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/front/follow.png?v=48eb4974"
+  },
+  {
+    "file": "passer\\side\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/side/ready.png?v=b5ab672a"
+  },
+  {
+    "file": "passer\\side\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/side/contact.png?v=060a527d"
+  },
+  {
+    "file": "passer\\side\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/passer/side/follow.png?v=9be0b884"
+  },
+  {
+    "file": "attacker\\front\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/ready.png?v=1fc555d5"
+  },
+  {
+    "file": "attacker\\front\\approach.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/approach.png?v=da6eaf2e"
+  },
+  {
+    "file": "attacker\\front\\plant.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/plant.png?v=f1ee9726"
+  },
+  {
+    "file": "attacker\\front\\draw.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/draw.png?v=989089d4"
+  },
+  {
+    "file": "attacker\\front\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/contact.png?v=f284a1d1"
+  },
+  {
+    "file": "attacker\\front\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/follow.png?v=8e4731ba"
+  },
+  {
+    "file": "attacker\\side\\plant.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/plant.png?v=64b4d66b"
+  },
+  {
+    "file": "attacker\\side\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/ready.png?v=74df0aab"
+  },
+  {
+    "file": "attacker\\side\\approach.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/approach.png?v=40a6f41d"
+  },
+  {
+    "file": "attacker\\front\\land.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/front/land.png?v=d57264bd"
+  },
+  {
+    "file": "attacker\\side\\draw.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/draw.png?v=9fd8e855"
+  },
+  {
+    "file": "attacker\\side\\land.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/land.png?v=2ff0572c"
+  },
+  {
+    "file": "attacker\\side\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/contact.png?v=d44fd3ac"
+  },
+  {
+    "file": "attacker\\side\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/attacker/side/follow.png?v=72bd7817"
+  },
+  {
+    "file": "server\\front\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/ready.png?v=412041e8"
+  },
+  {
+    "file": "server\\front\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/contact.png?v=3dd4ec91"
+  },
+  {
+    "file": "server\\front\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/follow.png?v=753e5738"
+  },
+  {
+    "file": "server\\front\\toss.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/toss.png?v=bdd19915"
+  },
+  {
+    "file": "server\\front\\draw.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/draw.png?v=a16effce"
+  },
+  {
+    "file": "server\\side\\toss.png",
+    "source": "https://app.setoptics.com/silhouettes/server/side/toss.png?v=7f521dbc"
+  },
+  {
+    "file": "server\\front\\follow-cross.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/follow-cross.png?v=1e768c2c"
+  },
+  {
+    "file": "server\\side\\draw.png",
+    "source": "https://app.setoptics.com/silhouettes/server/side/draw.png?v=da7edc65"
+  },
+  {
+    "file": "server\\front\\idle.png",
+    "source": "https://app.setoptics.com/silhouettes/server/front/idle.png?v=4a9a00ea"
+  },
+  {
+    "file": "server\\side\\ready.png",
+    "source": "https://app.setoptics.com/silhouettes/server/side/ready.png?v=41870390"
+  },
+  {
+    "file": "server\\side\\contact.png",
+    "source": "https://app.setoptics.com/silhouettes/server/side/contact.png?v=ffe13ed2"
+  },
+  {
+    "file": "server\\side\\follow.png",
+    "source": "https://app.setoptics.com/silhouettes/server/side/follow.png?v=fd336e80"
+  },
+  {
+    "file": "server\\side\\idle.png",
+    "source": "https://app.setoptics.com/silhouettes/server/side/idle.png?v=c9e6bf5e"
+  }
+]

@@ -31,6 +31,8 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
   padding horizontal 14 no container. Regras completas estão no `AGENTS.md`.
 - `AnchoredDropdown` usa portal no web por padrão; camada `floatingList` fica
   acima do modal. Aumentar só `zIndex` dentro de pai recortado não resolve o portal.
+  `visualScale` é opt-in no web (padrão 1): preserva âncoras físicas e ajusta
+  conteúdo, limites e altura visual do menu; o nativo mantém suas dimensões.
 - Reutilizar `Pressable`; links secundários têm feedback textual sem caixa de
   hover (`suppressWebHoverFeedback`). Preservar foco, teclado, acessibilidade e
   saída com alterações não salvas.

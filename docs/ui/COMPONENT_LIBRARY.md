@@ -55,6 +55,9 @@ superfícies automaticamente.
   limita listas longas e a rolagem aparece somente quando há overflow real. Não
   implementar listas flutuantes com `position: absolute` dentro do conteúdo
   rolável de um modal.
+  Superfícies compactas podem passar `visualScale` no web (padrão 1): largura
+  preferida e conteúdo seguem a escala; âncora e limites continuam em pixels
+  físicos. A altura ocupada corresponde ao conteúdo visual e o nativo não muda.
 
 ## Validação de formulários
 

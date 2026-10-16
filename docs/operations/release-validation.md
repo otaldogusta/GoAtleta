@@ -1,6 +1,6 @@
 # Validação de release
 
-`npm run validate:app` executa os 11 checks existentes com até dois processos
+`npm run validate:app` executa os 12 checks com até dois processos
 simultâneos. O resultado de cada check aparece assim que termina, junto com o
 tempo. Logs completos ficam em `.tmp/validation/`, ignorado pelo Git.
 
@@ -8,9 +8,14 @@ tempo. Logs completos ficam em `.tmp/validation/`, ignorado pelo Git.
 checks passarem. A exportação usa dois workers para limitar memória. Este comando
 nunca faz commit, push, deploy ou mudança remota de banco.
 
+O check `court-runtime` executa os testes Node do renderer 3D e do motor da
+quadra, incluindo a paridade com as fixtures de referência. Ele também pode ser
+executado sozinho com `npm run test:court-runtime`. Os globs são resolvidos pelo
+Node 24, sem depender da expansão do shell. Uma falha impede o build verificado.
+
 ## Reaproveitamento local
 
-Lint, tipos, Jest, SQL e build podem reutilizar um sucesso por até oito horas,
+Lint, tipos, Jest, runtime da quadra, SQL e build podem reutilizar um sucesso por até oito horas,
 somente no mesmo checkout, runtime e ambiente. As chaves consideram o conteúdo
 atual dos arquivos, inclusive novos, removidos, configurações, patches,
 dependências instaladas e arquivos locais de ambiente. Valores de ambiente não
@@ -19,6 +24,8 @@ são gravados nos recibos nem mostrados no terminal.
 - Lint: app, src e scripts; o cache próprio do ESLint também usa conteúdo.
 - Tipos: app e src.
 - SQL: scripts e Supabase.
+- Runtime da quadra: renderer em `public/visual-court-3d/`, motor em
+  `src/core/court-simulation/` e fixtures em `src/core/__tests__/fixtures/court-reference/`.
 - Jest e build: todos os arquivos conhecidos pelo Git, entradas não versionadas
   e diretórios de runtime, incluindo entradas ignoradas.
 - Configurações na raiz, scripts do executor, patches, dependências e ambiente

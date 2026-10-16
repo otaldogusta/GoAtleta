@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quadra 3D · Go Atleta</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#09090f;scrollbar-gutter:auto;font-family:Arial,sans-serif;color:#dce9fc}
+canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+#labels{position:absolute;inset:0;pointer-events:none}
+.actor-label{position:absolute;transform:translate(-50%,-100%);border:0;background:#0a112366;color:#e4edfa;padding:3px 5px;border-radius:5px;font:12px Arial,sans-serif;pointer-events:auto;cursor:pointer;white-space:nowrap}
+.actor-label:focus-visible{outline:2px solid #8fbeff;outline-offset:2px}
+.guide-handle{position:absolute;z-index:5;width:44px;height:44px;padding:0;transform:translate(-50%,-50%);touch-action:none;cursor:grab;background:transparent;border:0;border-radius:50%;pointer-events:auto}
+.guide-handle::after{content:'';position:absolute;inset:15px;border:2px solid #9dcbf1;border-radius:50%;box-shadow:0 0 0 1px #07101e}
+.guide-handle.apex::after{inset:18px;background:#72b6ef;border:0}.guide-handle.target::after{inset:11px;border-style:dashed}.guide-handle.serve::after{border-color:#c48d8f}
+.guide-handle:active{cursor:grabbing}.guide-handle:hover{background:#73b5f01f}.guide-handle:focus-visible{outline:2px solid #8fbeff;outline-offset:1px}
+#simulation-feedback{position:absolute;bottom:25px;left:20px;z-index:3;color:#9dc5e8;font-size:12px;pointer-events:none}#simulation-feedback[data-blocked=true]{color:#ec9a9f}
+@media(max-width:700px){#simulation-feedback{top:auto;bottom:116px;left:12px;transform:none;white-space:nowrap;font-size:11px}}
+@media(max-width:380px){#simulation-feedback{bottom:152px}}
+#error{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;background:#09090f;line-height:1.5}
+[hidden]{display:none!important}
+</style>
+<canvas id="scene" tabindex="0" aria-label="Quadra 3D interativa. Arraste jogadores e materiais. Arraste o fundo para girar. Use a rolagem para aproximar."></canvas>
+<div id="labels" aria-label="Jogadores da quadra"></div>
+<div id="simulation-handles" aria-label="Ajustes das trajetórias"></div>
+<output id="simulation-feedback" aria-live="polite" hidden></output>
+<div id="error" hidden role="status"></div>
+<script type="module" src="./renderer.mjs?v=resolution-20261016"></script>
+</html>

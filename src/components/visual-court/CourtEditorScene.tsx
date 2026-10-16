@@ -1,6 +1,9 @@
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
-import { actorPoint, drawingAtProgress, frameDrawings, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
+import { actorPoint, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
+import { sampleCourtSimulation } from "../../core/court-simulation";
+import { displayCourtDrawings, simulationFloorPoint } from "../../core/court-simulation-display";
+import { buildCourtPerspectiveSimulation } from "../../core/court-perspective-guides";
 
 import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
 import { COURT_TEXT_FONT } from "./court-text-layout";
@@ -13,9 +16,11 @@ export function sceneBounds(landscape: boolean, half = false) {
 }
 export function displayActors(p: CourtVisualPayload, index: number, progress?: number) {
   const s = p.timeline.steps[index];
-  return p.actors.filter(a => !s.visibleActorIds || s.visibleActorIds.includes(a.id)).map(a => {
+  const sample = sampleCourtSimulation(p, index, progress ?? 0);
+  return p.actors.filter(a => (!s.visibleActorIds || s.visibleActorIds.includes(a.id)) && (!sample || !s.simulation?.actorIds.includes(a.id) || sample.visibleIds.includes(a.id))).map(a => {
+    const simulated = sample?.actors.find(item => item.id === a.id);
     const trajectory = (s.trajectories ?? s.transitions)?.find(t => t.actorId === a.id);
-    return { ...a, point: typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
+    return { ...a, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
   });
 }
 function DrawObject({ drawing: d, landscape }: { drawing: CourtDrawing; landscape: boolean }) {
@@ -63,6 +68,8 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
   const b = sceneBounds(landscape, half);
   const step = p.timeline.steps[stepIndex];
   const hide = p.editor?.hiddenLayers ?? [];
+  const simulation = sampleCourtSimulation(p, stepIndex, progress ?? 0);
+  const guides = simulation ? buildCourtPerspectiveSimulation(p, stepIndex, simulation, !hide.includes("movements")) : null;
   const project = (x: number, y: number) => scenePoint({ x, y }, landscape);
   const line = (x1: number, y1: number, x2: number, y2: number, key: string, thickness = 5) => {
     const a = project(x1, y1), z = project(x2, y2);
@@ -86,10 +93,17 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
       {Array.from({ length: 17 }, (_, n) => n + 1).map(i => <G key={`grid-x-${i}`} opacity={i % 6 === 0 ? 0.22 : 0.09}>{line(i / 18, 0, i / 18, 1, `gx${i}`, i % 6 === 0 ? 1.6 : 0.9)}</G>)}
       {Array.from({ length: 35 }, (_, n) => n + 1).filter(i => ![12, 18, 24].includes(i)).map(i => <G key={`grid-y-${i}`} opacity={i % 6 === 0 ? 0.22 : 0.09}>{line(0, i / 36, 1, i / 36, `gy${i}`, i % 6 === 0 ? 1.6 : 0.9)}</G>)}
     </G> : null}
+    {guides?.guidesVisible ? <G pointerEvents="none">
+      {guides.paths.map(path => <DrawObject key={`simulation-${path.id}`} landscape={landscape} drawing={{ id: path.id, kind: "pen", points: path.points.map(pt => simulationFloorPoint([pt.x, pt.y, pt.z])), color: path.color, size: 28, rotation: 0, dashed: path.dashed }} />)}
+      {guides.markers.filter(marker => marker.kind !== "dot").map(marker => {
+        const at = scenePoint(simulationFloorPoint([marker.point.x, marker.point.y, marker.point.z]), landscape);
+        return marker.kind === "ring" ? <Circle key={marker.id} cx={at.x} cy={at.y} r={16} stroke={marker.color} fill="none" strokeWidth={3} /> : <G key={marker.id}><Line x1={at.x - 15} y1={at.y - 15} x2={at.x + 15} y2={at.y + 15} stroke={marker.color} strokeWidth={3} /><Line x1={at.x - 15} y1={at.y + 15} x2={at.x + 15} y2={at.y - 15} stroke={marker.color} strokeWidth={3} /></G>;
+      })}
+    </G> : null}
     {!hide.includes("drawings") ? <>
       {step.arrows?.map(a => <DrawObject key={a.id} landscape={landscape} drawing={{ id: a.id, kind: "arrow", points: [a.from, a.to], color: a.color ?? "#fff", size: 28, rotation: 0 }} />)}
       {p.markers.filter(m => !step.markerIds || step.markerIds.includes(m.id)).map(m => <DrawObject key={m.id} landscape={landscape} drawing={{ id: m.id, kind: m.type, points: [m.position], color: m.color ?? "#ffdc53", size: 28, rotation: 0 }} />)}
-      {frameDrawings(p, stepIndex).filter(d => d.id !== editingTextId).map(d => <G key={d.id}>
+      {displayCourtDrawings(p, stepIndex, progress).filter(d => d.id !== editingTextId).map(d => <G key={d.id}>
         {selected.includes(d.id) && d.points.length ? (() => {
           const points = d.points.map(pt => scenePoint(pt, landscape));
           const padding = d.size || 28;
@@ -98,7 +112,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
           return <Rect x={x} y={y} width={Math.max(...points.map(pt => pt.x)) - x + padding} height={Math.max(...points.map(pt => pt.y)) - y + padding} rx={6} fill="none" stroke="#fff" strokeWidth={2} opacity={0.8} />;
         })() : null}
         {d.motion && (previewIds ? previewMotion && previewIds.includes(d.id) : progress !== 0) && !hide.includes("movements") ? <DrawObject landscape={landscape} drawing={{ ...d, kind: "arrow", points: motionTrail(d.motion, previewIds?.includes(d.id) ? 1 : progress ?? 1, (d.size || 28) * 0.85 + 3), dashed: true }} /> : null}
-        <DrawObject drawing={previewIds?.includes(d.id) ? d : drawingAtProgress(d, progress)} landscape={landscape} />
+        <DrawObject drawing={d} landscape={landscape} />
       </G>)}
       {draft ? <G pointerEvents="none" opacity={draft.id === "material-drop-preview" ? 0.72 : 1}>
         {draft.id === "material-drop-preview" ? <G transform="translate(8 12)" opacity={0.22}>
@@ -117,7 +131,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
           <Circle cx={pt.x} cy={pt.y - 35} r={16} fill={a.color ?? "#19c87b"} stroke="#10213880" strokeWidth={2} />
           <Path transform={`translate(${pt.x} ${pt.y})`} d="M -12 -13 Q -20 -13 -24 -4 L -34 15 Q -37 22 -30 25 Q -24 27 -21 20 L -15 7 L -15 24 L -19 45 Q -20 53 -12 53 Q -6 53 -5 46 L 0 25 L 5 46 Q 6 53 12 53 Q 20 53 19 45 L 15 24 L 15 7 L 21 20 Q 24 27 30 25 Q 37 22 34 15 L 24 -4 Q 20 -13 12 -13 Z" fill={a.color ?? "#19c87b"} stroke="#10213880" strokeWidth={2} strokeLinejoin="round" />
         </G> : <Circle cx={pt.x} cy={pt.y} r={52} fill={a.color ?? "#19c87b"} stroke="#ffffff55" strokeWidth={2} />}
-        {p.editor?.showActorNumbers !== false || !/^\d+$/.test(String(a.label || a.number || "")) ? <SvgText x={pt.x} y={pt.y + (person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={person ? 25 : 37} fill={a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
+        {!hide.includes("labels") && (p.editor?.showActorNumbers !== false || !/^\d+$/.test(String(a.label || a.number || ""))) ? <SvgText x={pt.x} y={pt.y + (person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={person ? 25 : 37} fill={a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
         {p.editor?.actorMeta[a.id]?.locked ? <Circle cx={pt.x + 39} cy={pt.y - 39} r={7} fill="#fff" /> : null}
       </G>;
     }) : null}

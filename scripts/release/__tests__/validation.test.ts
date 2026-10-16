@@ -23,7 +23,7 @@ afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 const key = (id = 'tests', env = {}) => fingerprint(snapshot(root, env), gates.find((gate: any) => gate.id === id));
 
 it('retains every existing gate and rejects unknown flags', () => {
-  expect(gates.map((gate: any) => gate.id).sort()).toEqual(['architecture', 'assets', 'brand', 'encoding', 'jwt', 'lint', 'org-scope', 'performance', 'sql', 'tests', 'types']);
+  expect(gates.map((gate: any) => gate.id).sort()).toEqual(['architecture', 'assets', 'brand', 'court-runtime', 'encoding', 'jwt', 'lint', 'org-scope', 'performance', 'sql', 'tests', 'types']);
   expect(parseArgs(['--fresh', '--build', '--jobs=1'])).toEqual({ fresh: true, build: true, jobs: 1 });
   expect(() => parseArgs(['--skip-security'])).toThrow();
   expect(() => parseArgs(['--jobs=20'])).toThrow();
@@ -70,6 +70,27 @@ it('observes real child exit status and keeps diagnostics in its log', async () 
   expect(fs.readFileSync(log, 'utf8')).toContain('fixture diagnostic');
 });
 
+it('runs both court test globs directly through Node and blocks on either suite failure', async () => {
+  const gate = gates.find((item: any) => item.id === 'court-runtime');
+  expect(gate.args).toEqual(['--test', 'public/visual-court-3d/*.test.mjs', 'src/core/court-simulation/*.test.mjs']);
+  write('public/visual-court-3d/presentation.test.mjs', "import test from 'node:test'; test('court presentation glob', () => {});");
+  write('src/core/court-simulation/physics.test.mjs', "import test from 'node:test'; test('court physics glob', () => { throw new Error('court fixture failure'); });");
+  const log = path.join(root, 'court-runtime.log');
+  expect(await runProcess(root, gate, log, new Set(), process.env)).toBe(false);
+  const output = fs.readFileSync(log, 'utf8');
+  expect(output).toContain('court presentation glob');
+  expect(output).toContain('court physics glob');
+  expect(output).toContain('court fixture failure');
+});
+
+it('invalidates court receipts for renderer, physics and reference fixtures but not unrelated documentation', () => {
+  const original = key('court-runtime');
+  write('docs/example.md'); expect(key('court-runtime')).toBe(original);
+  for (const file of ['public/visual-court-3d/renderer.mjs', 'src/core/court-simulation/attack-physics.js', 'src/core/__tests__/fixtures/court-reference/attack-motion.mjs']) {
+    write(file); expect(key('court-runtime')).not.toBe(original); fs.unlinkSync(path.join(root, file));
+  }
+});
+
 it('reuses only successful, current receipts with matching outputs', () => {
   const record = { version: 1, status: 'passed', key: 'abc', at: 1000, output: 'built' };
   expect(reusable(record, 'abc', 1001, 'built')).toBe(true);
@@ -103,22 +124,22 @@ it('bounds parallel execution and records failures without hiding other results'
   expect(results.map((result: any) => result.status)).toEqual(['passed', 'failed', 'passed']);
 });
 
-it('resumes passed gates locally, retries failure, and builds only after all gates pass', async () => {
+it.each(['tests', 'court-runtime'])('resumes passed gates locally and builds only after %s passes', async failedGate => {
   const calls: string[] = [];
   const failed = await validate({ root, env: {}, build: true, report: () => {}, execute: async (_: any, gate: any) => {
-    calls.push(gate.id); return gate.id !== 'tests';
+    calls.push(gate.id); return gate.id !== failedGate;
   } });
   expect(failed.passed).toBe(false); expect(calls).not.toContain('build');
-  expect(fs.existsSync(path.join(root, '.tmp/validation/results/tests.json'))).toBe(false);
+  expect(fs.existsSync(path.join(root, `.tmp/validation/results/${failedGate}.json`))).toBe(false);
   calls.length = 0;
   const passed = await validate({ root, env: {}, build: true, report: () => {}, execute: async (_: any, gate: any) => {
     calls.push(gate.id); if (gate.id === 'build') write('dist/index.html'); return true;
   } });
-  expect(passed.passed).toBe(true); expect(calls).toContain('tests'); expect(calls).toContain('build');
+  expect(passed.passed).toBe(true); expect(calls).toContain(failedGate); expect(calls).toContain('build');
   expect(calls).not.toContain('lint'); expect(calls).not.toContain('types'); expect(calls).not.toContain('sql');
   calls.length = 0;
   await validate({ root, env: {}, build: true, report: () => {}, execute: async (_: any, gate: any) => { calls.push(gate.id); return true; } });
-  expect(calls).not.toContain('build'); expect(calls).not.toContain('tests'); expect(calls).toContain('performance');
+  expect(calls).not.toContain('build'); expect(calls).not.toContain('tests'); expect(calls).not.toContain('court-runtime'); expect(calls).toContain('performance');
 });
 
 it.each([{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }])('CI runs all gates every time: %j', async env => {
