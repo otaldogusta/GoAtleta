@@ -4,6 +4,15 @@ import { newVideoDocument, splitVideoRally, videoDraftKey } from '../../../core/
 const mockStored = new Map<string, string>();
 const mockSet = jest.fn(async (key: string, value: string) => { mockStored.set(key, value); });
 const mockIdentity = jest.fn();
+jest.mock('../../../db/client', () => ({ supabasePost: jest.fn() }));
+jest.mock('../../../api/scouting-video-documents', () => {
+  const actual = jest.requireActual('../../../api/scouting-video-documents');
+  return { ...actual, getScoutingVideoDocument: jest.fn(async () => null),
+    saveScoutingVideoDocument: jest.fn(async (scope, document, revision, mutationId) => ({
+      organizationId: scope.org, sessionId: scope.sessionId, fingerprint: document.media.fingerprint,
+      document, revision: revision + 1, updatedAt: new Date().toISOString(), mutationId,
+    })) };
+});
 jest.mock('../../../auth/session', () => ({ getSessionIdentity: () => ({ userId: 'user', generation: 1 }), assertSessionIdentity: () => mockIdentity() }));
 jest.mock('@react-native-async-storage/async-storage', () => ({ __esModule: true, default: { getAllKeys: async () => [...mockStored.keys()], getItem: async (key: string) => mockStored.get(key) ?? null, setItem: (...args: [string, string]) => mockSet(...args) } }));
 const media = { fingerprint: 'file-a', duration: 20, width: 1202, height: 676, name: 'jogo.mp4' };

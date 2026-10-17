@@ -43,6 +43,15 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
 - Não registrar tokens, conteúdo privado ou links de recuperação. A sanitização de
   [navegação](../../../src/observability/navigation-privacy.ts) remove parâmetros e
   normaliza segmentos conhecidos; novos eventos devem ser revisados explicitamente.
+- Scouting em vídeo tem documento editável por organização/sessão/fingerprint,
+  separado das estatísticas e da projeção compartilhada somente leitura. A
+  [migration](../../../supabase/migrations/20261017004249_scouting_video_documents.sql)
+  usa RPCs de staff/admin, revisão esperada e recibo de intenção idempotente;
+  sessão concluída permite leitura, sem novas gravações. Cache mantém usuário,
+  origem e pendências; conflito exige escolha e cópia de ambas as versões.
+  Backend ativado em 17/10, com RLS/grants e gravação real conferidos;
+  [ativação e publicação](../../operations/scouting-sync-release-2026-10-17.md). Ver
+  [contrato do estúdio](../../ui/SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md#sincronização-editável-entre-aparelhos--16102026).
 
 ## Decisões e fontes
 

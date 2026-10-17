@@ -82,6 +82,16 @@ Estúdio de vídeo integrado localmente ao scouting web em 12/10: [implementaç�
 
 ## Validação seletiva
 
+Atualização local em 16/10: o [rascunho de vídeo](../../../src/screens/scouting/video/use-video-draft.ts)
+recupera/sincroniza o documento editável por sessão e fingerprint via Supabase,
+com migração do rascunho selecionado, retomada offline e escolha explícita em
+conflitos. Original compatível reanexa à análise YouTube sem trocar marcações.
+Arquivo físico continua local; compartilhamento permanece somente leitura.
+Backend ativado em 17/10; gravação real confirmada com 78 rallies, 201 contatos e
+17.508 posições. Publicação do cliente autorizada, condicionada aos gates de
+release. Ver [ativação e limites](../../operations/scouting-sync-release-2026-10-17.md) e
+[contrato e validação](../../ui/SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md#sincronização-editável-entre-aparelhos--16102026).
+
 Testes encontrados, sem execução nesta rodada:
 
 - [catálogo](../../../src/core/__tests__/activity-catalog.test.ts),

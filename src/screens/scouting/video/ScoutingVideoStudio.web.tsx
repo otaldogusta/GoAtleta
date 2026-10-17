@@ -40,6 +40,8 @@ import { StudioAction, StudioDialog } from './StudioUI.web';
 import { studioStyles } from './studio-styles';
 
 import { useVideoDraft } from './use-video-draft';
+import { matchingOriginalDocument } from './video-source-selection';
+import { VideoSyncConflict, VideoSyncFooter, videoDraftNeedsSyncRetry } from './VideoSyncFeedback.web';
 
 import { inspectVideo, downloadVideoBlob, recordVideoClip } from './video-media.web';
 
@@ -87,7 +89,7 @@ export default function ScoutingVideoStudio(props: StudioProps) {
 
 export function Studio(props: StudioViewProps) {
 
-    const { colors } = useAppTheme(), draft = useVideoDraft(props.org, props.userId, props.sessionId, props.shared?.document);
+    const { colors } = useAppTheme(), draft = useVideoDraft(props.org, props.userId, props.sessionId, props.shared?.document, props.session.status === 'em_andamento');
 
     const { doc } = draft, video = useRef<HTMLVideoElement>(null), fileInput = useRef<HTMLInputElement>(null), importInput = useRef<HTMLInputElement>(null), trackInput = useRef<HTMLInputElement>(null), stage = useRef<HTMLDivElement>(null);
 
@@ -97,8 +99,10 @@ export function Studio(props: StudioViewProps) {
     const [youtubeAttempt, setYoutubeAttempt] = useState(0), [playbackRate, setPlaybackRate] = useState(1);
     const [driveBusy, setDriveBusy] = useState(false);
     const [youtubeLink, setYoutubeLink] = useState(''), [previewId, setPreviewId] = useState(''), [youtubeDuration, setYoutubeDuration] = useState(0);
-    const [storedSource, setSource] = useState(props.shared?.source ?? ''), [file, setFile] = useState<File | null>(null), [time, setTime] = useState(0), [playing, setPlaying] = useState(false), [selectedFocus, setFocus] = useState<string | null>(null);
-    const source = !props.shared && youtubeId ? `youtube:${youtubeId}` : storedSource;
+    const [storedSource, setSource] = useState(props.shared?.source ?? ''), [selectedFile, setFile] = useState<File | null>(null), [localFingerprint, setLocalFingerprint] = useState(''), [time, setTime] = useState(0), [playing, setPlaying] = useState(false), [selectedFocus, setFocus] = useState<string | null>(null);
+    const localAttached = !!doc && doc.media.fingerprint === localFingerprint;
+    const source = props.shared ? storedSource : youtubeId ? `youtube:${youtubeId}` : localAttached ? storedSource : '';
+    const file = !youtubeId && localAttached ? selectedFile : null;
     const readyOriginal = youtubeId && original?.youtubeId === youtubeId && doc?.analysis?.source && matchesTrackingOriginal(original.kind === 'drive' && original.confirmedSource === doc.analysis.source.fingerprint ? { ...original.media, fingerprint: original.confirmedSource } : original.media, doc.analysis.source) ? original : null;
     const originalActive = !!readyOriginal && useOriginal;
     const iframePlayback = !!youtubeId && !originalActive;
@@ -164,7 +168,10 @@ export function Studio(props: StudioViewProps) {
     const teams = useMemo(() => ({ us: props.teamName || 'Nossa equipe', them: props.session.opponent || 'Adversário' }), [props.teamName, props.session.opponent]);
 
     const permissions = videoStudioPermissions(!!props.shared, readOnly, props.session.status === 'em_andamento');
-    const canEdit = permissions.annotate;
+    const canEdit = permissions.annotate && !draft.loading && !draft.conflict;
+    const syncBlocked = draft.loading || !!draft.conflict;
+    const canSave = !syncBlocked && !draft.saving && (draft.dirty || videoDraftNeedsSyncRetry(draft.syncStatus));
+    const saveDraft = () => draft.dirty ? draft.save() : draft.retrySync();
     const mediaResume = useRef<{ time: number; playing: boolean; rate: number } | null>(null);
     const sharedSource = props.shared?.source;
     useEffect(() => {
@@ -204,9 +211,9 @@ export function Studio(props: StudioViewProps) {
 
         clearTimeout(hideTimer.current); }; }, []);
 
-    useEffect(() => () => { if (source)
+    useEffect(() => () => { if (storedSource)
 
-        URL.revokeObjectURL(source); }, [source]);
+        URL.revokeObjectURL(storedSource); }, [storedSource]);
 
     const mediaWidth = originalActive ? readyOriginal?.media.width : doc?.media.width, mediaHeight = originalActive ? readyOriginal?.media.height : doc?.media.height;
     useEffect(() => { const node = stage.current; if (!node || !mediaWidth || !mediaHeight)
@@ -329,7 +336,7 @@ export function Studio(props: StudioViewProps) {
     };
     const loadOriginal = async (value: File) => {
         const linked = doc?.analysis?.source;
-        if (!permissions.importMedia || !youtubeId || !linked || loadingFile.current) return;
+        if (!permissions.importMedia || syncBlocked || !youtubeId || !linked || loadingFile.current) return;
         loadingFile.current = true; setJob('Conferindo original…'); setError('');
         try {
             const media = await inspectVideo(value);
@@ -350,7 +357,7 @@ export function Studio(props: StudioViewProps) {
 
     const loadFile = async (value: File) => {
 
-        if (!permissions.importMedia || loadingFile.current)
+        if (!permissions.importMedia || syncBlocked || loadingFile.current)
 
             return;
 
@@ -362,15 +369,20 @@ export function Studio(props: StudioViewProps) {
 
         try {
 
-            if (draft.dirty && !(await draft.save()))
-
-                return;
-
             const meta = await inspectVideo(value);
 
             if (!alive.current)
 
                 return;
+
+            const associated = matchingOriginalDocument(doc, meta);
+            if (associated) {
+                showOriginal(value, associated);
+                setModal(null); setCorrecting(false); setSuggestion(null);
+                return;
+            }
+
+            if (draft.dirty && !(await draft.save())) return;
 
             await draft.open(meta);
             await draft.save();
@@ -379,7 +391,7 @@ export function Studio(props: StudioViewProps) {
 
                 return;
 
-            setFile(value); setPlaying(false); setCorrecting(false); setTab('rallies'); setPanel(true);
+            setFile(value); setLocalFingerprint(meta.fingerprint); setPlaying(false); setCorrecting(false); setTab('rallies'); setPanel(true);
 
             setSource(URL.createObjectURL(value));
 
@@ -416,7 +428,7 @@ export function Studio(props: StudioViewProps) {
     };
 
     const openYouTube = async () => {
-        if (!permissions.importMedia || loadingFile.current || !previewId || !youtubeDuration || editor) return;
+        if (!permissions.importMedia || syncBlocked || loadingFile.current || !previewId || !youtubeDuration || editor) return;
         loadingFile.current = true; setJob('Abrindo vídeo…'); setError('');
         try {
             if (draft.dirty && !(await draft.save())) return;
@@ -655,7 +667,7 @@ export function Studio(props: StudioViewProps) {
 
     return <div className="sv" data-youtube={!!youtubeId} data-modal-open={!!modal} style={themes} role="dialog" aria-modal="true" aria-label="Estúdio de scouting"><style>{studioStyles}</style>
 
-    <header className="sv-head"><StudioAction label="Voltar ao scouting" icon="chevronBack" onPress={close}/><div className="sv-title"><h1>Estúdio de scouting</h1><small>{`${props.session.title}${doc ? (focus ? ' · rally selecionado' : ' · vídeo completo') : ''}`}</small></div>{permissions.manageSharing ? <StudioAction label="Compartilhar análise" icon="share" disabled={!doc || !!editor} onPress={() => setModal('share')}/> : null}{readOnly && !props.shared ? <StudioAction label="Voltar à edição" onPress={() => setReadOnly(false)}>Voltar à edição</StudioAction> : null}{canEdit ? <StudioAction label="Salvar rascunho" primary iconContent={<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8"/></svg>} disabled={!draft.dirty || draft.saving} onPress={() => { void draft.save(); }}/> : <small>Somente leitura</small>}{permissions.importMedia ? <StudioAction label="Adicionar vídeo" disabled={!!editor} onPress={() => setModal('import')} iconContent={<span style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', width: 23, height: 23 }}><GoAtletaIcon name="video" size={21} color="currentColor"/><span style={{ position: 'absolute', top: 0, left: -1, width: 12, height: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sv-bg)', borderRadius: 3 }}><GoAtletaIcon name="add" size={13} color="currentColor"/></span></span>}/> : null}</header>
+    <header className="sv-head"><StudioAction label="Voltar ao scouting" icon="chevronBack" onPress={close}/><div className="sv-title"><h1>Estúdio de scouting</h1><small>{`${props.session.title}${doc ? (focus ? ' · rally selecionado' : ' · vídeo completo') : ''}`}</small></div>{permissions.manageSharing ? <StudioAction label="Compartilhar análise" icon="share" disabled={!doc || !!editor || syncBlocked} onPress={() => setModal('share')}/> : null}{readOnly && !props.shared ? <StudioAction label="Voltar à edição" onPress={() => setReadOnly(false)}>Voltar à edição</StudioAction> : null}{permissions.saveDraft ? <StudioAction label="Salvar rascunho" primary iconContent={<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8"/></svg>} disabled={!canSave} onPress={() => { void saveDraft(); }}/> : <small>Somente leitura</small>}{permissions.importMedia ? <StudioAction label="Adicionar vídeo" disabled={!!editor || syncBlocked} onPress={() => setModal('import')} iconContent={<span style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', width: 23, height: 23 }}><GoAtletaIcon name="video" size={21} color="currentColor"/><span style={{ position: 'absolute', top: 0, left: -1, width: 12, height: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sv-bg)', borderRadius: 3 }}><GoAtletaIcon name="add" size={13} color="currentColor"/></span></span>}/> : null}</header>
 
     <input ref={originalInput} type="file" accept="video/*,.mp4,.webm,.mov" hidden onChange={e => { const value = e.target.files?.[0]; e.target.value = ''; if (value) void loadOriginal(value); }}/>
 
@@ -683,7 +695,7 @@ export function Studio(props: StudioViewProps) {
       <VideoFrame video={video} source={playbackSource} width={picture.width} height={picture.height}/><VideoBufferStatus video={video} source={playbackSource}/>
 
       <VideoTrackingOverlay video={video} source={playbackSource} timeOffset={nativeOffset} cuts={doc.analysis?.cuts} positions={tracking} corrections={doc.corrections} rallies={doc.rallies} width={picture.width} height={picture.height} color={colors.primaryBg} correctionColor={colors.warning} visible={trackVisible}/>
-{correcting && canEdit ? <VideoCorrectionLens video={video} width={picture.width} height={picture.height}/> : null}</div>{correcting ? <p style={{ position: 'absolute', bottom: 20, color: 'white', background: '#0009', padding: 8 }}>Clique na posição da bola</p> : null}</> : <div className="sv-empty"><h2>Seu jogo começa aqui</h2><p>Adicione um vídeo para analisar cada rally.</p><StudioAction primary label="Adicionar vídeo" icon="add" onPress={() => setModal('import')}>Adicionar vídeo</StudioAction></div>}</div>
+{correcting && canEdit ? <VideoCorrectionLens video={video} width={picture.width} height={picture.height}/> : null}</div>{correcting ? <p style={{ position: 'absolute', bottom: 20, color: 'white', background: '#0009', padding: 8 }}>Clique na posição da bola</p> : null}</> : <div className="sv-empty">{draft.loading ? <p role="status">Abrindo análise sincronizada…</p> : <><h2>Seu jogo começa aqui</h2><p>Adicione um vídeo para analisar cada rally.</p><StudioAction primary label="Adicionar vídeo" icon="add" disabled={syncBlocked} onPress={() => setModal('import')}>Adicionar vídeo</StudioAction></>}</div>}</div>
 
       {doc && source ? <div className={`sv-player${controls || youtubeId ? '' : ' hidden-controls'}`}><div className="sv-transport"><StudioAction label="Marcação anterior" icon="playBack" disabled={previousMark === null} onPress={() => stepToMark(-1)}/><StudioAction label="Voltar um quadro (aproximado: 1/30 s)" icon="frameBack" disabled={frameEnd <= frameStart || time <= frameStart + .001} onPress={() => stepFrame(-1)}/><StudioAction label={playing ? 'Pausar vídeo' : 'Reproduzir vídeo'} primary icon={playing ? 'pause' : 'play'} onPress={play}/><StudioAction label="Avançar um quadro (aproximado: 1/30 s)" icon="frameForward" disabled={frameEnd <= frameStart || time >= frameEnd - .001} onPress={() => stepFrame(1)}/><StudioAction label="Próxima marcação" icon="playForward" disabled={nextMark === null} onPress={() => stepToMark(1)}/><time>{videoTime(time, true)}</time><span className="sv-spacer"/>{!iframePlayback && (tracking.length > 0 || doc.corrections.length > 0) ? <StudioAction label={trackVisible ? "Ocultar rastreio no vídeo" : "Mostrar rastreio no vídeo"} icon="view" active={trackVisible} onPress={() => setTrackVisible(value => !value)}/> : null}{canEdit ? <StudioAction label="Marcar contato" disabled={!!editor} icon="add" onPress={() => { playback.current?.pause(); setModal('contact'); }}/> : null}{canEdit ? <StudioAction label="Marcar ponto" icon="flag" disabled={!!editor} onPress={markPoint}/> : null}<StudioSelect compact label="Velocidade de reprodução" value={String(playbackRate)} options={[.25, .5, 1, 1.5, 2].map(n => ({ value: String(n), label: `${n}×` }))} onChange={value => { setPlaybackRate(Number(value)); if (playback.current) playback.current.playbackRate = Number(value); }}/></div><VideoTimeline doc={doc} draftContact={editor} teams={teams} time={time} focus={focus} tracking={tracking} onFocus={chooseRally} onContact={openContact} onPlay={modal ? undefined : play} onPoint={(id, position) => { if (focus) setFocus(id); seek(position); revealPoint(); }} onSeek={position => seek(position, false)}/></div> : null}</section>
 
@@ -692,6 +704,7 @@ export function Studio(props: StudioViewProps) {
       <StudioPanel key={doc?.media.fingerprint ?? 'empty'} tab={tab}>
         {!doc ? <p className="sv-section-meta">Adicione um vídeo para visualizar {tab === 'rallies' ? 'os rallies' : tab === 'contacts' ? 'os contatos' : 'as informações'}.</p> : null}
 
+        {!props.shared && draft.conflict ? <VideoSyncConflict saving={draft.saving} writable={permissions.annotate} onResolve={draft.resolveConflict}/> : null}
         {error || draft.error ? <div className="sv-alert" role="alert">{error || draft.error}<StudioAction label="Fechar aviso" icon="close" onPress={() => { setError(''); draft.setError(''); }}/></div> : null}
 
         {doc && tab === 'rallies' ? <VideoGallery thumbnailScope={!props.shared ? [props.userId, props.org, props.sessionId].map(encodeURIComponent).join(':') : undefined} playing={playing} doc={doc} source={source} thumbnailSource={!modal ? readyOriginal?.url : undefined} offsetSeconds={readyOriginal ? doc.analysis?.source?.offsetSeconds ?? 0 : 0} focus={focus} teams={teams} readOnly={!permissions.download} localMedia={!youtubeId} onFocus={chooseRally} onPlay={modal ? undefined : play} onDownload={download} onExport={exportAnalysis} onImport={openAnalysisImport}/> : null}
@@ -734,11 +747,11 @@ export function Studio(props: StudioViewProps) {
 
         {tab === 'history' ? <><div className="sv-row"><h2>Histórico desta edição</h2><StudioAction label="Desfazer" icon="restore" disabled={!canEdit || !draft.history?.past.length} onPress={() => undo()}/><StudioAction label="Refazer" icon="redo" disabled={!canEdit || !draft.history?.future.length} onPress={() => undo(true)}/></div>{draft.history?.past.slice().reverse().map((h, i) => <div key={i} className="sv-history"><b>{h.label}</b><small>{new Date(h.at).toLocaleTimeString('pt-BR')}</small></div>)}</> : null}
 
-      </StudioPanel><footer className="sv-footer"><small>{props.shared ? 'Somente leitura' : readOnly ? 'Prévia de leitura' : draft.dirty ? 'Alterações não salvas' : 'Rascunho neste aparelho'}</small></footer></aside>
+      </StudioPanel><footer className="sv-footer">{props.shared ? <small>Somente leitura</small> : readOnly ? <small>Prévia de leitura</small> : <VideoSyncFooter status={draft.syncStatus} dirty={draft.dirty} saving={draft.saving}/>}</footer></aside>
 
     </main>
 
-    {modal === 'import' && permissions.importMedia ? <StudioDialog className="sv-import sv-source-dialog" title="Adicionar vídeo" onClose={() => { if (!loadingFile.current && !processing.current) { setPreviewId(''); setModal(null); } }}>
+    {modal === 'import' && permissions.importMedia && !syncBlocked ? <StudioDialog className="sv-import sv-source-dialog" title="Adicionar vídeo" onClose={() => { if (!loadingFile.current && !processing.current) { setPreviewId(''); setModal(null); } }}>
       <VideoLinkField value={youtubeLink} disabled={!!job || driveBusy} valid={!!youtubeDuration} error={!!error} onChange={value => { setYoutubeLink(value); setPreviewId(''); setYoutubeDuration(0); setError(''); }} onVerify={() => { try { if (linkKind !== 'youtube') throw new Error('Use um link do YouTube ou Google Drive.'); const id = youtubeVideoId(youtubeLink); playback.current?.pause(); setYoutubeDuration(0); setYoutubeAttempt(n => n + 1); setPreviewId(id); setError(''); } catch (failure) { setError((failure as Error).message); } }}/>
       <ConnectedVideoSources youtubeId={youtubeId} originalName={readyOriginal?.media.name} onRemove={kind => {
         if (!doc) return;
@@ -778,7 +791,7 @@ export function Studio(props: StudioViewProps) {
 
     {modal === 'contact' ? <StudioDialog title="Qual foi o contato?" onClose={() => setModal(null)}><small>{videoTime(time, true)}</small><div className="sv-skills">{videoSkills.map(skill => <StudioAction key={skill} label={skill} onPress={() => addContact(skill)}>{skill}</StudioAction>)}</div></StudioDialog> : null}
 
-    {modal === 'exit' ? <StudioDialog title="Salvar antes de sair?" onClose={() => setModal(null)}><p>{editorDirty ? 'Há um contato em edição. Volte e registre o contato antes de salvar.' : 'As alterações ainda não foram salvas neste aparelho.'}</p><div className="sv-wrap"><StudioAction label="Continuar editando" onPress={() => setModal(null)}>Continuar editando</StudioAction><StudioAction label="Sair sem salvar" onPress={props.onClose}>Sair sem salvar</StudioAction><StudioAction label="Salvar e sair" primary disabled={editorDirty || draft.saving} onPress={() => { void draft.save().then(ok => { if (ok)
+    {modal === 'exit' ? <StudioDialog title="Salvar antes de sair?" onClose={() => setModal(null)}><p>{editorDirty ? 'Há um contato em edição. Volte e registre o contato antes de salvar.' : 'Salve as alterações antes de sair.'}</p><div className="sv-wrap"><StudioAction label="Continuar editando" onPress={() => setModal(null)}>Continuar editando</StudioAction><StudioAction label="Sair sem salvar" onPress={props.onClose}>Sair sem salvar</StudioAction><StudioAction label="Salvar e sair" primary disabled={editorDirty || draft.saving} onPress={() => { void draft.save().then(ok => { if (ok)
 
         props.onClose(); }); }}>Salvar e sair</StudioAction></div>{draft.error ? <p role="alert">{draft.error}</p> : null}</StudioDialog> : null}
 

@@ -811,3 +811,66 @@ Validação: 29 testes de ajuste fino/adaptadores passaram, mais typecheck, lint
 - Agulha independente com captura do ponteiro e buscas limitadas a cada 120 ms, mais busca final. Miniaturas do trim usam cache local escopado; aviso abre importação. Offset do original subtraído como na galeria.
 
 - Importador lista YouTube conectado e original ativo em linhas discretas; remoção exige confirmação. Remover YouTube limpa vínculo de reprodução e identidade do original associado, preservando análise e marcações; alteração fica no rascunho.
+
+## Sincronização editável entre aparelhos — 16/10/2026
+
+Falha confirmada: o editor recuperava apenas AsyncStorage por conta/organização/
+sessão/fingerprint. Abrir a mesma sessão em outro navegador não consultava as
+marcações do computador. A publicação de um link leitor era uma projeção
+separada e não sincronizava o documento editável.
+
+Correção local preparada em `use-video-draft.ts` e
+`src/api/scouting-video-documents.ts`: leitura remota ao abrir a sessão/vídeo,
+salvamento automático após 800 ms, cache durável preservado e nova tentativa ao
+retomar conexão/foco. O rascunho selecionado legado é enviado depois de uma leitura
+remota bem-sucedida; falha de leitura nunca significa documento remoto vazio.
+Outros fingerprints permanecem independentes e são recuperados ao selecionar
+a mídia correspondente. Arquivo físico, blob URLs, Drive temporário, miniaturas
+e histórico de desfazer continuam locais; rallies, contatos, pontos anotados,
+correções, trajetória e identidade/offset do original acompanham o documento.
+
+`20261017004249_scouting_video_documents.sql` cria tabelas privadas e RPCs
+`get_scouting_video_document` / `save_scouting_video_document`, autorizados por
+`scouting_can_access`. O documento pertence à organização/sessão/fingerprint,
+acessível à equipe autorizada da turma; cache inclui também o usuário. Sessão
+concluída permite leitura e confirmação de operação previamente aceita, sem
+novas gravações. Revisão esperada e intenção idempotente impedem sobrescrita
+concorrente e duplicação após perda de resposta. Payload limitado a 15 MB,
+normalizado sem URLs/campos estranhos; atletas vinculados à turma atual/histórica.
+
+Divergência abre escolha explícita; ambas as versões são copiadas para backup
+local separado antes da substituição. A interface distingue confirmação remota,
+pendência, offline, indisponibilidade e conflito. Selecionar o original exato de
+uma análise YouTube reanexa a reprodução sem abrir outro rascunho nem perder
+marcações/histórico/offset. Arquivo diferente continua independente; nenhum
+reconhecimento aproximado por nome ou duração foi introduzido.
+
+Validação local: 130 testes focados em nove suítes (API, reconciliação, dois
+aparelhos com caches independentes, persistência, reanexo e UI), typecheck,
+org-scope, lint, arquitetura e perf focados aprovados. SQL isolado cobre
+permissões negativas, payload, histórico de matrícula, revisão/idempotência e
+conclusão. A conexão PGlite serializa as requisições; isso não comprova disputa
+real no PostgreSQL hospedado. Ativação remota, deploy e sincronização real entre
+computador e celular permanecem pendentes de autorização e validação próprias.
+
+Smoke autenticado em `localhost:8081`: a análise existente foi recuperada com
+78 rallies, 201 contatos e 17.508 posições; exportações antes/depois idênticas.
+Backup privado salvo antes de espelhar os sete módulos no runtime local, sem
+alterar os outros arquivos daquele checkout. Estado de servidor ainda não
+ativado conferido em desktop e 477×704, sem anunciar sincronização concluída.
+Não houve gravação remota nem teste em aparelho físico nesta rodada. Cache
+antigo do original, quando exatamente associado ao YouTube remoto, permanece
+intacto enquanto o editor seleciona a análise vinculada; outra mídia não é adotada.
+
+### Ativação autorizada — 17/10/2026
+
+Migration `scouting_video_documents` aplicada no projeto Supabase do app, versão
+remota `20261017030716`; arquivo local conserva `20261017004249`. RLS ativo e
+ausência de acesso direto anon/authenticated às duas tabelas confirmados. Os
+dois RPCs são exclusivos de authenticated e verificam a autorização da sessão.
+O app local confirmou **Sincronizado** e o banco registrou a revisão 1 com os
+78 rallies, 201 contatos e 17.508 posições existentes, sem upload do vídeo.
+
+Publicação do cliente na main/deploy autorizada nesta continuação, condicionada
+ao executor de release. Detalhes, advisories e limites em
+[ativação da sincronização](../operations/scouting-sync-release-2026-10-17.md).
