@@ -23,6 +23,13 @@ em `docs/archive/security/`.
 - Tratar `npm audit` como diagnóstico, priorizando correções compatíveis.
 - Evitar `npm audit fix --force` sem revisão de impacto.
 
+## Diagnóstico atual documentado
+
+[Auditoria jurídica, LGPD, privacidade e acessibilidade de 21/10/2026](../audits/2026-10-21-juridico-lgpd-diagnostico.md):
+fase 1 sobre `a17c2401`, com falhas de anonimização/exportação e riscos de IA,
+menores, licenças e acessibilidade. Evidência estática e reprodução sintética;
+sem correções do produto, execução destrutiva ou validação de produção.
+
 ## Histórico arquivado
 
 | Documento antigo | Cópia completa |

@@ -43,6 +43,7 @@ Este é o índice canônico dos documentos do projeto. Use esta página como pon
 ### 🛡️ Operação, Segurança e Deploy
 - [Produção, Deploy e Rollback](operations/production.md) — Manual operacional de entrega.
 - [Visão Geral de Segurança](security/overview.md) — Diretrizes de proteção de dados e permissões organizacionais.
+- [Diagnóstico jurídico, LGPD e acessibilidade — 21/10/2026](audits/2026-10-21-juridico-lgpd-diagnostico.md) — Inventário inicial, riscos, fontes oficiais e evidências; correções e validação de produção pendentes.
 - [Checklist Curto de Release](../RELEASE_CHECKLIST.md) — Checklist final pré-deploy.
 
 ---

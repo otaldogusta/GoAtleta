@@ -339,7 +339,9 @@ code|Onboarding|Entrada específica.|app/onboarding.tsx
 code|Acesso pendente|Intenção e entrada institucional.|app/pending.tsx
 code|Convite familiar por token|Rota específica; aviso de convite indisponível direto na tela, sem card ou cabeçalho redundante. Ajuste visual local, sem mudança na validação do vínculo.|app/family-invite/[token].tsx
 code|Convite de equipe|Prova do link preservada em memória acima do bootstrap para sobreviver à remontagem da tela após limpar a URL. Descarte ao sair ou concluir; sem aceite automático. Estado indisponível simplificado: título, orientação curta e seta para o início, sem ações de aceite ou troca de conta após recusa definitiva; sessão preservada. Build de release aprovado; ativação deste ajuste e smoke autenticado real pendentes.|app/staff-invite.tsx
-code|Páginas legais|Termos, privacidade e exclusão.|app/data-deletion.tsx
+code|Páginas legais|Termos, privacidade e exclusão existentes. Diagnóstico de 21/10/2026 identifica lacunas de conteúdo e acesso no ingresso; existência das páginas não comprova conformidade.|app/data-deletion.tsx
+recorded|Diagnóstico jurídico e LGPD|Fase 1 em a17c2401: inventário inicial, 16 riscos, fontes oficiais, guardrails estáticos e reprodução sintética de exportação incompleta. Sem correções do produto ou validação de produção.|docs/audits/2026-10-21-juridico-lgpd-diagnostico.md
+pending|Correções e verificação jurídica|Priorizar anonimização, exportação, minimização de IA e proteção de menores; comprovar licenças e corrigir acessibilidade. Políticas, contratos, testes integrados e produção continuam pendentes.|docs/audits/2026-10-21-juridico-lgpd-diagnostico.md
 verify|Links expirados e autorização|Conferir recuperação, confirmação e limites de dados. Sem autenticação real agora.
 """)
 add('Confirmação de contatos', '/student/profile', 'docs/operations/security-contact-verification.md', """
