@@ -16,6 +16,7 @@ O backend resolve autorização, memória, governança, periodização e fontes.
 | Conversa compartilhada | [UnifiedAssistantProvider.tsx](../../../src/assistant/UnifiedAssistantProvider.tsx), [useScreenConversation.ts](../../../src/assistant/hooks/useScreenConversation.ts), [conversation-history.ts](../../../src/assistant/conversation-history.ts) |
 | Transporte/orquestração | [api/ai.ts](../../../src/api/ai.ts), [assistant-stream.ts](../../../src/api/assistant-stream.ts), [assistant/index.ts](../../../supabase/functions/assistant/index.ts) |
 | Modelos | [model-router.ts](../../../supabase/functions/assistant/model-router.ts), [model-policy.ts](../../../supabase/functions/assistant/model-policy.ts), [model-choice.ts](../../../src/assistant/model-choice.ts) |
+| Insight proativo | [proactive-insight.ts](../../../supabase/functions/assistant/proactive-insight.ts): contexto coletivo permitido e contagem, separado do texto livre dos demais modos |
 | Contexto/memória | [ai-context.ts](../../../supabase/functions/_shared/ai-context.ts), [ai-memory.ts](../../../supabase/functions/_shared/ai-memory.ts), [ai-governance.ts](../../../supabase/functions/_shared/ai-governance.ts) |
 | Planejamento/aula | [planning-context-handler.ts](../../../supabase/functions/assistant/planning-context-handler.ts), [lesson-history.ts](../../../supabase/functions/assistant/lesson-history.ts), [apply-lesson-draft.ts](../../../src/screens/session/application/apply-lesson-draft.ts) |
 | Voz | [LessonVoiceInput.tsx](../../../src/screens/session/components/LessonVoiceInput.tsx), [lesson-audio.ts](../../../src/api/lesson-audio.ts), [assistant-transcribe](../../../supabase/functions/assistant-transcribe/index.ts) |
@@ -33,6 +34,7 @@ O backend resolve autorização, memória, governança, periodização e fontes.
 - Planejamento contextual usa projeção privada e até oito sessões concluídas em 30 dias. Falha na preparação de privacidade impede envio; ausência, indisponibilidade, previsão e execução são estados distintos.
 - Decisões/feedback usam `ai_decision_traces`/outcomes; fontes seguem [documentos-academico](documentos-academico.md), sem converter inferência em fato.
 - Transcrição limita áudio a 8 MB e quatro tentativas/minuto por instância, após autorização. Endpoint não persiste áudio/transcrição; texto enviado depois segue a memória normal da conversa.
+- Proativo envia somente categorias canônicas e números da turma, sem nomes, contatos, saúde individual, IDs, snapshots, memória ou histórico livre. Fontes indisponíveis impedem envio; `action` é `null`. JWT/organização/turma, modelo e `store:false` preservados. [Correção e testes locais de 21/10](../../audits/2026-10-21-lgpd-correcoes-prioritarias.md); Edge ainda não publicada.
 
 ## Decisões e histórico
 

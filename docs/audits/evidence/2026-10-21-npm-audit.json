@@ -1,0 +1,178 @@
+{
+  "command": "npm audit --package-lock-only --omit=dev --ignore-scripts --json",
+  "capturedAt": "2026-10-21T22:05:26.9912377-03:00",
+  "exitCode": 1,
+  "commit": "a17c2401ba222c8ae99bbef674dea2f47fcacff3",
+  "lockSha256": "f88f505f75a448e8ad60f5d1d5e3327b5d91e65c97c894a4ea3e6674fe5d3048",
+  "node": "v24.13.0",
+  "npm": "11.6.2",
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 2,
+      "high": 53,
+      "critical": 1,
+      "total": 56
+    },
+    "dependencies": {
+      "prod": 927,
+      "dev": 309,
+      "optional": 45,
+      "peer": 33,
+      "peerOptional": 0,
+      "total": 1284
+    }
+  },
+  "directAdvisories": [
+    {
+      "package": "brace-expansion",
+      "severity": "moderate",
+      "advisory": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+      "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+      "affectedRange": "<1.1.21",
+      "lockedVersions": [
+        "1.1.18",
+        "5.0.9"
+      ]
+    },
+    {
+      "package": "brace-expansion",
+      "severity": "moderate",
+      "advisory": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+      "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+      "affectedRange": ">=4.0.0 <5.0.12",
+      "lockedVersions": [
+        "1.1.18",
+        "5.0.9"
+      ]
+    },
+    {
+      "package": "brace-expansion",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "affectedRange": "<1.1.20",
+      "lockedVersions": [
+        "1.1.18",
+        "5.0.9"
+      ]
+    },
+    {
+      "package": "brace-expansion",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "affectedRange": ">=4.0.0 <5.0.11",
+      "lockedVersions": [
+        "1.1.18",
+        "5.0.9"
+      ]
+    },
+    {
+      "package": "brace-expansion",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "affectedRange": "<1.1.19",
+      "lockedVersions": [
+        "1.1.18",
+        "5.0.9"
+      ]
+    },
+    {
+      "package": "brace-expansion",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "affectedRange": ">=4.0.0 <5.0.10",
+      "lockedVersions": [
+        "1.1.18",
+        "5.0.9"
+      ]
+    },
+    {
+      "package": "braces",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+      "affectedRange": "<=3.0.3",
+      "lockedVersions": [
+        "3.0.3"
+      ]
+    },
+    {
+      "package": "compression",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-vc2v-76pw-4v95",
+      "title": "compression vulnerable to Denial of Service via memory leak on premature response close",
+      "affectedRange": "<1.8.2",
+      "lockedVersions": [
+        "1.8.1"
+      ]
+    },
+    {
+      "package": "js-yaml",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+      "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+      "affectedRange": ">=3.0.0 <3.15.2",
+      "lockedVersions": [
+        "3.15.1",
+        "4.3.1"
+      ]
+    },
+    {
+      "package": "js-yaml",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+      "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+      "affectedRange": ">=4.0.0 <4.3.2",
+      "lockedVersions": [
+        "3.15.1",
+        "4.3.1"
+      ]
+    },
+    {
+      "package": "node-forge",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+      "title": "node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements",
+      "affectedRange": "<=1.4.0",
+      "lockedVersions": [
+        "1.4.0"
+      ]
+    },
+    {
+      "package": "shell-quote",
+      "severity": "critical",
+      "advisory": "https://github.com/advisories/GHSA-pqg4-j6r4-53mv",
+      "title": "shell-quote: `quote()` command injection via a line terminator in a token after a `{ comment }` token",
+      "affectedRange": ">=1.8.4 <1.11.0",
+      "lockedVersions": [
+        "1.9.0"
+      ]
+    },
+    {
+      "package": "source-map-js",
+      "severity": "high",
+      "advisory": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+      "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+      "affectedRange": ">=1.0.0 <1.2.2",
+      "lockedVersions": [
+        "1.2.1"
+      ]
+    },
+    {
+      "package": "sprintf-js",
+      "severity": "moderate",
+      "advisory": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c",
+      "title": "sprintf-js vulnerable to denial of service through unbounded precision specifiers",
+      "affectedRange": "<=1.1.3",
+      "lockedVersions": [
+        "1.0.3"
+      ]
+    }
+  ],
+  "limits": "Registry advisory graph only. Findings include build/test tooling reachable through production dependency graph. No exploitability or deployed version confirmed; no fixes applied."
+}

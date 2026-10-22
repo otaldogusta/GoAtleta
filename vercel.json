@@ -4,6 +4,11 @@
   "devCommand": "npm run web",
   "installCommand": "npm ci",
   "framework": null,
+  "git": {
+    "deploymentEnabled": {
+      "codex/auditoria-juridica-lgpd-2026-10": false
+    }
+  },
   "redirects": [
     {
       "source": "/(.*)",
