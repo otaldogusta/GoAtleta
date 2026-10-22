@@ -37,6 +37,9 @@ atualizar dependências apenas para organizar documentação.
   existência, evidência datada, pendência, conferência e proposta.
 - Commit, push, PR, migrations e deploy são atos separados que exigem escopo
   autorizado. Scripts disponíveis não constituem autorização para executá-los.
+- Na publicação da auditoria LGPD, [vercel.json](../../../vercel.json) bloqueia
+  deploy automático exclusivamente da branch `codex/auditoria-juridica-lgpd-2026-10`,
+  conforme o pedido de commit/push sem deploy. [Escopo e validação](../../audits/2026-10-21-lgpd-correcoes-prioritarias.md).
 
 ## Fontes e o que é histórico
 

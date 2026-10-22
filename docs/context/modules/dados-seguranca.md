@@ -69,7 +69,11 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
 Diagnóstico adicional de [21/10/2026](../../audits/2026-10-21-juridico-lgpd-diagnostico.md),
 base `a17c2401`: anonimização não cobre campos/cópias novos e exportação pode
 concluir com seções vazias após erro. Reprodução sintética da exportação e
-guardrails estáticos executados; correções, RLS real e produção pendentes.
+guardrails estáticos executados naquela etapa. A [continuação local](../../audits/2026-10-21-lgpd-correcoes-prioritarias.md)
+amplia saneamento por nova migration, preserva revisão/replay do vídeo e corrige
+exportação sob JWT/RLS, paginada e com escopo explícito. SQL isolado e testes do
+handler passaram; aplicação remota, Deno e Auth/PostgREST/Storage reais pendentes.
+IDs institucionais permanecem; saneamento não certifica anonimização irreversível.
 Os controles descritos acima não representam atendimento LGPD integral.
 
 Testes localizados, **não executados nesta organização documental**:

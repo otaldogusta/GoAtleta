@@ -4,6 +4,10 @@ Data de corte: **21/10/2026**, America/Sao_Paulo. Fase 1: inventário e priorida
 antes de correções. Base inspecionada: `a17c2401`, branch
 `codex/auditoria-juridica-lgpd-2026-10`. Árvore inicialmente limpa.
 
+Registro histórico da fase 1. A [continuação local de JUR-01/02/03](2026-10-21-lgpd-correcoes-prioritarias.md)
+documenta as correções e testes posteriores. As evidências e pendências abaixo
+descrevem a base auditada; não representam o estado corrigido ou ativação remota.
+
 ## Resultado e limites
 
 Há controles reais de autenticação, organização, CPF, fotos privadas e exclusão.
@@ -11,7 +15,7 @@ Existem também falhas materiais: anonimização incompleta, exportação com su
 indevido e envio automático de dados identificáveis à IA sem minimização adequada
 no caminho examinado. Políticas publicadas não demonstram funcionamento dos direitos.
 
-Esta entrega altera somente documentação, checklist e uma reprodução sintética.
+A entrega original da fase 1 alterou somente documentação, checklist e uma reprodução sintética.
 Nenhuma correção do produto, migration aplicada, consulta a dados de usuários,
 operação destrutiva, alteração de ambiente, deploy ou validação de produção ocorreu.
 O inventário é inicial: não constitui cobertura de cada tela, policy, dependência,
@@ -102,7 +106,8 @@ de implementação, não comprovação de necessidade jurídica, agendamento ou 
 
 ## Registro de riscos e prioridades
 
-Todos os itens abaixo continuam abertos. “Correção proposta” não significa aplicada.
+Estado original do diagnóstico: itens abertos. “Correção proposta” não significa aplicada.
+O estado local posterior de JUR-01/02/03 está na continuação vinculada acima.
 
 ### JUR-01 — alta — conclusão de anonimização mantendo dados pessoais
 
@@ -118,7 +123,7 @@ Todos os itens abaixo continuam abertos. “Correção proposta” não signific
 - **Impacto:** titular recebe arquivo aparentemente completo; organização perde evidência confiável de atendimento.
 - **Fundamento:** [LGPD, arts. 6º, 18 e 19](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm).
 - **Proposta:** corrigir joins/campos, inventariar conjuntos e titularidade, tratar falhas explicitamente e registrar resultado somente após exportação íntegra, preservando RLS e dados de terceiros.
-- **Verificação:** **reproduzido localmente com mocks sintéticos** no [reprodutor](evidence/2026-10-21-reproduce-export.mjs): dois erros de consulta resultam em HTTP 200, seções vazias e recibo concluído. Não executa PostgREST/RLS nem prova schema remoto. A assinatura JWT não é validada pelo helper, mas o token é enviado ao PostgREST; não foi demonstrado bypass de autorização.
+- **Verificação:** **reproduzido localmente com mocks sintéticos** no [reprodutor histórico](https://github.com/otaldogusta/GoAtleta/blob/af5913c43b30dc0d9e46f70c39564043c7c1c193/docs/audits/evidence/2026-10-21-reproduce-export.mjs): dois erros de consulta resultam em HTTP 200, seções vazias e recibo concluído. Não executa PostgREST/RLS nem prova schema remoto. Na base auditada, a assinatura JWT não é validada pelo helper, mas o token é enviado ao PostgREST; não foi demonstrado bypass de autorização.
 
 ### JUR-03 — alta — dados de contato e indicador médico enviados automaticamente à IA
 
