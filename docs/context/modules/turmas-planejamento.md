@@ -47,6 +47,14 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 ## Decisões atuais e histórico
 
+- Criação exige `classes_create`, negada por padrão ao professor e liberada
+  pela coordenação/dono na instituição. Falha de gravação preserva o formulário;
+  falha do refresh posterior informa sucesso da gravação sem repetir INSERT.
+  Professor autorizado recebe vínculo próprio com histórico na turma nova,
+  sem gestão de unidades/equipe. [Implementação e limites](../../operations/class-creation-permissions.md):
+  migration aplicada e Edge de convites v42 ativa em 22/10/2026;
+  formulário/convite conferidos no localhost autenticado, QA de professor hospedado pendente.
+
 - O menu flutuante compacto acompanha o foco da tela; seu portal e os listeners
   de arraste são desmontados ao sair para evitar botões de turmas retidas na pilha.
 

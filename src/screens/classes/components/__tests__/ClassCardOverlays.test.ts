@@ -203,6 +203,14 @@ describe("ClassCard mobile overlays", () => {
     act(() => renderer!.unmount());
   });
 
+  it("omits duplication when no authorized action is provided", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = renderCard({ actionMenuOpen: true, onDuplicate: undefined }); });
+    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Duplicar Amigos do Vôlei" })).toHaveLength(0);
+    expect(renderer!.root.findByProps({ accessibilityLabel: "Ver turma Amigos do Vôlei" })).toBeTruthy();
+    act(() => renderer!.unmount());
+  });
+
   it("opens and closes the support-team popover through the canonical Android overlay", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 

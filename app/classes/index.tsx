@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Animated,
@@ -96,6 +96,8 @@ import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useOrganization } from "../../src/providers/organization-context";
+import { canCreateClasses } from "../../src/auth/class-creation-access";
+import { createClassAndRefresh } from "../../src/screens/classes/application/create-class";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -191,6 +193,22 @@ export default function ClassesScreen() {
     memberPermissions,
     permissionsLoading,
   } = useOrganization();
+  const canCreateClass = canCreateClasses({
+    organizationId: activeOrganization?.id,
+    roleLevel: activeOrganization?.role_level,
+    memberPermissions,
+    permissionsLoading,
+  });
+  const createPermissionMessage = !permissionsLoading && !canCreateClass
+    ? "A criação de turmas precisa ser liberada pela coordenação."
+    : "";
+  const creationInFlightRef = useRef(false);
+  const creationContextRef = useRef("");
+  const createDraftContextRef = useRef<string | null>(null);
+  const handledCreateRequestRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    creationContextRef.current = `${session?.user?.id ?? ""}:${activeOrganization?.id ?? ""}`;
+  }, [session?.user?.id, activeOrganization?.id]);
   const canExportAttendance = canAccessAttendanceExport({
     roleLevel: activeOrganization?.role_level,
     reportsAllowed: memberPermissions.reports,
@@ -1092,6 +1110,15 @@ void Promise.all(
   };
 
   const saveNewClass = async () => {
+    if (creationInFlightRef.current) return;
+    if (!canCreateClass || !activeOrganization?.id) {
+      setFormError("A criação de turmas precisa ser liberada pela coordenação.");
+      return;
+    }
+    if (createDraftContextRef.current !== creationContextRef.current) {
+      setFormError("A instituição ou sessão mudou. Reabra o cadastro da turma.");
+      return;
+    }
     if (!newName.trim()) return;
     if (!newModality) {
       setFormError("Selecione a modalidade.");
@@ -1132,9 +1159,14 @@ void Promise.all(
       return;
     }
     setFormError("");
+    const creationContext = creationContextRef.current;
+    creationInFlightRef.current = true;
     setSaving(true);
     try {
-      const createdClassId = await saveClass({
+      const { classId: createdClassId, refreshFailed } = await createClassAndRefresh({
+        save: () => saveClass({
+          organizationId: activeOrganization.id,
+          createUnitIfMissing: activeOrganization.role_level >= 50,
           name: newName.trim(),
           unit: newUnit.trim() || "Sem unidade",
           trainingSpace: newTrainingSpace.trim(),
@@ -1146,14 +1178,18 @@ void Promise.all(
           goal: "",
           startTime: timeValue,
           durationMinutes: durationValue,
+        }),
+        refresh: () => loadClasses(),
       });
+      if (creationContextRef.current !== creationContext) return;
       Vibration.vibrate(60);
       resetCreateForm();
-      await loadClasses();
       setMainTab("lista");
       confirmDialog({
         title: "Turma criada",
-        message: "Cadastro concluído. Configure objetivo, nível e ciclo na periodização da turma.",
+        message: refreshFailed
+          ? "A turma foi salva, mas a lista não pôde ser atualizada. Atualize a lista para vê-la."
+          : "Cadastro concluído. Configure objetivo, nível e ciclo na periodização da turma.",
         confirmLabel: "Configurar periodização",
         cancelLabel: "Ficar na lista",
         tone: "default",
@@ -1167,7 +1203,12 @@ void Promise.all(
           });
         },
       });
+    } catch (error) {
+      if (creationContextRef.current === creationContext) {
+        setFormError(getFriendlyErrorMessage(error, "Não foi possível salvar a turma. Tente novamente."));
+      }
     } finally {
+      creationInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -1211,6 +1252,7 @@ void Promise.all(
   })();
 
   const resetCreateForm = useCallback(() => {
+    createDraftContextRef.current = null;
     setNewName("");
     setNewUnit("");
     setNewTrainingSpace("");
@@ -1238,6 +1280,7 @@ void Promise.all(
   }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, setShowAllAges, setShowAllGoals]);
 
   const requestSwitchMainTab = (nextTab: "lista" | "criar") => {
+      if (creationInFlightRef.current || (nextTab === "criar" && !canCreateClass)) return;
       if (nextTab === mainTab) return;
       if (mainTab === "criar" && isCreateDirty) {
         setPendingMainTab(nextTab);
@@ -1246,6 +1289,7 @@ void Promise.all(
       }
       if (nextTab === "criar") {
         resetCreateForm();
+        createDraftContextRef.current = creationContextRef.current;
       }
       if (mainTab === "criar" && !isCreateDirty) {
         resetCreateForm();
@@ -1346,7 +1390,15 @@ void Promise.all(
   }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, activeOrganization?.id, ageBandOptions, classHeadsById, classStaffById, computeEndTimeFromDuration, goalOptions, parseDurationFromTimeRange]);
 
   useEffect(() => {
-    if (tabParam !== "criar") return;
+    if (tabParam !== "criar") {
+      handledCreateRequestRef.current = null;
+      return;
+    }
+    if (!canCreateClass) return;
+    const requestKey = JSON.stringify([tabParam, prefillNameParam, prefillUnitParam, prefillModalityParam]);
+    if (handledCreateRequestRef.current === requestKey) return;
+    handledCreateRequestRef.current = requestKey;
+    createDraftContextRef.current = creationContextRef.current;
     Promise.resolve().then(() => {
       setMainTab("criar");
     });
@@ -1362,7 +1414,7 @@ void Promise.all(
         setNewModality(resolved);
       });
     }
-  }, [prefillModalityParam, prefillNameParam, prefillUnitParam, tabParam]);
+  }, [canCreateClass, prefillModalityParam, prefillNameParam, prefillUnitParam, tabParam]);
 
   useEffect(() => {
     if (!editParam || editParam === handledEditId) return;
@@ -1953,7 +2005,7 @@ void Promise.all(
 
   const handleDuplicateClassFromCard = useCallback(
     async (item: ClassGroup) => {
-      if (item.id.startsWith("preview_") || duplicationInFlightRef.current) return;
+      if ((activeOrganization?.role_level ?? 0) < 50 || item.id.startsWith("preview_") || duplicationInFlightRef.current) return;
       duplicationInFlightRef.current = true;
       setDuplicatingClassName(item.name);
 
@@ -1989,7 +2041,7 @@ void Promise.all(
         });
       }
     },
-    [confirmDialog, loadClasses, router]
+    [activeOrganization?.role_level, confirmDialog, loadClasses, router]
   );
 
   const handleDeleteClassFromCard = useCallback(
@@ -2038,7 +2090,7 @@ void Promise.all(
                 onImportStudents={openStudentsImportModal}
                 onExportAttendance={canExportAttendance ? openAttendanceExportModal : undefined}
               />
-              <Pressable
+              {canCreateClass ? <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Criar turma"
                 onPress={() => requestSwitchMainTab("criar")}
@@ -2064,7 +2116,7 @@ void Promise.all(
                     Criar turma
                   </Text>
                 ) : null}
-              </Pressable>
+              </Pressable> : null}
             </View>
           }
           contentStyle={{ paddingBottom: 8 }}
@@ -2088,7 +2140,7 @@ void Promise.all(
               colors={colors}
               onOpenClass={handleOpenClass}
               onEditClass={handleEditClassFromCard}
-              onDuplicateClass={handleDuplicateClassFromCard}
+              onDuplicateClass={(activeOrganization?.role_level ?? 0) >= 50 ? handleDuplicateClassFromCard : undefined}
               onDeleteClass={handleDeleteClassFromCard}
               classCardViewModelsById={classCardViewModelsById}
               refreshing={refreshing}
@@ -2465,16 +2517,16 @@ void Promise.all(
               })}
             </View>
           </View>
-          { formError ? (
+          { formError || createPermissionMessage ? (
             <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-              {formError}
+              {formError || createPermissionMessage}
             </Text>
           ) : null}
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
           <Button
             label={saving ? "Salvando..." : "Criar turma"}
             onPress={saveNewClass}
-            disabled={saving || !newName.trim()}
+            disabled={saving || !canCreateClass || !newName.trim()}
           />
         </View>
         </ModalDialogFrame>

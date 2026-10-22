@@ -10,7 +10,7 @@ import type { ClassGroup } from "../core/models";
 import { canonicalizeUnitLabel } from "../core/unit-label";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
 import { normalizeUnitKey } from "../core/unit-key";
-import { getSessionUserId } from "../auth/session";
+import { assertSessionIdentity, getSessionIdentity, getSessionUserId, type SessionIdentity } from "../auth/session";
 import {
   getActiveOrganizationId,
   getScopedOrganizationId,
@@ -55,7 +55,8 @@ const recordTrainingSpaceCompatibilityFallback = (operation: "POST" | "PATCH") =
   });
 };
 
-const postClassPayload = async (payload: Record<string, unknown>) => {
+const postClassPayload = async (payload: Record<string, unknown>, identity?: SessionIdentity) => {
+  if (identity) assertSessionIdentity(identity);
   try {
     await supabasePost("/classes", [payload]);
   } catch (error) {
@@ -63,6 +64,7 @@ const postClassPayload = async (payload: Record<string, unknown>) => {
       throw error;
     }
     recordTrainingSpaceCompatibilityFallback("POST");
+    if (identity) assertSessionIdentity(identity);
     await supabasePost("/classes", [omitTrainingSpace(payload)]);
   }
 };
@@ -119,9 +121,9 @@ export const computeEndTime = (startTime?: string, duration?: number | null) => 
   return `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
 };
 
-export const safeGetUnits = async (): Promise<UnitRow[]> => {
+export const safeGetUnits = async (identity?: SessionIdentity): Promise<UnitRow[]> => {
   try {
-    return await supabaseGet<UnitRow[]>("/units?select=*&order=name.asc");
+    return await supabaseGet<UnitRow[]>("/units?select=*&order=name.asc", identity);
   } catch (error) {
     if (isMissingRelation(error, "units")) return [];
     if (isAuthError(error)) return [];
@@ -131,17 +133,19 @@ export const safeGetUnits = async (): Promise<UnitRow[]> => {
 
 export const ensureUnit = async (
   unitName: string | undefined,
-  cachedUnits?: UnitRow[]
+  cachedUnits?: UnitRow[],
+  createIfMissing = true,
+  identity?: SessionIdentity
 ): Promise<UnitRow | null> => {
   const name = canonicalizeUnitLabel(unitName ?? null);
   if (!name) return null;
-  const units = cachedUnits ?? (await safeGetUnits());
+  const units = cachedUnits ?? (await safeGetUnits(identity));
   const targetKey = normalizeUnitKey(name);
   const existing = units.find((unit) => normalizeUnitKey(unit.name) === targetKey);
   if (existing) {
-    if (existing.name !== name) {
+    if (existing.name !== name && createIfMissing) {
       try {
-        await supabasePatch("/units?id=eq." + encodeURIComponent(existing.id), { name });
+        await supabasePatch("/units?id=eq." + encodeURIComponent(existing.id), { name }, undefined, identity);
         existing.name = name;
       } catch {
         // ignore rename failures
@@ -149,10 +153,11 @@ export const ensureUnit = async (
     }
     return existing;
   }
+  if (!createIfMissing) return null;
   const now = new Date().toISOString();
   const createdId = "u_" + Date.now();
   try {
-    const created = await supabasePost<UnitRow[]>("/units", [{ id: createdId, name, createdat: now }]);
+    const created = await supabasePost<UnitRow[]>("/units", [{ id: createdId, name, createdat: now }], undefined, identity);
     if (!created[0]) return null;
     const row = { id: createdId, name, createdat: now };
     units.push(row);
@@ -376,9 +381,10 @@ export async function updateClassAcwrLimits(id: string, limits: { low: number; h
   );
 }
 
-export async function saveClass(data: { name: string; unit: string; trainingSpace?: string; ageBand: ClassGroup["ageBand"]; daysOfWeek: number[]; goal: ClassGroup["goal"]; gender: ClassGroup["gender"]; modality?: ClassGroup["modality"]; startTime: string; durationMinutes: number; unitId?: string; mvLevel?: string; cycleStartDate?: string; cycleLengthWeeks?: number; colorKey?: string | null; organizationId?: string | null }) {
+export async function saveClass(data: { name: string; unit: string; trainingSpace?: string; ageBand: ClassGroup["ageBand"]; daysOfWeek: number[]; goal: ClassGroup["goal"]; gender: ClassGroup["gender"]; modality?: ClassGroup["modality"]; startTime: string; durationMinutes: number; unitId?: string; mvLevel?: string; cycleStartDate?: string; cycleLengthWeeks?: number; colorKey?: string | null; organizationId?: string | null; createUnitIfMissing?: boolean }) {
+  const identity = getSessionIdentity();
   const classId = "c_" + Date.now();
-  const resolvedUnitRow = data.unitId ? { id: data.unitId, name: data.unit } : await ensureUnit(data.unit);
+  const resolvedUnitRow = data.unitId ? { id: data.unitId, name: data.unit } : await ensureUnit(data.unit, undefined, data.createUnitIfMissing ?? true, identity);
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   const activeOrganizationId = data.organizationId ?? (await getActiveOrganizationId());
   const payload: Record<string, unknown> = {
@@ -390,7 +396,7 @@ export async function saveClass(data: { name: string; unit: string; trainingSpac
     created_at: new Date().toISOString(),
   };
   if (activeOrganizationId) payload.organization_id = activeOrganizationId;
-  await postClassPayload(payload);
+  await postClassPayload(payload, identity);
   return classId;
 }
 

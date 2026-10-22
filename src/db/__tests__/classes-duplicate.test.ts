@@ -1,6 +1,7 @@
 import type { ClassGroup } from "../../core/models";
+import { assertSessionIdentity } from "../../auth/session";
 import { duplicateClass, saveClass } from "../classes";
-import { supabasePost } from "../client";
+import { supabaseGet, supabasePost } from "../client";
 
 jest.mock("@sentry/react-native", () => ({
   addBreadcrumb: jest.fn(),
@@ -9,6 +10,8 @@ jest.mock("@sentry/react-native", () => ({
 
 jest.mock("../../auth/session", () => ({
   getSessionUserId: jest.fn(),
+  getSessionIdentity: jest.fn(() => ({ userId: "teacher-1", generation: 1 })),
+  assertSessionIdentity: jest.fn(),
 }));
 
 jest.mock("../training-sessions", () => ({
@@ -78,6 +81,32 @@ describe("duplicateClass", () => {
 describe("saveClass schema compatibility", () => {
   beforeEach(() => {
     mockedSupabasePost.mockReset();
+    jest.mocked(assertSessionIdentity).mockReset();
+  });
+
+  it("lets a permitted teacher save a class without also creating an organizational unit", async () => {
+    jest.mocked(supabaseGet).mockResolvedValue([]);
+    mockedSupabasePost.mockResolvedValue([]);
+    await saveClass({
+      name: "Turma teste", organizationId: "org-1", unit: "Unidade nova",
+      createUnitIfMissing: false, modality: "voleibol", ageBand: "10-12",
+      gender: "misto", daysOfWeek: [2], goal: "", startTime: "14:00", durationMinutes: 60,
+    });
+    expect(mockedSupabasePost).toHaveBeenCalledTimes(1);
+    expect(mockedSupabasePost).toHaveBeenCalledWith("/classes", [expect.objectContaining({ organization_id: "org-1", unit: "Unidade nova" })]);
+  });
+
+  it("does not submit under a different session after resolving the unit", async () => {
+    const error = new Error("A sessão mudou.");
+    jest.mocked(supabaseGet).mockImplementationOnce(async () => {
+      jest.mocked(assertSessionIdentity).mockImplementation(() => { throw error; });
+      return [];
+    });
+    await expect(saveClass({
+      name: "Turma teste", organizationId: "org-1", unit: "Unidade nova", createUnitIfMissing: false,
+      ageBand: "10-12", gender: "misto", daysOfWeek: [2], goal: "", startTime: "14:00", durationMinutes: 60,
+    })).rejects.toBe(error);
+    expect(mockedSupabasePost).not.toHaveBeenCalled();
   });
 
   it("retries without training_space only when the connected schema does not have the column", async () => {

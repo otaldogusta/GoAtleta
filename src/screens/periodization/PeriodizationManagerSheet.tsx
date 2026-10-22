@@ -132,7 +132,7 @@ type Props = {
   onClose: () => void;
   onSave: (draft: PeriodizationManagerDraft) => Promise<boolean>;
   onRegenerateAutomatic: () => void;
-  onDuplicate: () => void;
+  onDuplicate?: () => void;
   onResetAutomatic: () => void;
   onArchiveCycle: () => void;
 };
@@ -1408,7 +1408,7 @@ export function PeriodizationManagerSheet({
                   {regenerating ? "Regerando..." : "Regerar automáticos"}
                 </Text>
               </Pressable>
-              <Pressable
+              {onDuplicate ? <Pressable
                 accessibilityRole="button"
                 onPress={onDuplicate}
                 style={{
@@ -1425,7 +1425,7 @@ export function PeriodizationManagerSheet({
                 <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
                   Duplicar em nova turma
                 </Text>
-              </Pressable>
+              </Pressable> : null}
             </View> : null}
 
             <View

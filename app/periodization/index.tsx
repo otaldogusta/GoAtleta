@@ -3744,7 +3744,7 @@ export default function PeriodizationScreen() {
   }, [activeCycle, confirmDialog, isSavingPlans, selectedClass]);
 
   const handleDuplicateCycleAsClass = useCallback(() => {
-    if (!selectedClass) return;
+    if (!selectedClass || (activeOrganization?.role_level ?? 0) < 50) return;
 
     confirmDialog({
       title: "Duplicar em uma nova turma?",
@@ -3769,7 +3769,7 @@ export default function PeriodizationScreen() {
         }
       },
     });
-  }, [confirmDialog, selectedClass]);
+  }, [activeOrganization?.role_level, confirmDialog, selectedClass]);
 
   const getWeekSchedule = useCallback(
     (week: WeekPlan | undefined, sessions: number) => {
@@ -4966,7 +4966,7 @@ export default function PeriodizationScreen() {
               return saved;
             }}
             onRegenerateAutomatic={handleGenerateCycle}
-            onDuplicate={handleDuplicateCycleAsClass}
+            onDuplicate={(activeOrganization?.role_level ?? 0) >= 50 ? handleDuplicateCycleAsClass : undefined}
             onResetAutomatic={handleRemoveCycle}
             onArchiveCycle={handleArchiveCycle}
             advancedContent={

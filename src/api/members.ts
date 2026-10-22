@@ -124,6 +124,7 @@ export type MemberPermissionKey =
   | "events"
   | "students"
   | "classes"
+  | "classes_create"
   | "training"
   | "periodization"
   | "calendar"
@@ -192,6 +193,11 @@ export const MEMBER_PERMISSION_OPTIONS: {
     key: "classes",
     label: "Turmas",
     description: "Acessar turmas, chamada e sess\u00e3o.",
+  },
+  {
+    key: "classes_create",
+    label: "Criar turmas",
+    description: "Criar novas turmas nesta instituição. Requer acesso a Turmas.",
   },
   {
     key: "training",

@@ -82,7 +82,7 @@ recorded|Editor compartilhado|Registro de 21/09: mesmo editor na listagem e no d
 recorded|Equipe temporal|Substituições agendadas, retorno, autoria e correções versionadas.
 recorded|Unidade e quadra|Busca/badge e distinção de vôlei de quadra/areia.
 recorded|Proteção de saída|Aviso de fechamento apenas quando o estado normalizado mudou.
-verify|Revisão do editor atual|Conferir horários, vínculos e troca de professor no localhost.
+verify|Revisão do editor atual|Correção de 22/10: criação exige classes_create, desligada por padrão ao professor e liberada pela coordenação/dono. Erro de gravação preserva campos; refresh falho após INSERT informa turma salva sem repetir gravação. Professor recebe vínculo próprio com histórico, sem gestão de unidade/equipe. Testes, SQL isolado, tipos, lint, escopo, arquitetura e performance aprovados. Localhost autenticado confirmou erro de conexão com campos preservados e opção desmarcada no convite de professor, sem gravar turma ou enviar convite. Migration aplicada e Edge v42 ativa em 22/10; release local aprovado (632 suítes/3.958 testes e build). Deploy do frontend autorizado; QA de professor hospedado e troca de professor pendentes.|docs/operations/class-creation-permissions.md
 """)
 add('Perfil pedagógico da turma', '/class/[id]', 'docs/operations/class-pedagogical-profile.md', """
 recorded|Diagnóstico compacto|Seis etapas e acesso ao perfil da turma.
@@ -324,7 +324,7 @@ code|Desativação de membro|Contrato próprio.|src/screens/coordination/applica
 code|Último acesso|Regra específica.|src/screens/coordination/application/member-last-access.ts
 code|Gestão de atletas|Rota administrativa.|app/coord/management/athletes.tsx
 code|Plataforma e acessos|Entradas próprias.|app/platform/accesses.tsx
-verify|Matriz de permissões|Conferir equipe, atleta, família e administrador com contas de QA.
+verify|Matriz de permissões|classes_create implementada com default negado, controle por professor/instituição, convites explícitos e enforcement em migration com policy restritiva contra bypass legado. Liberação, revogação, replay, convites, organização/proprietário e anônimo validados em SQL isolado; extensão ativa do aceite de convite preservada. Nova opção desmarcada conferida no localhost autenticado. Migration aplicada e Edge v42 ativa em 22/10; defaults, policies, triggers e extensão do claim relidos no Supabase. Deploy do frontend autorizado; QA de professor hospedado e demais papéis pendente.|docs/operations/class-creation-permissions.md
 """)
 add('Autenticação e onboarding', '/login', 'app/login.tsx', """
 code|Carregamento sem diagnóstico técnico|Tela inicial mostra indicador e Carregando; logs de bootstrap permanecem no console, sem texto de debug na interface.|src/bootstrap/BootstrapGate.tsx

@@ -425,7 +425,7 @@ export const ClassCard = memo(function ClassCard({
   const classInitial = getClassInitial(item.name);
   const menuItems = [
     { label: "Editar", action: () => onEdit?.(item), danger: false },
-    { label: "Duplicar", action: () => onDuplicate?.(item), danger: false },
+    ...(onDuplicate ? [{ label: "Duplicar", action: () => onDuplicate(item), danger: false }] : []),
     { label: "Ver turma", action: () => onOpen(item), danger: false },
     { label: "Apagar", action: () => onDelete?.(item), danger: true },
   ];

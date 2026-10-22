@@ -19,6 +19,7 @@ const PERMISSION_KEYS = [
   "events",
   "students",
   "classes",
+  "classes_create",
   "training",
   "periodization",
   "calendar",

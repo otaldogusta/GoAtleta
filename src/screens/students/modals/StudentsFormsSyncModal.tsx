@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "../../../auth/auth";
+import { canCreateClasses } from "../../../auth/class-creation-access";
+import { useOrganization } from "../../../providers/organization-context";
 import {
   buildAthleteIntakeSummary,
   mapGoogleFormsRowToAthleteIntake,
@@ -241,6 +243,13 @@ export function StudentsFormsSyncModal({
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { session } = useAuth();
+  const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
+  const canCreateClass = canCreateClasses({
+    organizationId: activeOrganization?.id === organizationId ? organizationId : null,
+    roleLevel: activeOrganization?.role_level,
+    memberPermissions,
+    permissionsLoading,
+  });
   const cardStyle = useModalCardStyle({
     maxWidth: 560,
     maxHeight: "90%",
@@ -645,6 +654,7 @@ export function StudentsFormsSyncModal({
 
   const handleOpenCreateClass = useCallback(
     (modalityLabel: string) => {
+      if (!canCreateClass) return;
       onClose();
       router.push({
         pathname: classesRoute,
@@ -655,7 +665,7 @@ export function StudentsFormsSyncModal({
         },
       });
     },
-    [classesRoute, onClose, router]
+    [canCreateClass, classesRoute, onClose, router]
   );
 
   const closeSyncDropdowns = useCallback(() => {
@@ -1425,11 +1435,11 @@ export function StudentsFormsSyncModal({
                               variant={usingAnamnesisOnly ? "secondary" : "outline"}
                               onPress={() => updateModalityMapping(item.normalized, null)}
                             />
-                            <Button
+                            {canCreateClass ? <Button
                               label="Criar turma"
                               variant="ghost"
                               onPress={() => handleOpenCreateClass(item.label)}
-                            />
+                            /> : null}
                           </View>
                         </View>
                       );

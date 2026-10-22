@@ -44,6 +44,13 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- `classes_create` separa criação do acesso `classes`: desligada por padrão
+  para professores, com liberação por membro/instituição pela coordenação/dono.
+  Convites exigem opção explícita; ausência/carregamento da chave nega na UI.
+  Migration aplicada no Supabase e Edge de convites v42 ativa em 22/10/2026;
+  QA autenticado do professor hospedado ainda pendente.
+  [Contrato e validação de 22/10/2026](../../operations/class-creation-permissions.md).
+
 - Desvinculação de celular consulta identidades em `GET /auth/v1/user`; falhas
   não equivalem a vínculo ausente. Só confirma remoção após reler o usuário e
   verificar ausência de telefone e identidade phone. Publicada na PR #103; não libera

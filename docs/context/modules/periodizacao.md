@@ -47,6 +47,10 @@ as telas apresentam revisão, edição e confirmação do professor.
 
 ## Decisões atuais e histórico
 
+- Duplicar em nova turma copia equipe e continua administrativo; o gerenciador
+  não oferece essa ação ao professor. A permissão `classes_create` libera somente
+  criação com vínculo próprio. [Contrato e validação](../../operations/class-creation-permissions.md).
+
 O perfil canônico da turma alimenta geração mensal/semanal/diária; consultar
 [turmas e planejamento](turmas-planejamento.md) quando mexer em perfil ou versões.
 O [backlog de Cycle Day Planning](../../../docs/archive/cycle-day-planning/BACKLOG_AND_PR_CHECKLIST.md)

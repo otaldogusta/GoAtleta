@@ -38,7 +38,7 @@ type Props = {
   colors: ThemeColors;
   onOpenClass: (item: ClassGroup) => void;
   onEditClass: (item: ClassGroup) => void;
-  onDuplicateClass: (item: ClassGroup) => void;
+  onDuplicateClass?: (item: ClassGroup) => void;
   onDeleteClass: (item: ClassGroup) => void;
   classCardViewModelsById: Record<string, ClassCardViewModel>;
   refreshing?: boolean;
