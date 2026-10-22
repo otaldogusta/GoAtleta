@@ -44,6 +44,16 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Presença no avatar usa heartbeat autenticado por instituição e leitura
+  administrativa. Backend ativado em 22/10/2026; publicação do frontend autorizada,
+  disponibilidade depende do deploy. Sem sinal, mostra desconhecido;
+  não deriva online de último acesso. [Contrato e pendências](../../operations/member-presence.md).
+
+- A gestão da equipe edita função/permissões na aba Acesso do perfil e vínculos
+  na aba Turmas, compartilhando rascunho e barra fixa de salvar. Grupos usam as
+  13 permissões atuais; RPC, defaults e limites administrativos são preservados.
+  [Implementação local e validação](../../operations/staff-access-profile.md).
+
 - `classes_create` separa criação do acesso `classes`: desligada por padrão
   para professores, com liberação por membro/instituição pela coordenação/dono.
   Convites exigem opção explícita; ausência/carregamento da chave nega na UI.

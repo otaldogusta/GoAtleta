@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFriendlyErrorMessage } from "../../ui/error-messages";
 import * as Clipboard from "expo-clipboard";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AthleteAccessRequestRow } from "./AthleteAccessRequestRow";
 import { correctFamilyRequestKind } from "../../api/family-access-request";
@@ -50,7 +51,10 @@ import { brandPalette, radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
-import { AnimatedSegmentedTabs } from "../../ui/AnimatedSegmentedTabs";
+import { FloatingSaveBar } from "../../ui/FloatingSaveBar";
+import { MemberAccessPermissions } from "./MemberAccessPermissions";
+import { registerPendingEditsNavigation } from "../../navigation/pending-edits-navigation";
+import { registerBrowserPendingEdits } from "../../navigation/browser-pending-edits";
 import { useAppTheme } from "../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
 import { useConfirmUndo } from "../../ui/confirm-undo";
@@ -60,7 +64,6 @@ import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
-import { resolveAccessModalLayout } from "./application/access-modal-layout";
 import {
   getClassAssignmentScheduleLabels,
   groupClassAssignments,
@@ -92,6 +95,7 @@ import {
 } from "./application/invite-lifecycle";
 import { useInviteClock } from "./application/use-invite-clock";
 import { StaffProfilePage } from "./StaffProfilePage";
+import { loadClassAssignmentDetails, type ClassAssignmentDetails } from "./application/class-assignment-details";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "activity";
 type PeopleSortKey = "name" | "role" | "classes" | "attendance" | "lastAccess";
@@ -635,12 +639,10 @@ export function CoordinationPeopleWorkspace({
   const responsiveLayout = useResponsiveLayout("dashboard");
   const supportsSplitLayout = responsiveLayout.supportsSplitView && width >= 1200;
   const compact = responsiveLayout.isMobile;
-  const splitAccessModal = resolveAccessModalLayout(width) === "split";
   const groupedOrganizationClasses = useMemo(
     () => groupClassAssignments(organizationClasses),
     [organizationClasses]
   );
-  const stackedAccessModalHeight = Math.max(320, Math.min(760, height - 96));
   const storageKey = `coordination_workspace_order_v2:${organizationId}`;
 
   const [search, setSearch] = useState("");
@@ -674,7 +676,10 @@ export function CoordinationPeopleWorkspace({
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
-  const [accessSection, setAccessSection] = useState<"classes" | "permissions">("classes");
+  const [profileTab, setProfileTab] = useState("overview");
+  const [editScope, setEditScope] = useState<string | null>(null);
+  const accessScope = `${organizationId}:${session?.user?.id ?? ""}`;
+  const pendingAccessNavigation = useRef<(() => void) | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteAudience>("professor");
   const [invitePermissionKeys, setInvitePermissionKeys] = useState<MemberPermissionKey[]>(() => [
@@ -693,6 +698,8 @@ export function CoordinationPeopleWorkspace({
   const inviteEmailInputRef = useRef<TextInput | null>(null);
   const [inviteEmailShakeAnim] = useState(() => new Animated.Value(0));
   const [editBusy, setEditBusy] = useState(false);
+  const [assignmentDetails, setAssignmentDetails] = useState<Record<string, ClassAssignmentDetails>>({});
+  const editInFlight = useRef(false);
   const [editRole, setEditRole] = useState<5 | 10 | 50>(10);
   const [editClassIds, setEditClassIds] = useState<string[]>([]);
   const [editPermissionKeys, setEditPermissionKeys] = useState<MemberPermissionKey[]>([]);
@@ -869,7 +876,7 @@ export function CoordinationPeopleWorkspace({
     [editClassIds, editPermissionKeys, editRole, modalMember?.userId, session?.user?.id]
   );
   const isEditDirty = Boolean(
-    editInitialSnapshot &&
+    editScope === accessScope && editInitialSnapshot &&
       !areMemberAccessFormSnapshotsEqual(editInitialSnapshot, currentEditSnapshot)
   );
   const editSaveDisabled = editBusy || editAccessLoading || !isEditDirty;
@@ -1007,16 +1014,24 @@ export function CoordinationPeopleWorkspace({
 
   const openEdit = async (member: OrgMember, section: "classes" | "permissions" = "classes") => {
     const requestId = editPermissionRequestRef.current + 1;
-    editPermissionRequestRef.current = requestId;
     const initialRole = member.roleLevel >= 50 ? 50 : member.roleLevel >= 10 ? 10 : 5;
+    if (editBusy) return;
+    setProfileTab(section === "permissions" ? "access" : "classes");
+    router.setParams({ memberProfile: member.userId });
+    if (editScope === accessScope && modalMode === "edit" && modalMember?.userId === member.userId && (editInitialSnapshot || editAccessLoading)) return;
+    editPermissionRequestRef.current = requestId;
     setModalMember(member);
-    setAccessSection(section);
+    setEditScope(accessScope);
     setEditRole(initialRole);
     setEditClassIds([]);
     setEditPermissionKeys([]);
     setEditInitialSnapshot(null);
     setShowEditCloseConfirm(false);
     setEditAccessLoading(true);
+    setAssignmentDetails({});
+    void loadClassAssignmentDetails(organizationId, organizationClasses.map(item => item.id)).then(details => {
+      if (editPermissionRequestRef.current === requestId) setAssignmentDetails(details);
+    });
     setModalMode("edit");
     try {
       const [permissions, classHeads] = await Promise.all([
@@ -1063,18 +1078,40 @@ export function CoordinationPeopleWorkspace({
     editSubmissionRef.current = null;
     setShowEditCloseConfirm(false);
     setEditInitialSnapshot(null);
+    setEditScope(null);
     setModalMember(null);
     setModalMode(null);
   }, []);
 
-  const requestCloseEditModal = useCallback(() => {
+  useEffect(() => () => { editPermissionRequestRef.current += 1; }, [organizationId, session?.user?.id]);
+
+  const requestAccessNavigation = useCallback((navigate: () => void) => {
     if (editBusy) return;
     if (isEditDirty) {
+      pendingAccessNavigation.current = navigate;
       setShowEditCloseConfirm(true);
-      return;
+    } else {
+      closeEditModal();
+      navigate();
     }
-    closeEditModal();
   }, [closeEditModal, editBusy, isEditDirty]);
+
+  const accessNavigation = useNavigation();
+  usePreventRemove(isEditDirty || editBusy, ({ data }) => requestAccessNavigation(() => accessNavigation.dispatch(data.action)));
+
+  useFocusEffect(useCallback(() => {
+    if (!isEditDirty && !editBusy) return;
+    const unregister = registerPendingEditsNavigation(requestAccessNavigation);
+    const unregisterBrowser = registerBrowserPendingEdits(requestAccessNavigation);
+    return () => { unregister(); unregisterBrowser(); };
+  }, [editBusy, isEditDirty, requestAccessNavigation]));
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || (!isEditDirty && !editBusy)) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [editBusy, isEditDirty]);
 
   const openMessage = (member: OrgMember) => {
     setModalMember(member);
@@ -1215,7 +1252,9 @@ export function CoordinationPeopleWorkspace({
   };
 
   const submitEdit = async () => {
-    if (!modalMember || editSaveDisabled) return;
+    if (!modalMember || editSaveDisabled || editInFlight.current) return;
+    editInFlight.current = true;
+    const requestId = editPermissionRequestRef.current;
     const member = modalMember;
     const snapshot = currentEditSnapshot;
     const signature = JSON.stringify(snapshot);
@@ -1236,8 +1275,12 @@ export function CoordinationPeopleWorkspace({
         permissionKeys: snapshot.permissionKeys as MemberPermissionKey[],
         idempotencyKey,
       });
+      if (editPermissionRequestRef.current !== requestId) return;
       setEditInitialSnapshot(snapshot);
-      closeEditModal();
+      editSubmissionRef.current = null;
+      void loadClassAssignmentDetails(organizationId, organizationClasses.map(item => item.id)).then(details => {
+        if (editPermissionRequestRef.current === requestId) setAssignmentDetails(details);
+      });
       showSaveToast({
         variant: "success",
         message: formatMemberAccessSuccessMessage({
@@ -1257,8 +1300,9 @@ export function CoordinationPeopleWorkspace({
         });
       }
     } catch (error) {
-      showSaveToast({ variant: "error", error });
+      if (editPermissionRequestRef.current === requestId) showSaveToast({ variant: "error", error });
     } finally {
+      editInFlight.current = false;
       setEditBusy(false);
     }
   };
@@ -1613,6 +1657,83 @@ export function CoordinationPeopleWorkspace({
   };
 
   const profileMember = members.find(item => item.userId === memberProfile && item.organizationId === organizationId);
+  const accessReady = editScope === accessScope && modalMode === "edit" && modalMember?.userId === memberProfile;
+  const accessContent = <View style={{ gap: 20 }}>
+    {accessReady ? <>
+      <View style={{ padding: 18, gap: 12, borderRadius: radius.card, borderWidth: 1, borderColor: border, backgroundColor: colors.card }}>
+        <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.text, fontWeight: "800" }}>Função</Text>
+            <DropdownButton
+              value={editRole}
+              onChange={setEditRole}
+              compact
+              disabled={editBusy || editAccessLoading || (modalMember?.roleLevel ?? 0) >= 50}
+              options={[
+                { value: 5, label: "Estagiário" },
+                { value: 10, label: "Professor" },
+                { value: 50, label: "Coordenação" },
+              ]}
+            />
+            {modalMember?.roleLevel && modalMember.roleLevel >= 50 ? (
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                O acesso administrativo atual será mantido.
+              </Text>
+            ) : null}
+          </View>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {editRole >= 50 ? "Coordenação tem acesso administrativo completo à instituição." : "As permissões abaixo definem as áreas e ações liberadas nesta instituição."}
+        </Text>
+        <Pressable accessibilityRole="button" disabled={editAccessLoading || !editInitialSnapshot} onPress={() => setProfileTab("classes")} suppressWebHoverFeedback style={{ minHeight: 40, justifyContent: "center" }}>
+          <Text style={{ color: colors.text, fontSize: 13, textDecorationLine: "underline" }}>Gerenciar turmas atribuídas {editAccessLoading ? "" : `(${editClassIds.length})`}</Text>
+        </Pressable>
+      </View>
+      {editAccessLoading ? <Text style={{ color: colors.muted }}>Carregando acesso...</Text> : !editInitialSnapshot ? <Pressable accessibilityRole="button" onPress={() => { if (profileMember) void openEdit(profileMember, "permissions"); }}><Text style={{ color: colors.dangerText }}>Não foi possível carregar. Tentar novamente</Text></Pressable> :
+        <MemberAccessPermissions selected={editPermissionKeys} roleLevel={editRole} disabled={editBusy} protectOwnManagement={modalMember?.userId === session?.user?.id} onChange={setEditPermissionKeys} />}
+    </> : <Text style={{ color: colors.muted }}>Selecione Acesso para gerenciar as permissões.</Text>}
+  </View>;
+  const assignedClassesContent = accessReady && profileTab === "classes" ? (
+    <View style={{ gap: 24 }}>
+      <View style={{ gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Turmas atribuídas</Text>
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "500" }}>{editAccessLoading ? "Carregando..." : `${editClassIds.length} selecionadas`}</Text>
+        </View>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Selecione as turmas em que a pessoa atua.</Text>
+      </View>
+      {editAccessLoading ? <Text style={{ color: colors.muted }}>Carregando turmas...</Text> : groupedOrganizationClasses.map(group => (
+        <View key={group.unit} style={{ gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingBottom: 4 }}>
+            <GoAtletaIcon name="organization" size={14} color={colors.muted} />
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600", flex: 1 }}>{group.unit}</Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>{group.classes.length} {group.classes.length === 1 ? "turma" : "turmas"}</Text>
+          </View>
+          <View style={{ gap: 2 }}>
+          {group.classes.map(item => {
+            const checked = editClassIds.includes(item.id);
+            const details = assignmentDetails[item.id];
+            const { daysLabel, timeLabel } = getClassAssignmentScheduleLabels(item);
+            return <Pressable key={item.id} accessibilityRole="checkbox"
+              accessibilityState={{ checked, disabled: editBusy || !editInitialSnapshot }}
+              disabled={editBusy || !editInitialSnapshot}
+              accessibilityLabel={`${item.name}, ${group.unit}, ${daysLabel}, ${timeLabel}`}
+              onPress={() => setEditClassIds(current => checked ? current.filter(id => id !== item.id) : [...current, item.id])}
+              style={{ minHeight: 76, paddingHorizontal: 10, paddingVertical: 10, borderRadius: radius.internal, backgroundColor: checked ? colors.secondaryBg : "transparent", flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Text style={{ color: colors.primaryText, fontSize: 18, fontWeight: "700" }}>{item.name.trim()[0]?.toUpperCase() || "T"}</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>{item.name}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{details ? details.studentCount === null ? "Alunos indisponíveis" : `${details.studentCount} ${details.studentCount === 1 ? "aluno ativo" : "alunos ativos"}` : "Carregando alunos..."} · {daysLabel} · {timeLabel}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>{!details ? "Carregando equipe..." : details.teachers === null ? "Equipe indisponível" : `${details.teachers.length ? `Prof.: ${details.teachers.join(", ")}` : "Sem professor"} · ${details.interns?.length ? `Estag.: ${details.interns.join(", ")}` : "Sem estagiário"}`}</Text>
+              </View>
+              <GoAtletaIcon name={checked ? "checkbox" : "square"} size={20} color={checked ? colors.successText : colors.muted} />
+            </Pressable>;
+          })}
+          </View>
+        </View>
+      ))}
+    </View>
+  ) : undefined;
 
   return (
     <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}>
@@ -1628,12 +1749,21 @@ export function CoordinationPeopleWorkspace({
         lastAccess={formatMemberLastAccess(profileMember.lastAccessAt)}
         classes={organizationClasses.filter(item => (classesByUser.get(profileMember.userId) ?? []).some(head => head.classId === item.id))}
         activity={recentActivity.filter(item => item.actorUserId === profileMember.userId).map((item, index) => ({ id: `${item.occurredAt}:${index}`, title: item.kind === "attendance" ? "Chamada registrada" : "Relatório registrado", detail: `${item.className} · ${item.unit}`, date: new Date(item.occurredAt).toLocaleString("pt-BR") }))}
-        onBack={() => router.setParams({ memberProfile: "" })}
+        selectedTab={profileTab}
+        onTabChange={(tab) => {
+          setProfileTab(tab);
+          if (tab === "access" && !accessReady) void openEdit(profileMember, "permissions");
+        }}
+        accessContent={accessContent}
+        classesContent={assignedClassesContent}
+        onManageClasses={() => void openEdit(profileMember, "classes")}
+        manageClassesLabel="Gerenciar turmas"
+        onBack={() => requestAccessNavigation(() => { setProfileTab("overview"); router.setParams({ memberProfile: "" }); })}
         ownProfile={profileMember.userId === session?.user.id}
         onEditProfile={profileMember.userId === session?.user.id ? () => router.push("/coord/profile?edit=personal") : undefined}
         onEditPhoto={profileMember.userId === session?.user.id ? () => router.push("/coord/profile?edit=photo") : undefined}
-        onManageAccess={() => void openEdit(profileMember)}
-        onMessage={() => openMessage(profileMember)}
+        onManageAccess={() => void openEdit(profileMember, "permissions")}
+        onMessage={() => requestAccessNavigation(() => openMessage(profileMember))}
       /> : <>
       <ScreenPageHeader
         title="Coordenação"
@@ -2733,361 +2863,7 @@ export function CoordinationPeopleWorkspace({
         onCancel={() => setShowInviteCloseConfirm(false)}
       />
 
-      <ModalSheet
-        visible={modalMode === "edit" && Boolean(modalMember)}
-        onClose={requestCloseEditModal}
-        position="right"
-        cardStyle={{
-          width: compact ? Math.max(0, width - 32) : 500,
-          alignSelf: "flex-end",
-          maxWidth: "100%",
-          height: stackedAccessModalHeight,
-          maxHeight: stackedAccessModalHeight,
-          flexDirection: "column",
-          padding: 0,
-          overflow: "hidden",
-        }}
-      >
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: border, flexDirection: "row" }}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-              Gerenciar acesso
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>
-              {modalMember?.displayName}
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Fechar perfil e permissões"
-            onPress={requestCloseEditModal}
-            style={{
-              width: 44,
-              height: 44,
-              flexShrink: 0,
-              marginLeft: 12,
-              borderRadius: 22,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <GoAtletaIcon name="close" size={22} color={colors.text} />
-          </Pressable>
-        </View>
-        <AnimatedSegmentedTabs tabs={[{ id: "classes", label: "Turmas" }, { id: "permissions", label: "Permissões" }]} activeTab={accessSection} onChange={setAccessSection} style={{ marginHorizontal: 18, marginTop: 12 }} />
-        <ScrollView
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ padding: 18, gap: 18 }}
-        >
-          <>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>Função</Text>
-            <DropdownButton
-              value={editRole}
-              onChange={setEditRole}
-              compact
-              disabled={editAccessLoading || (modalMember?.roleLevel ?? 0) >= 50}
-              options={[
-                { value: 5, label: "Estagiário" },
-                { value: 10, label: "Professor" },
-                { value: 50, label: "Coordenação" },
-              ]}
-            />
-            {modalMember?.roleLevel && modalMember.roleLevel >= 50 ? (
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                O acesso administrativo atual será mantido.
-              </Text>
-            ) : null}
-          </View>
-          <View
-            style={{
-              flexDirection: splitAccessModal ? "row" : "column",
-              alignItems: "stretch",
-              gap: 16,
-            }}
-          >
-            <View style={{ flex: 1, minWidth: 0, gap: 8, display: accessSection === "classes" ? "flex" : "none" }}>
-              <View
-                style={{
-                  minHeight: 22,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800" }}>
-                  Turmas atribuídas
-                </Text>
-                <View
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: border,
-                    backgroundColor: inner,
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                  }}
-                >
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                    {editClassIds.length} de {organizationClasses.length}
-                  </Text>
-                </View>
-              </View>
-              <ScrollView
-                style={{
-                  height: Math.max(220, height - 340),
-                  borderWidth: 1,
-                  borderColor: border,
-                  borderRadius: radius.internal,
-                }}
-                showsVerticalScrollIndicator
-                nestedScrollEnabled
-              >
-                {editAccessLoading ? (
-                  <View style={{ padding: 14 }}>
-                    <Text style={{ color: colors.muted }}>Carregando turmas atribuídas...</Text>
-                  </View>
-                ) : (
-                  groupedOrganizationClasses.map((group) => (
-                    <View key={group.unit}>
-                      <View
-                        style={{
-                          minHeight: 36,
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
-                          borderBottomWidth: 1,
-                          borderBottomColor: border,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 8,
-                          backgroundColor: inner,
-                        }}
-                      >
-                        <GoAtletaIcon
-                          name="organization"
-                          size={15}
-                          color={colors.muted}
-                        />
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            color: colors.text,
-                            flex: 1,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {group.unit}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                          {group.classes.length}{" "}
-                          {group.classes.length === 1 ? "turma" : "turmas"}
-                        </Text>
-                      </View>
-                      {group.classes.map((item) => {
-                        const checked = editClassIds.includes(item.id);
-                        const { daysLabel, timeLabel } =
-                          getClassAssignmentScheduleLabels(item);
-                        return (
-                          <Pressable
-                            key={item.id}
-                            accessibilityRole="checkbox"
-                            accessibilityState={{ checked }}
-                            accessibilityLabel={`${item.name}, ${group.unit}, ${daysLabel}, ${timeLabel}`}
-                            onPress={() =>
-                              setEditClassIds((current) =>
-                                checked
-                                  ? current.filter((id) => id !== item.id)
-                                  : [...current, item.id]
-                              )
-                            }
-                            style={{
-                              minHeight: 58,
-                              paddingHorizontal: 12,
-                              paddingVertical: 9,
-                              borderBottomWidth: 1,
-                              borderBottomColor: border,
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 10,
-                            }}
-                          >
-                            <GoAtletaIcon
-                              name={checked ? "checkbox" : "square"}
-                              size={19}
-                              color={checked ? colors.successText : colors.muted}
-                            />
-                            <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-                              <Text
-                                numberOfLines={1}
-                                style={{ color: colors.text, fontWeight: "700" }}
-                              >
-                                {item.name}
-                              </Text>
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  flexWrap: "wrap",
-                                  columnGap: 14,
-                                  rowGap: 4,
-                                }}
-                              >
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 5,
-                                  }}
-                                >
-                                  <GoAtletaIcon
-                                    name="calendar"
-                                    size={13}
-                                    color={colors.muted}
-                                  />
-                                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                    {daysLabel}
-                                  </Text>
-                                </View>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 5,
-                                  }}
-                                >
-                                  <GoAtletaIcon
-                                    name="time"
-                                    size={13}
-                                    color={colors.muted}
-                                  />
-                                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                    {timeLabel}
-                                  </Text>
-                                </View>
-                              </View>
-                            </View>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-            </View>
-            <View style={{ flex: 1, minWidth: 0, gap: 8, display: accessSection === "permissions" ? "flex" : "none" }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>
-                Permissões ({editPermissionKeys.length})
-              </Text>
-              <View
-                style={{
-                  height: Math.max(220, height - 340),
-                  borderWidth: 1,
-                  borderColor: border,
-                  borderRadius: radius.internal,
-                  overflow: "hidden",
-                }}
-              >
-                {editAccessLoading ? (
-                  <View style={{ padding: 14 }}>
-                    <Text style={{ color: colors.muted }}>Carregando permissões...</Text>
-                  </View>
-                ) : (
-                  <ScrollView showsVerticalScrollIndicator nestedScrollEnabled>
-                    {MEMBER_PERMISSION_OPTIONS.map((option) => {
-                      const protectsOwnMemberManagement =
-                        option.key === "org_members" &&
-                        Boolean(session?.user?.id) &&
-                        modalMember?.userId === session?.user?.id;
-                      const checked =
-                        protectsOwnMemberManagement ||
-                        editPermissionKeys.includes(option.key);
-                      return (
-                        <Pressable
-                          key={option.key}
-                          accessibilityRole="checkbox"
-                          accessibilityState={{
-                            checked,
-                            disabled: protectsOwnMemberManagement,
-                          }}
-                          accessibilityHint={
-                            protectsOwnMemberManagement
-                              ? "Mantida para preservar seu acesso à gestão."
-                              : undefined
-                          }
-                          disabled={protectsOwnMemberManagement}
-                          onPress={() =>
-                            setEditPermissionKeys((current) =>
-                              checked
-                                ? current.filter((key) => key !== option.key)
-                                : [...current, option.key]
-                            )
-                          }
-                          style={{
-                            padding: 11,
-                            borderBottomWidth: 1,
-                            borderBottomColor: border,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 10,
-                            opacity: protectsOwnMemberManagement ? 0.72 : 1,
-                          }}
-                        >
-                          <GoAtletaIcon
-                            name={checked ? "checkbox" : "square"}
-                            size={19}
-                            color={checked ? colors.successText : colors.muted}
-                          />
-                          <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>
-                            {option.label}
-                          </Text>
-                          {protectsOwnMemberManagement ? (
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>
-                              Seu acesso
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-              </View>
-            </View>
-          </View>
-          </>
-        </ScrollView>
-        <View
-          style={{
-            display: isEditDirty ? "flex" : "none",
-            flexShrink: 0,
-            padding: 16,
-            borderTopWidth: 1,
-            borderTopColor: border,
-            flexDirection: "row",
-            justifyContent: "flex-end",
-          }}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: editSaveDisabled }}
-            disabled={editSaveDisabled}
-            onPress={() => void submitEdit()}
-            style={{
-              borderRadius: radius.internal,
-              backgroundColor: colors.primaryBg,
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-              opacity: editSaveDisabled ? 0.45 : 1,
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-              {editBusy ? "Salvando..." : "Salvar alterações"}
-            </Text>
-          </Pressable>
-        </View>
-      </ModalSheet>
+      <FloatingSaveBar visible={Boolean(profileMember) && accessReady && isEditDirty} label="Salvar alterações" onPress={() => void submitEdit()} disabled={editSaveDisabled} loading={editBusy} loadingLabel="Salvando..." maxWidth={728} />
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}
@@ -3095,8 +2871,8 @@ export function CoordinationPeopleWorkspace({
         message="As alterações feitas serão perdidas."
         confirmLabel="Sair sem salvar"
         cancelLabel="Continuar editando"
-        onConfirm={closeEditModal}
-        onCancel={() => setShowEditCloseConfirm(false)}
+        onConfirm={() => { const navigate = pendingAccessNavigation.current; pendingAccessNavigation.current = null; closeEditModal(); navigate?.(); }}
+        onCancel={() => { pendingAccessNavigation.current = null; setShowEditCloseConfirm(false); }}
       />
 
       <ModalSheet

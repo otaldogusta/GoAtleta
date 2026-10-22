@@ -17,6 +17,8 @@ export type PersonProfilePageProps = {
   overviewContent?: ReactNode;
   financeContent?: ReactNode;
   settingsContent?: ReactNode;
+  accessContent?: ReactNode;
+  classesContent?: ReactNode;
   selectedTab?: string;
   onTabChange?: (tab: string) => void;
   refreshControl?: ScrollViewProps["refreshControl"];
@@ -30,6 +32,7 @@ export type PersonProfilePageProps = {
   workspaceControl?: ReactNode;
   email?: string | null;
   photoUri?: string | null;
+  presence?: "online" | "offline" | "unknown";
   locationLabel?: string | null;
   joinedAt?: string;
   lastAccess?: string;
@@ -44,6 +47,7 @@ export type PersonProfilePageProps = {
   onSettings?: () => void;
   onManageAccess?: () => void;
   onManageClasses?: () => void;
+  manageClassesLabel?: string;
   onMessage?: () => void;
 };
 
@@ -72,7 +76,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState("overview");
   const selectedTab = props.selectedTab ?? tab;
-  const activeTab = (selectedTab === "finance" && !props.financeContent) || (selectedTab === "settings" && (!props.ownProfile || !props.settingsContent)) ? "overview" : selectedTab;
+  const activeTab = (selectedTab === "access" && !props.accessContent) || (selectedTab === "finance" && !props.financeContent) || (selectedTab === "settings" && (!props.ownProfile || !props.settingsContent)) ? "overview" : selectedTab;
   const selectTab = (next: string) => { setTab(next); props.onTabChange?.(next); };
   const compact = width < 600;
   const avatarSize = compact ? 76 : 88;
@@ -80,6 +84,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
   const coverColor = mode === "light" ? "#DCE5EF" : "#223450";
   const avatarColor = "#B8C9DA";
   const split = width >= 1200;
+  const presenceLabel = props.presence === "online" ? "Online nesta instituição" : props.presence === "offline" ? "Offline" : "Status indisponível";
   const initials = props.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
   const card = { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 14 };
   const action = (label: string, onPress: () => void, primary = false, iconOnly = false) => (
@@ -92,7 +97,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
     <View style={{ ...card, padding: 18, gap: 16 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Turmas</Text>
-        {props.onManageClasses ? <Pressable accessibilityRole="button" accessibilityLabel="Gerenciar turma do atleta" onPress={props.onManageClasses} suppressWebHoverFeedback style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 8 }}><Text style={{ color: colors.text, fontSize: 12 }}>Gerenciar turma</Text></Pressable> : null}
+        {props.onManageClasses ? <Pressable accessibilityRole="button" accessibilityLabel={props.manageClassesLabel ?? "Gerenciar turma do atleta"} onPress={props.onManageClasses} suppressWebHoverFeedback style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 8 }}><Text style={{ color: colors.text, fontSize: 12 }}>{props.manageClassesLabel ?? "Gerenciar turma"}</Text></Pressable> : null}
       </View>
       {props.loading ? <Text style={{ color: colors.muted }}>Carregando turmas...</Text> : props.error ? <Text style={{ color: colors.dangerText }}>Não foi possível carregar as turmas. Tente novamente.</Text> : props.classes.length ? props.classes.map(item => (
         <View key={item.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 }}>
@@ -136,6 +141,9 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
               <Pressable accessibilityRole={props.onEditPhoto ? "button" : undefined} accessibilityLabel={props.onEditPhoto ? "Editar foto do perfil" : `Avatar de ${props.name}`} onPress={props.onEditPhoto} disabled={!props.onEditPhoto} testID={`${props.testID ?? "staff-profile"}-avatar`} suppressWebHoverFeedback disableWebPressScale style={{ flexShrink: 0, width: avatarSize, height: avatarSize, marginTop: compact ? -32 : -36, borderRadius: avatarSize / 2, borderWidth: 5, borderColor: colors.card, backgroundColor: avatarColor, alignItems: "center", justifyContent: "center", overflow: "visible" }}>
                 {props.photoUri ? <Image source={{ uri: props.photoUri }} style={{ width: avatarSize - 10, height: avatarSize - 10, borderRadius: (avatarSize - 10) / 2 }} /> : <Text style={{ color: "#1C3045", fontSize: compact ? 24 : 27, fontWeight: "700" }}>{initials}</Text>}
                 {props.onEditPhoto ? <View style={{ position: "absolute", bottom: -3, right: -3, width: 28, height: 28, borderWidth: 3, borderColor: colors.card, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", borderRadius: 14 }}><GoAtletaIcon name="camera" size={12} color={colors.primaryText} /></View> : null}
+                {props.presence ? <View accessibilityRole="image" accessibilityLabel={presenceLabel} {...(Platform.OS === "web" ? { title: presenceLabel } : {})} testID="profile-presence" style={{ position: "absolute", right: props.onEditPhoto ? undefined : -1, left: props.onEditPhoto ? -1 : undefined, bottom: -1, width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: colors.card, backgroundColor: props.presence === "online" ? colors.successText : colors.muted }}>
+                  {props.presence === "unknown" ? <View style={{ position: "absolute", inset: 2, borderRadius: 6, backgroundColor: colors.card }} /> : null}
+                </View> : null}
               </Pressable>
               <View testID={`${props.testID ?? "staff-profile"}-actions`} style={{ flexDirection: "row", flexShrink: 0, marginLeft: "auto", gap: compact ? 6 : 8, paddingTop: compact ? 12 : 14, flexWrap: "nowrap" }}>
                 {props.onEditProfile ? action("Editar perfil", props.onEditProfile, true) : props.onManageAccess ? action("Gerenciar acesso", props.onManageAccess, true) : null}
@@ -151,12 +159,12 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
             {props.summary ?? (!props.loading && !props.error ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: compact ? 16 : 20 }}><Text style={{ color: colors.text, fontWeight: "700", fontSize: 18 }}>{props.classes.length}</Text> turmas atribuídas</Text> : null)}
           </View>
           <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 14 }}>
-            {[{ id: "overview", label: "Visão geral" }, { id: "classes", label: "Turmas" }, ...(props.activity ? [{ id: "activity", label: "Atividade" }] : []), ...(props.financeContent ? [{ id: "finance", label: "Financeiro" }] : [])].map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} onPress={() => selectTab(item.id)} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === item.id ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === item.id ? colors.text : colors.muted, fontWeight: "600" }}>{item.label}</Text></Pressable>)}
+            {[{ id: "overview", label: "Visão geral" }, { id: "classes", label: "Turmas" }, ...(props.accessContent ? [{ id: "access", label: "Acesso" }] : []), ...(props.activity ? [{ id: "activity", label: "Atividade" }] : []), ...(props.financeContent ? [{ id: "finance", label: "Financeiro" }] : [])].map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.id }} onPress={() => selectTab(item.id)} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === item.id ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === item.id ? colors.text : colors.muted, fontWeight: "600" }}>{item.label}</Text></Pressable>)}
             {props.ownProfile && (props.settingsContent || props.onSettings) ? <Pressable accessibilityRole="tab" accessibilityLabel="Configurações" accessibilityState={{ selected: activeTab === "settings" }} onPress={() => { if (props.settingsContent) selectTab("settings"); props.onSettings?.(); }} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === "settings" ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === "settings" ? colors.text : colors.muted, fontWeight: "600" }}>Configurações</Text></Pressable> : null}
           </View>
         </View>
-        {activeTab === "settings" ? props.settingsContent : <View style={{ flexDirection: split && activeTab === "overview" ? "row" : "column", gap: 20, alignItems: "flex-start" }}>
-          <View style={{ flex: 1, width: "100%", minWidth: 0, gap: 20 }}>{activeTab === "finance" ? props.financeContent : <>{activeTab !== "activity" ? classesContent : null}{activeTab === "overview" ? props.overviewContent : null}{activeTab !== "classes" ? activityContent : null}</>}</View>
+        {activeTab === "access" ? props.accessContent : activeTab === "settings" ? props.settingsContent : <View style={{ flexDirection: split && activeTab === "overview" ? "row" : "column", gap: 20, alignItems: "flex-start" }}>
+          <View style={{ flex: 1, width: "100%", minWidth: 0, gap: 20 }}>{activeTab === "finance" ? props.financeContent : <>{activeTab !== "activity" ? (props.classesContent ?? classesContent) : null}{activeTab === "overview" ? props.overviewContent : null}{activeTab !== "classes" ? activityContent : null}</>}</View>
           {activeTab === "overview" ? <View style={{ ...card, padding: 18, gap: 16, width: split ? 300 : "100%" }}><Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Sobre</Text>{(props.aboutItems ?? [{ label: "Instituição", value: props.organizationName }, { label: "Função", value: props.role }, { label: "Contato", value: props.email }, { label: "Último acesso", value: props.lastAccess }]).filter(item => item.value).map(item => <View key={item.label} style={{ gap: 5 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text><Text selectable style={{ color: colors.text, fontSize: 14 }}>{item.value}</Text></View>)}</View> : null}
         </View>}
       </View>

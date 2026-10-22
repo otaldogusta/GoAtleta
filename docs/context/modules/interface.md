@@ -39,6 +39,9 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 - Respeitar variantes web/nativo e reduced motion. Alterações em representação
   visual não devem excluir dados do usuário; ver [quadra](biblioteca-quadra.md).
 - Copy curta, sem repetir alertas ou atribuir cada resultado à IA.
+- Perfil de funcionário admite aba Acesso e conteúdo administrativo na aba
+  Turmas, com uma única `FloatingSaveBar` externa à rolagem. O rascunho pertence
+  ao chamador e sobrevive à troca de abas. [Contrato local](../../operations/staff-access-profile.md).
 - Em aluno, professor e coordenação, Configurações renderiza os formulários abaixo
   das abas do próprio perfil, preservando a identidade e o rascunho entre abas.
   Campos pessoais vazios não impedem salvar; valores preenchidos são validados.

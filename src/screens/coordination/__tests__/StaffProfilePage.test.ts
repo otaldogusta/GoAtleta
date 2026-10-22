@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { Text, TextInput } from "react-native";
 import { StaffProfilePage } from "../StaffProfilePage";
+import { PersonProfilePage } from "../../profiles/PersonProfilePage";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { text: "#fff", muted: "#aaa", border: "#222", card: "#111", primaryBg: "#0f0" } }) }));
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
@@ -9,6 +10,15 @@ jest.mock("react-native-svg", () => ({ __esModule: true, default: "Svg", Circle:
 const base = { name: "Ana Silva", role: "Professor", organizationName: "Rede", classes: [{ id: "assigned", name: "Hipopótamos", unit: "Central" }], onBack: jest.fn() };
 const buttons = (r: TestRenderer.ReactTestRenderer) => r.root.findAll(n => n.props.accessibilityRole === "button" && typeof n.props.onPress === "function");
 describe("StaffProfilePage", () => {
+  it.each([["online", "Online nesta instituição"], ["offline", "Offline"], ["unknown", "Status indisponível"]] as const)("labels the %s presence indicator without replacing the photo action", (presence, label) => {
+    let r!: TestRenderer.ReactTestRenderer;
+    act(() => { r=TestRenderer.create(React.createElement(PersonProfilePage, { ...base, presence, onEditPhoto: jest.fn() })); });
+    const dot = r.root.findAll(n => n.props.testID === "profile-presence")[0];
+    expect(dot.props.accessibilityLabel).toBe(label);
+    expect(dot.props.style.left).toBe(-1);
+    expect(buttons(r).some(n => n.props.accessibilityLabel === "Editar foto do perfil")).toBe(true);
+    act(() => r.unmount());
+  });
   it.each(["Professor", "Coordenação"])("embeds %s settings under the same profile and preserves the draft across tabs", (role) => {
     function OwnProfile() {
       const [tab, setTab] = React.useState("overview");
@@ -26,6 +36,23 @@ describe("StaffProfilePage", () => {
     expect(r.root.findAllByType(TextInput)).toHaveLength(0);
     act(() => buttons(r).find(n => n.props.accessibilityLabel === "Editar perfil")!.props.onPress());
     expect(r.root.findByType(TextInput).props.value).toBe("Ana editada");
+    act(() => r.unmount());
+  });
+  it("embeds access in the profile and preserves edits across tabs", () => {
+    function Profile() {
+      const [value, setValue] = React.useState("Inicial");
+      return React.createElement(StaffProfilePage, { ...base, accessContent: React.createElement(TextInput, { value, onChangeText: setValue }), classesContent: React.createElement(Text, null, "Editor de turmas") });
+    }
+    let r!: TestRenderer.ReactTestRenderer;
+    act(() => { r = TestRenderer.create(React.createElement(Profile)); });
+    const tab = (label: string) => r.root.findAll(n => n.props.accessibilityRole === "tab" && typeof n.props.onPress === "function").find(n => n.findAll(x => x.props.children === label).length)!;
+    act(() => tab("Acesso").props.onPress());
+    expect(r.root.findAllByType(Text).some(n => n.props.children === "Sobre")).toBe(false);
+    act(() => r.root.findByType(TextInput).props.onChangeText("Rascunho"));
+    act(() => tab("Turmas").props.onPress());
+    expect(JSON.stringify(r.toJSON())).toContain("Editor de turmas");
+    act(() => tab("Acesso").props.onPress());
+    expect(r.root.findByType(TextInput).props.value).toBe("Rascunho");
     act(() => r.unmount());
   });
   it("opens own settings from a named tab without exposing account controls on colleagues", () => {

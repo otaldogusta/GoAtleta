@@ -1,3 +1,4 @@
+import { useMemberPresence } from "../../hooks/use-member-presence";
 import { useEffect, useState } from "react";
 import { getInstitutionLocation, getMemberJoinedAt } from "../../api/staff-profile-meta";
 import { PersonProfilePage, type PersonProfilePageProps } from "../profiles/PersonProfilePage";
@@ -8,6 +9,7 @@ type Props = PersonProfilePageProps & {
 };
 
 export function StaffProfilePage({ organizationId, userId, ...props }: Props) {
+  const presence = useMemberPresence(organizationId, userId);
   const [location, setLocation] = useState<string | null>(null);
   const [memberJoinedAt, setMemberJoinedAt] = useState<string | null>(null);
 
@@ -25,5 +27,5 @@ export function StaffProfilePage({ organizationId, userId, ...props }: Props) {
     return () => { current = false; };
   }, [organizationId, userId, props.joinedAt]);
 
-  return <PersonProfilePage {...props} locationLabel={location} joinedAt={props.joinedAt ?? memberJoinedAt ?? undefined} />;
+  return <PersonProfilePage {...props} presence={organizationId && userId ? presence : undefined} locationLabel={location} joinedAt={props.joinedAt ?? memberJoinedAt ?? undefined} />;
 }

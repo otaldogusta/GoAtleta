@@ -4,6 +4,9 @@ import { Platform, ScrollView } from "react-native";
 
 import { MemberActionMenu } from "../CoordinationPeopleWorkspace";
 
+jest.mock("../../../navigation/browser-pending-edits", () => ({ registerBrowserPendingEdits: () => () => {} }));
+jest.mock("expo-router/react-navigation", () => ({ usePreventRemove: jest.fn() }));
+
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 

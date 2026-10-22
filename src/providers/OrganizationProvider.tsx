@@ -1,3 +1,4 @@
+import { useMemberPresenceHeartbeat } from "../hooks/use-member-presence";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
@@ -147,6 +148,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const canPreview = canUseProfilePreview(session?.user?.email);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganizationId, setActiveOrgId] = useState<string | null>(null);
+  useMemberPresenceHeartbeat(hasAuthorizedSession ? activeOrganizationId : null, session?.user?.id);
   const [isLoading, setIsLoading] = useState(true);
   const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
   const [memberPermissions, setMemberPermissions] = useState<

@@ -47,6 +47,11 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 ## Decisões atuais e histórico
 
+- Seleção de turmas no perfil da equipe mostra avatar canônico com inicial,
+  alunos ativos (turma principal + matrículas, sem duplicação) e equipe atual.
+  Leituras são escopadas e paginadas; indisponibilidade não equivale a ausência.
+  [Fluxo local](../../operations/staff-access-profile.md).
+
 - Criação exige `classes_create`, negada por padrão ao professor e liberada
   pela coordenação/dono na instituição. Falha de gravação preserva o formulário;
   falha do refresh posterior informa sucesso da gravação sem repetir INSERT.
