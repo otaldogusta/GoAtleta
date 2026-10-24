@@ -45,6 +45,11 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 - Excluir turma e duplicar turma têm contratos próprios: consultar os testes de
   preservação de alunos e duplicação antes de ampliar cascatas ou copiar vínculos.
 
+- Ao abrir uma turma pelo calendário, a seta de voltar usa origem permitida
+  (`prof`/`shared`), data válida e filtro de unidade. O retorno ancorado ao
+  calendário evita cair na aba inicial do professor; outros acessos à turma
+  conservam o retorno existente. Helper: `calendar-return-route.ts`.
+
 ## Decisões atuais e histórico
 
 - Seleção de turmas no perfil da equipe mostra avatar canônico com inicial,

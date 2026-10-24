@@ -1,6 +1,6 @@
 import { PageBreadcrumbHeader } from "../../components/ui/PageBreadcrumbHeader";
-import { useState, useRef, type ReactNode } from "react";
-import { Image, Platform, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { useEffect, useState, useRef, type ReactNode } from "react";
+import { AccessibilityInfo, Animated, Image, Platform, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ScrollViewProps } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import type { OrgClass } from "../../api/members";
@@ -8,6 +8,37 @@ import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { formatClassAssignmentMeta } from "../coordination/application/class-assignment-meta";
+
+/** Animate the persistent container, without remounting forms or delaying tab selection. */
+function ProfileTabContent({ tab, children }: { tab: string; children: ReactNode }) {
+  const element = useRef<View>(null);
+  const [progress] = useState(() => new Animated.Value(1));
+  const previousTab = useRef(tab);
+  useEffect(() => {
+    if (previousTab.current === tab) return;
+    previousTab.current = tab;
+    if (Platform.OS === "web") {
+      const node = element.current as unknown as HTMLElement | null;
+      const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+      if (preference.matches || !node?.animate) return;
+      const animation = node.animate(
+        [{ opacity: 0.65, transform: "translateY(4px)" }, { opacity: 1, transform: "translateY(0)" }],
+        { duration: 180, easing: "ease-out" },
+      );
+      const cancel = () => animation.cancel();
+      preference.addEventListener("change", cancel);
+      return () => { animation.cancel(); preference.removeEventListener("change", cancel); };
+    }
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(reduced => {
+      if (!active || reduced) return;
+      progress.setValue(0);
+      Animated.timing(progress, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    });
+    return () => { active = false; progress.stopAnimation(); progress.setValue(1); };
+  }, [tab, progress]);
+  return <Animated.View ref={element} testID="profile-tab-content" style={Platform.OS === "web" ? undefined : { opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }] }}>{children}</Animated.View>;
+}
 
 type Activity = { id: string; title: string; detail: string; date: string };
 export type PersonProfilePageProps = {
@@ -163,10 +194,10 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
             {props.ownProfile && (props.settingsContent || props.onSettings) ? <Pressable accessibilityRole="tab" accessibilityLabel="Configurações" accessibilityState={{ selected: activeTab === "settings" }} onPress={() => { if (props.settingsContent) selectTab("settings"); props.onSettings?.(); }} suppressWebHoverFeedback style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: activeTab === "settings" ? colors.primaryBg : "transparent" }}><Text style={{ fontSize: 12, color: activeTab === "settings" ? colors.text : colors.muted, fontWeight: "600" }}>Configurações</Text></Pressable> : null}
           </View>
         </View>
-        {activeTab === "access" ? props.accessContent : activeTab === "settings" ? props.settingsContent : <View style={{ flexDirection: split && activeTab === "overview" ? "row" : "column", gap: 20, alignItems: "flex-start" }}>
+        <ProfileTabContent tab={activeTab}>{activeTab === "access" ? props.accessContent : activeTab === "settings" ? props.settingsContent : <View style={{ flexDirection: split && activeTab === "overview" ? "row" : "column", gap: 20, alignItems: "flex-start" }}>
           <View style={{ flex: 1, width: "100%", minWidth: 0, gap: 20 }}>{activeTab === "finance" ? props.financeContent : <>{activeTab !== "activity" ? (props.classesContent ?? classesContent) : null}{activeTab === "overview" ? props.overviewContent : null}{activeTab !== "classes" ? activityContent : null}</>}</View>
           {activeTab === "overview" ? <View style={{ ...card, padding: 18, gap: 16, width: split ? 300 : "100%" }}><Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Sobre</Text>{(props.aboutItems ?? [{ label: "Instituição", value: props.organizationName }, { label: "Função", value: props.role }, { label: "Contato", value: props.email }, { label: "Último acesso", value: props.lastAccess }]).filter(item => item.value).map(item => <View key={item.label} style={{ gap: 5 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text><Text selectable style={{ color: colors.text, fontSize: 14 }}>{item.value}</Text></View>)}</View> : null}
-        </View>}
+        </View>}</ProfileTabContent>
       </View>
     </ScrollView>
   );

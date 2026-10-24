@@ -1,12 +1,13 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
 import { brandPalette, radius } from "../theme/tokens";
 import { ptBR } from "../constants/copy/pt-br";
 
 import { useBootstrap } from "./BootstrapProvider";
+import { FullscreenLoadingState } from "../components/ui/FullscreenLoadingState";
 
 export function BootstrapGate({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
@@ -18,29 +19,7 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (loading && !ready) {
-    return (
-      <View style={{ flex: 1 }}>
-        <LinearGradient
-          colors={[brandPalette.navyDeep, brandPalette.navy, brandPalette.graphite]}
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-        />
-        <View
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-            gap: 12,
-          }}
-        >
-          <ActivityIndicator
-            size="large"
-            color={colors.text}
-          />
-          <Text style={{ color: colors.text, fontWeight: "600" }}>{ptBR.loading.generic}</Text>
-        </View>
-      </View>
-    );
+    return <FullscreenLoadingState />;
   }
 
   if (error && !ready) {

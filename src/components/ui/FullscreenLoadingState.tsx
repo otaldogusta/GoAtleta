@@ -49,7 +49,7 @@ export function FullscreenLoadingState({
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          gap: 10,
+          gap: 12,
         }}
       >
         <ActivityIndicator size="large" color={foregroundColor} />

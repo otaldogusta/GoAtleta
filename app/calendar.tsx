@@ -1,7 +1,14 @@
+import { CalendarUnitSelect } from "../src/screens/calendar/CalendarUnitSelect";
+import { CalendarWeekPager } from "../src/screens/calendar/CalendarWeekPager";
+import { CalendarEventSheet } from "../src/screens/calendar/CalendarEventSheet";
+import { useEventSheetGesture } from "../src/screens/calendar/useEventSheetGesture";
+import { NativeCalendarFold } from "../src/screens/calendar/NativeCalendarFold";
+import { CalendarFold } from "../src/screens/calendar/CalendarFold";
+import { selectCalendarDay } from "../src/screens/calendar/application/calendar-selection";
 import { listCalendarPauses } from "../src/api/holiday-decisions";
 import { isPaused, type CalendarPause } from "../src/core/holidays";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import {
   useCallback,
   useEffect,
@@ -11,6 +18,8 @@ import {
 } from "react";
 import {
   FlatList,
+  Platform,
+  StyleSheet,
   ScrollView,
   Text,
   View,
@@ -37,11 +46,10 @@ import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/organization-context";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
-import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
-import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
+import { toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -171,6 +179,7 @@ type MonthCalendarDayModel = {
 export default function CalendarScreen() {
   markRender("screen.calendar.render.root");
   const router = useRouter();
+  const calendarPath = usePathname();
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { width } = useWindowDimensions();
@@ -203,11 +212,12 @@ export default function CalendarScreen() {
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [unitFilter, setUnitFilter] = useState("Todas");
+  const [unitFilter, setUnitFilter] = useState(() => typeof params.unit === "string" ? params.unit : "Todas");
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const seed = targetDate ? new Date(targetDate + "T00:00:00") : new Date();
     return new Date(seed.getFullYear(), seed.getMonth(), 1);
   });
+  const [selectedDate, setSelectedDate] = useState(() => targetDate || formatIsoDate(new Date()));
   const [showApplyPicker, setShowApplyPicker] = useState(false);
   const [applyPickerClassId, setApplyPickerClassId] = useState("");
   const [applyPickerDate, setApplyPickerDate] = useState("");
@@ -216,6 +226,14 @@ export default function CalendarScreen() {
     maxHeight: "100%",
   });
   const isCompactLayout = width < 840;
+  const splitAgenda = width >= 960;
+  const mobileAgenda = width < 600;
+  const [calendarCollapsed, setCalendarCollapsed] = useState(true);
+  const [agendaHeight, setAgendaHeight] = useState(0);
+  const eventListRef = useRef<ScrollView>(null);
+  const eventOffsetRef = useRef(0);
+  const calendarRowHeight = Math.max(44, Math.min(59, Math.floor((agendaHeight - 160) / 6)));
+  const calendarMotion = useEventSheetGesture(calendarCollapsed, setCalendarCollapsed, 5 * calendarRowHeight, eventListRef, eventOffsetRef);
   const baseHour = 14;
   const monthStart = useMemo(
     () => new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1),
@@ -495,7 +513,7 @@ export default function CalendarScreen() {
             ? colors.inputBg
             : colors.card;
         const cardBorder = isPast ? toRgba(classPalette.bg, 0.35) : classPalette.bg;
-        const dotColor = isPast ? toRgba(classPalette.bg, 0.45) : classPalette.bg;
+        const dotColor = cls.colorKey === "blue" ? colors.primaryBg : classPalette.text;
         const titleColor = isPast ? colors.muted : colors.text;
 
         return {
@@ -596,6 +614,43 @@ export default function CalendarScreen() {
     }
     return rows;
   }, [monthlyCalendarDays]);
+
+  const selectedDay = selectCalendarDay(monthlyCalendarDays, selectedDate);
+  const agendaStyles = useMemo(() => StyleSheet.create({
+    weekday: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 10, fontWeight: "600" },
+    row: { flexDirection: "row", borderTopWidth: 1, borderColor: colors.border },
+    firstRow: { borderTopWidth: 0 },
+    day: { flex: 1, minWidth: 0, minHeight: mobileAgenda ? calendarRowHeight : isCompactLayout ? 58 : 68, alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 10, backgroundColor: "transparent" },
+    otherMonth: { opacity: 0.3 },
+    pastDay: { opacity: 0.5 },
+    number: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", borderColor: colors.primaryBg },
+    selectedNumber: { backgroundColor: colors.primaryBg },
+    todayNumber: { borderWidth: 1 },
+    numberText: { color: colors.text, fontSize: 13, fontWeight: "500" },
+    emphasizedNumberText: { fontWeight: "700" },
+    selectedNumberText: { color: colors.primaryText, fontWeight: "700" },
+    markers: { flexDirection: "row", gap: 3, minHeight: 6, alignItems: "center" },
+    moreMarkers: { color: colors.muted, fontSize: 8 },
+    hint: { color: colors.muted, fontSize: 11, marginTop: 14 },
+    events: { width: mobileAgenda ? "100%" : splitAgenda ? 300 : "100%", ...(mobileAgenda ? { flex: 1, minHeight: 0 } : {}) },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+    headerText: { gap: 4 },
+    title: { color: colors.text, fontSize: 20, fontWeight: "600" },
+    count: { color: colors.muted, fontSize: 12 },
+    toggle: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
+    event: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 14, gap: 16, borderBottomWidth: 1, borderColor: colors.border },
+    time: { width: 64, gap: 4 },
+    timeText: { color: colors.text, fontSize: 14, fontWeight: "600" },
+    eventContent: { flex: 1, minWidth: 0, gap: 6 },
+    eventTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
+    empty: { color: colors.muted, fontSize: 14, paddingVertical: 24 },
+  }), [colors, mobileAgenda, calendarRowHeight, isCompactLayout, splitAgenda]);
+  const agendaColorStyles = useMemo(() => Object.fromEntries(
+    [...new Set(monthlyCalendarDays.flatMap(day => day.agendaItems.map(item => item.dotColor)))].map(color => [color, StyleSheet.create({
+      dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: color },
+      bar: { width: 3, minHeight: 44, alignSelf: "stretch", borderRadius: 2, backgroundColor: color },
+    })]),
+  ), [monthlyCalendarDays]);
 
   const monthClassCount = useMemo(
     () =>
@@ -745,90 +800,23 @@ export default function CalendarScreen() {
             title="Calendário mensal"
             onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <Pressable
-                accessibilityLabel="Mês anterior"
-                onPress={goToPreviousMonth}
-                style={({ pressed }) => [
-                  {
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  },
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <GoAtletaIcon name="chevronBack" size={22} color={colors.text} />
-              </Pressable>
-
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 180,
-                  minHeight: 40,
-                  borderRadius: 20,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingHorizontal: 14,
-                }}
-              >
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: colors.text,
-                    fontSize: 14,
-                    fontWeight: "900",
-                    textAlign: "center",
-                  }}
-                >
-                  {monthTitle}
-                </Text>
-              </View>
-
-              <Pressable
-                accessibilityLabel="Próximo mês"
-                onPress={goToNextMonth}
-                style={({ pressed }) => [
-                  {
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  },
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <GoAtletaIcon name="chevronForward" size={22} color={colors.text} />
-              </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Text style={{ color: colors.text, fontSize: mobileAgenda ? 18 : 20, fontWeight: "600" }}>{monthTitle}</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{monthSummaryLabel}</Text></View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" onPress={goToPreviousMonth} style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="chevronBack" size={18} color={colors.text} /></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { const now = new Date(); setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(formatIsoDate(now)); }} style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: colors.border }}><Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>Hoje</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" onPress={goToNextMonth} style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="chevronForward" size={18} color={colors.text} /></Pressable>
             </View>
           </ScreenPageHeader>
 
           <ScrollView
+            scrollEnabled={!mobileAgenda}
+            style={{ flex: 1, minHeight: 0, ...(Platform.OS === "web" && !mobileAgenda ? { scrollbarGutter: "stable", scrollbarWidth: "thin" } as object : {}) }}
             contentContainerStyle={{
+              ...(mobileAgenda ? { flex: 1 } : { flexGrow: 1 }),
               paddingHorizontal: isCompactLayout ? 12 : 16,
               paddingTop: 2,
-              paddingBottom: Math.max(insets.bottom + (isCompactLayout ? 104 : 28), 40),
-              gap: 14,
+              paddingBottom: mobileAgenda ? insets.bottom + 12 : 28,
+              gap: 10,
             }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
@@ -851,265 +839,51 @@ export default function CalendarScreen() {
               </View>
             ) : null}
 
-            <View
-              style={{
-                flexDirection: isCompactLayout ? "column" : "row",
-                alignItems: isCompactLayout ? "stretch" : "center",
-                justifyContent: "space-between",
-                gap: 10,
-                paddingHorizontal: 2,
-                paddingVertical: 4,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <View
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 9,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
-                    {monthSummaryLabel}
-                  </Text>
+            <CalendarUnitSelect value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value }); }} />
+
+            <View onLayout={event => setAgendaHeight(event.nativeEvent.layout.height)} style={{ position: "relative", width: "100%", flexDirection: splitAgenda ? "row" : "column", gap: mobileAgenda ? 12 : 20, alignItems: "flex-start", ...(mobileAgenda ? { flex: 1, minHeight: 0, overflow: "hidden" } : {}) }}>
+              <View style={{ width: "100%", flex: splitAgenda ? 1 : undefined, minWidth: 0, backgroundColor: colors.card, borderRadius: 16, padding: isCompactLayout ? 12 : 20, borderWidth: 1, borderColor: colors.border, ...(mobileAgenda ? { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, paddingHorizontal: 4, paddingVertical: 0, flexShrink: 0 } : {}) }}>
+                <View>
+                <View style={{ flexDirection: "row", marginBottom: 8 }}>
+                  {MONTH_WEEKDAY_HEADERS.map(label => <Text key={label} style={agendaStyles.weekday}>{label}</Text>)}
                 </View>
-              </View>
-
-              <FadeHorizontalScroll
-                fadeColor={colors.background}
-                contentContainerStyle={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: isCompactLayout ? "flex-start" : "flex-end",
-                  gap: 8,
-                  flexGrow: 1,
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "800", color: colors.muted }}>
-                  Unidade
-                </Text>
-                {unitOptions.map((unit) => {
-                  const active = unitFilter === unit;
-                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                  const chipBg = active
-                    ? (palette ? palette.bg : colors.primaryBg)
-                    : colors.secondaryBg;
-                  const chipText = active
-                    ? (palette ? palette.text : colors.primaryText)
-                    : colors.text;
-                  return (
-                    <Pressable
-                      key={unit}
-                      onPress={() => setUnitFilter(unit)}
-                      style={{
-                        paddingVertical: 7,
-                        paddingHorizontal: 11,
-                        borderRadius: 999,
-                        backgroundColor: chipBg,
-                        borderWidth: 1,
-                        borderColor: active ? chipBg : colors.border,
-                      }}
-                    >
-                      <Text style={{ color: chipText, fontWeight: "700", fontSize: 12 }}>
-                        {unit}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </FadeHorizontalScroll>
-            </View>
-
-            <ScrollView
-              horizontal
-              scrollEnabled={isCompactLayout}
-              showsHorizontalScrollIndicator={isCompactLayout}
-              contentContainerStyle={{
-                width: isCompactLayout ? 920 : "100%",
-              }}
-              style={{ width: "100%" }}
-            >
-            <View
-              style={{
-                width: "100%",
-                padding: isCompactLayout ? 8 : 12,
-                borderRadius: 18,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 8,
-              }}
-            >
-              <View style={{ flexDirection: "row", gap: isCompactLayout ? 4 : 6 }}>
-                {MONTH_WEEKDAY_HEADERS.map((label) => (
-                  <Text
-                    key={label}
-                    style={{
-                      flex: 1,
-                      color: colors.muted,
-                      fontSize: 11,
-                      fontWeight: "900",
-                      textAlign: "center",
-                    }}
-                  >
-                    {label}
-                  </Text>
-                ))}
-              </View>
-
-              {monthlyCalendarRows.map((row, rowIndex) => (
-                <View key={`month-row-${rowIndex}`} style={{ flexDirection: "row", gap: isCompactLayout ? 4 : 6 }}>
-                  {row.map((dayModel) => {
-                    const hasAgenda = dayModel.agendaItems.length > 0;
-                    const visibleItemsLimit = isCompactLayout ? 2 : 3;
-                    const hiddenItemsCount = Math.max(0, dayModel.agendaItems.length - visibleItemsLimit);
-                    const dayBackground = !dayModel.isCurrentMonth
-                      ? colors.backgroundSubtle
-                      : hasAgenda
-                        ? colors.secondaryBg
-                        : colors.inputBg;
-                    const dayBorder = dayModel.isToday
-                      ? colors.primaryBg
-                      : hasAgenda
-                        ? colors.successBorder
-                        : colors.border;
-
-                    return (
-                      <View
-                        key={dayModel.dayKey}
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          minHeight: isCompactLayout ? 92 : 132,
-                          gap: isCompactLayout ? 4 : 6,
-                          padding: isCompactLayout ? 5 : 8,
-                          borderRadius: isCompactLayout ? 10 : 12,
-                          backgroundColor: dayBackground,
-                          borderWidth: 1,
-                          borderColor: dayBorder,
-                          opacity: dayModel.isCurrentMonth ? 1 : 0.38,
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 4,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: hasAgenda || dayModel.isToday ? colors.text : colors.muted,
-                              fontSize: 13,
-                              fontWeight: "900",
-                            }}
-                          >
-                            {dayModel.dayNumber}
-                          </Text>
-                          {dayModel.isToday ? (
-                            <View
-                              style={{
-                                width: 7,
-                                height: 7,
-                                borderRadius: 999,
-                                backgroundColor: colors.primaryBg,
-                              }}
-                            />
-                          ) : null}
-                        </View>
-
-                        {dayModel.agendaItems.slice(0, visibleItemsLimit).map((item) => {
-                          const isClassItem = item.kind === "class";
-                          return (
-                            <Pressable
-                              key={item.id}
-                              onPress={() => {
-                                if (item.kind === "class") {
-                                  router.push({
-                                    pathname: "/class/[id]",
-                                    params: { id: item.classId },
-                                  });
-                                  return;
-                                }
-                                router.push({
-                                  pathname: "/events/[id]",
-                                  params: { id: item.eventId },
-                                });
-                              }}
-                              style={({ pressed }) => [
-                                {
-                                  gap: 2,
-                                  paddingVertical: isCompactLayout ? 4 : 5,
-                                  paddingHorizontal: isCompactLayout ? 4 : 6,
-                                  borderRadius: 8,
-                                  backgroundColor: item.cardBackground,
-                                  borderWidth: 1,
-                                  borderColor: item.cardBorder,
-                                  borderLeftWidth: 3,
-                                  borderLeftColor: isClassItem ? item.classPalette.bg : item.dotColor,
-                                },
-                                pressed && { opacity: 0.82 },
-                              ]}
-                            >
-                              <Text
-                                numberOfLines={1}
-                                style={{
-                                  color: colors.muted,
-                                  fontSize: isCompactLayout ? 9 : 10,
-                                  fontWeight: "900",
-                                }}
-                              >
-                                {item.timeLabel}
-                              </Text>
-                              <Text
-                                numberOfLines={1}
-                                style={{
-                                  color: item.titleColor,
-                                  fontSize: isCompactLayout ? 10 : 11,
-                                  fontWeight: "900",
-                                  lineHeight: isCompactLayout ? 12 : 14,
-                                }}
-                              >
-                                {item.title}
-                              </Text>
-                              {isClassItem ? null : (
-                                <Text
-                                  numberOfLines={1}
-                                  style={{
-                                    color: colors.warningText,
-                                    fontSize: 9,
-                                    fontWeight: "800",
-                                  }}
-                                >
-                                  {item.typeLabel}
-                                </Text>
-                              )}
-                            </Pressable>
-                          );
-                        })}
-
-                        {hiddenItemsCount > 0 ? (
-                          <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "800" }}>
-                            +{hiddenItemsCount} item{hiddenItemsCount === 1 ? "" : "s"}
-                          </Text>
-                        ) : null}
-                      </View>
-                    );
+                {(rows => {
+                  const selectedRow = monthlyCalendarRows.findIndex(row => row.some(day => day.dateIso === selectedDay?.dateIso));
+                  const onWeekChange = (index: number) => {
+                    const next = monthlyCalendarRows[index]?.find(day => day.day === selectedDay?.day);
+                    if (next) { setSelectedDate(next.dateIso); if (!next.isCurrentMonth) setVisibleMonth(new Date(next.dateIso + "T00:00:00")); }
+                  };
+                  if (!mobileAgenda) return rows;
+                  if (calendarMotion.nativeMotion) return <NativeCalendarFold rows={rows} selectedRow={selectedRow} rowHeight={calendarRowHeight} motion={calendarMotion.nativeMotion} onWeekChange={onWeekChange} weekActive={calendarCollapsed && !calendarMotion.interacting} />;
+                  return calendarCollapsed && !calendarMotion.interacting
+                    ? <CalendarWeekPager rowHeight={calendarRowHeight} rows={rows} selectedRow={selectedRow} onChange={onWeekChange} />
+                    : <CalendarFold rowHeight={calendarRowHeight} rows={rows} selectedRow={selectedRow} collapsed={false} progress={calendarMotion.progress} />;
+                })(monthlyCalendarRows.map((row, index) => <View key={index} style={[agendaStyles.row, !index && agendaStyles.firstRow]}>
+                  {row.map(day => {
+                    const selected = day.dateIso === selectedDay?.dateIso;
+                    return <Pressable key={day.dayKey} accessibilityRole="button" accessibilityLabel={`${day.dateIso}, ${day.countLabel}${day.isToday ? ", hoje" : ""}`} accessibilityState={{ selected }} onPress={() => { setSelectedDate(day.dateIso); if (mobileAgenda) setCalendarCollapsed(true); if (!day.isCurrentMonth) setVisibleMonth(new Date(day.dateIso + "T00:00:00")); }} style={[agendaStyles.day, !selected && !day.isToday && (!day.isCurrentMonth ? agendaStyles.otherMonth : day.isPast ? agendaStyles.pastDay : null)]}>
+                      <View style={[agendaStyles.number, selected ? agendaStyles.selectedNumber : day.isToday ? agendaStyles.todayNumber : null]}><Text style={[agendaStyles.numberText, selected ? agendaStyles.selectedNumberText : day.isToday ? agendaStyles.emphasizedNumberText : null]}>{day.dayNumber}</Text></View>
+                      <View style={agendaStyles.markers}>{day.agendaItems.slice(0, 3).map(item => <View key={item.id} style={agendaColorStyles[item.dotColor].dot} />)}{day.agendaItems.length > 3 ? <Text style={agendaStyles.moreMarkers}>+{day.agendaItems.length - 3}</Text> : null}</View>
+                    </Pressable>;
                   })}
+                </View>))}
+                {!mobileAgenda ? <Text style={agendaStyles.hint}>Selecione um dia para ver a agenda.</Text> : null}
                 </View>
-              ))}
+              </View>
+              <View style={agendaStyles.events}>
+                <CalendarEventSheet mobile={mobileAgenda} collapsed={calendarCollapsed} onCollapsedChange={setCalendarCollapsed} motion={calendarMotion} listRef={eventListRef} offsetRef={eventOffsetRef} header={<View style={agendaStyles.header}>
+                  <View style={agendaStyles.headerText}><Text accessibilityRole="header" style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View>
+                  {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel={calendarCollapsed ? "Mostrar mês completo" : "Mostrar semana"} onPress={() => { setCalendarCollapsed(value => !value); }} style={agendaStyles.toggle}><GoAtletaIcon name="calendar" size={20} color={colors.muted} /></Pressable> : <GoAtletaIcon name="calendar" size={20} color={colors.muted} />}
+                </View>}>
+                {selectedDay?.agendaItems.length ? selectedDay.agendaItems.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.timeLabel}, ${item.title}`} onPress={() => { if (item.kind === "class") router.push({ pathname: "/class/[id]", params: { id: item.classId, calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", calendarDate: item.dateIso, calendarUnit: unitFilter } }); else router.push({ pathname: "/events/[id]", params: { id: item.eventId } }); }} style={agendaStyles.event}>
+                  <View style={agendaStyles.time}><Text style={agendaStyles.timeText}>{item.timeLabel.split(" - ")[0]}</Text>{item.timeLabel.includes(" - ") ? <Text style={agendaStyles.count}>{item.timeLabel.split(" - ")[1]}</Text> : null}</View>
+                  <View style={agendaColorStyles[item.dotColor].bar} />
+                  <View style={agendaStyles.eventContent}><Text style={agendaStyles.eventTitle}>{item.title}</Text><Text style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
+                  <GoAtletaIcon name="chevronForward" size={14} color={colors.muted} />
+                </Pressable>) : <Text style={agendaStyles.empty}>Nenhuma aula ou evento neste dia.</Text>}
+                </CalendarEventSheet>
+              </View>
             </View>
-            </ScrollView>
           </ScrollView>
       </>
         )}

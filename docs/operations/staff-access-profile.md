@@ -41,3 +41,8 @@ exercitado nesta etapa. A reorganização não cria permissões nem exige migrat
 Publicação do pacote de perfil, acesso e presença autorizada pelo usuário em
 22/10/2026; disponibilidade depende do resultado do deploy, além dos checks locais.
 A ativação do backend de presença está registrada em [member-presence.md](member-presence.md).
+
+A troca de abas usa entrada de 180 ms com opacidade e deslocamento de 4 px, sem
+atrasar a seleção ou recriar o container de formulários. Movimento reduzido
+desativa a transição. Ajuste local validado com os 10 testes do perfil, tipos,
+lint e observação da progressão e término no localhost; ainda sem publicação.

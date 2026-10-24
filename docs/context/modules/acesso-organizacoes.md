@@ -42,6 +42,11 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 - Links de recuperação/expiração são interceptados no bootstrap. O parâmetro `next`
   passa por [post-login-redirect.ts](../../../src/auth/post-login-redirect.ts), que aceita destinos internos seguros.
 
+- `browser-pending-edits.ts`, importado pelo layout raiz, só registra `popstate`
+  quando existem listeners DOM, histórico e URL de navegador. React Native também
+  define `window`; isso não comprova APIs web. Seis testes cobrem histórico de
+  rascunhos e importação em um ambiente nativo sem essas APIs.
+
 ## Decisões atuais e limites
 
 - Presença no avatar usa heartbeat autenticado por instituição e leitura
@@ -124,3 +129,7 @@ do aplicativo, smoke autenticado ou verificações remotas.
 Consultar identidades em GET /auth/v1/user; falhas não equivalem a vínculo
 ausente. Após DELETE, confirmar ausência de telefone e identidade phone antes
 de atualizar sessão e anunciar sucesso. Preservar outro método de acesso.
+
+- Inicialização e espera de redirecionamento em app/index.tsx reutilizam FullscreenLoadingState, incluindo BootstrapGate; após isso cada tela mantém seu skeleton. A apresentação foi unificada sem alterar os bloqueios de acesso.
+- A lista da equipe abre o perfil em ModalSheet sobre a gestão pelo parâmetro memberProfile; fechar pelo backdrop ou voltar passa pela proteção de rascunhos de acesso existente.
+- Editar a própria conta a partir desse modal leva fromManagement=1; Voltar no perfil de coordenação retorna à gestão com o modal da conta autenticada, mantendo a confirmação de rascunhos.

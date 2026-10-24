@@ -79,3 +79,19 @@ describe("browser settings draft navigation", () => {
     expect(current).toHaveBeenCalledTimes(1);
   });
 });
+
+
+it("does not install browser draft navigation when React Native defines window without DOM APIs", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
+  try {
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- reproduce native module initialization.
+      const { registerBrowserPendingEdits } = require("../browser-pending-edits");
+      expect(() => registerBrowserPendingEdits(jest.fn())()).not.toThrow();
+    });
+  } finally {
+    if (original) Object.defineProperty(globalThis, "window", original);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});

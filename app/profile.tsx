@@ -589,7 +589,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   } = useBiometricLock();
   const router = useRouter();
   const pathname = usePathname();
-  const { edit, section } = useLocalSearchParams<{ edit?: string; section?: string }>();
+  const { edit, section, fromManagement } = useLocalSearchParams<{ edit?: string; section?: string; fromManagement?: string }>();
   const allowProfileNavigation = useRef(false);
   const [staffClassIds, setStaffClassIds] = useState<string[]>([]);
   const [staffClassesLoading, setStaffClassesLoading] = useState(true);
@@ -2391,7 +2391,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     const navigate = () => {
       allowProfileNavigation.current = true;
       if (destination) destination();
-      else navigateBackOrReplace({ router, fallback: scopedRoutes.home });
+      else if (fromManagement === "1" && pathname.startsWith("/coord/profile") && session?.user.id) {
+        router.replace({ pathname: "/coord/management", params: { memberProfile: session.user.id } });
+      } else navigateBackOrReplace({ router, fallback: scopedRoutes.home });
     };
     if (savingMobileProfile || athleteModalities.saving || savingSecurityContact) return;
     if (!mobileHasUnsavedChanges) {
@@ -4309,7 +4311,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         loading={loadingClasses || staffClassesLoading}
         error={staffClassesError}
         ownProfile
-        onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
+        onBack={() => leaveMobileProfile()}
         onEditPhoto={() => setShowPhotoSheet(true)}
         onEditProfile={() => { setProfessionalExpandedSection("personal"); setProfileTab("settings"); }}
       /> : settingsContent}

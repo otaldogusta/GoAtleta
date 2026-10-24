@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFriendlyErrorMessage } from "../../ui/error-messages";
 import * as Clipboard from "expo-clipboard";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AthleteAccessRequestRow } from "./AthleteAccessRequestRow";
@@ -626,6 +626,7 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const { session } = useAuth();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { assistantSection, assistantVisit, accessRequestId, memberProfile } = useLocalSearchParams<{ memberProfile?: string; assistantSection?: string; assistantVisit?: string; accessRequestId?: string }>();
   const pageScrollRef = useRef<ScrollView | null>(null);
   const sectionNodes = useRef<Partial<Record<SecondaryModuleKey, ViewType | null>>>({});
@@ -1737,6 +1738,12 @@ export function CoordinationPeopleWorkspace({
 
   return (
     <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}>
+      <ModalSheet
+        visible={isFocused && Boolean(profileMember)}
+        onClose={() => requestAccessNavigation(() => { setProfileTab("overview"); router.setParams({ memberProfile: "" }); })}
+        position="center"
+        cardStyle={{ width: "100%", maxWidth: 1040, height: "92%", padding: 0, overflow: "hidden", backgroundColor: colors.background, borderRadius: radius.card }}
+      >
       {profileMember ? <StaffProfilePage
         key={`${organizationId}:${profileMember.userId}`}
         organizationId={organizationId}
@@ -1760,11 +1767,14 @@ export function CoordinationPeopleWorkspace({
         manageClassesLabel="Gerenciar turmas"
         onBack={() => requestAccessNavigation(() => { setProfileTab("overview"); router.setParams({ memberProfile: "" }); })}
         ownProfile={profileMember.userId === session?.user.id}
-        onEditProfile={profileMember.userId === session?.user.id ? () => router.push("/coord/profile?edit=personal") : undefined}
-        onEditPhoto={profileMember.userId === session?.user.id ? () => router.push("/coord/profile?edit=photo") : undefined}
+        onEditProfile={profileMember.userId === session?.user.id ? () => requestAccessNavigation(() => { setProfileTab("overview"); accessNavigation.setParams({ memberProfile: "" } as never); router.push("/coord/profile?edit=personal&fromManagement=1"); }) : undefined}
+        onEditPhoto={profileMember.userId === session?.user.id ? () => requestAccessNavigation(() => { setProfileTab("overview"); accessNavigation.setParams({ memberProfile: "" } as never); router.push("/coord/profile?edit=photo&fromManagement=1"); }) : undefined}
         onManageAccess={() => void openEdit(profileMember, "permissions")}
         onMessage={() => requestAccessNavigation(() => openMessage(profileMember))}
-      /> : <>
+      /> : null}
+      <FloatingSaveBar visible={Boolean(profileMember) && accessReady && isEditDirty} label="Salvar alterações" onPress={() => void submitEdit()} disabled={editSaveDisabled} loading={editBusy} loadingLabel="Salvando..." maxWidth={728} />
+      </ModalSheet>
+      <>
       <ScreenPageHeader
         title="Coordenação"
         subtitle={`${organizationName} • ${new Date().toLocaleDateString("pt-BR", {
@@ -2034,9 +2044,8 @@ export function CoordinationPeopleWorkspace({
                       >
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={`${selected ? "Desselecionar" : "Selecionar"} ${displayLabel}`}
-                          accessibilityState={{ selected }}
-                          onPress={() => setSelectedMemberId((current) => current === member.userId ? null : member.userId)}
+                          accessibilityLabel={`Ver perfil de ${displayLabel}`}
+                          onPress={() => { setProfileTab("overview"); router.setParams({ memberProfile: member.userId }); }}
                           suppressWebHoverFeedback={selected}
                           disableWebPressScale
                           style={{
@@ -2487,7 +2496,7 @@ export function CoordinationPeopleWorkspace({
         </View>
       </View>
       </ScrollView>
-      </>}
+      </>
 
       <ModalSheet
         visible={modalMode === "invite"}
@@ -2863,7 +2872,7 @@ export function CoordinationPeopleWorkspace({
         onCancel={() => setShowInviteCloseConfirm(false)}
       />
 
-      <FloatingSaveBar visible={Boolean(profileMember) && accessReady && isEditDirty} label="Salvar alterações" onPress={() => void submitEdit()} disabled={editSaveDisabled} loading={editBusy} loadingLabel="Salvando..." maxWidth={728} />
+
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}

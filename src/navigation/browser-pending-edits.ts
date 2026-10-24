@@ -34,15 +34,23 @@ function protectBrowserDraft(event: PopStateEvent) {
   window.history.go(delta);
 }
 
+// React Native also defines window, but does not provide browser history or DOM listeners.
+function hasBrowserNavigation() {
+  return typeof window !== "undefined"
+    && typeof window.addEventListener === "function"
+    && typeof window.history?.go === "function"
+    && typeof window.location?.href === "string";
+}
+
 // Install before Expo's history listener. A listener mounted inside the screen
 // can be removed by Expo's synchronous route reset before it sees popstate.
-if (typeof window !== "undefined") {
+if (hasBrowserNavigation()) {
   window.addEventListener("popstate", protectBrowserDraft, true);
 }
 
 /** Opt in only while a focused settings screen has a draft or an active save. */
 export function registerBrowserPendingEdits(onLeave: BrowserDraftGuard["onLeave"]) {
-  if (typeof window === "undefined") return () => {};
+  if (!hasBrowserNavigation()) return () => {};
   const guard = { href: window.location.href, index: entryIndex(), onLeave };
   activeGuard = guard;
   return () => { if (activeGuard === guard) activeGuard = null; };

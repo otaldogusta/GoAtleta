@@ -47,7 +47,48 @@ de torneio, início do professor/coordenação ou relatórios.
 - Planilhas mantêm cabeçalhos em [export-schemas.ts](../../../src/utils/export-schemas.ts) e adaptador comum
   para escrita/download/compartilhamento; não replicar lógica de exportação em cada tela.
 - Eventos e decisões de feriado conservam organização e recorte de data; o calendário
-  do professor exclui aulas com pausa explícita ao compor o dia.
+  do professor exclui aulas com pausa explícita ao compor o dia. O mês compacto
+  seleciona uma data e exibe sua agenda completa por horário; filtros afetam
+  tanto os marcadores quanto a lista. A pedido do usuário, este calendário usa
+  duas colunas a partir de 960 px. Dias passados ficam atenuados, mantendo a
+  seleção legível. Unidade usa seletor ancorado com Todas como padrão; retorno
+  de turma conserva a unidade escolhida. No celular, `CalendarWeekPager` permite
+  rolagem horizontal com encaixe entre as semanas da grade, mantendo o dia da
+  semana selecionado; o ícone de calendário alterna mês/semana.
+  Calendário e eventos ficam no fluxo da página, sem modal/portal ou fundo escuro.
+  `useEventSheetGesture` compartilha o progresso entre `CalendarFold` e a lista:
+  subir recolhe o mês até a semana selecionada; descer no início da lista expande
+  o mês. A altura liberada passa para os eventos durante o próprio arrasto.
+  O encaixe usa posição/velocidade; deslocamento excedente rola a lista.
+  A barrinha só clareia no hover/pressionamento; roda/trackpad acumulam distância.
+  Referência observada na Agenda Samsung via ADB em 23/10. Movimento reduzido
+  elimina a animação de encaixe, preservando o acompanhamento do gesto.
+  Testes cobrem contração intermediária de 30/60 px, retenção dos sete eventos
+  e ausência de posicionamento absoluto. APK local Perf instalado por ADB em 23/10
+  com bundle embarcado (OTA desabilitado somente nesse APK), mantendo dados.
+  Teste físico no Samsung confirmou arrasto mês/semana no fluxo e acesso ao último
+  dos sete eventos. O paginador realinha a semana selecionada após medir o conteúdo
+  nativo, evitando abrir na primeira semana por uma chamada prematura de scroll.
+  No Android, o adaptador `useNativeCalendarGesture.native` usa Gesture Handler e
+  Reanimated já instalados: uma distância compartilhada consome primeiro a
+  contração do mês e depois a lista, permitindo reversão no mesmo toque.
+  Coordenadas absolutas evitam realimentação causada pelo painel em movimento;
+  a inércia permanece na lista e não expande o mês sozinha. Em 23/10, duas
+  posições mantidas no Samsung confirmaram deslocamento adicional de 100/100 px,
+  passagem mês/lista sem soltar, reversão e acesso ao último evento. Web mantém
+  seu adaptador de ponteiro/roda; comparação física não é benchmark de FPS.
+  `NativeCalendarFold` mantém mês e paginador montados no mesmo viewport
+  durante gesto, reversão e encaixe. A visibilidade muda na thread de UI;
+  `interacting` controla apenas interação/acessibilidade, sem remontar o calendário.
+  Teste de regressão confirma uma montagem do paginador em sete posições. APK
+  instalado em 23/10 às 16:52 e conferido no Samsung: três recolhimentos gravados,
+  264 frames extraídos sem desaparecimento da seleção. Arrasto e inversão rápida
+  preservaram dia 24; swipe horizontal e Hoje permaneceram funcionais.
+  O paginador começa no offset da semana selecionada e só altera a data após
+  um swipe horizontal real terminar; scroll de montagem/alinhamento é ignorado.
+  Touch-down interrompe a animação e incrementa a geração do gesto; callbacks
+  antigos não encerram a interação nova. Em 23/10, ciclos rápidos preservaram
+  dia 24 e Hoje (23), mantendo o swipe horizontal intencional de 24 para 31.
 - A agenda do aluno usa sua turma/organização e abre `/student-plan` com `classId` e
   `date`. Ela deriva horários das turmas; não presume paridade com eventos/pausas do calendário.
 

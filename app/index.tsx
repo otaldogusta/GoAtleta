@@ -1,15 +1,14 @@
 import { Redirect } from "expo-router";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { Platform } from "react-native";
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { useOptionalOrganization } from "../src/providers/organization-context";
-import { useAppTheme } from "../src/ui/app-theme";
+import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
 
 // perf-check: ignore-render
 // perf-check: ignore-measure
 export default function Home() {
-  const { colors } = useAppTheme();
   const { session, loading: authLoading } = useAuth();
   const { loading: roleLoading, role, devProfilePreview } = useRole();
   const organization = useOptionalOrganization();
@@ -28,18 +27,7 @@ export default function Home() {
 
   // Aguarda o auth/role/preview carregar antes de redirecionar.
   if (authLoading || roleLoading || shouldWaitForOrganization) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.background,
-        }}
-      >
-        <ActivityIndicator color={colors.primaryBg} />
-      </View>
-    );
+    return <FullscreenLoadingState />;
   }
   if (isWeb && browserPathname !== "/" && browserPathname !== "/index") return null;
 

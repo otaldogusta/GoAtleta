@@ -1,3 +1,4 @@
+import { calendarReturnRoute } from "../../src/screens/calendar/application/calendar-return-route";
 import { confirmPlanWithoutPeriodization } from "../../src/screens/classes/application/confirm-plan-without-periodization";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { getFriendlyErrorMessage, isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
@@ -197,7 +198,7 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, is
 export default function ClassDetails() {
   markRender("screen.classDetails.render.root");
 
-  const { id, section, date, settings } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string }>();
+  const { id, section, date, settings, calendarSource, calendarDate, calendarUnit } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string; calendarSource?: string; calendarDate?: string; calendarUnit?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const scopedRoutes = useTrainerRouteScope();
@@ -2559,7 +2560,11 @@ export default function ClassDetails() {
           title={className}
           onBreadcrumbNavigate={requestAttendanceAction}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
-          onBack={() => requestAttendanceAction(() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes }))}
+          onBack={() => requestAttendanceAction(() => {
+            const calendar = calendarReturnRoute(calendarSource, calendarDate, calendarUnit);
+            if (calendar) router.replace(calendar, { withAnchor: true });
+            else navigateBackOrReplace({ router, fallback: scopedRoutes.classes });
+          })}
           right={
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Pressable
