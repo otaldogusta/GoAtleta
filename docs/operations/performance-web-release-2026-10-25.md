@@ -2,7 +2,8 @@
 
 Preflight do pacote de [performance de listas e memória](performance-lists-memory-local-2026-10-25.md).
 Este registro descreve a compatibilidade encontrada antes da publicação. Não é
-confirmação de deploy ou de aplicação das migrations no banco remoto.
+confirmação de aplicação das migrations no banco remoto. As publicações posteriores
+ao preflight estão registradas abaixo, separadas dos testes de experiência.
 
 ## Destino conferido
 
@@ -45,3 +46,45 @@ As [séries de performance](performance-lists-memory-local-2026-10-25.md) contin
 variáveis; o contador de listeners é pendência registrada, sem origem de retenção
 comprovada. Não prometer ganho uniforme, ausência de vazamento, capacidade de
 usuários simultâneos ou validação em aparelho.
+
+## Publicações confirmadas em 25/10/2026
+
+- Código entregue: `82eb2299b91be48d0946637a87f531f6dd5f5fdb`, branch
+  `codex/performance-web-release-20261025`, [PR #107](https://github.com/otaldogusta/GoAtleta/pull/107)
+  aberta em draft, sem merge em `main`.
+- Web: deployment `dpl_88R9hGuDqeU5ukmD7YB3rk5e1ntD` confirmado `READY` em
+  `goatleta.com`; domínio principal HTTP 200 e `www` redirecionando 308. Smoke
+  autenticado da candidata cobriu listas, cancelamento da ficha, plano e retorno
+  da agenda; painel, atletas e relatório repetidos após promoção. A RPC mensal
+  ausente respondeu 404 e o leitor legado autorizado respondeu 200. Sem gravação
+  de cadastros ou alteração do catálogo remoto. Alias protegido usado no teste
+  restaurado antes da promoção, sem bypass de autenticação.
+- Android, autorizado após a entrega web: EAS Update publicado exclusivamente
+  para Android no canal e ambiente `production`, runtime `1.0.3`, grupo
+  `52372840-32a8-46e4-b156-d66e94a0f97c`, update
+  `01a1747c-7421-7d42-b6e5-a9d818cb21a9`. Consulta posterior ao canal confirmou
+  plataforma, runtime, ambiente e commit. Não atualiza binários de runtime 1.0.2.
+- Gate completo repetido: 689 suítes e 4.655 testes Jest, 18 suítes SQL, lint,
+  tipos, escopo, arquitetura, performance e export web aprovados em 608 segundos.
+  Export Android de produção também aprovado, com ambiente conferido sem expor
+  valores. O pacote não alterou dependências, plugins ou configuração nativa.
+- O último build Android de produção concluído no EAS antes desta publicação
+  era `1.0.2`. APK oficial `1.0.3`, código 4, solicitado no perfil
+  `production-apk`: [build `37c9fa4a`](https://expo.dev/accounts/otaldogusta/projects/goatleta/builds/37c9fa4a-666f-44f8-99f7-a0beca1c84b1)
+  confirmado `FINISHED`. SHA-256 do APK:
+  `618d98c58ea8315cbe8e705165f896ab54a9c72a4c3fa6e14312d281bd6d22e1`.
+  Assinatura, pacote `com.otaldogusta.goatleta`, runtime/canal e Updates habilitado
+  conferidos no manifesto compilado; binário sem debug. Instalação por ADB no
+  aparelho conectado concluída, preservando o pacote de teste e seus dados.
+  Abertura na tela inicial aprovada; login e smoke autenticado ainda pendentes.
+  Os 645 ms da Activity na primeira abertura não medem conteúdo interativo ou
+  navegação autenticada e não são comparação de performance.
+- O aparelho conectado tinha somente `com.otaldogusta.goatleta.perf`, versão
+  `1.0.3-perf`. O manifesto compilado indica runtime 1.0.3, canal `perf` e
+  Updates desabilitado, portanto esse APK não recebe o OTA de produção. A tela
+  voltou a bloquear antes da baseline; uma abertura não fria e PSS isolado não
+  constituem comparação válida. Não houve limpeza dos dados do app de teste.
+- As oito migrations de performance continuam sem aplicação remota. A revisão
+  da policy legada, o crescimento de listeners e a variabilidade de startup/listas
+  permanecem pendentes. Esta publicação não inclui iOS, Play Store ou comprovação
+  de capacidade/melhoria percentual no Android.
