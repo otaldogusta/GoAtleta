@@ -1,11 +1,12 @@
 import type { ClassGender, ClassGroup, Student } from "../../../core/models";
+import type { StudentDirectoryRecord } from "../../../core/student-read-models";
 
 export type StudentProfileFilter = "regular" | "experimental";
 export type StudentContactFilter = "with" | "without";
 export type StudentMembershipScope = "active" | "inactive" | "all";
 
 export const matchesStudentMembershipScope = (
-  student: Student,
+  student: StudentDirectoryRecord,
   scope: StudentMembershipScope,
 ) => scope === "all" || student.membershipStatus === scope;
 
@@ -44,7 +45,7 @@ export const countStudentFilterExclusions = (
   );
 
 export const matchesStudentFilterExclusions = (params: {
-  student: Student;
+  student: StudentDirectoryRecord;
   classGroup?: ClassGroup;
   exclusions: StudentFilterExclusions;
 }) => {

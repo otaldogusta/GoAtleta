@@ -1,5 +1,12 @@
-import { getSessionUserId, getValidAccessToken } from "../auth/session";
-import { getActiveOrganizationId } from "../db/client";
+import {
+  assertSessionIdentity,
+  getAccessToken,
+  getSessionIdentity,
+  getSessionUserId,
+  getValidAccessToken,
+  SessionIdentityChangedError,
+} from "../auth/session";
+import { getActiveOrganizationId, getReadCacheGeneration } from "../db/client";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import {
   supabaseRestDelete,
@@ -82,6 +89,15 @@ const NOTIFICATION_SELECT =
   "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at";
 const NOTIFICATION_SELECT_LEGACY =
   "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at";
+
+// Share only concurrent identical reads, never a settled inbox snapshot.
+const notificationReads = new Map<string, Promise<AppNotification[]>>();
+let notificationReadGeneration = 0;
+class NotificationReadInvalidatedError extends Error {}
+const invalidateNotificationReads = () => {
+  notificationReadGeneration += 1;
+  notificationReads.clear();
+};
 
 const mapNotification = (row: NotificationRow): AppNotification => ({
   id: row.id,
@@ -194,19 +210,37 @@ const callCreateNotificationFunction = async (
   };
 };
 
-export async function listNotifications(
-  options: {
-    inboxScope: NotificationInboxScope;
-    organizationId?: string | null;
-    limit?: number;
-    offset?: number;
-    unreadOnly?: boolean;
-    archiveScope?: NotificationArchiveScope;
-  },
-): Promise<AppNotification[]> {
+type ListNotificationOptions = {
+  inboxScope: NotificationInboxScope;
+  organizationId?: string | null;
+  limit?: number;
+  offset?: number;
+  unreadOnly?: boolean;
+  archiveScope?: NotificationArchiveScope;
+};
+
+export async function listNotifications(options: ListNotificationOptions): Promise<AppNotification[]> {
+  return readNotifications(options);
+}
+
+async function readNotifications(options: ListNotificationOptions): Promise<AppNotification[]> {
+  const identity = getSessionIdentity();
+  const cacheGeneration = getReadCacheGeneration();
   const organizationId = await resolveOrganizationId(options.organizationId);
   const recipientUserId = await getSessionUserId();
+  assertSessionIdentity(identity);
+  if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
   if (!organizationId || !recipientUserId) return [];
+  const readGeneration = notificationReadGeneration;
+  const assertIdentityCurrent = () => {
+    assertSessionIdentity(identity);
+    if (identity.userId !== recipientUserId || cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+  };
+  const assertContextCurrent = () => {
+    assertIdentityCurrent();
+    if (readGeneration !== notificationReadGeneration) throw new NotificationReadInvalidatedError();
+  };
+  assertContextCurrent();
 
   const limit = Math.max(1, Math.min(options.limit ?? 50, 100));
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
@@ -218,29 +252,62 @@ export async function listNotifications(
         ? "&archived_at=not.is.null"
         : "&archived_at=is.null";
   const inboxFilter = `&${notificationInboxFilter(options.inboxScope)}`;
-  try {
-    const rows = await supabaseRestGet<NotificationRow[]>(
-      `/notifications?select=${NOTIFICATION_SELECT}&organization_id=eq.${encodeURIComponent(
-        organizationId,
-      )}&recipient_user_id=eq.${encodeURIComponent(
-        recipientUserId,
-      )}${inboxFilter}${unreadFilter}${archiveFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
-    );
-    return (rows ?? []).map(mapNotification);
-  } catch (error) {
-    if (isMissingArchivedAtColumn(error)) {
-      if (options.archiveScope === "archived") return [];
+  const key = JSON.stringify([identity.userId, identity.generation, cacheGeneration,
+    readGeneration, getAccessToken(), organizationId, options.inboxScope, limit, offset,
+    Boolean(options.unreadOnly), options.archiveScope ?? "active"]);
+  const existing = notificationReads.get(key);
+  if (existing) return existing;
+
+  const read = async () => {
+    try {
       const rows = await supabaseRestGet<NotificationRow[]>(
-        `/notifications?select=${NOTIFICATION_SELECT_LEGACY}&organization_id=eq.${encodeURIComponent(
+        `/notifications?select=${NOTIFICATION_SELECT}&organization_id=eq.${encodeURIComponent(
           organizationId,
         )}&recipient_user_id=eq.${encodeURIComponent(
           recipientUserId,
-        )}${inboxFilter}${unreadFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
+        )}${inboxFilter}${unreadFilter}${archiveFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
+        assertContextCurrent,
       );
+      assertContextCurrent();
       return (rows ?? []).map(mapNotification);
+    } catch (error) {
+      assertContextCurrent();
+      if (isMissingArchivedAtColumn(error)) {
+        if (options.archiveScope === "archived") return [];
+        const rows = await supabaseRestGet<NotificationRow[]>(
+          `/notifications?select=${NOTIFICATION_SELECT_LEGACY}&organization_id=eq.${encodeURIComponent(
+            organizationId,
+          )}&recipient_user_id=eq.${encodeURIComponent(
+            recipientUserId,
+          )}${inboxFilter}${unreadFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
+          assertContextCurrent,
+        );
+        assertContextCurrent();
+        return (rows ?? []).map(mapNotification);
+      }
+      if (isMissingNotificationsTable(error)) return [];
+      throw error;
     }
-    if (isMissingNotificationsTable(error)) return [];
-    throw error;
+  };
+  const readCurrent = async (): Promise<AppNotification[]> => {
+    try {
+      return await read();
+    } catch (error) {
+      if (error instanceof NotificationReadInvalidatedError) {
+        assertIdentityCurrent();
+        // An older consumer must receive the refreshed inbox, not publish [] after
+        // the mutation's own refresh. Never replay an account/workspace change.
+        return await readNotifications(options);
+      }
+      throw error;
+    }
+  };
+  const pending = readCurrent();
+  notificationReads.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (notificationReads.get(key) === pending) notificationReads.delete(key);
   }
 }
 
@@ -287,6 +354,8 @@ export async function createNotification(
   } catch (error) {
     if (isMissingNotificationsTable(error)) return null;
     throw error;
+  } finally {
+    invalidateNotificationReads();
   }
 
   if (
@@ -334,6 +403,8 @@ export async function markNotificationRead(id: string): Promise<void> {
   } catch (error) {
     if (isMissingNotificationsTable(error)) return;
     throw error;
+  } finally {
+    invalidateNotificationReads();
   }
 }
 
@@ -370,6 +441,8 @@ export async function markAllNotificationsRead(
     }
     if (isMissingNotificationsTable(error)) return;
     throw error;
+  } finally {
+    invalidateNotificationReads();
   }
 }
 
@@ -399,6 +472,8 @@ export async function archiveReadNotifications(
     }
     if (isMissingNotificationsTable(error)) return;
     throw error;
+  } finally {
+    invalidateNotificationReads();
   }
 }
 
@@ -428,6 +503,8 @@ export async function restoreNotification(
     }
     if (isMissingNotificationsTable(error)) return;
     throw error;
+  } finally {
+    invalidateNotificationReads();
   }
 }
 
@@ -451,5 +528,7 @@ export async function clearMyNotifications(
   } catch (error) {
     if (isMissingNotificationsTable(error)) return;
     throw error;
+  } finally {
+    invalidateNotificationReads();
   }
 }

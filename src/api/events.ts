@@ -1,3 +1,5 @@
+import { assertSessionIdentity, getSessionIdentity, SessionIdentityChangedError } from "../auth/session";
+import { getActiveOrganizationId, getReadCacheGeneration } from "../db/client";
 import { supabaseRestDelete, supabaseRestGet, supabaseRestPatch, supabaseRestPost } from "./rest";
 
 export type EventType = "torneio" | "amistoso" | "treino" | "reuniao" | "outro";
@@ -73,47 +75,105 @@ const toRecord = (row: EventRow): EventRecord => ({
 });
 
 const joinInFilter = (values: string[]) => `(${values.join(",")})`;
+const EVENT_ID_BATCH_SIZE = 50;
+const EVENT_READ_PAGE_SIZE = 500;
+const EVENT_READ_MAX_PAGES = 1000;
+type EventReader = <T>(path: string) => Promise<T[]>;
+const defaultEventReader: EventReader = <T>(path: string) => supabaseRestGet<T[]>(path);
+
+async function captureEventReader(): Promise<EventReader> {
+  const identity = getSessionIdentity();
+  const generation = getReadCacheGeneration();
+  const initialOrganizationId = await getActiveOrganizationId();
+  let requests = 0;
+  const assertIdentity = () => {
+    assertSessionIdentity(identity);
+    if (generation !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+  };
+  const assertCurrent = async () => {
+    assertIdentity();
+    const organizationId = await getActiveOrganizationId();
+    assertIdentity();
+    if (organizationId !== initialOrganizationId) throw new SessionIdentityChangedError();
+  };
+  await assertCurrent();
+  return async <T>(path: string) => {
+    await assertCurrent();
+    if (requests >= EVENT_READ_MAX_PAGES) throw new Error("Limite de leitura de eventos excedido.");
+    requests += 1;
+    const rows = await supabaseRestGet<T[]>(path, assertIdentity);
+    await assertCurrent();
+    return rows;
+  };
+}
+
+async function readEventPages<T>(path: string, read: EventReader, key: (row: T) => string): Promise<T[]> {
+  const result: T[] = [];
+  const seen = new Set<string>();
+  let offset = 0;
+  for (let page = 0; page < EVENT_READ_MAX_PAGES; page += 1) {
+    const rows = await read<T>(`${path}&limit=${EVENT_READ_PAGE_SIZE}&offset=${offset}`);
+    if (!Array.isArray(rows)) throw new Error("Resposta de eventos inválida.");
+    if (!rows.length) return result;
+    for (const row of rows) {
+      const rowKey = key(row);
+      if (seen.has(rowKey)) throw new Error("Página de eventos repetida.");
+      seen.add(rowKey);
+      result.push(row);
+    }
+    offset += rows.length;
+  }
+  throw new Error("Limite de leitura de eventos excedido.");
+}
 
 const makeWindowFilter = (fromIso: string, toIso: string) =>
   `starts_at=gte.${encodeURIComponent(fromIso)}&starts_at=lte.${encodeURIComponent(toIso)}`;
 
 const listEventClassLinks = async (
   organizationId: string,
-  eventIds: string[]
+  eventIds: string[],
+  read: EventReader
 ): Promise<EventClassRow[]> => {
-  if (!eventIds.length) return [];
-  const path =
-    "/event_classes?select=event_id,class_id,organization_id" +
-    `&organization_id=eq.${encodeURIComponent(organizationId)}` +
-    `&event_id=in.${encodeURIComponent(joinInFilter(eventIds))}`;
-  return supabaseRestGet<EventClassRow[]>(path);
+  const result: EventClassRow[] = [];
+  for (let index = 0; index < eventIds.length; index += EVENT_ID_BATCH_SIZE) {
+    const batch = eventIds.slice(index, index + EVENT_ID_BATCH_SIZE);
+    const path =
+      "/event_classes?select=event_id,class_id,organization_id" +
+      `&organization_id=eq.${encodeURIComponent(organizationId)}` +
+      `&event_id=in.${encodeURIComponent(joinInFilter(batch))}` +
+      "&order=event_id.asc,class_id.asc";
+    result.push(...await readEventPages<EventClassRow>(path, read, row => JSON.stringify([row.event_id, row.class_id])));
+  }
+  return result;
 };
 
 const listMyClassIds = async (
   organizationId: string,
-  userId: string
+  userId: string,
+  read: EventReader
 ): Promise<Set<string>> => {
   if (!userId) return new Set<string>();
   const path =
     "/class_staff?select=class_id" +
     `&organization_id=eq.${encodeURIComponent(organizationId)}` +
     `&user_id=eq.${encodeURIComponent(userId)}`;
-  const rows = await supabaseRestGet<ClassStaffRow[]>(path);
+  const rows = await read<ClassStaffRow>(path);
   return new Set(rows.map((row) => row.class_id));
 };
 
 const composeEventItems = async (
   rows: EventRow[],
   organizationId: string,
-  userId?: string
+  userId?: string,
+  read: EventReader = defaultEventReader
 ): Promise<EventListItem[]> => {
   const records = rows.map(toRecord);
   if (!records.length) return [];
 
   const eventIds = records.map((event) => event.id);
   const [links, myClassIds] = await Promise.all([
-    listEventClassLinks(organizationId, eventIds),
-    userId ? listMyClassIds(organizationId, userId) : Promise.resolve(new Set<string>()),
+    listEventClassLinks(organizationId, eventIds, read),
+    userId ? listMyClassIds(organizationId, userId, read) : Promise.resolve(new Set<string>()),
   ]);
 
   const classesByEvent = new Map<string, string[]>();
@@ -154,9 +214,10 @@ export async function listEvents(params: {
     filters.push(`event_type=eq.${encodeURIComponent(params.eventType)}`);
   }
 
-  const path = `/events?select=*&order=starts_at.asc&${filters.join("&")}`;
-  const rows = await supabaseRestGet<EventRow[]>(path);
-  return composeEventItems(rows, params.organizationId, params.userId);
+  const read = await captureEventReader();
+  const path = `/events?select=*&order=starts_at.asc,id.asc&${filters.join("&")}`;
+  const rows = await readEventPages<EventRow>(path, read, row => row.id);
+  return composeEventItems(rows, params.organizationId, params.userId, read);
 }
 
 export async function listUpcomingEvents(params: {

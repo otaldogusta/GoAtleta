@@ -1,6 +1,7 @@
 import { type RefObject } from "react";
 import { Alert, StyleProp, Text, TextInput, View, ViewStyle } from "react-native";
-import type { ClassGroup, Student } from "../../../core/models";
+import type { ClassGroup } from "../../../core/models";
+import type { StudentDirectoryRecord } from "../../../core/student-read-models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
@@ -29,7 +30,7 @@ export type WhatsAppModalProps = {
 
   // student data
   selectedStudentId: string | null;
-  students: Student[];
+  students: StudentDirectoryRecord[];
   classById: Map<string, ClassGroup>;
 
   // contact selection
@@ -53,7 +54,7 @@ export type WhatsAppModalProps = {
   showRevokeConfirm: boolean;
   setShowRevokeConfirm: (v: boolean) => void;
   applyStudentInviteTemplate: (
-    student: Student,
+    student: StudentDirectoryRecord,
     cls: ClassGroup | null,
     invitedTo: string,
     options: { revokeFirst: boolean; copyLink: boolean }
@@ -84,7 +85,7 @@ export type WhatsAppModalProps = {
 
   // message builder
   buildStudentMessage: (
-    student: Student,
+    student: StudentDirectoryRecord,
     cls: ClassGroup | null,
     templateId: WhatsAppTemplateId,
     fields: Record<string, string>

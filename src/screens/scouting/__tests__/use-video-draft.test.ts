@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useVideoDraft } from '../video/use-video-draft';
 import { newVideoDocument, splitVideoRally, videoDraftKey } from '../../../core/scouting-video';
+import * as videoSync from '../../../core/scouting-video-sync';
 const mockStored = new Map<string, string>();
 const mockSet = jest.fn(async (key: string, value: string) => { mockStored.set(key, value); });
 const mockIdentity = jest.fn();
@@ -46,6 +47,36 @@ test('storage failure preserves the dirty document and a subsequent save can rec
   expect(result.current.dirty).toBe(true); expect(result.current.doc?.rallies).toHaveLength(2);
   await act(async () => { expect(await result.current.save()).toBe(true); });
   expect(result.current.error).toBe('');
+});
+
+test('playback rerenders reuse the unchanged document signature while edits, undo and saves keep dirty accurate', async () => {
+  const hook = renderHook(({ clock }: { clock: number }) => {
+    void clock;
+    return useVideoDraft('org', 'user', 'session');
+  }, { initialProps: { clock: 0 } });
+  await act(async () => { await hook.result.current.open(media); await hook.result.current.save(); });
+  const document = hook.result.current.doc;
+  const signature = jest.spyOn(videoSync, 'videoDocumentSignature');
+  try {
+    for (let clock = 1; clock <= 10; clock++) hook.rerender({ clock });
+    expect(hook.result.current.doc).toBe(document);
+    expect(hook.result.current.dirty).toBe(false);
+    expect(signature).not.toHaveBeenCalled();
+
+    act(() => hook.result.current.change(splitVideoRally(hook.result.current.doc!, 5, 'second'), 'Divisão'));
+    expect(hook.result.current.dirty).toBe(true);
+    act(() => hook.result.current.undo());
+    expect(hook.result.current.dirty).toBe(false);
+    act(() => hook.result.current.undo(true));
+    expect(hook.result.current.dirty).toBe(true);
+    await act(async () => { expect(await hook.result.current.save()).toBe(true); });
+    expect(hook.result.current.dirty).toBe(false);
+
+    signature.mockClear();
+    for (let clock = 11; clock <= 20; clock++) hook.rerender({ clock });
+    expect(hook.result.current.dirty).toBe(false);
+    expect(signature).not.toHaveBeenCalled();
+  } finally { signature.mockRestore(); hook.unmount(); }
 });
 test('changed authentication refuses a save before writing storage', async () => {
   const { result } = renderHook(() => useVideoDraft('org', 'user', 'session'));

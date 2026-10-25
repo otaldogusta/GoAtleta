@@ -1,0 +1,32 @@
+diff --git a/node_modules/expo-router/build/fork/createMemoryHistory.js b/node_modules/expo-router/build/fork/createMemoryHistory.js
+--- a/node_modules/expo-router/build/fork/createMemoryHistory.js
++++ b/node_modules/expo-router/build/fork/createMemoryHistory.js
+@@ -173,6 +173,7 @@ function createMemoryHistory() {
+                     // This was triggered by `history.go(n)`, we shouldn't call the listener
+                     return;
+                 }
++                index = history.index;
+                 listener();
+             };
+             window.addEventListener('popstate', onPopState);
+diff --git a/node_modules/expo-router/build/layouts/StackClient.js b/node_modules/expo-router/build/layouts/StackClient.js
+--- a/node_modules/expo-router/build/layouts/StackClient.js
++++ b/node_modules/expo-router/build/layouts/StackClient.js
+@@ -430,7 +430,16 @@ const Stack = Object.assign((props) => {
+         return disableAnimationInScreenOptions(screenOptionsWithCompositionAPIOptions, condition);
+     }, [screenOptionsWithCompositionAPIOptions, isStackAnimationDisabled]);
+     const rnChildren = (0, react_1.useMemo)(() => (0, stack_utils_1.mapProtectedScreen)({ guard: true, children: props.children }).children, [props.children]);
+-    return ((0, jsx_runtime_1.jsx)(RNStack, { ...props, children: rnChildren, screenOptions: screenOptions, UNSTABLE_router: exports.stackRouterOverride }));
++    const routerOverride = (0, react_1.useMemo)(() => {
++        const override = props.UNSTABLE_router;
++        return override
++            ? (original) => {
++                const expoRouter = { ...original, ...(0, exports.stackRouterOverride)(original) };
++                return { ...expoRouter, ...override(expoRouter) };
++            }
++            : exports.stackRouterOverride;
++    }, [props.UNSTABLE_router]);
++    return ((0, jsx_runtime_1.jsx)(RNStack, { ...props, children: rnChildren, screenOptions: screenOptions, UNSTABLE_router: routerOverride }));
+ }, {
+     Screen: stack_utils_1.StackScreen,
+     Protected: Protected_1.Protected,

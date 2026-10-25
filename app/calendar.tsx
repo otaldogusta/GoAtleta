@@ -8,10 +8,11 @@ import { selectCalendarDay } from "../src/screens/calendar/application/calendar-
 import { listCalendarPauses } from "../src/api/holiday-decisions";
 import { isPaused, type CalendarPause } from "../src/core/holidays";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigationContainerRef, usePathname, useRoute, useRouter } from "expo-router";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -31,6 +32,7 @@ import { Pressable } from "../src/ui/Pressable";
 import type { EventListItem } from "../src/api/events";
 import { listEvents } from "../src/api/events";
 import { useAuth } from "../src/auth/auth";
+import { getSessionIdentity } from "../src/auth/session";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, TrainingPlan } from "../src/core/models";
@@ -39,10 +41,12 @@ import { normalizeUnitKey } from "../src/core/unit-key";
 import {
   getClasses,
   getLatestTrainingPlanByClass,
-  getTrainingPlans,
   saveTrainingPlan,
 } from "../src/db/seed";
+import { getReadCacheGeneration } from "../src/db/client";
+import { getCalendarTrainingPlanApplications, getTrainingPlanById, getTrainingPlanSummaries, type CalendarTrainingPlanApplication, type TrainingPlanSummary } from "../src/db/training";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { navigateToDetailRoute } from "../src/navigation/primary-route-navigation";
 import { useOrganization } from "../src/providers/organization-context";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
@@ -176,9 +180,13 @@ type MonthCalendarDayModel = {
   agendaItems: AgendaItemModel[];
 };
 
+type ScopedCalendarRead<T> = { scope: string; rows: T[]; error: string | null };
+
 export default function CalendarScreen() {
   markRender("screen.calendar.render.root");
   const router = useRouter();
+  const rootNavigationRef = useNavigationContainerRef();
+  const calendarRoute = useRoute();
   const calendarPath = usePathname();
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
@@ -186,16 +194,23 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const { activeOrganization } = useOrganization();
-  const [calendarPauses, setCalendarPauses] = useState<{ organizationId: string; rows: CalendarPause[] }>({ organizationId: "", rows: [] });
+  const identity = getSessionIdentity();
+  const readGeneration = getReadCacheGeneration();
+  const readScope = JSON.stringify([identity.userId, identity.generation, readGeneration, activeOrganization?.id]);
+  const isCurrentRead = useCallback(() => {
+    const current = getSessionIdentity();
+    return current.userId === identity.userId && current.generation === identity.generation && getReadCacheGeneration() === readGeneration;
+  }, [identity.userId, identity.generation, readGeneration]);
+  const [calendarPauses, setCalendarPauses] = useState<{ scope: string; rows: CalendarPause[] }>({ scope: "", rows: [] });
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
     if (!organizationId) return;
     void listCalendarPauses(organizationId).then(rows => {
-      if (alive) setCalendarPauses({ organizationId, rows });
+      if (alive && isCurrentRead()) setCalendarPauses({ scope: readScope, rows });
     }).catch(() => { /* Keep the last verified calendar; retry on organization change. */ });
     return () => { alive = false; };
-  }, [activeOrganization?.id]);
+  }, [activeOrganization?.id, readScope, isCurrentRead]);
 
   const params = useLocalSearchParams();
   const targetClassId =
@@ -208,10 +223,18 @@ export default function CalendarScreen() {
       : "";
   const openApply =
     typeof params.openApply === "string" ? params.openApply === "1" : false;
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [plans, setPlans] = useState<TrainingPlan[]>([]);
-  const [events, setEvents] = useState<EventListItem[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [classSnapshot, setClassSnapshot] = useState<ScopedCalendarRead<ClassGroup>>({ scope: "", rows: [], error: null });
+  const classes = useMemo(() => classSnapshot.scope === readScope ? classSnapshot.rows : [], [classSnapshot, readScope]);
+  const loadingData = Boolean(activeOrganization?.id) && classSnapshot.scope !== readScope;
+  const classesError = classSnapshot.scope === readScope ? classSnapshot.error : null;
+  const [planSnapshot, setPlanSnapshot] = useState<ScopedCalendarRead<CalendarTrainingPlanApplication>>({ scope: "", rows: [], error: null });
+  const [eventSnapshot, setEventSnapshot] = useState<ScopedCalendarRead<EventListItem>>({ scope: "", rows: [], error: null });
+  const events = useMemo(() => eventSnapshot.scope === readScope ? eventSnapshot.rows : [], [eventSnapshot, readScope]);
+  const eventsError = eventSnapshot.scope === readScope ? eventSnapshot.error : null;
+  const [pickerSnapshot, setPickerSnapshot] = useState<ScopedCalendarRead<TrainingPlanSummary>>({ scope: "", rows: [], error: null });
+  const applyRequestSequence = useRef(0);
+  const applyRequestPending = useRef(false);
+  const [applyPending, setApplyPending] = useState<{ scope: string; id: string } | null>(null);
   const [unitFilter, setUnitFilter] = useState(() => typeof params.unit === "string" ? params.unit : "Todas");
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const seed = targetDate ? new Date(targetDate + "T00:00:00") : new Date();
@@ -251,6 +274,14 @@ export default function CalendarScreen() {
     return end;
   }, [calendarStart]);
   const monthTitle = useMemo(() => formatMonthTitle(visibleMonth), [visibleMonth]);
+  const planRangeStart = formatIsoDate(calendarStart);
+  const planRangeEnd = formatIsoDate(calendarEnd);
+  const planScope = JSON.stringify([readScope, planRangeStart, planRangeEnd]);
+  const currentPlanScopeRef = useRef(planScope);
+  useEffect(() => { currentPlanScopeRef.current = planScope; }, [planScope]);
+  const plans = useMemo(() => planSnapshot.scope === planScope ? planSnapshot.rows : [], [planSnapshot, planScope]);
+  const plansError = planSnapshot.scope === planScope ? planSnapshot.error : null;
+  const loadingPlans = Boolean(activeOrganization?.id) && planSnapshot.scope !== planScope;
   const goToPreviousMonth = useCallback(() => {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
   }, []);
@@ -264,6 +295,7 @@ export default function CalendarScreen() {
     if (Number.isNaN(seed.getTime())) return;
     Promise.resolve().then(() => {
       setVisibleMonth(new Date(seed.getFullYear(), seed.getMonth(), 1));
+      setSelectedDate(targetDate);
     });
   }, [targetDate]);
 
@@ -296,36 +328,38 @@ export default function CalendarScreen() {
   }, [classes]);
   useEffect(() => {
     let alive = true;
+    const organizationId = activeOrganization?.id;
+    if (!organizationId) return;
     (async () => {
       try {
-        const classList = await measureAsync("screen.calendar.load.classes", () => getClasses());
-        if (!alive) return;
-        setClasses(classList);
-        void (async () => {
-          try {
-            const planList = await measureAsync("screen.calendar.load.plans", () => getTrainingPlans());
-            if (!alive) return;
-            setPlans(planList);
-          } catch {
-            if (!alive) return;
-            setPlans([]);
-          }
-        })();
-      } finally {
-        if (alive) setLoadingData(false);
+        const rows = await measureAsync("screen.calendar.load.classes", () => getClasses({ organizationId }));
+        if (alive && isCurrentRead()) setClassSnapshot({ scope: readScope, rows, error: null });
+      } catch {
+        if (alive && isCurrentRead()) setClassSnapshot({ scope: readScope, rows: [], error: "Não foi possível carregar as turmas." });
       }
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeOrganization?.id, readScope, isCurrentRead]);
+
+  useEffect(() => {
+    const organizationId = activeOrganization?.id;
+    if (!organizationId) return;
+    const controller = new AbortController();
+    void measureAsync("screen.calendar.load.plans", () => getCalendarTrainingPlanApplications({
+      organizationId, startDate: planRangeStart, endDate: planRangeEnd, signal: controller.signal,
+    })).then(rows => {
+      if (!controller.signal.aborted && isCurrentRead()) setPlanSnapshot({ scope: planScope, rows, error: null });
+    }).catch(() => {
+      if (!controller.signal.aborted && isCurrentRead()) setPlanSnapshot({ scope: planScope, rows: [], error: "Não foi possível carregar os planejamentos." });
+    });
+    return () => controller.abort();
+  }, [activeOrganization?.id, planRangeStart, planRangeEnd, planScope, isCurrentRead]);
 
   useEffect(() => {
     let alive = true;
     if (!activeOrganization?.id) {
-      Promise.resolve().then(() => {
-        setEvents([]);
-      });
       return () => {
         alive = false;
       };
@@ -343,16 +377,16 @@ export default function CalendarScreen() {
       userId: session?.user?.id,
     }))
       .then((rows) => {
-        if (alive) setEvents(rows);
+        if (alive && isCurrentRead()) setEventSnapshot({ scope: readScope, rows, error: null });
       })
       .catch(() => {
-        if (alive) setEvents([]);
+        if (alive && isCurrentRead()) setEventSnapshot({ scope: readScope, rows: [], error: "Não foi possível carregar os eventos." });
       });
 
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id]);
+  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id, readScope, isCurrentRead]);
 
   const applyTargetHandled = useRef(false);
   useEffect(() => {
@@ -386,8 +420,8 @@ export default function CalendarScreen() {
     const map: Record<
       string,
       {
-        byDate: Record<string, TrainingPlan>;
-        byWeekday: Record<number, TrainingPlan>;
+        byDate: Record<string, CalendarTrainingPlanApplication>;
+        byWeekday: Record<number, CalendarTrainingPlanApplication>;
       }
     > = {};
     plans.forEach((plan) => {
@@ -490,7 +524,7 @@ export default function CalendarScreen() {
       const isCurrentMonth =
         date.getMonth() === visibleMonth.getMonth() &&
         date.getFullYear() === visibleMonth.getFullYear();
-      const classesForDay = (filteredClassesByDay[day] ?? []).filter(cls => !isPaused(calendarPauses.organizationId === activeOrganization?.id ? calendarPauses.rows : [], cls.id, dayKey));
+      const classesForDay = (filteredClassesByDay[day] ?? []).filter(cls => !isPaused(calendarPauses.scope === readScope ? calendarPauses.rows : [], cls.id, dayKey));
       const eventsForDay = eventsByDate[dateIso] ?? [];
 
       const classItems: AgendaClassItemModel[] = classesForDay.map((cls, index) => {
@@ -599,7 +633,7 @@ export default function CalendarScreen() {
     eventsByDate,
     filteredClassesByDay,
     calendarPauses,
-    activeOrganization?.id,
+    readScope,
     planLookupByClass,
     todayStart,
     unitLabel,
@@ -676,11 +710,6 @@ export default function CalendarScreen() {
     return parts.length ? parts.join(" · ") : "Sem compromissos";
   }, [monthClassCount, monthEventCount]);
 
-  const sortedPlans = useMemo(() => {
-    return plans
-      .slice()
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [plans]);
   const selectedApplyClass = applyPickerClassId
     ? classById[applyPickerClassId]
     : null;
@@ -689,6 +718,37 @@ export default function CalendarScreen() {
     : "";
   const applyFilterUnitKey = normalizeUnitKey(applyFilterUnit);
   const applyFilterAge = selectedApplyClass?.ageBand ?? "";
+  const compatibleApplyClassIds = useMemo(() => selectedApplyClass ? classes.filter(cls =>
+    unitKey(cls.unit) === applyFilterUnitKey && cls.ageBand === applyFilterAge,
+  ).map(cls => cls.id).sort() : [], [selectedApplyClass, classes, unitKey, applyFilterUnitKey, applyFilterAge]);
+  const pickerScope = JSON.stringify([readScope, compatibleApplyClassIds]);
+  const applyContext = JSON.stringify([pickerScope, showApplyPicker, applyPickerClassId, applyPickerDate]);
+  const currentApplyContext = useRef(applyContext);
+  useLayoutEffect(() => {
+    currentApplyContext.current = applyContext;
+    return () => {
+      applyRequestSequence.current += 1;
+      applyRequestPending.current = false;
+    };
+  }, [applyContext]);
+  const applyingPlanId = applyPending?.scope === applyContext ? applyPending.id : null;
+  const loadingApplyPlans = showApplyPicker && pickerSnapshot.scope !== pickerScope;
+  const applyPlansError = pickerSnapshot.scope === pickerScope ? pickerSnapshot.error : null;
+  const sortedPlans = useMemo(() => pickerSnapshot.scope === pickerScope ? pickerSnapshot.rows
+    .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [], [pickerSnapshot, pickerScope]);
+  useEffect(() => {
+    const organizationId = activeOrganization?.id;
+    if (!showApplyPicker || !organizationId || !compatibleApplyClassIds.length) return;
+    const controller = new AbortController();
+    void measureAsync("screen.calendar.load.applyPlans", () => getTrainingPlanSummaries({
+      organizationId, classIds: compatibleApplyClassIds, signal: controller.signal,
+    })).then(rows => {
+      if (!controller.signal.aborted && isCurrentRead()) setPickerSnapshot({ scope: pickerScope, rows, error: null });
+    }).catch(() => {
+      if (!controller.signal.aborted && isCurrentRead()) setPickerSnapshot({ scope: pickerScope, rows: [], error: "Não foi possível carregar os planos disponíveis." });
+    });
+    return () => controller.abort();
+  }, [activeOrganization?.id, showApplyPicker, compatibleApplyClassIds, pickerScope, isCurrentRead]);
   const filteredApplyPlans = useMemo(() => {
     if (!selectedApplyClass) return sortedPlans;
     return sortedPlans.filter((plan) => {
@@ -707,25 +767,93 @@ export default function CalendarScreen() {
   ]);
 
   const closeApplyPicker = () => {
+    applyRequestSequence.current += 1;
+    applyRequestPending.current = false;
+    setApplyPending(null);
     setShowApplyPicker(false);
     setApplyPickerClassId("");
     setApplyPickerDate("");
   };
 
-  const applyPlanToDay = async (plan: TrainingPlan) => {
-    if (!applyPickerClassId || !applyPickerDate) return;
+  const applyPlanToDay = async (summary: TrainingPlanSummary) => {
+    const organizationId = activeOrganization?.id;
+    if (!applyPickerClassId || !applyPickerDate || !organizationId || !isCurrentRead() || applyRequestPending.current) return;
     const targetClassId = applyPickerClassId;
     const targetDate = applyPickerDate;
-    const isSameApply =
-      plan.classId === targetClassId &&
-      plan.applyDate === targetDate &&
-      ((plan.applyDays ?? []).length === 0);
-    if (isSameApply) {
+    const request = ++applyRequestSequence.current;
+    applyRequestPending.current = true;
+    setApplyPending({ scope: applyContext, id: summary.id });
+    const isCurrentSelection = () => request === applyRequestSequence.current &&
+      currentApplyContext.current === applyContext && isCurrentRead();
+    try {
+      const plan = await getTrainingPlanById(summary.id, { organizationId });
+      if (!isCurrentSelection()) return;
+      if (!plan || plan.id !== summary.id || !compatibleApplyClassIds.includes(plan.classId)) {
+        showSaveToast({ message: "O planejamento não está disponível para esta turma.", variant: "warning" });
+        return;
+      }
+      const isSameApply =
+        plan.classId === targetClassId &&
+        plan.applyDate === targetDate &&
+        ((plan.applyDays ?? []).length === 0);
+      if (isSameApply) {
+        closeApplyPicker();
+        showSaveToast({
+          message: "Planejamento já adicionado.",
+          actionLabel: "Ver aula do dia",
+          variant: "warning",
+          onAction: () => {
+            router.push({
+              pathname: "/class/[id]/session",
+              params: { id: targetClassId, date: targetDate },
+            });
+          },
+        });
+        return;
+      }
+      const latestVersionPlan = await getLatestTrainingPlanByClass(targetClassId);
+      if (!isCurrentSelection()) return;
+      const latestVersion = latestVersionPlan?.version ?? 0;
+      const updated: TrainingPlan = createTrainingPlanVersion({
+        classId: targetClassId,
+        version: Math.max(plan.version ?? 0, latestVersion) + 1,
+        origin: "manual_apply",
+        draft: {
+          title: plan.title,
+          tags: plan.tags,
+          warmup: plan.warmup,
+          main: plan.main,
+          cooldown: plan.cooldown,
+          warmupTime: plan.warmupTime,
+          mainTime: plan.mainTime,
+          cooldownTime: plan.cooldownTime,
+        },
+        applyDate: targetDate,
+        applyDays: [],
+        nowIso: new Date().toISOString(),
+        idPrefix: "plan_apply",
+        status: "final",
+        finalizedAt: new Date().toISOString(),
+        inputHash: plan.inputHash,
+        parentPlanId: plan.id,
+        previousVersionId: latestVersionPlan?.id,
+      });
+      await saveTrainingPlan(updated, { organizationId });
+      if (!isCurrentSelection()) return;
+      setPlanSnapshot((current) => {
+        if (currentPlanScopeRef.current !== planScope) return current;
+        const application: CalendarTrainingPlanApplication = {
+          id: updated.id, classId: updated.classId, applyDate: updated.applyDate,
+          applyDays: updated.applyDays, createdAt: updated.createdAt,
+        };
+        const rows = [...(current.scope === planScope ? current.rows : []), application];
+        return { scope: planScope, rows: rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)), error: null };
+      });
       closeApplyPicker();
       showSaveToast({
-        message: "Planejamento já adicionado.",
+        message: "Planejamento aplicado com sucesso.",
         actionLabel: "Ver aula do dia",
-        variant: "warning",
+        variant: "success",
         onAction: () => {
           router.push({
             pathname: "/class/[id]/session",
@@ -733,51 +861,14 @@ export default function CalendarScreen() {
           });
         },
       });
-      return;
+    } catch {
+      if (isCurrentSelection()) showSaveToast({ message: "Não foi possível aplicar o planejamento.", variant: "error" });
+    } finally {
+      if (request === applyRequestSequence.current) {
+        applyRequestPending.current = false;
+        setApplyPending(null);
+      }
     }
-    const latestVersionPlan = await getLatestTrainingPlanByClass(targetClassId);
-    const latestVersion = latestVersionPlan?.version ?? 0;
-    const updated: TrainingPlan = createTrainingPlanVersion({
-      classId: targetClassId,
-      version: Math.max(plan.version ?? 0, latestVersion) + 1,
-      origin: "manual_apply",
-      draft: {
-        title: plan.title,
-        tags: plan.tags,
-        warmup: plan.warmup,
-        main: plan.main,
-        cooldown: plan.cooldown,
-        warmupTime: plan.warmupTime,
-        mainTime: plan.mainTime,
-        cooldownTime: plan.cooldownTime,
-      },
-      applyDate: targetDate,
-      applyDays: [],
-      nowIso: new Date().toISOString(),
-      idPrefix: "plan_apply",
-      status: "final",
-      finalizedAt: new Date().toISOString(),
-      inputHash: plan.inputHash,
-      parentPlanId: plan.id,
-      previousVersionId: latestVersionPlan?.id,
-    });
-    await saveTrainingPlan(updated);
-    setPlans((current) => {
-      const next = [...current, updated];
-      return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    });
-    closeApplyPicker();
-    showSaveToast({
-      message: "Planejamento aplicado com sucesso.",
-      actionLabel: "Ver aula do dia",
-      variant: "success",
-      onAction: () => {
-        router.push({
-          pathname: "/class/[id]/session",
-          params: { id: targetClassId, date: targetDate },
-        });
-      },
-    });
   };
 
   const unitOptions = useMemo(() => {
@@ -807,6 +898,12 @@ export default function CalendarScreen() {
               <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" onPress={goToNextMonth} style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="chevronForward" size={18} color={colors.text} /></Pressable>
             </View>
           </ScreenPageHeader>
+
+          {classesError || plansError || eventsError ? (
+            <Text accessibilityRole="alert" style={{ color: colors.dangerText, paddingHorizontal: 16, paddingBottom: 8 }}>
+              {[classesError, plansError, eventsError].filter(Boolean).join(" ")}
+            </Text>
+          ) : loadingPlans ? <Text style={{ color: colors.muted, paddingHorizontal: 16, paddingBottom: 8 }}>Carregando planejamentos...</Text> : null}
 
           <ScrollView
             scrollEnabled={!mobileAgenda}
@@ -839,7 +936,7 @@ export default function CalendarScreen() {
               </View>
             ) : null}
 
-            <CalendarUnitSelect value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value }); }} />
+            <CalendarUnitSelect value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value, ...(Platform.OS === "web" ? { targetDate: selectedDay?.dateIso ?? selectedDate } : {}) }); }} />
 
             <View onLayout={event => setAgendaHeight(event.nativeEvent.layout.height)} style={{ position: "relative", width: "100%", flexDirection: splitAgenda ? "row" : "column", gap: mobileAgenda ? 12 : 20, alignItems: "flex-start", ...(mobileAgenda ? { flex: 1, minHeight: 0, overflow: "hidden" } : {}) }}>
               <View style={{ width: "100%", flex: splitAgenda ? 1 : undefined, minWidth: 0, backgroundColor: colors.card, borderRadius: 16, padding: isCompactLayout ? 12 : 20, borderWidth: 1, borderColor: colors.border, ...(mobileAgenda ? { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, paddingHorizontal: 4, paddingVertical: 0, flexShrink: 0 } : {}) }}>
@@ -875,7 +972,11 @@ export default function CalendarScreen() {
                   <View style={agendaStyles.headerText}><Text accessibilityRole="header" style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View>
                   {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel={calendarCollapsed ? "Mostrar mês completo" : "Mostrar semana"} onPress={() => { setCalendarCollapsed(value => !value); }} style={agendaStyles.toggle}><GoAtletaIcon name="calendar" size={20} color={colors.muted} /></Pressable> : <GoAtletaIcon name="calendar" size={20} color={colors.muted} />}
                 </View>}>
-                {selectedDay?.agendaItems.length ? selectedDay.agendaItems.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.timeLabel}, ${item.title}`} onPress={() => { if (item.kind === "class") router.push({ pathname: "/class/[id]", params: { id: item.classId, calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", calendarDate: item.dateIso, calendarUnit: unitFilter } }); else router.push({ pathname: "/events/[id]", params: { id: item.eventId } }); }} style={agendaStyles.event}>
+                {selectedDay?.agendaItems.length ? selectedDay.agendaItems.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.timeLabel}, ${item.title}`} onPress={() => {
+                  // The shared web shell may remount this screen without changing its route key.
+                  if (Platform.OS === "web") router.setParams({ targetDate: item.dateIso, unit: unitFilter });
+                  navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: item.kind === "class" ? { pathname: "/class/[id]", params: { id: item.classId, calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", calendarDate: item.dateIso, calendarUnit: unitFilter, ...(Platform.OS === "web" ? { calendarOriginKey: calendarRoute.key } : {}) } } : { pathname: "/events/[id]", params: { id: item.eventId } } });
+                }} style={agendaStyles.event}>
                   <View style={agendaStyles.time}><Text style={agendaStyles.timeText}>{item.timeLabel.split(" - ")[0]}</Text>{item.timeLabel.includes(" - ") ? <Text style={agendaStyles.count}>{item.timeLabel.split(" - ")[1]}</Text> : null}</View>
                   <View style={agendaColorStyles[item.dotColor].bar} />
                   <View style={agendaStyles.eventContent}><Text style={agendaStyles.eventTitle}>{item.title}</Text><Text style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
@@ -953,7 +1054,9 @@ export default function CalendarScreen() {
                   </View>
                 </View>
               ) : null}
-              {filteredApplyPlans.length ? (
+              {loadingApplyPlans ? <ScreenLoadingState /> : applyPlansError ? (
+                <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{applyPlansError}</Text>
+              ) : filteredApplyPlans.length ? (
                 <FlatList
                   data={filteredApplyPlans}
                   keyExtractor={(plan) => plan.id}
@@ -980,7 +1083,8 @@ export default function CalendarScreen() {
                         {plan.tags.length ? "Tags: " + plan.tags.join(", ") : "Sem tags"}
                       </Text>
                       <Pressable
-                        onPress={() => applyPlanToDay(plan)}
+                        disabled={Boolean(applyingPlanId)}
+                        onPress={() => { void applyPlanToDay(plan); }}
                         style={({ pressed }) => [
                           {
                             marginTop: 6,
@@ -988,6 +1092,7 @@ export default function CalendarScreen() {
                             borderRadius: 10,
                             alignItems: "center",
                             backgroundColor: colors.primaryBg,
+                            opacity: applyingPlanId ? 0.55 : 1,
                           },
                           pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
                         ]}
@@ -999,7 +1104,7 @@ export default function CalendarScreen() {
                             fontSize: 12,
                           }}
                         >
-                          Aplicar na aula do dia
+                          {applyingPlanId === plan.id ? "Aplicando..." : "Aplicar na aula do dia"}
                         </Text>
                       </Pressable>
                     </View>

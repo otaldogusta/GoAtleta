@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
 import { AnimatedBottomTabs } from "../../src/components/navigation/AnimatedBottomTabs";
 import { AppShell } from "../../src/ui/AppShell";
 
@@ -8,6 +9,7 @@ export default function StudentTabsLayout() {
   return (
     <AppShell role="student">
       <Tabs
+        backBehavior={Platform.OS === "web" ? "fullHistory" : undefined}
         tabBar={(props) => <AnimatedBottomTabs {...props} role="student" />}
         screenOptions={{
           headerShown: false,

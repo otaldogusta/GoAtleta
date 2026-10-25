@@ -77,9 +77,9 @@ export {
 } from "./planning";
 
 export {
-    convertStudentPreRegistration, createAbsenceNotice, deleteStudentPreRegistration, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceByClass,
+    convertStudentPreRegistration, createAbsenceNotice, deleteStudentPreRegistration, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceSignalRecords, type AttendanceSignalRecord, getAttendanceByClass,
     getAttendanceByDate,
-    getAttendanceByStudent, getStudentById, getStudentOperationalHistory, getStudentPreRegistrations, getStudents,
+    getAttendanceByStudent, getStudentBirthdayCandidates, getStudentById, getStudentDirectoryRecords, getClassStudentRecords, getStudentOperationalHistory, getStudentPreRegistrations, getStudents,
     getStudentClassIds, getStudentsByClass, inactivateStudents, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, setStudentClassIds, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentOperationalStatus, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
 

@@ -22,7 +22,7 @@ type FindPossibleExistingStudentsParams = {
   birthDate?: string | null;
   currentClassId?: string | null;
   editingStudentId?: string | null;
-  students: Student[];
+  students: Pick<Student, "id" | "name" | "birthDate" | "classId">[];
   classesById: Map<string, ClassGroup>;
 };
 

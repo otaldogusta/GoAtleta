@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, View, useWindowDimensions } from "react-native";
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../auth/auth";
 import { useOrganization } from "../../providers/organization-context";
@@ -30,6 +30,7 @@ export function ScoutingScreen({ classId, initialSessionId }: { classId: string;
   return <ScopedScouting key={`${activeOrganizationId}:${userId}:${classId}`} org={activeOrganizationId} userId={userId} classId={classId} initialSessionId={initialSessionId} />;
 }
 function ScopedScouting({ org, userId, classId, initialSessionId }: { org: string; userId: string; classId: string; initialSessionId?: string }) {
+  const isFocused = useIsFocused();
   markRender("screen.class.scouting");
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -151,7 +152,7 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
       </ResponsivePage>
     </ScrollView>
     {current && !studio ? <ScoutingCollector key={current} org={org} sessionId={current} userId={userId} students={students} onClose={close} onSaved={() => { dirty.current = true; }} onOpenVideo={Platform.OS === 'web' ? () => setStudio(current) : undefined} /> : null}
-    {studio ? <Suspense fallback={<ActivityIndicator accessibilityLabel="Carregando estúdio de vídeo" />}><ScoutingVideoStudio org={org} userId={userId} classId={classId} sessionId={studio} teamName={cls?.name ?? ''} students={students} onClose={() => setStudio(null)} /></Suspense> : null}
+    {studio ? <Suspense fallback={isFocused ? <ActivityIndicator accessibilityLabel="Carregando estúdio de vídeo" /> : null}><ScoutingVideoStudio active={Platform.OS !== 'web' || isFocused} org={org} userId={userId} classId={classId} sessionId={studio} teamName={cls?.name ?? ''} students={students} onClose={() => setStudio(null)} /></Suspense> : null}
     {creating ? <NewScoutingModal org={org} classId={classId} mode={mode} onClose={() => setCreating(false)} onCreated={id => { setCreating(false); if (creatingVideo) setStudio(id); else setCurrent(id); reloadRows(); }} /> : null}
   </SafeAreaView>;
 }

@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 
-export function useStudioInteractions({ modalOpen, canDeselect, onDeselect, onStep, onPlay }: {
+export function useStudioInteractions({ enabled = true, modalOpen, canDeselect, onDeselect, onStep, onPlay }: {
+  enabled?: boolean;
   modalOpen: boolean; canDeselect: boolean; onDeselect: () => void;
   onStep: (direction: number) => void; onPlay: () => void;
 }) {
   useEffect(() => {
+    if (!enabled) return;
     const key = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (modalOpen || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -34,5 +36,5 @@ export function useStudioInteractions({ modalOpen, canDeselect, onDeselect, onSt
     document.addEventListener('pointerdown', outside);
     window.addEventListener('blur', blur);
     return () => { window.removeEventListener('keydown', key); document.removeEventListener('pointerdown', outside); window.removeEventListener('blur', blur); cancelAnimationFrame(frame); };
-  }, [modalOpen, canDeselect, onDeselect, onStep, onPlay]);
+  }, [enabled, modalOpen, canDeselect, onDeselect, onStep, onPlay]);
 }

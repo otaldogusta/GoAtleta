@@ -7,8 +7,9 @@ import { OverviewTab } from "../OverviewTab";
 import type { ClassGroup, PlanningCycle } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 
-jest.mock("@expo/vector-icons", () => ({
-  Ionicons: (props: Record<string, unknown>) => {
+jest.mock("@expo/vector-icons/Ionicons", () => ({
+  __esModule: true,
+  default: (props: Record<string, unknown>) => {
     const React = jest.requireActual("react");
     return React.createElement("Ionicons", props);
   },

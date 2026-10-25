@@ -152,8 +152,6 @@ import {
 
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 
-import { PeriodizationDocument } from "../../src/pdf/periodization-document";
-import { MonthlyLessonPlanDocument } from "../../src/pdf/monthly-lesson-plan-document";
 
 import { periodizationHtml } from "../../src/pdf/templates/periodization";
 import { monthlyPlanHtml } from "../../src/pdf/templates/monthly-plan";
@@ -4047,14 +4045,21 @@ export default function PeriodizationScreen() {
     const fileName = safeFileName(
       `periodizacao_${selectedClass.name}_${formatDisplayDate(data.cycleStart ?? null)}`,
     );
+    try {
+      const webDocument = Platform.OS === "web"
+        ? await import("../../src/pdf/pdf-runtime").then(({ PeriodizationDocument }) => <PeriodizationDocument data={data} />)
+        : undefined;
 
-    await exportPdf({
-      html: periodizationHtml(data),
+      await exportPdf({
+        html: periodizationHtml(data),
 
-      fileName: `${fileName || "periodizacao"}.pdf`,
+        fileName: `${fileName || "periodizacao"}.pdf`,
 
-      webDocument: <PeriodizationDocument data={data} />,
-    });
+        webDocument,
+      });
+    } catch {
+      showSaveToast({ message: "Não foi possível gerar o PDF da periodização. Tente novamente.", variant: "error" });
+    }
   };
 
   const handleExportWeek = async () => {
@@ -4082,12 +4087,19 @@ export default function PeriodizationScreen() {
     const fileName = safeFileName(
       `plano-semana-${weeklyPlan.weekNumber}-${selectedClass.name}`,
     );
+    try {
+      const webDocument = Platform.OS === "web"
+        ? await import("../../src/pdf/pdf-runtime").then(({ MonthlyLessonPlanDocument }) => <MonthlyLessonPlanDocument data={data} />)
+        : undefined;
 
-    await exportPdf({
-      html: monthlyPlanHtml(data),
-      fileName: `${fileName || "plano-semana"}.pdf`,
-      webDocument: <MonthlyLessonPlanDocument data={data} />,
-    });
+      await exportPdf({
+        html: monthlyPlanHtml(data),
+        fileName: `${fileName || "plano-semana"}.pdf`,
+        webDocument,
+      });
+    } catch {
+      showSaveToast({ message: "Não foi possível gerar o PDF da semana. Tente novamente.", variant: "error" });
+    }
   };
 
   const { handleImportPlansFile } = useImportPlansFile({

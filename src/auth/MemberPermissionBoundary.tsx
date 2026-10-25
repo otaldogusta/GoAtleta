@@ -19,17 +19,18 @@ export function MemberPermissionBoundary({
   const {
     activeOrganization,
     memberPermissions,
+    isLoading: organizationLoading,
     permissionsLoading,
   } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const blocked = !isOrgAdmin && memberPermissions[permissionKey] !== true;
 
   useEffect(() => {
-    if (!permissionsLoading && blocked) {
+    if (!organizationLoading && !permissionsLoading && blocked) {
       router.replace(redirectTo);
     }
-  }, [blocked, permissionsLoading, redirectTo, router]);
+  }, [blocked, organizationLoading, permissionsLoading, redirectTo, router]);
 
-  if (permissionsLoading || blocked) return null;
+  if (organizationLoading || permissionsLoading || blocked) return null;
   return children;
 }

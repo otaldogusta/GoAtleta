@@ -20,7 +20,7 @@ export type UseStudentInvitesParams = {
   studentInviteBusy: boolean;
   pendingStudentInviteBusyId: string | null;
   buildStudentMessage: (
-    student: Student,
+    student: Pick<Student, "id" | "name" | "classId">,
     cls: ClassGroup | null,
     templateId: WhatsAppTemplateId,
     fields: Record<string, string>
@@ -55,7 +55,7 @@ export function useStudentInvites({
   const { showSaveToast } = useSaveToast();
   const applyStudentInviteTemplate = useCallback(
     async (
-      student: Student,
+      student: Pick<Student, "id" | "name" | "classId">,
       cls: ClassGroup | null,
       invitedTo: string,
       options: { revokeFirst: boolean; copyLink: boolean }
@@ -119,7 +119,7 @@ export function useStudentInvites({
   );
 
   const onGenerateInviteFromList = useCallback(
-    async (student: Student) => {
+    async (student: Pick<Student, "id" | "name" | "classId">) => {
       const cls = classes.find((entry) => entry.id === student.classId) ?? null;
       const generated = await applyStudentInviteTemplate(student, cls, "", {
         revokeFirst: false,

@@ -1,5 +1,6 @@
 import { createWebPortal } from "./web-portal";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { NavigationContext } from "expo-router/react-navigation";
+import { useCallback, useContext, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -115,9 +116,23 @@ export function ModalSheet({
   containerPadding = 16,
   respectBottomInset = true,
 }: ModalSheetProps) {
+  // Providers outside a route (for example global confirmations) have no screen
+  // navigation context and remain visible. Native presentation is unchanged.
+  const navigation = useContext(NavigationContext);
+  const observeFocus = Platform.OS === "web" && visible;
+  const subscribeFocus = useCallback((notify: () => void) => {
+    if (!observeFocus || !navigation) return () => {};
+    const unsubscribeFocus = navigation.addListener("focus", notify);
+    const unsubscribeBlur = navigation.addListener("blur", notify);
+    return () => { unsubscribeFocus(); unsubscribeBlur(); };
+  }, [navigation, observeFocus]);
+  const getFocus = useCallback(() => observeFocus ? navigation?.isFocused() ?? true : true, [navigation, observeFocus]);
+  const routeFocused = useSyncExternalStore(subscribeFocus, getFocus, () => true);
+  const effectiveVisible = visible && routeFocused;
   const [anim] = useState(() => new Animated.Value(0));
-  const [isMounted, setIsMounted] = useState(visible);
-  if (visible && !isMounted) setIsMounted(true);
+  const [isMounted, setIsMounted] = useState(effectiveVisible);
+  if (effectiveVisible && !isMounted) setIsMounted(true);
+  else if (!routeFocused && isMounted) setIsMounted(false);
   const isCenter = position === "center";
   const isRight = position === "right";
   const insets = useSafeAreaInsets();
@@ -128,13 +143,18 @@ export function ModalSheet({
   const resolvedCardStyle = [baseCardStyle, cardStyle];
 
   useLayoutEffect(() => {
-    if (!visible) return;
+    if (!routeFocused) {
+      anim.stopAnimation();
+      anim.setValue(0);
+      return;
+    }
+    if (!effectiveVisible) return;
     anim.stopAnimation();
     anim.setValue(0);
-  }, [anim, visible]);
+  }, [anim, effectiveVisible, routeFocused]);
 
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!effectiveVisible) return undefined;
     const animation = Animated.timing(anim, {
       toValue: 1,
       duration: 240,
@@ -143,10 +163,10 @@ export function ModalSheet({
     });
     animation.start();
     return () => animation.stop();
-  }, [anim, visible]);
+  }, [anim, effectiveVisible]);
 
   useEffect(() => {
-    if (visible || !isMounted) return undefined;
+    if (!routeFocused || effectiveVisible || !isMounted) return undefined;
     const animation = Animated.timing(anim, {
       toValue: 0,
       duration: 180,
@@ -157,15 +177,15 @@ export function ModalSheet({
       if (finished) setIsMounted(false);
     });
     return () => animation.stop();
-  }, [anim, isMounted, visible]);
+  }, [anim, effectiveVisible, isMounted, routeFocused]);
 
   useLayoutEffect(() => {
-    if (typeof document === "undefined" || !visible) return undefined;
+    if (typeof document === "undefined" || !effectiveVisible) return undefined;
     return acquireWebScrollLock();
-  }, [visible]);
+  }, [effectiveVisible]);
 
   useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined" || !visible) {
+    if (Platform.OS !== "web" || typeof document === "undefined" || !effectiveVisible) {
       return undefined;
     }
 
@@ -177,9 +197,9 @@ export function ModalSheet({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, visible]);
+  }, [onClose, effectiveVisible]);
 
-  if (!isMounted && !visible) {
+  if (!routeFocused || (!isMounted && !effectiveVisible)) {
     return null;
   }
 
@@ -193,12 +213,12 @@ export function ModalSheet({
           ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
           : null),
       } as unknown as ViewStyle}
-      pointerEvents={visible ? "auto" : "none"}
+      pointerEvents={effectiveVisible ? "auto" : "none"}
     >
       <RawPressable
         style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
         onPress={onClose}
-        pointerEvents={visible ? "auto" : "none"}
+        pointerEvents={effectiveVisible ? "auto" : "none"}
       >
         <Animated.View
           style={{
@@ -273,7 +293,7 @@ export function ModalSheet({
 
   return (
     <Modal
-      visible={visible || isMounted}
+      visible={effectiveVisible || isMounted}
       animationType="fade"
       transparent
       onRequestClose={onClose}

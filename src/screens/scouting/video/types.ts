@@ -6,6 +6,7 @@ export type StudioProps = {
     sessionId: string;
     teamName: string;
     students: Student[];
+    active?: boolean;
     onClose: () => void;
 };
 export type AuthorizedStudioProps = StudioProps & {

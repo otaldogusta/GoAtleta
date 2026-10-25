@@ -27,8 +27,6 @@ import { navigateBackOrReplace } from "../../../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../../../src/observability/perf";
 import { exportPdf, safeFileName } from "../../../../src/pdf/export-pdf";
-import { MonthlyLessonPlanDocument } from "../../../../src/pdf/monthly-lesson-plan-document";
-import { SessionPlanDocument } from "../../../../src/pdf/session-plan-document";
 import { monthlyPlanHtml } from "../../../../src/pdf/templates/monthly-plan";
 import { sessionPlanHtml } from "../../../../src/pdf/templates/session-plan";
 import type { WeekSessionPreview } from "../../../../src/screens/periodization/application/build-week-session-preview";
@@ -1471,19 +1469,22 @@ export function LegacyClassPlanningMonthRoute() {
     };
 
     const html = sessionPlanHtml(pdfData);
-    const webDocument =
-      Platform.OS === "web" ? (
-        <SessionPlanDocument data={pdfData} />
-      ) : undefined;
     const safeClass = safeFileName(selectedClass.name);
     const safeDate = safeFileName(selectedDailyPlan.date);
     const fileName = `plano-aula-dia-${safeClass}-${safeDate}.pdf`;
+    try {
+      const webDocument = Platform.OS === "web"
+        ? await import("../../../../src/pdf/pdf-runtime").then(({ SessionPlanDocument }) => <SessionPlanDocument data={pdfData} />)
+        : undefined;
 
-    await exportPdf({ html, fileName, webDocument });
-    showSaveToast({
-      message: "PDF da aula gerado com contexto semanal.",
-      variant: "success",
-    });
+      await exportPdf({ html, fileName, webDocument });
+      showSaveToast({
+        message: "PDF da aula gerado com contexto semanal.",
+        variant: "success",
+      });
+    } catch {
+      showSaveToast({ message: "Não foi possível gerar o PDF da aula. Tente novamente.", variant: "error" });
+    }
   }, [
     selectedClass,
     selectedSession,
@@ -1522,10 +1523,9 @@ export function LegacyClassPlanningMonthRoute() {
       });
       const html = monthlyPlanHtml(data);
       const fileBase = `plano-mensal-${safeFileName(selectedClass.name)}-${safeFileName(monthKey)}`;
-      const webDocument =
-        Platform.OS === "web" ? (
-          <MonthlyLessonPlanDocument data={data} />
-        ) : undefined;
+      const webDocument = Platform.OS === "web"
+        ? await import("../../../../src/pdf/pdf-runtime").then(({ MonthlyLessonPlanDocument }) => <MonthlyLessonPlanDocument data={data} />)
+        : undefined;
 
       await exportPdf({ html, fileName: `${fileBase}.pdf`, webDocument });
 

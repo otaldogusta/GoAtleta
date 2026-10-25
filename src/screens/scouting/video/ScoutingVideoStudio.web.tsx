@@ -22,7 +22,7 @@ import { youtubeVideoId } from '../../../core/scouting-video-youtube';
 import { YouTubeVideo } from './YouTubeVideo.web';
 import type { VideoPlayback } from './youtube-player.web';
 import { matchesTrackingOriginal, originalPlayback } from './original-playback.web';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { createPortal } from 'react-dom';
 import { markRender, measureAsync } from '../../../observability/perf';
@@ -59,7 +59,21 @@ import { VideoShareDialog } from './VideoShareDialog.web';
 import { VideoContactEditor } from './VideoContactEditor.web';
 
 import { videoStudioPermissions } from '../../../core/scouting-video-sharing';
+import { registerPendingEditsNavigation } from '../../../navigation/pending-edits-navigation';
 import type { AuthorizedStudioProps, StudioProps, StudioViewProps } from './types';
+
+function useActiveObjectUrl(file: File | null, active: boolean) {
+    const owner = useMemo(() => ({ file, active }), [file, active]);
+    const [resource, setResource] = useState<{ owner: typeof owner; url: string } | null>(null);
+    useEffect(() => {
+        if (!owner.active || !owner.file) return;
+        let alive = true;
+        const url = URL.createObjectURL(owner.file);
+        void Promise.resolve().then(() => { if (alive) setResource({ owner, url }); });
+        return () => { alive = false; URL.revokeObjectURL(url); };
+    }, [owner]);
+    return active && resource?.owner === owner ? resource.url : '';
+}
 
 export default function ScoutingVideoStudio(props: StudioProps) {
 
@@ -83,37 +97,46 @@ export default function ScoutingVideoStudio(props: StudioProps) {
 
         return null;
 
-    return createPortal(session ? <Studio key={`${props.org}:${props.userId}:${props.sessionId}`} {...props} session={session}/> : <div role="dialog" aria-label="Abrir estúdio" style={{ position: 'fixed', inset: 0, zIndex: 6100, display: 'grid', placeContent: 'center', gap: 12, background: colors.background, color: colors.text }}><p role="status">{error || 'Abrindo análise…'}</p><StudioAction label="Voltar" onPress={props.onClose}>Voltar</StudioAction></div>, document.body);
+    return createPortal(session ? <Studio key={`${props.org}:${props.userId}:${props.sessionId}`} {...props} session={session}/> : props.active === false ? null : <div role="dialog" aria-label="Abrir estúdio" style={{ position: 'fixed', inset: 0, zIndex: 6100, display: 'grid', placeContent: 'center', gap: 12, background: colors.background, color: colors.text }}><p role="status">{error || 'Abrindo análise…'}</p><StudioAction label="Voltar" onPress={props.onClose}>Voltar</StudioAction></div>, document.body);
 
 }
 
 export function Studio(props: StudioViewProps) {
 
-    const { colors } = useAppTheme(), draft = useVideoDraft(props.org, props.userId, props.sessionId, props.shared?.document, props.session.status === 'em_andamento');
+    const studioActive = props.active !== false;
+    const { colors } = useAppTheme(), draft = useVideoDraft(props.org, props.userId, props.sessionId, props.shared?.document, props.session.status === 'em_andamento', studioActive);
 
     const { doc } = draft, video = useRef<HTMLVideoElement>(null), fileInput = useRef<HTMLInputElement>(null), importInput = useRef<HTMLInputElement>(null), trackInput = useRef<HTMLInputElement>(null), stage = useRef<HTMLDivElement>(null);
 
     const playback = useRef<VideoPlayback | null>(null), localOwner = useRef<VideoPlayback | null>(null), originalInput = useRef<HTMLInputElement>(null);
     const youtubeId = doc?.media.youtubeId;
-    const [original, setOriginal] = useState<{ youtubeId: string; media: VideoMedia; url: string; kind: 'blob' | 'drive'; confirmedSource?: string } | null>(null), [useOriginal, setUseOriginal] = useState(false);
+    const [original, setOriginal] = useState<{ youtubeId: string; media: VideoMedia; url: string; kind: 'blob' | 'drive'; file?: File; confirmedSource?: string } | null>(null), [useOriginal, setUseOriginal] = useState(false);
     const [youtubeAttempt, setYoutubeAttempt] = useState(0), [playbackRate, setPlaybackRate] = useState(1);
     const [driveBusy, setDriveBusy] = useState(false);
     const [youtubeLink, setYoutubeLink] = useState(''), [previewId, setPreviewId] = useState(''), [youtubeDuration, setYoutubeDuration] = useState(0);
     const [storedSource, setSource] = useState(props.shared?.source ?? ''), [selectedFile, setFile] = useState<File | null>(null), [localFingerprint, setLocalFingerprint] = useState(''), [time, setTime] = useState(0), [playing, setPlaying] = useState(false), [selectedFocus, setFocus] = useState<string | null>(null);
+    const localSource = useActiveObjectUrl(selectedFile, studioActive);
+    const originalBlobSource = useActiveObjectUrl(original?.kind === 'blob' ? original.file ?? null : null, studioActive);
+    const availableOriginal = useMemo(() => original?.kind === 'blob' ? { ...original, url: originalBlobSource } : original, [original, originalBlobSource]);
     const localAttached = !!doc && doc.media.fingerprint === localFingerprint;
-    const source = props.shared ? storedSource : youtubeId ? `youtube:${youtubeId}` : localAttached ? storedSource : '';
+    const source = props.shared ? storedSource : youtubeId ? `youtube:${youtubeId}` : localAttached ? localSource : '';
     const file = !youtubeId && localAttached ? selectedFile : null;
-    const readyOriginal = youtubeId && original?.youtubeId === youtubeId && doc?.analysis?.source && matchesTrackingOriginal(original.kind === 'drive' && original.confirmedSource === doc.analysis.source.fingerprint ? { ...original.media, fingerprint: original.confirmedSource } : original.media, doc.analysis.source) ? original : null;
+    const readyOriginal = youtubeId && availableOriginal?.youtubeId === youtubeId && doc?.analysis?.source && matchesTrackingOriginal(availableOriginal.kind === 'drive' && availableOriginal.confirmedSource === doc.analysis.source.fingerprint ? { ...availableOriginal.media, fingerprint: availableOriginal.confirmedSource } : availableOriginal.media, doc.analysis.source) ? availableOriginal : null;
     const originalActive = !!readyOriginal && useOriginal;
     const iframePlayback = !!youtubeId && !originalActive;
     const playbackSource = originalActive ? readyOriginal!.url : source;
     const nativeOffset = originalActive ? doc!.analysis!.source!.offsetSeconds : 0;
+    const mediaResume = useRef<{ time: number; playing: boolean; rate: number } | null>(null);
     const bindLocalVideo = useCallback((node: HTMLVideoElement | null) => {
+        if (!node && playback.current === localOwner.current && playback.current) {
+            const owner = playback.current;
+            mediaResume.current = { time: owner.currentTime, playing: false, rate: owner.playbackRate };
+            owner.pause();
+        }
         video.current = node;
         if (node) { const owned = originalPlayback(node, nativeOffset); localOwner.current = owned; playback.current = owned; }
         else { if (playback.current === localOwner.current) playback.current = null; localOwner.current = null; }
     }, [nativeOffset]);
-    useEffect(() => () => { if (original?.kind === 'blob') URL.revokeObjectURL(original.url); }, [original]);
 
     const [panel, setPanel] = useState(true), [tab, setTab] = useState<'rallies' | 'contacts' | 'validation' | 'history'>('rallies');
 
@@ -126,6 +149,9 @@ export function Studio(props: StudioViewProps) {
     const [trimFocus, setTrimFocus] = useState<string | null>(null);
     const trimPlayback = useRef<[number, number] | null>(null);
     const [controls, setControls] = useState(true), hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null), alive = useRef(true), exporting = useRef<AbortController | null>(null), loadingFile = useRef(false);
+    const activityEpoch = useRef(0), pointFrame = useRef(0);
+    const pendingNavigation = useRef<{ navigate: () => void; epoch: number } | null>(null);
+    const isCurrentActivity = useCallback((epoch: number) => alive.current && activityEpoch.current === epoch, []);
 
     const focus = selectedFocus && doc?.rallies.some(r => r.id === selectedFocus) ? selectedFocus : null;
     const editorId = editor?.id;
@@ -148,13 +174,14 @@ export function Studio(props: StudioViewProps) {
     useEffect(() => () => processing.current?.abort(), []);
     const analyze = async () => {
       if (!doc || !file || processing.current || !canEdit) return;
+      const epoch = activityEpoch.current;
       const controller = new AbortController(); processing.current = controller; setAnalyzing(true);
       setError(''); setSuggestion(null); setProgress(0); playback.current?.pause();
       try {
         const result = await processScoutingVideo(file, doc.media.duration, controller.signal, (done, total, stage) => { if (alive.current && !controller.signal.aborted) { setProgress(done / total); setJob(stage); } }, { model: trackingModel });
         if (alive.current && !controller.signal.aborted) setSuggestion(result);
       } catch (failure) { if (alive.current && !controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Falha ao analisar vídeo.'); }
-      finally { processing.current = null; if (alive.current) { setAnalyzing(false); setJob(''); setProgress(null); } }
+      finally { if (processing.current === controller) processing.current = null; if (isCurrentActivity(epoch)) { setAnalyzing(false); setJob(''); setProgress(null); } }
     };
     const [picture, setPicture] = useState({ width: 0, height: 0 });
 
@@ -172,7 +199,6 @@ export function Studio(props: StudioViewProps) {
     const syncBlocked = draft.loading || !!draft.conflict;
     const canSave = !syncBlocked && !draft.saving && (draft.dirty || videoDraftNeedsSyncRetry(draft.syncStatus));
     const saveDraft = () => draft.dirty ? draft.save() : draft.retrySync();
-    const mediaResume = useRef<{ time: number; playing: boolean; rate: number } | null>(null);
     const sharedSource = props.shared?.source;
     useEffect(() => {
         if (!sharedSource || sharedSource === source) return;
@@ -203,30 +229,57 @@ export function Studio(props: StudioViewProps) {
 
         setControls(false); }, 2800); }, [playback]);
 
-    useEffect(() => { const app = document.getElementById('root'), prior = app?.inert, previousFocus = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow; if (app)
+    useLayoutEffect(() => {
+        activityEpoch.current += 1;
+        alive.current = studioActive;
+        if (!studioActive) return;
+        return () => {
+            activityEpoch.current += 1;
+            alive.current = false;
+            const owner = playback.current;
+            if (owner) {
+                mediaResume.current = { time: owner.currentTime, playing: false, rate: owner.playbackRate };
+                owner.pause();
+            }
+            pendingNavigation.current = null;
+            exporting.current?.abort();
+            processing.current?.abort();
+            exporting.current = null;
+            processing.current = null;
+            loadingFile.current = false;
+            if (hideTimer.current) clearTimeout(hideTimer.current);
+            cancelAnimationFrame(pointFrame.current);
+        };
+    }, [studioActive]);
+    useEffect(() => {
+        if (studioActive) return;
+        let current = true;
+        void Promise.resolve().then(() => {
+            if (current) { setPlaying(false); setAnalyzing(false); setJob(''); setProgress(null); }
+        });
+        return () => { current = false; };
+    }, [studioActive]);
 
-        app.inert = true; document.body.style.overflow = 'hidden'; alive.current = true; return () => { alive.current = false; if (app)
+    useEffect(() => { if (!studioActive) return; const app = document.getElementById('root'), prior = app?.inert, previousFocus = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow; if (app)
+
+        app.inert = true; document.body.style.overflow = 'hidden'; return () => { if (app)
 
         app.inert = prior ?? false; document.body.style.overflow = overflow; previousFocus?.focus(); exporting.current?.abort(); if (hideTimer.current)
 
-        clearTimeout(hideTimer.current); }; }, []);
-
-    useEffect(() => () => { if (storedSource)
-
-        URL.revokeObjectURL(storedSource); }, [storedSource]);
+        clearTimeout(hideTimer.current); }; }, [studioActive]);
 
     const mediaWidth = originalActive ? readyOriginal?.media.width : doc?.media.width, mediaHeight = originalActive ? readyOriginal?.media.height : doc?.media.height;
-    useEffect(() => { const node = stage.current; if (!node || !mediaWidth || !mediaHeight)
+    useEffect(() => { if (!studioActive) return; const node = stage.current; if (!node || !mediaWidth || !mediaHeight)
 
-        return; const measure = () => { const r = node.getBoundingClientRect(), scale = Math.min(r.width / mediaWidth, r.height / mediaHeight); setPicture({ width: mediaWidth * scale, height: mediaHeight * scale }); }; measure(); const observer = new ResizeObserver(measure); observer.observe(node); return () => observer.disconnect(); }, [mediaWidth, mediaHeight, playbackSource]);
+        return; const measure = () => { const r = node.getBoundingClientRect(), scale = Math.min(r.width / mediaWidth, r.height / mediaHeight); setPicture({ width: mediaWidth * scale, height: mediaHeight * scale }); }; measure(); const observer = new ResizeObserver(measure); observer.observe(node); return () => observer.disconnect(); }, [studioActive, mediaWidth, mediaHeight, playbackSource]);
 
-    useEffect(() => { const unload = (e: BeforeUnloadEvent) => { if (draft.dirty || editorDirty) {
+    useEffect(() => { if (!studioActive) return; const unload = (e: BeforeUnloadEvent) => { if (draft.dirty || editorDirty) {
 
         e.preventDefault();
 
         e.returnValue = '';
 
-    } }; window.addEventListener('beforeunload', unload); return () => window.removeEventListener('beforeunload', unload); }, [draft.dirty, editorDirty]);
+    } }; window.addEventListener('beforeunload', unload); return () => window.removeEventListener('beforeunload', unload); }, [studioActive, draft.dirty, editorDirty]);
 
     const undo = (redo = false) => { if (!canEdit)
 
@@ -240,7 +293,7 @@ export function Studio(props: StudioViewProps) {
 
     } draft.undo(redo); setEditor(null); };
 
-    useEffect(() => { const key = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.closest('input,select,textarea,[contenteditable=true]') || modal)
+    useEffect(() => { if (!studioActive) return; const key = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.closest('input,select,textarea,[contenteditable=true]') || modal)
 
         return; if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && canEdit) {
 
@@ -292,7 +345,7 @@ export function Studio(props: StudioViewProps) {
         if (position !== null) { setTime(position); setPlaying(false); showControls(); }
     };
 
-    useStudioInteractions({ modalOpen: !!modal, canDeselect: !!editor && !editorDirty,
+    useStudioInteractions({ enabled: studioActive, modalOpen: !!modal, canDeselect: !!editor && !editorDirty,
       onDeselect: () => setEditor(null),
       onStep: direction => stepFrame(direction < 0 ? -1 : 1),
       onPlay: play,
@@ -325,7 +378,7 @@ export function Studio(props: StudioViewProps) {
         const linked = target?.analysis?.source;
         if (!target?.media.youtubeId || !linked) return;
         rememberPlayback(); setUseOriginal(true);
-        setOriginal({ youtubeId: target.media.youtubeId, media: { fingerprint: linked.fingerprint, name: linked.name, duration: linked.duration, width: linked.width, height: linked.height }, url: URL.createObjectURL(value), kind: 'blob' });
+        setOriginal({ youtubeId: target.media.youtubeId, media: { fingerprint: linked.fingerprint, name: linked.name, duration: linked.duration, width: linked.width, height: linked.height }, url: '', file: value, kind: 'blob' });
     };
     const showDriveOriginal = (media: VideoMedia, url: string, linked = doc?.analysis?.source) => {
         if (!canEdit || !youtubeId || !linked) return;
@@ -338,14 +391,15 @@ export function Studio(props: StudioViewProps) {
         const linked = doc?.analysis?.source;
         if (!permissions.importMedia || syncBlocked || !youtubeId || !linked || loadingFile.current) return;
         loadingFile.current = true; setJob('Conferindo original…'); setError('');
+        const epoch = activityEpoch.current;
         try {
             const media = await inspectVideo(value);
-            if (!alive.current) return;
+            if (!isCurrentActivity(epoch)) return;
             if (!matchesTrackingOriginal(media, linked))
                 throw new Error('Escolha o mesmo arquivo original usado neste tracking.');
             showOriginal(value);
-        } catch (failure) { if (alive.current) setError((failure as Error).message); }
-        finally { loadingFile.current = false; if (alive.current) setJob(''); }
+        } catch (failure) { if (isCurrentActivity(epoch)) setError((failure as Error).message); }
+        finally { if (isCurrentActivity(epoch)) { loadingFile.current = false; setJob(''); } }
     };
     const restorePlayback = () => {
         const value = playback.current, resume = mediaResume.current;
@@ -356,6 +410,7 @@ export function Studio(props: StudioViewProps) {
     };
 
     const loadFile = async (value: File) => {
+        const epoch = activityEpoch.current;
 
         if (!permissions.importMedia || syncBlocked || loadingFile.current)
 
@@ -371,7 +426,7 @@ export function Studio(props: StudioViewProps) {
 
             const meta = await inspectVideo(value);
 
-            if (!alive.current)
+            if (!isCurrentActivity(epoch))
 
                 return;
 
@@ -383,17 +438,17 @@ export function Studio(props: StudioViewProps) {
             }
 
             if (draft.dirty && !(await draft.save())) return;
+            if (!isCurrentActivity(epoch)) return;
 
             await draft.open(meta);
+            if (!isCurrentActivity(epoch)) return;
             await draft.save();
 
-            if (!alive.current)
+            if (!isCurrentActivity(epoch))
 
                 return;
 
             setFile(value); setLocalFingerprint(meta.fingerprint); setPlaying(false); setCorrecting(false); setTab('rallies'); setPanel(true);
-
-            setSource(URL.createObjectURL(value));
 
             setFocus(null);
 
@@ -409,7 +464,7 @@ export function Studio(props: StudioViewProps) {
 
         catch (failure) {
 
-            if (alive.current)
+            if (isCurrentActivity(epoch))
 
                 setError(failure instanceof Error ? failure.message : 'Não foi possível abrir o vídeo.');
 
@@ -417,9 +472,9 @@ export function Studio(props: StudioViewProps) {
 
         finally {
 
-            loadingFile.current = false;
+            if (isCurrentActivity(epoch)) loadingFile.current = false;
 
-            if (alive.current)
+            if (isCurrentActivity(epoch))
 
                 setJob('');
 
@@ -430,16 +485,19 @@ export function Studio(props: StudioViewProps) {
     const openYouTube = async () => {
         if (!permissions.importMedia || syncBlocked || loadingFile.current || !previewId || !youtubeDuration || editor) return;
         loadingFile.current = true; setJob('Abrindo vídeo…'); setError('');
+        const epoch = activityEpoch.current;
         try {
             if (draft.dirty && !(await draft.save())) return;
+            if (!isCurrentActivity(epoch)) return;
             playback.current?.pause();
             await draft.open({ youtubeId: previewId, fingerprint: `youtube:${previewId}`, name: `YouTube · ${previewId}`, duration: youtubeDuration, width: 1280, height: 720 });
+            if (!isCurrentActivity(epoch)) return;
             await draft.save();
-            if (!alive.current) return;
+            if (!isCurrentActivity(epoch)) return;
             setFile(null); setSource(`youtube:${previewId}`); setFocus(null); setTime(0); setPlaybackRate(1); setPlaying(false);
             setManualTracking(null); setSuggestion(null); setCorrecting(false); setAutomatic(false); setPreviewId(''); setModal(null); setTab('rallies'); setPanel(true);
-        } catch (failure) { if (alive.current) setError(failure instanceof Error ? failure.message : 'Não foi possível abrir o vídeo.'); }
-        finally { loadingFile.current = false; if (alive.current) setJob(''); }
+        } catch (failure) { if (isCurrentActivity(epoch)) setError(failure instanceof Error ? failure.message : 'Não foi possível abrir o vídeo.'); }
+        finally { if (isCurrentActivity(epoch)) { loadingFile.current = false; setJob(''); } }
     };
 
     const addContact = (skill: VideoSkill) => { if (!doc || !canEdit)
@@ -460,7 +518,8 @@ export function Studio(props: StudioViewProps) {
 
     const revealPoint = () => {
         setTab('contacts'); setPanel(true);
-        requestAnimationFrame(() => {
+        cancelAnimationFrame(pointFrame.current);
+        pointFrame.current = requestAnimationFrame(() => {
             const section = pointSection.current;
             const disclosure = section?.closest('details');
             if (disclosure) disclosure.open = true;
@@ -503,13 +562,14 @@ export function Studio(props: StudioViewProps) {
 
     const importAnalysis = async (input: File) => { if (!doc || !canEdit)
 
-        return; try {
+        return; const epoch = activityEpoch.current; try {
 
         if (input.size > 5000000)
 
             throw new Error('Arquivo de análise muito grande.');
 
         const value = parseVideoDocument(JSON.parse(await input.text()), doc.media);
+        if (!isCurrentActivity(epoch)) return;
 
         draft.change({ ...value, contacts: value.contacts.map(c => ({ ...c, studentId: props.students.some(s => s.id === c.studentId) ? c.studentId : null })) }, 'Importação de análise');
 
@@ -522,13 +582,13 @@ export function Studio(props: StudioViewProps) {
 
     catch (failure) {
 
-        setError((failure as Error).message);
+        if (isCurrentActivity(epoch)) setError((failure as Error).message);
 
     } };
 
     const importTracking = async (input: File) => { if (!doc || !canEdit)
 
-        return; try {
+        return; const epoch = activityEpoch.current; try {
 
         if (input.size > 15000000)
 
@@ -541,6 +601,7 @@ export function Studio(props: StudioViewProps) {
             positions: BallPosition[];
 
         };
+        if (!isCurrentActivity(epoch)) return;
 
         if (value.fingerprint !== doc.media.fingerprint || !Array.isArray(value.positions) || value.positions.length > 150000 || value.positions.some(p => !p || ![p.time, p.x, p.y].every(Number.isFinite) || p.time < 0 || p.time >= doc.media.duration || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1))
 
@@ -552,11 +613,12 @@ export function Studio(props: StudioViewProps) {
 
     catch (failure) {
 
-        setError((failure as Error).message);
+        if (isCurrentActivity(epoch)) setError((failure as Error).message);
 
     } };
 
     const download = useCallback(async (ids: string[] | null) => {
+        const epoch = activityEpoch.current;
 
         if (!permissions.download || !file || !doc || exporting.current)
 
@@ -638,9 +700,9 @@ export function Studio(props: StudioViewProps) {
 
         finally {
 
-            exporting.current = null;
+            if (exporting.current === controller) exporting.current = null;
 
-            if (alive.current) {
+            if (isCurrentActivity(epoch)) {
 
                 setProgress(null);
 
@@ -650,20 +712,37 @@ export function Studio(props: StudioViewProps) {
 
         }
 
-    }, [doc, file, source, permissions.download]);
+    }, [doc, file, source, permissions.download, isCurrentActivity]);
 
     const openAnalysisImport = useCallback(() => {
         if (canEdit && !editor) importInput.current?.click();
         else setError(canEdit ? 'Registre ou cancele o contato antes de importar a análise.' : 'Esta análise está em modo de leitura.');
     }, [canEdit, editor]);
 
-    const close = () => { playback.current?.pause(); if (draft.dirty || editorDirty)
+    const onClose = props.onClose;
+    const finishLeave = useCallback(() => {
+        if (!alive.current) return;
+        const pending = pendingNavigation.current;
+        if (pending && pending.epoch !== activityEpoch.current) return;
+        pendingNavigation.current = null;
+        onClose();
+        pending?.navigate();
+    }, [onClose]);
+    const requestLeave = useCallback((navigate?: () => void) => {
+        if (!alive.current || draft.saving) return;
+        playback.current?.pause();
+        pendingNavigation.current = navigate ? { navigate, epoch: activityEpoch.current } : null;
+        if (draft.dirty || editorDirty) setModal('exit');
+        else finishLeave();
+    }, [draft.dirty, draft.saving, editorDirty, finishLeave]);
+    const cancelLeave = () => { pendingNavigation.current = null; setModal(null); };
+    useEffect(() => {
+        if (!studioActive || props.shared) return;
+        return registerPendingEditsNavigation(requestLeave);
+    }, [studioActive, props.shared, requestLeave]);
+    const close = () => requestLeave();
 
-        setModal('exit');
-
-    else
-
-        props.onClose(); };
+    if (!studioActive) return null;
 
     return <div className="sv" data-youtube={!!youtubeId} data-modal-open={!!modal} style={themes} role="dialog" aria-modal="true" aria-label="Estúdio de scouting"><style>{studioStyles}</style>
 
@@ -685,7 +764,7 @@ export function Studio(props: StudioViewProps) {
 
         void importTracking(f); }}/>
 
-    <main className="sv-workspace"><section className="sv-main" aria-label="Vídeo e timeline"><div className="sv-stage" ref={stage} onPointerMove={showControls} onPointerDown={showControls}>{source && doc ? iframePlayback ? <YouTubeVideo key={youtubeId} id={youtubeId!} playback={playback} onReady={restorePlayback} onTick={tick} onState={setPlaying} onError={setError}/> : <><div className="sv-picture" onClick={e => { if (!correcting || !canEdit || !video.current || video.current.seeking || video.current.readyState < 2)
+    <main className="sv-workspace"><section className="sv-main" aria-label="Vídeo e timeline"><div className="sv-stage" ref={stage} onPointerMove={showControls} onPointerDown={showControls}>{source && doc && (iframePlayback || playbackSource) ? iframePlayback ? <YouTubeVideo key={youtubeId} id={youtubeId!} playback={playback} onReady={restorePlayback} onTick={tick} onState={setPlaying} onError={setError}/> : <><div className="sv-picture" onClick={e => { if (!correcting || !canEdit || !video.current || video.current.seeking || video.current.readyState < 2)
 
             return; const rect = e.currentTarget.getBoundingClientRect(), x = (e.clientX - rect.left - (rect.width - picture.width) / 2) / picture.width, y = (e.clientY - rect.top - (rect.height - picture.height) / 2) / picture.height; if (x < 0 || x > 1 || y < 0 || y > 1)
 
@@ -791,9 +870,9 @@ export function Studio(props: StudioViewProps) {
 
     {modal === 'contact' ? <StudioDialog title="Qual foi o contato?" onClose={() => setModal(null)}><small>{videoTime(time, true)}</small><div className="sv-skills">{videoSkills.map(skill => <StudioAction key={skill} label={skill} onPress={() => addContact(skill)}>{skill}</StudioAction>)}</div></StudioDialog> : null}
 
-    {modal === 'exit' ? <StudioDialog title="Salvar antes de sair?" onClose={() => setModal(null)}><p>{editorDirty ? 'Há um contato em edição. Volte e registre o contato antes de salvar.' : 'Salve as alterações antes de sair.'}</p><div className="sv-wrap"><StudioAction label="Continuar editando" onPress={() => setModal(null)}>Continuar editando</StudioAction><StudioAction label="Sair sem salvar" onPress={props.onClose}>Sair sem salvar</StudioAction><StudioAction label="Salvar e sair" primary disabled={editorDirty || draft.saving} onPress={() => { void draft.save().then(ok => { if (ok)
+    {modal === 'exit' ? <StudioDialog title="Salvar antes de sair?" onClose={cancelLeave}><p>{editorDirty ? 'Há um contato em edição. Volte e registre o contato antes de salvar.' : 'Salve as alterações antes de sair.'}</p><div className="sv-wrap"><StudioAction label="Continuar editando" onPress={cancelLeave}>Continuar editando</StudioAction><StudioAction label="Sair sem salvar" onPress={finishLeave}>Sair sem salvar</StudioAction><StudioAction label="Salvar e sair" primary disabled={editorDirty || draft.saving} onPress={() => { const epoch = activityEpoch.current; void draft.save().then(ok => { if (ok && isCurrentActivity(epoch))
 
-        props.onClose(); }); }}>Salvar e sair</StudioAction></div>{draft.error ? <p role="alert">{draft.error}</p> : null}</StudioDialog> : null}
+        finishLeave(); }); }}>Salvar e sair</StudioAction></div>{draft.error ? <p role="alert">{draft.error}</p> : null}</StudioDialog> : null}
 
     {modal === 'download' ? <StudioDialog title="Preparando download" onClose={() => { exporting.current?.abort(); setModal(null); }}><p role="status">{job}</p>{progress !== null ? <progress value={progress} max={1} aria-label="Progresso da exportação"/> : null}<p><small>Recortes preparados em tempo real, sem sobreposição da bola.</small></p>{error ? <p role="alert">{error}</p> : null}</StudioDialog> : null}
 

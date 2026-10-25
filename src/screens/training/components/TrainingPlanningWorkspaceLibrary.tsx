@@ -1,7 +1,8 @@
 import {  useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import type { ClassGroup, TrainingPlan } from "../../../core/models";
+import type { ClassGroup } from "../../../core/models";
+import type { TrainingPlanSummary } from "../../../db/training";
 import { radius } from "../../../theme/tokens";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -11,11 +12,11 @@ import { getClassIdentityLabel } from "../application/class-identity";
 type Props = {
   collapsed: boolean;
   presentation?: "rail" | "sheet";
-  plans: TrainingPlan[];
+  plans: TrainingPlanSummary[];
   classes: ClassGroup[];
   selectedPlanId?: string;
   onToggleCollapsed: () => void;
-  onSelectPlan: (plan: TrainingPlan) => void;
+  onSelectPlan: (plan: TrainingPlanSummary) => void;
 };
 
 type LibraryMode = "classes" | "drafts";
@@ -23,7 +24,7 @@ type LibraryMode = "classes" | "drafts";
 type WeekGroup = {
   key: string;
   label: string;
-  plans: TrainingPlan[];
+  plans: TrainingPlanSummary[];
 };
 
 const normalize = (value: string) =>
@@ -40,13 +41,13 @@ const parseDateKey = (value?: string) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const dateKeyForPlan = (plan: TrainingPlan) => {
+const dateKeyForPlan = (plan: TrainingPlanSummary) => {
   if (parseDateKey(plan.applyDate)) return plan.applyDate!;
   const created = String(plan.createdAt ?? "").slice(0, 10);
   return parseDateKey(created) ? created : "";
 };
 
-const monthKeyForPlan = (plan?: TrainingPlan | null) => (plan ? dateKeyForPlan(plan).slice(0, 7) : "");
+const monthKeyForPlan = (plan?: TrainingPlanSummary | null) => (plan ? dateKeyForPlan(plan).slice(0, 7) : "");
 
 const capitalize = (value: string) => value.charAt(0).toLocaleUpperCase("pt-BR") + value.slice(1);
 
@@ -74,7 +75,7 @@ const shortDate = (date: Date) =>
     .format(date)
     .replace(".", "")}`;
 
-const weekForPlan = (plan: TrainingPlan): { key: string; label: string } => {
+const weekForPlan = (plan: TrainingPlanSummary): { key: string; label: string } => {
   const date = parseDateKey(dateKeyForPlan(plan));
   if (!date) return { key: "undated", label: "Sem data" };
   const mondayOffset = (date.getUTCDay() + 6) % 7;
@@ -90,7 +91,7 @@ const weekForPlan = (plan: TrainingPlan): { key: string; label: string } => {
   return { key, label };
 };
 
-const planRowLabel = (plan: TrainingPlan) => {
+const planRowLabel = (plan: TrainingPlanSummary) => {
   const date = parseDateKey(dateKeyForPlan(plan));
   if (!date) return plan.title || "Plano sem título";
   const weekday = capitalize(
@@ -200,7 +201,7 @@ export function TrainingPlanningWorkspaceLibrary({
     );
   }
 
-  const renderPlanRow = (plan: TrainingPlan, nested = false) => {
+  const renderPlanRow = (plan: TrainingPlanSummary, nested = false) => {
     const selected = selectedPlanId === plan.id;
     return (
       <Pressable

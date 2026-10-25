@@ -22,13 +22,49 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
 
 ## Contratos a preservar
 
+- A leitura financeira usa `get_student_financial_statuses_v1`, JSON escalar
+  com até 5.000 IDs por chamada, `SECURITY INVOKER` e RLS/grants de tabela
+  preservados. Só a ausência exata da assinatura permite os GETs legados;
+  mudanças de contexto rejeitam o resultado. Migration aplicada apenas no
+  Supabase isolado da tarefa em 25/10, sem ativação remota.
+- Cache de leitura web usa IndexedDB com commit de transação; chaves continuam
+  por usuário/workspace/organização. Legado AsyncStorage continua legível sem
+  promoção na leitura; gravação nova não usa localStorage. Falha do cache não
+  confirma persistência offline. Limpeza de leitura preserva auth, preferências
+  e fila durável. Nativo conserva AsyncStorage. [Contrato e validações locais](../../operations/performance-lists-memory-local-2026-10-25.md).
 - Uma requisição iniciada pela conta A não pode ser repetida com a sessão da B.
   Cache de leitura inclui usuário e organização; fila durável não é cache descartável.
+- Em 23/10, turmas passaram a buscar unidades/classes em paralelo com guarda de
+  sessão/geração. Aniversários usam projeção mínima e cache separado: offline,
+  preservar a projeção mais recente, inclusive vazia; diretório novo invalida a
+  projeção anterior. [Contrato, testes e limites locais](../../operations/performance-local-2026-10-23.md).
 - Escrita offline captura `origin.userId` e `origin.organizationId` antes do envio.
   Envelope `queueVersion: 2`; legado sem origem fica em quarentena, sem apropriação
   pelo usuário atual. Confirmação não deve apagar edição posterior ao payload enviado.
 - RLS e validação de recurso no servidor continuam obrigatórias mesmo com filtros
   de organização no frontend. JWT válido não concede todas as permissões.
+- Na leitura de `attendance_logs`, a migration de 24/10 prepara os escopos
+  autorizados uma vez por instrução em helpers privados que delegam aos
+  autorizadores canônicos. O ramo do próprio aluno mantém o RLS de `students`;
+  escritas/grants/helpers antigos não mudam. Revogações são relidas na próxima
+  instrução, sem TTL de permissão. Política inesperada faz a migration abortar.
+  Aplicada somente no banco isolado; [contrato e evidências](../../operations/performance-boot-soak-local-2026-10-24.md).
+- `get_monthly_attendance_summary_v1` agrega o mês civil como `SECURITY INVOKER`,
+  com organização explícita, RLS existente e execução somente por autenticados.
+  Um JSON escalar conserva todos os grupos; falha não gera total parcial. Detalhes
+  e nomes são lidos no clique XLSX, sob guarda de identidade/organização/geração.
+  [Migration, equivalência e ativação apenas local](../../operations/performance-boot-soak-local-2026-10-24.md).
+- No preflight remoto de 25/10, a policy de presenças tinha ramo legado ausente
+  na fixture isolada: o guard da migration RLS abortaria, e nenhuma migration foi
+  aplicada no destino. Resumo mensal tem compatibilidade paginada somente para
+  assinatura RPC ausente; permissões e erros não acionam esse fallback.
+  [Catálogo, decisão e limites](../../operations/performance-web-release-2026-10-25.md).
+- A RPC aditiva `get_activity_review_context_v1` atende somente a coordenação
+  administrativa: `SECURITY INVOKER`, gate de administrador e grants só para
+  `authenticated`, mantendo o RLS das tabelas. Retorna turma/dia e revisões para a
+  sugestão de pausa; o leitor legado permanece como compatibilidade até a ativação.
+  As duas migrations de leitura e os índices de 24/10 foram aplicados só no banco
+  isolado da tarefa. [Medições e validação](../../operations/performance-stress-local-2026-10-24.md).
 - Consultoria mantém contexto capturado por operação e armazenamento v2 por
   usuário/organização, separado da fila geral. Legado v1 permanece intacto, sem
   adoção automática. GET/DELETE aceitam identidade esperada, como POST/PATCH.
