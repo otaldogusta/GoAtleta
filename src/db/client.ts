@@ -12,6 +12,7 @@ import {
   subscribeSession, type SessionIdentity,
 } from "../auth/session";
 import { safeJsonParse } from "../utils/safe-json";
+import { clearReadCacheStorage, getReadCacheItem, removeReadCacheItem, setReadCacheItem } from "./read-cache-storage";
 
 // ---------------------------------------------------------------------------
 // REST base
@@ -296,7 +297,7 @@ export const readCache = async <T>(key: string): Promise<T | null> => {
     const generation = cacheGeneration;
     const scopedKey = await resolveCacheKey(key, identity);
     if (!scopedKey) return null;
-    const stored = await AsyncStorage.getItem(scopedKey);
+    const stored = await (isReadCache(key) ? getReadCacheItem(scopedKey) : AsyncStorage.getItem(scopedKey));
     if (isReadCache(key) && (!isSessionIdentityCurrent(identity) || generation !== cacheGeneration)) return null;
     if (!stored) return null;
     return safeJsonParse<T | null>(stored, null);
@@ -311,9 +312,9 @@ export const writeCache = async (key: string, value: unknown) => {
     const generation = cacheGeneration;
     const scopedKey = await resolveCacheKey(key, identity);
     if (!scopedKey || (isReadCache(key) && generation !== cacheGeneration)) return;
-    await AsyncStorage.setItem(scopedKey, JSON.stringify(value));
+    await (isReadCache(key) ? setReadCacheItem(scopedKey, JSON.stringify(value)) : AsyncStorage.setItem(scopedKey, JSON.stringify(value)));
     if (isReadCache(key) && (!isSessionIdentityCurrent(identity) || generation !== cacheGeneration)) {
-      await AsyncStorage.removeItem(scopedKey);
+      await (isReadCache(key) ? removeReadCacheItem(scopedKey) : AsyncStorage.removeItem(scopedKey));
     }
   } catch {
     // ignore cache write failures
@@ -322,12 +323,12 @@ export const writeCache = async (key: string, value: unknown) => {
 
 export async function clearLocalReadCaches() {
   cacheGeneration += 1;
-  try {
+  const clearLegacy = async () => {
     const keys = await AsyncStorage.getAllKeys();
     await AsyncStorage.multiRemove(keys.filter((key) => isReadCache(key) || key.startsWith(READ_CACHE_PREFIX)));
-  } catch {
-    // ignore cache clear failures
-  }
+  };
+  // Either storage can fail independently. Durable queues/preferences/auth remain.
+  await Promise.allSettled([Promise.resolve().then(clearLegacy), Promise.resolve().then(clearReadCacheStorage)]);
 }
 
 // ---------------------------------------------------------------------------

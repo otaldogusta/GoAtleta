@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 
+import { getSessionIdentity, isSessionIdentityCurrent } from "../auth/session";
 import type { EffectiveProfile } from "../core/effective-profile";
 import { isStudentBirthdayToday } from "../core/students/student-birthday";
-import { getStudents } from "../db/seed";
+import { getStudentBirthdayCandidates } from "../db/seed";
 import { notifyBirthdays } from "../notifications";
 import { notificationScopeForEffectiveProfile } from "../notifications/inbox-scope";
 import { usePersistedState } from "../ui/use-persisted-state";
@@ -54,11 +55,13 @@ export function useBirthdayNotifications({
     }
 
     let active = true;
+    const identity = getSessionIdentity();
+    const isCurrent = () => active && isSessionIdentityCurrent(identity);
     inFlightKeyRef.current = checkKey;
 
     void (async () => {
-      const students = await getStudents({ organizationId });
-      if (!active) return;
+      const students = await getStudentBirthdayCandidates({ organizationId });
+      if (!isCurrent()) return;
 
       const birthdayStudents = students.filter((student) =>
         isStudentBirthdayToday(student.birthDate, today),
@@ -84,7 +87,7 @@ export function useBirthdayNotifications({
         );
       }
 
-      if (active) {
+      if (isCurrent()) {
         setLastCheckByOrganization((current) => ({
           ...current,
           [organizationId]: todayKey,

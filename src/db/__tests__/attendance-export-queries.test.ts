@@ -2,6 +2,9 @@ const mockSupabaseGet = jest.fn();
 const mockReadCache = jest.fn();
 const mockIsNetworkError = jest.fn();
 const mockIsAuthError = jest.fn();
+let mockIdentity = {userId:"teacher-a",generation:1};
+let mockGeneration=1;
+let mockOrganizationId:string|null="org-1";
 
 jest.mock("@sentry/react-native", () => ({
   captureException: jest.fn(),
@@ -13,9 +16,10 @@ jest.mock("../client", () => ({
     attendanceRecords: "attendance",
     students: "students",
   },
-  getActiveOrganizationId: jest.fn(() => Promise.resolve("org-1")),
+  getActiveOrganizationId: jest.fn(() => Promise.resolve(mockOrganizationId)),
+  getReadCacheGeneration:()=>mockGeneration,
   getScopedOrganizationId: jest.fn((value: string | null | undefined) =>
-    Promise.resolve(value ?? "org-1"),
+    Promise.resolve(value ?? mockOrganizationId),
   ),
   isAuthError: (...args: unknown[]) => mockIsAuthError(...args),
   isMissingColumnInSchemaCache: jest.fn(() => false),
@@ -44,6 +48,9 @@ jest.mock("../../api/notifications", () => ({
 
 jest.mock("../../auth/session", () => ({
   getSessionUserId: jest.fn(),
+  getSessionIdentity:()=>({...mockIdentity}),
+  assertSessionIdentity:(value:typeof mockIdentity)=>{if(value.userId!==mockIdentity.userId||value.generation!==mockIdentity.generation)throw new Error("Session changed");},
+  SessionIdentityChangedError:class extends Error{},
 }));
 
 jest.mock("../pending-write-queue", () => ({
@@ -72,6 +79,7 @@ describe("attendance export queries", () => {
     mockReadCache.mockResolvedValue(null);
     mockIsNetworkError.mockReturnValue(false);
     mockIsAuthError.mockReturnValue(false);
+    mockIdentity={userId:"teacher-a",generation:1};mockGeneration=1;mockOrganizationId="org-1";
   });
 
   test("keeps fetching athlete pages until an empty page even when the backend caps below the requested limit", async () => {
@@ -136,6 +144,47 @@ describe("attendance export queries", () => {
     expect(firstPath).not.toContain("pain_score");
     expect(mockSupabaseGet.mock.calls[1]?.[0]).toContain("offset=500");
     expect(mockSupabaseGet.mock.calls[2]?.[0]).toContain("offset=501");
+  });
+
+  test("class highlights retain SQL name/id order, inactive athletes and only the primary class filter",async()=>{
+    mockSupabaseGet.mockResolvedValueOnce([
+      {id:"student-z",name:"Ágata",membership_status:"inactive"},
+      {id:"student-a",name:"Zeca",membership_status:"active"},
+    ]).mockResolvedValueOnce([]);
+    const rows=await getAttendanceExportStudents({organizationId:"org-1",classId:"class-a",orderByName:true});
+    expect(rows).toEqual([{id:"student-z",name:"Ágata",membershipStatus:"inactive"},{id:"student-a",name:"Zeca",membershipStatus:"active"}]);
+    const paths=mockSupabaseGet.mock.calls.map(([path])=>String(path));
+    expect(paths.every(path=>path.includes("select=id,name,membership_status")&&path.includes("classid=eq.class-a")&&path.includes("order=name.asc,id.asc")&&!path.includes("offset=")&&!path.includes("select=*")&&!path.includes("enrollment")&&!path.includes("financial"))).toBe(true);
+    expect(new URL(paths[1],"https://fixture.invalid").searchParams.get("or")).toContain('id.gt."student-a"');
+  });
+
+  test.each(["user","session","organization","generation","roundtrip"])("minimal names reject %s changes between pages without returning a partial list",async kind=>{
+    mockSupabaseGet.mockImplementationOnce(async()=>{
+      if(kind==="user")mockIdentity.userId="teacher-b";
+      if(kind==="session")mockIdentity.generation++;
+      if(kind==="organization")mockOrganizationId="org-2";
+      if(kind==="generation"||kind==="roundtrip")mockGeneration++;
+      return [{id:"student-a",name:"Ana",membership_status:"active"}];
+    });
+    await expect(getAttendanceExportStudents({organizationId:"org-1"})).rejects.toThrow();
+    expect(mockSupabaseGet).toHaveBeenCalledTimes(1);expect(mockReadCache).not.toHaveBeenCalled();
+  });
+
+  test("an explicit authorized organization is preserved while the initial workspace stays unchanged",async()=>{
+    mockSupabaseGet.mockResolvedValueOnce([{id:"student-b",name:"Bia",membership_status:"active"}]).mockResolvedValueOnce([]);
+    expect(await getAttendanceExportStudents({organizationId:"org-2"})).toEqual([{id:"student-b",name:"Bia",membershipStatus:"active"}]);
+    expect(mockSupabaseGet.mock.calls[0][0]).toContain("organization_id=eq.org-2");
+  });
+
+  test("reads all 5,000 minimal names past a capped server without health or financial hydration",async()=>{
+    const rows=Array.from({length:5000},(_,index)=>({id:`student-${index}`,name:`Nome ${index}`,membership_status:"active"}));
+    mockSupabaseGet.mockImplementation(async(path:string)=>{
+      const query=new URL(path,"https://fixture.invalid").searchParams;
+      const offset=Number(query.get("offset"));return rows.slice(offset,offset+137);
+    });
+    expect(await getAttendanceExportStudents({organizationId:"org-1"})).toHaveLength(5000);
+    expect(mockSupabaseGet).toHaveBeenCalledTimes(38);
+    expect(mockSupabaseGet.mock.calls.every(([path])=>String(path).startsWith("/students?select=id,name,membership_status&organization_id=eq.org-1&order=id.asc&"))).toBe(true);
   });
 
   test("fails explicitly when pagination repeats a record instead of returning a truncated export", async () => {

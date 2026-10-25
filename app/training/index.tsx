@@ -13,7 +13,10 @@ import { translateMethodology } from "../../src/core/methodology/methodology-tra
 import type { ClassGroup, Exercise, TrainingPlan, TrainingPlanActivity } from "../../src/core/models";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import type { TrainingPlanBlockKey } from "../../src/core/training-plan-blocks";
-import { deleteTrainingPlan, getClasses, getLatestTrainingPlanByClass, getTrainingPlans, saveTrainingPlan, upsertTrainingSession } from "../../src/db/seed";
+import { deleteTrainingPlan, getClasses, getLatestTrainingPlanByClass, saveTrainingPlan, upsertTrainingSession } from "../../src/db/seed";
+import { getTrainingPlanById, getTrainingPlanSummaries, type TrainingPlanSummary } from "../../src/db/training";
+import { getReadCacheGeneration } from "../../src/db/client";
+import { getSessionIdentity, isSessionIdentityCurrent } from "../../src/auth/session";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useAuth } from "../../src/auth/auth";
@@ -159,6 +162,12 @@ const extractKeywords = (value: string) => {
     .filter((token) => token.length >= 3 && !stopwords.has(token));
 };
 
+const toTrainingPlanSummary = (plan: TrainingPlanSummary): TrainingPlanSummary => ({
+  id: plan.id, classId: plan.classId, title: plan.title, tags: plan.tags,
+  applyDate: plan.applyDate, applyDays: plan.applyDays, createdAt: plan.createdAt,
+  version: plan.version, status: plan.status,
+});
+
 export default function TrainingList() {
   const { session } = useAuth();
   const organizationId = useOptionalOrganization()?.activeOrganization?.id;
@@ -175,6 +184,7 @@ function TrainingWorkspace() {
   const effectiveProfile = useEffectiveProfile();
   const { session } = useAuth();
   const activeOrganization = useOptionalOrganization()?.activeOrganization ?? null;
+  const organizationId = activeOrganization?.id;
   const notificationInboxScope = notificationScopeForEffectiveProfile(effectiveProfile);
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -231,7 +241,39 @@ function TrainingWorkspace() {
     setFormUnit,
   } = useTrainingPlanForm();
   const { title, tagsText, warmup, main, cooldown, editingId, formUnit } = planForm;
-  const [items, setItems] = useState<TrainingPlan[]>([]);
+  const [items, setItems] = useState<TrainingPlanSummary[]>([]);
+  const localWorkspacePlansRef = useRef(new Map<string, TrainingPlan>());
+  const planSelectionSequenceRef = useRef(0);
+  const workspaceMountedRef = useRef(true);
+  useEffect(() => {
+    workspaceMountedRef.current = true;
+    return () => {
+      workspaceMountedRef.current = false;
+      planSelectionSequenceRef.current += 1;
+    };
+  }, []);
+  const hydratePlanSelection = useCallback(async (id: string, isActive: () => boolean = () => true) => {
+    const request = ++planSelectionSequenceRef.current;
+    const identity = getSessionIdentity();
+    const generation = getReadCacheGeneration();
+    const isCurrent = () => workspaceMountedRef.current && isActive() &&
+      request === planSelectionSequenceRef.current && isSessionIdentityCurrent(identity) &&
+      generation === getReadCacheGeneration();
+    if (!organizationId || identity.userId !== session?.user.id) return null;
+    try {
+      const plan = localWorkspacePlansRef.current.get(id) ??
+        await getTrainingPlanById(id, { organizationId });
+      if (!isCurrent()) return null;
+      if (!plan) {
+        showSaveToast({ message: "Plano não encontrado neste workspace.", variant: "warning" });
+        return null;
+      }
+      return { plan, isCurrent };
+    } catch {
+      if (isCurrent()) showSaveToast({ message: "Não foi possível abrir o plano. Tente novamente.", variant: "error" });
+      return null;
+    }
+  }, [organizationId, session?.user.id, showSaveToast]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classCatalogKey, setClassCatalogKey] = useState<string | null>(null);
   const [isPlanningBootstrapLoading, setIsPlanningBootstrapLoading] = useState(true);
@@ -317,6 +359,7 @@ function TrainingWorkspace() {
         showSaveToast({ message: "O rascunho foi preservado. Sua turma não está disponível neste workspace.", variant: "warning" });
         return;
       }
+      planSelectionSequenceRef.current += 1;
       setSelectedPlan(restoredWorkspaceDraft.plan);
       setClassId(restoredWorkspaceDraft.plan.classId);
       setWorkspaceDraftLessonDate(restoredWorkspaceDraft.lessonDate);
@@ -623,34 +666,6 @@ function TrainingWorkspace() {
     });
   }, [applyPlan, classes, lastCreatedClassId, lastCreatedPlanId, targetClassId, targetDate]);
 
-  useEffect(() => {
-    if (!applyPlanId || applyPlanId === handledApplyPlanId) return;
-    const plan = items.find((item) => item.id === applyPlanId);
-    if (!plan) return;
-    Promise.resolve().then(() => {
-      setApplyPlan(plan);
-    });
-    Promise.resolve().then(() => {
-      setShowApplyModal(true);
-    });
-    Promise.resolve().then(() => {
-      setHandledApplyPlanId(applyPlanId);
-    });
-  }, [applyPlanId, handledApplyPlanId, items]);
-
-  useEffect(() => {
-    if (!viewPlanId || viewPlanId === handledViewPlanId) return;
-    const plan = items.find((item) => item.id === viewPlanId);
-    if (!plan) return;
-    Promise.resolve().then(() => {
-      setSelectedPlan(plan);
-    });
-    setShowSavedPlans(true);
-    Promise.resolve().then(() => {
-      setHandledViewPlanId(viewPlanId);
-    });
-  }, [handledViewPlanId, items, setShowSavedPlans, viewPlanId]);
-
   const parseTimeParts = (value: string) => {
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -741,22 +756,26 @@ function TrainingWorkspace() {
 
   useEffect(() => {
     let alive = true;
+    const identity = getSessionIdentity();
+    const generation = getReadCacheGeneration();
     (async () => {
       try {
+        if (!organizationId) return;
         const [classList, plans, localPlans] = await measureAsync(
           "screen.training.load.initial",
           () =>
             Promise.all([
-              getClasses(),
-              getTrainingPlans(),
+              getClasses({ organizationId }),
+              getTrainingPlanSummaries({ organizationId }),
               loadTrainingPlanWorkspaceLibrary(workspaceDraftKey),
             ]),
           { screen: "training" }
         );
-        if (!alive) return;
+        if (!alive || !isSessionIdentityCurrent(identity) || generation !== getReadCacheGeneration()) return;
         setClasses(classList);
         setClassCatalogKey(workspaceDraftKey);
-        setItems([...localPlans, ...plans.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
+        localWorkspacePlansRef.current = new Map(localPlans.map(plan => [plan.id, plan]));
+        setItems([...localPlans.map(toTrainingPlanSummary), ...plans.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
       } catch (error) {
         if (!alive) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -773,42 +792,7 @@ function TrainingWorkspace() {
     return () => {
       alive = false;
     };
-  }, [workspaceDraftKey]);
-
-  useEffect(() => {
-    if (
-      Platform.OS !== "web" ||
-      isPlanningBootstrapLoading ||
-      Boolean(incomingWorkspaceEntry) ||
-      !workspaceDraftHydrated ||
-      restoredWorkspaceDraft ||
-      selectedPlan ||
-      !classes.length ||
-      (!targetClassId && !targetDate)
-    ) {
-      return;
-    }
-    const routePlan = items.find(
-      (plan) =>
-        (!targetClassId || plan.classId === targetClassId) &&
-        (!targetDate || plan.applyDate === targetDate)
-    );
-    if (!routePlan) return;
-    Promise.resolve().then(() => {
-      setSelectedPlan(routePlan);
-      setClassId(routePlan.classId);
-    });
-  }, [
-    classes,
-    isPlanningBootstrapLoading,
-    items,
-    restoredWorkspaceDraft,
-    selectedPlan,
-    targetClassId,
-    targetDate,
-    workspaceDraftHydrated,
-    incomingWorkspaceEntry,
-  ]);
+  }, [organizationId, workspaceDraftKey]);
 
   const tagCounts = useMemo(() => {
     const source = items;
@@ -907,12 +891,17 @@ function TrainingWorkspace() {
   }, [cooldown, currentTags, main, methodologyTranslation, tagCounts, title, warmup]);
 
   const reload = useCallback(async () => {
+    if (!organizationId) return;
+    const identity = getSessionIdentity();
+    const generation = getReadCacheGeneration();
     const [data, localPlans] = await Promise.all([
-      getTrainingPlans(),
+      getTrainingPlanSummaries({ organizationId }),
       loadTrainingPlanWorkspaceLibrary(workspaceDraftKey),
     ]);
-    setItems([...localPlans, ...data.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
-  }, [workspaceDraftKey]);
+    if (!workspaceMountedRef.current || !isSessionIdentityCurrent(identity) || generation !== getReadCacheGeneration()) return;
+    localWorkspacePlansRef.current = new Map(localPlans.map(plan => [plan.id, plan]));
+    setItems([...localPlans.map(toTrainingPlanSummary), ...data.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
+  }, [organizationId, workspaceDraftKey]);
 
   const hydrateFormFromPlanningActivities = useCallback(
     (activities: PlanningBlockActivities) => {
@@ -1368,7 +1357,7 @@ function TrainingWorkspace() {
     setWorkspaceDraftRestored(false);
     setWorkspaceDraftLessonDate(updated.applyDate ?? "");
     setItems((current) => [
-      updated,
+      toTrainingPlanSummary(updated),
       ...current.filter((item) => item.id !== applyPlan.id && item.id !== updated.id),
     ]);
     await reload().catch(() => { followUpFailed = true; });
@@ -1513,6 +1502,7 @@ function TrainingWorkspace() {
 
   const handleApplyWorkspacePlan = useCallback(
     (plan: TrainingPlan) => {
+      planSelectionSequenceRef.current += 1;
       setSelectedPlan(plan);
       handleApplyPlan(plan);
     },
@@ -1528,12 +1518,14 @@ function TrainingWorkspace() {
   }, []);
 
   const confirmWorkspaceReplacement = useCallback(
-    async (action: () => void) => {
+    async (action: () => void, isCurrent: () => boolean = () => true) => {
+      if (!isCurrent()) return;
       if (!workspaceHasUnsavedChanges) {
         action();
         return;
       }
       const flushResult = await flushWorkspaceDraft();
+      if (!isCurrent()) return;
       const confirmation = buildTrainingPlanWorkspaceExitConfirmation({
         intent: "replace",
         draftPersisted: flushResult.persisted,
@@ -1542,8 +1534,9 @@ function TrainingWorkspace() {
         ...confirmation,
         onConfirm: () => {},
       });
-      if (!accepted) return;
+      if (!accepted || !isCurrent()) return;
       await clearWorkspaceDraft();
+      if (!isCurrent()) return;
       setWorkspaceHasUnsavedChanges(false);
       setWorkspaceDraftRestored(false);
       setWorkspaceDraftLessonDate("");
@@ -1551,6 +1544,47 @@ function TrainingWorkspace() {
     },
     [clearWorkspaceDraft, confirmDialog, flushWorkspaceDraft, workspaceHasUnsavedChanges]
   );
+
+  useEffect(() => {
+    if (!applyPlanId || applyPlanId === handledApplyPlanId || isPlanningBootstrapLoading) return;
+    let active = true;
+    void hydratePlanSelection(applyPlanId, () => active).then(selection => {
+      if (!selection) return;
+      handleApplyPlan(selection.plan);
+      setHandledApplyPlanId(applyPlanId);
+    });
+    return () => { active = false; };
+  }, [applyPlanId, handledApplyPlanId, handleApplyPlan, hydratePlanSelection, isPlanningBootstrapLoading]);
+
+  useEffect(() => {
+    if (!viewPlanId || viewPlanId === handledViewPlanId || isPlanningBootstrapLoading || !workspaceDraftHydrated || restoredWorkspaceDraft) return;
+    let active = true;
+    void hydratePlanSelection(viewPlanId, () => active).then(async selection => {
+      if (!selection) return;
+      await confirmWorkspaceReplacement(() => {
+        handleViewPlan(selection.plan);
+        setShowSavedPlans(true);
+        setHandledViewPlanId(viewPlanId);
+      }, selection.isCurrent);
+    });
+    return () => { active = false; };
+  }, [confirmWorkspaceReplacement, handledViewPlanId, handleViewPlan, hydratePlanSelection, isPlanningBootstrapLoading, restoredWorkspaceDraft, setShowSavedPlans, viewPlanId, workspaceDraftHydrated]);
+
+  useEffect(() => {
+    if (
+      Platform.OS !== "web" || isPlanningBootstrapLoading || Boolean(incomingWorkspaceEntry) ||
+      !workspaceDraftHydrated || restoredWorkspaceDraft || selectedPlan || !classes.length ||
+      viewPlanId || applyPlanId || (!targetClassId && !targetDate)
+    ) return;
+    const routePlan = items.find(plan =>
+      (!targetClassId || plan.classId === targetClassId) && (!targetDate || plan.applyDate === targetDate));
+    if (!routePlan) return;
+    let active = true;
+    void hydratePlanSelection(routePlan.id, () => active).then(selection => {
+      if (selection) handleViewPlan(selection.plan);
+    });
+    return () => { active = false; };
+  }, [applyPlanId, classes, handleViewPlan, hydratePlanSelection, incomingWorkspaceEntry, isPlanningBootstrapLoading, items, restoredWorkspaceDraft, selectedPlan, targetClassId, targetDate, viewPlanId, workspaceDraftHydrated]);
 
   const handleWorkspaceBack = useCallback(async () => {
     if (workspaceHasUnsavedChanges) {
@@ -1569,6 +1603,7 @@ function TrainingWorkspace() {
   }, [confirmDialog, flushWorkspaceDraft, router, scopedRoutes.home, workspaceHasUnsavedChanges]);
 
   const handleCreateWorkspacePlan = useCallback(() => {
+    planSelectionSequenceRef.current += 1;
     const draft = createPlanningWorkspaceDraft();
     setSelectedPlan(draft);
     setClassId("");
@@ -1587,6 +1622,7 @@ function TrainingWorkspace() {
 
   const handleSaveWorkspacePlan = useCallback(
     async (draft: TrainingPlan) => {
+      planSelectionSequenceRef.current += 1;
       const normalized = normalizeClassTrainingPlan(draft);
       if (!normalized.classId) {
         const draftLessonDate = workspaceDraftLessonDate || normalized.applyDate || targetDate || formatShortDateValue(new Date());
@@ -1598,7 +1634,8 @@ function TrainingWorkspace() {
         setSelectedPlan(normalized);
         setWorkspaceHasUnsavedChanges(false);
         setWorkspaceDraftRestored(false);
-        setItems((current) => [normalized, ...current.filter((item) => item.id !== normalized.id)]);
+        localWorkspacePlansRef.current.set(normalized.id, normalized);
+        setItems((current) => [toTrainingPlanSummary(normalized), ...current.filter((item) => item.id !== normalized.id)]);
         showSaveToast({ message: "Rascunho salvo neste dispositivo.", variant: "success" });
         return normalized;
       }
@@ -1637,7 +1674,7 @@ function TrainingWorkspace() {
       setWorkspaceHasUnsavedChanges(false);
       setWorkspaceDraftRestored(false);
       setWorkspaceDraftLessonDate("");
-      setItems((current) => [nextPlan, ...current.filter((item) => item.id !== nextPlan.id)]);
+      setItems((current) => [toTrainingPlanSummary(nextPlan), ...current.filter((item) => item.id !== nextPlan.id)]);
       void notifyTrainingSaved({ inboxScope: notificationInboxScope });
       await reload();
       return nextPlan;
@@ -1653,6 +1690,7 @@ function TrainingWorkspace() {
       if (cancelled) return;
       setHandledWorkspaceEntryKey(incomingWorkspaceEntry.key);
       void confirmWorkspaceReplacement(() => {
+        planSelectionSequenceRef.current += 1;
         const targetClass = classes.find((item) => item.id === incomingWorkspaceEntry.classId) ?? null;
         const lessonDate = incomingWorkspaceEntry.date || formatShortDateValue(new Date());
         const nextPlan = incomingWorkspaceEntry.template
@@ -1674,11 +1712,13 @@ function TrainingWorkspace() {
   const handleImportWorkspacePlans = useCallback(
     async (drafts: TrainingPlan[]) => {
       if (!drafts.length) return;
+      planSelectionSequenceRef.current += 1;
       const plans = drafts.map((draft) => ({
         ...normalizeClassTrainingPlan(draft),
         classId: "",
       }));
       await upsertTrainingPlanWorkspaceLibrary(workspaceDraftKey, plans);
+      plans.forEach(plan => localWorkspacePlansRef.current.set(plan.id, plan));
       const firstPlan = plans[0];
       setSelectedPlan(firstPlan);
       setClassId("");
@@ -1686,7 +1726,7 @@ function TrainingWorkspace() {
       setWorkspaceDraftLessonDate(firstPlan.applyDate ?? "");
       setWorkspaceHasUnsavedChanges(true);
       setItems((current) => [
-        ...plans,
+        ...plans.map(toTrainingPlanSummary),
         ...current.filter((item) => !plans.some((plan) => plan.id === item.id)),
       ]);
       queueWorkspaceDraft(firstPlan, firstPlan.applyDate ?? "");
@@ -1750,6 +1790,7 @@ function TrainingWorkspace() {
   ), [selectedPlan, workspaceClass?.name, workspaceLessonDate]));
   const handleWorkspaceDraftChange = useCallback(
     (draft: TrainingPlan) => {
+      planSelectionSequenceRef.current += 1;
       queueWorkspaceDraft(draft, workspaceLessonDate);
     },
     [queueWorkspaceDraft, workspaceLessonDate]
@@ -1767,9 +1808,12 @@ function TrainingWorkspace() {
       selectedPlanId={selectedPlan?.id}
       onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
       onSelectPlan={(plan) => {
-        void confirmWorkspaceReplacement(() => {
-          handleViewPlan(plan);
-          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+        void hydratePlanSelection(plan.id).then(async selection => {
+          if (!selection) return;
+          await confirmWorkspaceReplacement(() => {
+            handleViewPlan(selection.plan);
+            if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+          }, selection.isCurrent);
         });
       }}
     />

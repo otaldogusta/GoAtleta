@@ -4,11 +4,12 @@ import TestRenderer, { act } from "react-test-renderer";
 import type { TrainingPlanActivity } from "../../../../core/models";
 import { PlanningBlockActivityCards } from "../PlanningBlockActivityCards";
 
-jest.mock("@expo/vector-icons", () => {
+jest.mock("@expo/vector-icons/Ionicons", () => {
   const React = jest.requireActual("react");
   const { Text } = jest.requireActual("react-native");
   return {
-    Ionicons: ({ name }: { name: string }) => React.createElement(Text, null, name),
+    __esModule: true,
+    default: ({ name }: { name: string }) => React.createElement(Text, null, name),
   };
 });
 

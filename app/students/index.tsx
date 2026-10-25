@@ -1,7 +1,7 @@
 import { scheduleEffectTask } from "../../src/hooks/schedule-effect-task";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Suspense,
   lazy,
@@ -28,8 +28,6 @@ import {
 } from "react-native-safe-area-context";
 import { listOrganizationInvoices } from "../../src/api/finance";
 import {
-  getStudentPhotoAccessUrl,
-  getStudentPhotoObjectPath,
   removeStudentPhotoObject,
   uploadStudentPhoto,
 } from "../../src/api/student-photo-storage";
@@ -41,7 +39,11 @@ import type {
   Student,
   StudentOperationalEvent,
 } from "../../src/core/models";
+import { projectStudentDirectoryRecord, type StudentDirectoryRecord } from "../../src/core/student-read-models";
 import { deriveStudentHealthAssessment } from "../../src/core/student-health";
+import { useStudentProfileDetail } from "../../src/screens/students/hooks/useStudentProfileDetail";
+import { getSessionIdentity } from "../../src/auth/session";
+import { getReadCacheGeneration } from "../../src/db/client";
 import {
   findPossibleExistingStudents,
   normalizeStudentLookupName,
@@ -52,7 +54,8 @@ import {
   getClasses,
   getAttendanceByStudent,
   getStudentOperationalHistory,
-  getStudents,
+  getStudentDirectoryRecords,
+  getStudentById,
   revealStudentCpf,
   saveStudent,
   updateStudent,
@@ -62,6 +65,7 @@ import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useIsOnline } from "../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import { useStudentPhotoAccess } from "../../src/hooks/use-student-photo-access";
 import { logAction } from "../../src/observability/breadcrumbs";
 import {
   markRender,
@@ -75,7 +79,6 @@ import {
   type ClassModalityFilterValue,
 } from "../../src/screens/students/components/StudentClassDropdownPanel";
 import { StudentSelectOption } from "../../src/screens/students/components/StudentDropdownOptions";
-import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
 import { StudentProfilePage } from "../../src/screens/students/StudentProfilePage";
 import { resolveStudentProfile } from "../../src/screens/students/application/student-profile";
 import { PageBreadcrumbHeader } from "../../src/components/ui/PageBreadcrumbHeader";
@@ -173,14 +176,6 @@ const calculateAge = (iso: string) => {
     age -= 1;
   }
   return age;
-};
-
-const hasBirthDateWarning = (birthDate: string) => {
-  const raw = String(birthDate ?? "").trim();
-  if (!raw) return false;
-  const age = calculateAge(raw);
-  if (age === null) return true;
-  return age < 5 || age > 60;
 };
 
 const StudentRegistrationTab = lazy(() =>
@@ -290,10 +285,26 @@ export default function StudentsScreen() {
     maxWidth: 320,
   });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<
-    Record<string, { sourceUrl: string; accessUrl: string | null }>
-  >({});
+  const [students, setStudents] = useState<StudentDirectoryRecord[]>([]);
+  const [editingStudentFull, setEditingStudentFull] = useState<{ scope: string; student: Student } | null>(null);
+  const studentIdentity = getSessionIdentity();
+  const studentScope = JSON.stringify([studentIdentity.userId, studentIdentity.generation, getReadCacheGeneration(), activeOrganization?.id]);
+  const editSelectionEpoch = useRef(0);
+  const editSelectionScope = useRef(studentScope);
+  useLayoutEffect(() => {
+    editSelectionScope.current = studentScope;
+    editSelectionEpoch.current++;
+    return () => { editSelectionScope.current = ""; };
+  }, [studentScope]);
+  const isFocused = useIsFocused();
+  const classById = useMemo(() => new Map(classes.map(item => [item.id, item] as const)), [classes]);
+  const profileTarget = resolveStudentProfile(studentProfile, activeOrganization?.id, students, classById);
+  const profileDetail = useStudentProfileDetail(profileTarget?.student.id ?? null, activeOrganization?.id ?? null, isFocused);
+  const replaceProfileDetail = profileDetail.replace;
+  const [visiblePhotoStudentIds, setVisiblePhotoStudentIds] = useState<string[]>([]);
+  const onVisiblePhotoStudentsChange = useCallback((ids: string[]) => {
+    setVisiblePhotoStudentIds((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isMountedRef = useRef(true);
@@ -337,7 +348,7 @@ export default function StudentsScreen() {
   useFocusEffect(
     useCallback(() => {
       setStudentsTab("alunos");
-    }, []),
+    }, [setStudentsTab]),
   );
 
   useEffect(() => {
@@ -706,7 +717,7 @@ export default function StudentsScreen() {
           () =>
             Promise.all([
               getClasses({ organizationId: activeOrganization?.id }),
-              getStudents({ organizationId: activeOrganization?.id }),
+              getStudentDirectoryRecords({ organizationId: activeOrganization?.id }),
             ]),
           { hasOrganization: activeOrganization?.id ? 1 : 0 },
         );
@@ -730,7 +741,7 @@ export default function StudentsScreen() {
   const reload = useCallback(async () => {
     try {
       const [studentList] = await Promise.all([
-        getStudents({ organizationId: activeOrganization?.id }),
+        getStudentDirectoryRecords({ organizationId: activeOrganization?.id }),
       ]);
       setStudents(studentList);
     } catch (error) {
@@ -739,8 +750,8 @@ export default function StudentsScreen() {
   }, [activeOrganization]);
 
   const operationalStudent = useMemo(
-    () => students.find((student) => student.id === editingId) ?? null,
-    [editingId, students],
+    () => editingStudentFull?.scope === studentScope && editingStudentFull.student.id === editingId && editingStudentFull.student.organizationId === activeOrganization?.id ? editingStudentFull.student : null,
+    [editingId, editingStudentFull, studentScope, activeOrganization?.id],
   );
   const operationalStudentId = operationalStudent?.id ?? null;
   const operationalOrganizationId = activeOrganization?.id ?? null;
@@ -894,6 +905,8 @@ export default function StudentsScreen() {
       inactivationReason?: string | null;
     }) => {
       if (!operationalStudent || operationalStatusSaving) return false;
+      const epoch = editSelectionEpoch.current;
+      const isCurrent = () => epoch === editSelectionEpoch.current && editSelectionScope.current === studentScope;
       const nextMembership = patch.membershipStatus;
       if (nextMembership === "active") {
         const confirmed = await confirmDialog({
@@ -905,7 +918,7 @@ export default function StudentsScreen() {
           tone: "default",
           onConfirm: () => undefined,
         });
-        if (!confirmed) return false;
+        if (!confirmed || !isCurrent()) return false;
       }
 
       setOperationalStatusSaving(true);
@@ -917,12 +930,15 @@ export default function StudentsScreen() {
             organizationId: operationalOrganizationId,
           },
         );
+        if (!isCurrent() || !replaceProfileDetail(updatedStudent)) return false;
         setStudents((current) =>
           current.map((student) =>
-            student.id === updatedStudent.id ? updatedStudent : student,
+            student.id === updatedStudent.id ? projectStudentDirectoryRecord(updatedStudent) : student,
           ),
         );
+        setEditingStudentFull({ scope: studentScope, student: updatedStudent });
         await refreshOperationalHistory();
+        if (!isCurrent()) return false;
         showSaveToast({
           message:
             patch.membershipStatus === "inactive"
@@ -932,6 +948,7 @@ export default function StudentsScreen() {
         });
         return true;
       } catch (error) {
+        if (!isCurrent()) return false;
         showSaveToast({
           error,
           message: "Não foi possível atualizar a situação do aluno.",
@@ -939,7 +956,7 @@ export default function StudentsScreen() {
         });
         return false;
       } finally {
-        setOperationalStatusSaving(false);
+        if (isCurrent()) setOperationalStatusSaving(false);
       }
     },
     [
@@ -947,6 +964,8 @@ export default function StudentsScreen() {
       operationalOrganizationId,
       operationalStatusSaving,
       operationalStudent,
+      replaceProfileDetail,
+      studentScope,
       refreshOperationalHistory,
       showSaveToast,
     ],
@@ -1263,10 +1282,6 @@ export default function StudentsScreen() {
     () => ["Pai", "Mãe", "Tia", "Avó", "Irmão", "Irmã", "Outro"],
     [],
   );
-  const classById = useMemo(() => {
-    return new Map(classes.map((item) => [item.id, item] as const));
-  }, [classes]);
-
   useEffect(() => {
     syncPickerLayouts();
   }, [
@@ -1360,55 +1375,15 @@ export default function StudentsScreen() {
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    const studentsWithPhoto = students.filter((student) =>
-      student.photoUrl?.trim(),
-    );
-
-void Promise.all(
-      studentsWithPhoto.map(async (student) => {
-        const sourceUrl = student.photoUrl!.trim();
-        try {
-          const accessUrl = await getStudentPhotoAccessUrl(sourceUrl);
-          return [student.id, { sourceUrl, accessUrl }] as const;
-        } catch (error) {
-          console.warn("StudentsScreen photo authorization failed", {
-            studentId: student.id,
-            error,
-          });
-          return [student.id, { sourceUrl, accessUrl: null }] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      setStudentPhotoAccessUrls(Object.fromEntries(entries));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [students]);
-
-  const resolveStudentPhotoUrl = useCallback(
-    (student: Pick<Student, "id" | "photoUrl">) => {
-      const sourceUrl = student.photoUrl?.trim();
-      if (!sourceUrl) return null;
-      const resolved = studentPhotoAccessUrls[student.id];
-      if (resolved?.sourceUrl === sourceUrl) return resolved.accessUrl;
-      return getStudentPhotoObjectPath(sourceUrl) ? null : sourceUrl;
-    },
-    [studentPhotoAccessUrls],
-  );
-
-  const isStudentPhotoResolving = useCallback(
-    (student: Pick<Student, "id" | "photoUrl">) => {
-      const sourceUrl = student.photoUrl?.trim();
-      if (!sourceUrl || !getStudentPhotoObjectPath(sourceUrl)) return false;
-      return studentPhotoAccessUrls[student.id]?.sourceUrl !== sourceUrl;
-    },
-    [studentPhotoAccessUrls],
-  );
+  const photoStudents = useMemo(() => {
+    const ids = new Set(studentProfile || isCadastroTab ? [] : visiblePhotoStudentIds);
+    if (studentProfile) ids.add(studentProfile);
+    if (editingId) ids.add(editingId);
+    if (photoPreview) ids.add(photoPreview.studentId);
+    return students.filter((student) => ids.has(student.id));
+  }, [students, visiblePhotoStudentIds, studentProfile, isCadastroTab, editingId, photoPreview]);
+  const { resolvePhotoUrl: resolveStudentPhotoUrl, isPhotoResolving: isStudentPhotoResolving } =
+    useStudentPhotoAccess(photoStudents, activeOrganization?.id);
 
   const editStudentPhotoDisplayUrl = useMemo(() => {
     const formPhotoUrl = photoUrl?.trim() || null;
@@ -1420,7 +1395,7 @@ void Promise.all(
     return resolveStudentPhotoUrl(operationalStudent);
   }, [operationalStudent, photoUrl, resolveStudentPhotoUrl]);
 
-  const openPhotoPreview = (student: Student) => {
+  const openPhotoPreview = (student: StudentDirectoryRecord) => {
     setPhotoPreview({
       studentId: student.id,
       sourceUrl: student.photoUrl ?? null,
@@ -1449,6 +1424,9 @@ void Promise.all(
 
   const onSave = async () => {
     const wasEditing = !!editingId;
+    if (wasEditing && !operationalStudent) return false;
+    const saveEpoch = editSelectionEpoch.current;
+    const isSaveCurrent = () => editSelectionEpoch.current === saveEpoch && editSelectionScope.current === studentScope;
     setStudentDocumentsError({});
     if (!unit || !classId) {
       reportStudentValidation("unitClass", "Selecione a unidade e a turma.");
@@ -1508,6 +1486,7 @@ void Promise.all(
       }
 
       const student: Student = {
+        ...(operationalStudent ?? {}),
         id: studentId,
         name: name.trim(),
         organizationId: resolvedOrganizationId,
@@ -1545,13 +1524,27 @@ void Promise.all(
       } else {
         await measure("saveStudent", () => saveStudent(student));
       }
+      if (!isSaveCurrent()) return false;
+      if (wasEditing) {
+        try {
+          const refreshed = await getStudentById(student.id, { organizationId: resolvedOrganizationId, allowCached: false });
+          if (!isSaveCurrent()) return false;
+          if (!refreshed || refreshed.id !== student.id || refreshed.organizationId !== resolvedOrganizationId) throw new Error("Atleta indisponível nesta organização.");
+          if (!replaceProfileDetail(refreshed)) return false;
+        } catch {
+          if (!isSaveCurrent()) return false;
+          profileDetail.invalidate("Alterações salvas. Conecte-se à internet para atualizar a ficha.");
+        }
+      }
       logAction(wasEditing ? "Editar aluno" : "Cadastrar aluno", {
         studentId: student.id,
         classId,
       });
 
       doResetForm();
+      const resetEpoch = editSelectionEpoch.current;
       await reload();
+      if (resetEpoch !== editSelectionEpoch.current || editSelectionScope.current !== studentScope) return false;
       showSaveNotice(wasEditing ? "alterações salvas." : "Aluno cadastrado.");
       if (!wasEditing) {
         showSaveToast({
@@ -1563,6 +1556,7 @@ void Promise.all(
       }
       return true;
     } catch (error) {
+      if (!isSaveCurrent()) return false;
       const detail =
         error instanceof Error ? error.message : "Erro ao salvar aluno.";
       if (detail.toLowerCase().includes("cpf")) {
@@ -1665,10 +1659,13 @@ void Promise.all(
 
   // Wrappers que combinam reset do Formulário (hook) com efeitos de UI locais
   const doResetForm = useCallback(() => {
+    editSelectionEpoch.current++;
+    setOperationalStatusSaving(false);
     closeAllPickers();
     setShowForm(false);
     clearStudentValidationError();
     resetForm();
+    setEditingStudentFull(null);
   }, [clearStudentValidationError, closeAllPickers, resetForm, setShowForm]);
 
   const requestSwitchStudentsTab = (nextTab: StudentsTab) => {
@@ -1861,7 +1858,7 @@ void Promise.all(
     setStudentsTab("alunos");
     setStudentsSearch(focusName);
     setShowForm(true);
-  }, [existingStudentMatches, name, setStudentsTab, setShowForm]);
+  }, [existingStudentMatches, name, setStudentsTab, setStudentsSearch, setShowForm]);
   const selectedClassLabel = useMemo(() => {
     const cls = classById.get(classId) ?? null;
     if (!cls) return "";
@@ -1926,7 +1923,7 @@ void Promise.all(
     setAgeNumber(calculateAge(birthDate));
   }, [birthDate, setAgeNumber]);
 
-  const { onEdit } = useOnEditStudent({
+  const { onEdit: onEditForm } = useOnEditStudent({
     ageBandOptions,
     athleteLearningStyleOptions,
     athleteObjectiveOptions,
@@ -1978,6 +1975,15 @@ void Promise.all(
     setOpenEditSection,
   });
 
+  const onEdit = (student: Student) => {
+    if (!isFocused || student.organizationId !== activeOrganization?.id || !students.some(row => row.id === student.id && row.organizationId === student.organizationId)) return;
+    const currentIdentity = getSessionIdentity();
+    if (currentIdentity.userId !== studentIdentity.userId || currentIdentity.generation !== studentIdentity.generation) return;
+    editSelectionEpoch.current++;
+    setEditingStudentFull({ scope: studentScope, student });
+    onEditForm(student);
+  };
+
 
 
   const formatPhone = (value: string) => {
@@ -1998,7 +2004,7 @@ void Promise.all(
   });
 
   const openStudentWhatsApp = useCallback(
-    (student: Student) => {
+    (student: StudentDirectoryRecord) => {
       const contact = getContactPhone(student);
       if (contact.status === "missing") {
         Alert.alert(
@@ -2072,7 +2078,7 @@ void Promise.all(
     setWhatsappNotice,
   ]);
 
-  const { applyStudentInviteTemplate, onGenerateInviteFromList } =
+  const { applyStudentInviteTemplate } =
     useStudentInvites({
       classes,
       studentInviteBusy,
@@ -2246,42 +2252,6 @@ void Promise.all(
     };
   }, []);
 
-  const renderStudentItem = ({
-    item,
-    paletteOverride,
-    unitNameOverride,
-  }: {
-    item: Student;
-    paletteOverride: { bg: string; text: string };
-    classNameOverride: string;
-    unitNameOverride: string;
-  }) => {
-    const cls = classById.get(item.classId) ?? null;
-    const unitName = unitNameOverride || unitLabel(cls?.unit ?? "");
-    const classPalette =
-      paletteOverride ??
-      (cls
-        ? getClassPalette(cls.colorKey, colors, unitName)
-        : (getUnitPalette(unitName, colors) ?? {
-            bg: colors.primaryBg,
-            text: colors.primaryText,
-          }));
-    const healthAssessment = deriveStudentHealthAssessment(item);
-    return (
-      <StudentListRow
-        student={item}
-        photoUrl={resolveStudentPhotoUrl(item)}
-        onPress={(student) => router.setParams({ studentProfile: student.id })}
-        onWhatsApp={openStudentWhatsApp}
-        onInvite={onGenerateInviteFromList}
-        onPhotoPress={openPhotoPreview}
-        classPalette={classPalette}
-        healthAssessment={healthAssessment}
-        hasBirthDateWarning={hasBirthDateWarning(item.birthDate)}
-      />
-    );
-  };
-
   const goBackFromStudents = useCallback(() => {
     navigateBackOrReplace({
       router,
@@ -2289,7 +2259,7 @@ void Promise.all(
     });
   }, [router, scopedRoutes.home]);
 
-  const profile = resolveStudentProfile(studentProfile, activeOrganization?.id, students, classById);
+  const profile = profileTarget && profileDetail.student ? { ...profileTarget, student: profileDetail.student } : null;
   const closeProfile = () => router.setParams({ studentProfile: "" });
 
   return (
@@ -2317,7 +2287,8 @@ void Promise.all(
         ) : (
           <View style={{ flex: 1, padding: 24, gap: 20 }}>
             <PageBreadcrumbHeader title="Perfil" context="Atletas" onBack={closeProfile} />
-            <Text style={{ color: colors.muted }}>{loading ? "Carregando perfil..." : "Atleta indisponível nesta organização."}</Text>
+            <Text style={{ color: colors.muted }}>{loading || profileDetail.loading ? "Carregando perfil..." : profileDetail.error || "Atleta indisponível nesta organização."}</Text>
+            {profileTarget && profileDetail.error ? <Button label="Tentar novamente" onPress={profileDetail.retry} /> : null}
           </View>
         ) : null}
         <View
@@ -2683,10 +2654,10 @@ void Promise.all(
               expandedClasses={expandedClasses}
               toggleUnitExpanded={toggleUnitExpanded}
               toggleClassExpanded={toggleClassExpanded}
-              renderStudentItem={renderStudentItem}
               onStudentPress={(student) => router.setParams({ studentProfile: student.id })}
               onPhotoPress={openPhotoPreview}
               resolveStudentPhotoUrl={resolveStudentPhotoUrl}
+              onVisiblePhotoStudentsChange={onVisiblePhotoStudentsChange}
               onStudentWhatsApp={openStudentWhatsApp}
               birthdayStudentIds={birthdayStudentIds}
               loading={loading}
@@ -2908,7 +2879,7 @@ void Promise.all(
           </Animated.View>
         ) : null}
         <StudentEditModal
-          showEditModal={showEditModal}
+          showEditModal={showEditModal && operationalStudent !== null}
           requestCloseEditModal={requestCloseEditModal}
           editModalCardStyle={editModalCardStyle}
           showEditCloseConfirm={showEditCloseConfirm}

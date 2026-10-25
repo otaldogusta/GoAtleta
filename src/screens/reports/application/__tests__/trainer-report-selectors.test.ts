@@ -1,4 +1,5 @@
 import {
+  buildAggregatedAttendanceSummary,
   buildAttendanceSummaryByClass,
   buildMonthAttendance,
   buildPerformanceRows,
@@ -16,6 +17,32 @@ import type {
 } from "../../../../core/models";
 
 describe("trainer-report-selectors", () => {
+  it("counts historical empty and Object prototype class names safely", () => {
+    const ids = ["", "__proto__", "constructor"];
+    const days = ids.map(classId => ({classId,date:"2026-10-31",total:7,present:5}));
+    const result = buildAggregatedAttendanceSummary(days);
+    expect(result.byClass).toEqual(Object.fromEntries(ids.map(id => [id,{total:7,present:5}])));
+    expect(Object.getPrototypeOf(result.byClass)).toBeNull();
+    expect(result.summary).toEqual({total:21,present:15,absent:6,percent:71});
+    expect(result.weekly).toEqual([{label:"S5",percent:71,total:21}]);
+    expect(Object.prototype).not.toHaveProperty("total");
+  });
+  it("weighted daily groups match every legacy monthly/class/week indicator for 55k records", () => {
+    const records = Array.from({ length: 55000 }, (_, index) => ({
+      id: `a-${index}`, classId: `class-${index % 100}`, studentId: `s-${index % 5000}`,
+      date: `2026-10-${String(index % 31 + 1).padStart(2, "0")}`, status: index % 8 ? "presente" : "faltou",
+    })) as AttendanceRecord[];
+    const grouped = new Map<string, {classId:string;date:string;total:number;present:number}>();
+    for (const record of records) {
+      const key = JSON.stringify([record.classId, record.date]);
+      const group = grouped.get(key) ?? {classId:record.classId,date:record.date,total:0,present:0};
+      group.total++;if(record.status === "presente")group.present++;grouped.set(key,group);
+    }
+    expect(buildAggregatedAttendanceSummary([...grouped.values()])).toEqual({
+      summary:buildTrainerReportSummary(records),byClass:buildAttendanceSummaryByClass(records),weekly:buildWeeklySummary(records),
+    });
+    expect(buildAggregatedAttendanceSummary([])).toEqual({summary:{total:0,present:0,absent:0,percent:0},byClass:{},weekly:[]});
+  });
   it("summarizes monthly attendance without mixing months", () => {
     const records = [
       { id: "a1", classId: "c1", studentId: "s1", date: "2026-05-01", status: "presente" },

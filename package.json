@@ -55,7 +55,7 @@
     "intake:auto": "node scripts/run-intake-import.js",
     "intake:auto:upsert": "node scripts/run-intake-import.js --upsert",
     "figma:colors": "node scripts/sync-figma-colors.js",
-    "postinstall": "patch-package && node scripts/check-yoga-patch.js && node scripts/check-image-size-patch.js && node scripts/check-uri-decoder-patch.js",
+    "postinstall": "patch-package && node scripts/check-yoga-patch.js && node scripts/check-image-size-patch.js && node scripts/check-uri-decoder-patch.js && node scripts/check-expo-router-history-patch.cjs",
     "prepare:scouting": "node scripts/prepare-scouting-runtime.mjs",
     "predev:web": "npm run prepare:scouting",
     "prestart": "npm run prepare:scouting",

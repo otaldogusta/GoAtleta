@@ -28,6 +28,14 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 ## Contratos a preservar
 
+- A biblioteca usa `TrainingPlanSummary` explícito para listar/contar; visualizar,
+  editar ou aplicar hidrata o plano completo por ID antes de substituir o rascunho.
+  Resumos nunca viram planos vazios graváveis. O calendário lê aplicações do grid
+  de 42 dias/recorrência; seu picker lista resumos de todas as turmas da mesma
+  unidade/faixa e hidrata o plano escolhido ao aplicar. Leituras por criação drenam
+  os empates de timestamp por ID antes de buscar datas anteriores, sem truncar
+  páginas curtas. [Validação e limites da carga local](../../operations/performance-stress-local-2026-10-24.md).
+
 - Organização e turma acompanham acesso, cache e resposta assíncrona. Na API do
   perfil, mudança de organização invalida a operação e a resposta recebida.
 - Perfil é canônico por organização/turma, versionado e independente do ciclo;

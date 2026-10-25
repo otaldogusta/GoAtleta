@@ -81,7 +81,8 @@ export async function exportCourt(p: CourtVisualPayload, index: number, kind: "p
   if (kind === "gif") { await exportCourtGif(p, index); return; }
   const { Buffer } = await import("buffer");
   if (!("Buffer" in globalThis)) Object.assign(globalThis, { Buffer });
-  const { Document, Page, Image: PdfImage, Text, View: PdfView, pdf } = await import("@react-pdf/renderer");
+  const { getWebPdfPrimitives } = await import("../../pdf/pdf-runtime");
+  const { Document, Page, Image: PdfImage, Text, View: PdfView, pdf } = getWebPdfPrimitives();
   const halfCourt = p.sport === "volleyball_indoor" && usesSingleLowerCourtSide(p.timeline.steps);
   const frames: { initial: string; final: string }[] = [];
   for (let i = 0; i < p.timeline.steps.length; i++) {

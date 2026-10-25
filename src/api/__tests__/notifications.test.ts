@@ -19,12 +19,16 @@ const mockSendPushToUser = jest.fn();
 const mockFetch = jest.fn();
 
 jest.mock("../../auth/session", () => ({
+  getAccessToken: () => "access-token",
+  getSessionIdentity: () => ({ userId: "user-1", generation: 1 }),
+  assertSessionIdentity: jest.fn(),
   getSessionUserId: () => mockGetSessionUserId(),
   getValidAccessToken: () => mockGetValidAccessToken(),
 }));
 
 jest.mock("../../db/client", () => ({
   getActiveOrganizationId: () => mockGetActiveOrganizationId(),
+  getReadCacheGeneration: () => 1,
 }));
 
 jest.mock("../rest", () => ({
@@ -90,6 +94,7 @@ describe("notifications api", () => {
     ]);
     expect(mockRestGet).toHaveBeenCalledWith(
       expect.stringContaining("inbox_scope=in.(prof,all)"),
+      expect.any(Function),
     );
   });
 
@@ -107,6 +112,7 @@ describe("notifications api", () => {
       expect.stringMatching(
         /recipient_user_id=eq\.user-1.*archived_at=not\.is\.null.*limit=20&offset=20/,
       ),
+      expect.any(Function),
     );
   });
 

@@ -90,6 +90,9 @@ function ScreenConversation({ organizationId, snapshot, onBusyChange, onClose, c
   const unified = useUnifiedAssistant()!;
   const chat = unified.chat;
   const history = unified.history;
+  // Confirmation uses the latest committed draft without invalidating every reply on typing.
+  const latestNavigation = useRef({ chat, historyId: history.id });
+  useEffect(() => { latestNavigation.current = { chat, historyId: history.id }; }, [chat, history.id]);
   const setScreenClass = unified.setScreenClass;
   useEffect(() => { setScreenClass(hasClassContext && selectedClass ? { classId: selectedClass.id, sport: selectedClass.modality || "volleyball" } : null); }, [hasClassContext, selectedClass, setScreenClass]);
   const refreshHistory = history.refresh;
@@ -103,7 +106,9 @@ function ScreenConversation({ organizationId, snapshot, onBusyChange, onClose, c
     if (target.section === "attendance") { setAttendanceText(text); return; }
     void confirm({ title: `Ir para ${target.label}?`, message: "Você sairá do chat para revisar os registros. Sua conversa será mantida nesta sessão.", confirmLabel: "Abrir", cancelLabel: "Cancelar", onConfirm: () => {
       if (!mounted.current || !allowed.current) return;
-      chat.remember(history.id);
+      const current = latestNavigation.current;
+      if (current.chat.busy) return;
+      current.chat.remember(current.historyId);
       onClose();
       router.push({ pathname: "/coord/management", params: { assistantSection: target.section, assistantVisit: String(Date.now()) } });
     } });

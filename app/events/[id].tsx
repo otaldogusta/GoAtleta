@@ -1,7 +1,8 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
+    Platform,
     Pressable,
     ScrollView,
     Text,
@@ -23,6 +24,7 @@ import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { registerPendingEditsNavigation } from "../../src/navigation/pending-edits-navigation";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOptionalOrganization } from "../../src/providers/organization-context";
@@ -111,6 +113,7 @@ const buildSnapshot = (values: EventFormSnapshot) => {
 
 export default function EventDetailsScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const scopedRoutes = useTrainerRouteScope();
   const params = useLocalSearchParams<{ id?: string }>();
   const eventId = params.id ?? "";
@@ -192,6 +195,78 @@ export default function EventDetailsScreen() {
     ]
   );
   const hasChanges = currentSnapshot !== initialSnapshot;
+  const leaveScope = JSON.stringify([session?.user?.id, activeOrganization?.id, eventId]);
+  const leaveEpochRef = useRef(0);
+  const leavePendingRef = useRef(false);
+  const leaveContextRef = useRef({
+    isFocused,
+    saving,
+    isAdmin,
+    hasChanges,
+    currentSnapshot,
+    initialSnapshot,
+    scope: leaveScope,
+  });
+  useLayoutEffect(() => {
+    leaveContextRef.current = {
+      isFocused,
+      saving,
+      isAdmin,
+      hasChanges,
+      currentSnapshot,
+      initialSnapshot,
+      scope: leaveScope,
+    };
+  }, [currentSnapshot, hasChanges, initialSnapshot, isAdmin, isFocused, leaveScope, saving]);
+
+  const requestLeave = useCallback(async (navigate: () => void) => {
+    const context = leaveContextRef.current;
+    const epoch = leaveEpochRef.current;
+    if (!context.isFocused || context.saving || leavePendingRef.current) return;
+    if (context.isAdmin && context.initialSnapshot && context.hasChanges) {
+      leavePendingRef.current = true;
+      try {
+        const discard = await confirmDialog({
+          title: "Sair sem salvar?",
+          message: "Você tem alterações não salvas.",
+          confirmLabel: "Descartar",
+          cancelLabel: "Continuar editando",
+          onConfirm: () => {},
+        });
+        const current = leaveContextRef.current;
+        if (!discard || !current.isFocused || current.saving ||
+          leaveEpochRef.current !== epoch || current.isAdmin !== context.isAdmin ||
+          current.scope !== context.scope || current.currentSnapshot !== context.currentSnapshot ||
+          current.initialSnapshot !== context.initialSnapshot) return;
+        const original = JSON.parse(context.initialSnapshot) as EventFormSnapshot;
+        setTitle(original.title);
+        setDescription(original.description);
+        setEventType(original.eventType);
+        setSport(original.sport);
+        setStartDateInput(original.startDateInput);
+        setStartTimeInput(original.startTimeInput);
+        setEndDateInput(original.endDateInput);
+        setEndTimeInput(original.endTimeInput);
+        setLocationLabel(original.locationLabel);
+        setClassIds(original.classIds);
+      } finally {
+        leavePendingRef.current = false;
+      }
+    }
+    setShowEventTypeDropdown(false);
+    setShowSportDropdown(false);
+    navigate();
+  }, [confirmDialog]);
+
+  useEffect(() => {
+    leaveEpochRef.current += 1;
+    if (Platform.OS !== "web" || !isFocused) return;
+    const unregister = registerPendingEditsNavigation((navigate) => { void requestLeave(navigate); });
+    return () => {
+      leaveEpochRef.current += 1;
+      unregister();
+    };
+  }, [isFocused, leaveScope, requestLeave]);
 
   useCopilotContext(
     useMemo(
@@ -420,8 +495,12 @@ export default function EventDetailsScreen() {
   };
 
   const closeDetails = () => {
-    closeDetailDropdowns();
-    navigateBackOrReplace({ router, fallback: scopedRoutes.events });
+    const navigate = () => {
+      closeDetailDropdowns();
+      navigateBackOrReplace({ router, fallback: scopedRoutes.events });
+    };
+    if (Platform.OS === "web") void requestLeave(navigate);
+    else navigate();
   };
 
   useEffect(() => {
@@ -437,7 +516,7 @@ export default function EventDetailsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
       <ModalSheet
-        visible
+        visible={isFocused}
         onClose={closeDetails}
         cardStyle={[sheetCardStyle, { overflow: "hidden" }]}
         position="center"
@@ -622,7 +701,7 @@ export default function EventDetailsScreen() {
         </ScrollView>
 
         <AnchoredDropdown
-          visible={showEventTypeDropdown}
+          visible={isFocused && showEventTypeDropdown}
           layout={eventTypeTriggerLayout}
           container={dropdownContainer}
           animationStyle={{ opacity: 1 }}
@@ -652,7 +731,7 @@ export default function EventDetailsScreen() {
       </AnchoredDropdown>
 
         <AnchoredDropdown
-          visible={showSportDropdown}
+          visible={isFocused && showSportDropdown}
           layout={sportTriggerLayout}
           container={dropdownContainer}
           animationStyle={{ opacity: 1 }}

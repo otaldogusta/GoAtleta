@@ -1,4 +1,4 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useLocalSearchParams, useNavigationContainerRef, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -34,15 +34,12 @@ import {
   isClassStaffHistoryUnavailable,
 } from "../../src/api/class-staff-history";
 import { listOrgStaffCandidates, mergeOrgStaffCandidates, type OrgMember } from "../../src/api/members";
-import {
-  getStudentPhotoAccessUrl,
-  getStudentPhotoObjectPath,
-} from "../../src/api/student-photo-storage";
+import { useStudentPhotoAccess } from "../../src/hooks/use-student-photo-access";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
-import type { ClassGroup, Student, TrainingSessionIntegrationRule } from "../../src/core/models";
+import type { ClassGroup, TrainingSessionIntegrationRule } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
@@ -54,8 +51,12 @@ import {
 } from "../../src/db/seed";
 import { duplicateClassWithCurrentStaff } from "../../src/services/class-duplication-service";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { navigateToDetailRoute } from "../../src/navigation/primary-route-navigation";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
-import { getStudents } from "../../src/db/students";
+import { getClassStudentRecords } from "../../src/db/students";
+import { getReadCacheGeneration } from "../../src/db/client";
+import { getSessionIdentity } from "../../src/auth/session";
+import type { ClassStudentRecord } from "../../src/core/student-read-models";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import {
@@ -170,6 +171,7 @@ export default function ClassesScreen() {
   markRender("screen.classes.render.root");
 
   const router = useRouter();
+  const rootNavigationRef = useNavigationContainerRef();
   const scopedRoutes = useTrainerRouteScope();
   const isCoordinationScope = scopedRoutes.classes === "/coord/classes";
   const insets = useSafeAreaInsets();
@@ -193,6 +195,17 @@ export default function ClassesScreen() {
     memberPermissions,
     permissionsLoading,
   } = useOrganization();
+  const classFocused = useIsFocused();
+  const classIdentity = getSessionIdentity();
+  const classCacheGeneration = getReadCacheGeneration();
+  const classLoadScope = JSON.stringify([classIdentity.userId, classIdentity.generation, classCacheGeneration, activeOrganization?.id, classFocused]);
+  const classLoadScopeRef = useRef(classLoadScope);
+  const classLoadRequestRef = useRef(0);
+  useLayoutEffect(() => {
+    classLoadScopeRef.current = classLoadScope;
+    classLoadRequestRef.current++;
+    return () => { classLoadScopeRef.current = ""; };
+  }, [classLoadScope]);
   const canCreateClass = canCreateClasses({
     organizationId: activeOrganization?.id,
     roleLevel: activeOrganization?.role_level,
@@ -218,10 +231,11 @@ export default function ClassesScreen() {
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<
-    Record<string, { sourceUrl: string; accessUrl: string }>
-  >({});
+  const [students, setStudents] = useState<ClassStudentRecord[]>([]);
+  const [visiblePhotoClassIds, setVisiblePhotoClassIds] = useState<string[]>([]);
+  const onVisiblePhotoClassesChange = useCallback((ids: string[]) => {
+    setVisiblePhotoClassIds((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
+  }, []);
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
   const [classHeadsById, setClassHeadsById] = useState<Record<string, ClassResponsible>>({});
   const [classStaffById, setClassStaffById] = useState<Record<string, ClassStaffAssignment[]>>({});
@@ -620,8 +634,9 @@ export default function ClassesScreen() {
 
   const studentsByClassId = useMemo(() => groupStudentsByClassId(students), [students]);
   const classCardPhotoCandidates = useMemo(() => {
-    const candidatesById = new Map<string, Student>();
-    Object.values(studentsByClassId).forEach((classStudents) => {
+    const candidatesById = new Map<string, ClassStudentRecord>();
+    visiblePhotoClassIds.forEach((classId) => {
+      const classStudents = studentsByClassId[classId] ?? [];
       [...classStudents]
         .sort((left, right) => (left.name || "").localeCompare(right.name || ""))
         .slice(0, 4)
@@ -630,47 +645,14 @@ export default function ClassesScreen() {
         });
     });
     return Array.from(candidatesById.values());
-  }, [studentsByClassId]);
-
-  useEffect(() => {
-    let cancelled = false;
-void Promise.all(
-      classCardPhotoCandidates.map(async (student) => {
-        const sourceUrl = student.photoUrl!.trim();
-        try {
-          const accessUrl = await getStudentPhotoAccessUrl(sourceUrl);
-          return accessUrl
-            ? ([student.id, { sourceUrl, accessUrl }] as const)
-            : null;
-        } catch (error) {
-          console.warn("ClassesScreen photo authorization failed", {
-            studentId: student.id,
-            error,
-          });
-          return null;
-        }
-      })
-    ).then((entries) => {
-      if (cancelled) return;
-      setStudentPhotoAccessUrls(
-        Object.fromEntries(entries.filter((entry) => entry !== null))
-      );
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [classCardPhotoCandidates]);
+  }, [studentsByClassId, visiblePhotoClassIds]);
+  const { resolvePhotoUrl: resolveClassPhotoUrl } = useStudentPhotoAccess(classCardPhotoCandidates, activeOrganization?.id);
 
   const resolveClassCardStudentPhotoUrl = useCallback(
-    (student: Student) => {
-      const sourceUrl = student.photoUrl?.trim();
-      if (!sourceUrl) return undefined;
-      const resolved = studentPhotoAccessUrls[student.id];
-      if (resolved?.sourceUrl === sourceUrl) return resolved.accessUrl;
-      return getStudentPhotoObjectPath(sourceUrl) ? undefined : sourceUrl;
+    (student: ClassStudentRecord) => {
+      return resolveClassPhotoUrl(student) ?? undefined;
     },
-    [studentPhotoAccessUrls]
+    [resolveClassPhotoUrl]
   );
   const classCardViewModelsById = useMemo(() => {
     return displayClasses.reduce<Record<string, ReturnType<typeof buildClassCardViewModel>>>(
@@ -988,7 +970,11 @@ void Promise.all(
   );
 
   const loadClasses = useCallback(async (alive?: { current: boolean }) => {
-    const isAlive = () => !alive || alive.current;
+    if (!classFocused || classLoadScopeRef.current !== classLoadScope) return;
+    const request = ++classLoadRequestRef.current;
+    const isAlive = () => (!alive || alive.current) && request === classLoadRequestRef.current && classLoadScopeRef.current === classLoadScope &&
+      getSessionIdentity().userId === classIdentity.userId && getSessionIdentity().generation === classIdentity.generation && getReadCacheGeneration() === classCacheGeneration;
+    if (!isAlive()) return;
     setLoading(true);
     try {
       const [data, rules, studentList] = await Promise.all([
@@ -1000,10 +986,11 @@ void Promise.all(
         getTrainingIntegrationRules(),
         measureAsync(
           "screen.classes.load.students",
-          () => getStudents(),
+          () => getClassStudentRecords({ organizationId: activeOrganization?.id }),
           { screen: "classes" }
         ),
       ]);
+      if (!isAlive()) return;
       let classHeads: ClassResponsible[] = [];
       let classStaff: ClassStaffAssignment[] = [];
       let loadedOrganizationMembers: OrgMember[] = [];
@@ -1033,6 +1020,7 @@ void Promise.all(
               })
             : Promise.resolve([] as OrgMember[]),
         ]);
+        if (!isAlive()) return;
         loadedOrganizationMembers = mergeOrgStaffCandidates(organizationId, organizationMembersResult, loadedClassStaff);
         classHeads = applyMemberNamesToClassResponsibles(
           loadedClassHeads,
@@ -1087,10 +1075,12 @@ void Promise.all(
         );
         setClassCoverageSummariesByClassId(classCoverageSummariesByClassId);
       }
+    } catch (error) {
+      if (isAlive()) throw error;
     } finally {
       if (isAlive()) setLoading(false);
     }
-  }, [isCoordinationScope]);
+  }, [isCoordinationScope, activeOrganization?.id, classFocused, classLoadScope, classIdentity.userId, classIdentity.generation, classCacheGeneration]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1987,12 +1977,12 @@ void Promise.all(
   const handleOpenClass = useCallback(
     (item: ClassGroup) => {
       if (item.id.startsWith("preview_")) return;
-      router.push({
+      navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: {
         pathname: "/class/[id]",
         params: { id: item.id },
-      });
+      } });
     },
-    [router]
+    [router, rootNavigationRef]
   );
 
   const handleEditClassFromCard = useCallback(
@@ -2143,6 +2133,7 @@ void Promise.all(
               onDuplicateClass={(activeOrganization?.role_level ?? 0) >= 50 ? handleDuplicateClassFromCard : undefined}
               onDeleteClass={handleDeleteClassFromCard}
               classCardViewModelsById={classCardViewModelsById}
+              onVisiblePhotoClassesChange={onVisiblePhotoClassesChange}
               refreshing={refreshing}
               onRefresh={async () => {
                 setRefreshing(true);

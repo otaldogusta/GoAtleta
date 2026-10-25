@@ -137,8 +137,6 @@ import { measure } from "../../../src/observability/perf";
 import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { buildClassDocumentPdfFileName } from "../../../src/pdf/class-document-file-name";
-import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
-import { SessionReportDocument } from "../../../src/pdf/session-report-document";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
 import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -3437,13 +3435,14 @@ export function SessionScreen({
       ],
     };
     const html = sessionPlanHtml(pdfData);
-    const webDocument =
-      Platform.OS === "web" ? <SessionPlanDocument data={pdfData} /> : undefined;
 
     try {
       const safeClass = safeFileName(cls.name);
       const safeDate = safeFileName(sessionDate);
       const fileName = `plano-aula-${safeClass}-${safeDate}.pdf`;
+      const webDocument = Platform.OS === "web"
+        ? await import("../../../src/pdf/pdf-runtime").then(({ SessionPlanDocument }) => <SessionPlanDocument data={pdfData} />)
+        : undefined;
       await measure("exportSessionPdf", () =>
         exportPdf({
           html,
@@ -3488,8 +3487,6 @@ export function SessionScreen({
       deadlineLabel: "último dia da escolinha do mês",
     };
     const html = sessionReportHtml(reportData);
-    const webDocument =
-      Platform.OS === "web" ? <SessionReportDocument data={reportData} /> : undefined;
     try {
       const fileName = buildClassDocumentPdfFileName({
         documentLabel: "Relatório",
@@ -3500,6 +3497,9 @@ export function SessionScreen({
         startTime: cls.startTime,
         periodLabel: dateLabel.replace(/\//g, "-"),
       });
+      const webDocument = Platform.OS === "web"
+        ? await import("../../../src/pdf/pdf-runtime").then(({ SessionReportDocument }) => <SessionReportDocument data={reportData} />)
+        : undefined;
       await measure("exportSessionReportPdf", () =>
         exportPdf({
           html,

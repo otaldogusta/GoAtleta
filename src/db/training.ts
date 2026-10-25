@@ -3,10 +3,12 @@
 // ---------------------------------------------------------------------------
 
 import * as Sentry from "@sentry/react-native";
+import { assertSessionIdentity, getSessionIdentity, SessionIdentityChangedError } from "../auth/session";
 import type { Exercise, TrainingPlan } from "../core/models";
 import {
   CACHE_KEYS,
   getActiveOrganizationId,
+  getReadCacheGeneration,
   isNetworkError,
   readCache,
   supabaseDelete,
@@ -121,17 +123,20 @@ type TrainingPlansOrderBy = "createdat_desc" | "version_desc";
 type TrainingPlansQueryOptions = {
   organizationId?: string | null;
   classId?: string | null;
+  classIds?: string[];
   status?: "generated" | "final";
   applyDate?: string;
   applyWeekday?: number;
   orderBy?: TrainingPlansOrderBy;
   limit?: number;
+  signal?: AbortSignal;
 };
 
 const buildTrainingPlansEndpoint = (
   organizationId: string | null,
   options: {
     classId: string;
+    classIds?: string[];
     status?: "generated" | "final";
     applyDate?: string;
     applyWeekday?: number;
@@ -145,6 +150,8 @@ const buildTrainingPlansEndpoint = (
   }
   if (options.classId) {
     query.push(`classid=eq.${encodeURIComponent(options.classId)}`);
+  } else if (options.classIds) {
+    query.push(`classid=in.(${options.classIds.map(id => encodeURIComponent(JSON.stringify(id))).join(",")})`);
   }
   if (options.status) {
     query.push(`status=eq.${encodeURIComponent(options.status)}`);
@@ -156,15 +163,165 @@ const buildTrainingPlansEndpoint = (
     query.push(`applydays=cs.${encodeURIComponent(`{${Math.floor(options.applyWeekday)}}`)}`);
   }
   if (options.orderBy === "version_desc") {
-    query.push("order=version.desc,createdat.desc");
+    query.push("order=version.desc,createdat.desc,id.desc");
   } else {
-    query.push("order=createdat.desc");
+    query.push("order=createdat.desc,id.desc");
   }
   if (typeof options.limit === "number" && options.limit > 0) {
     query.push(`limit=${Math.floor(options.limit)}`);
   }
   return `/training_plans?${query.join("&")}`;
 };
+
+const captureTrainingRead = async (requestedOrganizationId?: string | null, signal?: AbortSignal) => {
+  const identity = getSessionIdentity();
+  const generation = getReadCacheGeneration();
+  const initialActiveOrganizationId = await getActiveOrganizationId();
+  const organizationId = requestedOrganizationId ?? initialActiveOrganizationId;
+  const assertContext = async () => {
+    if (signal?.aborted) throw new Error("Leitura de planejamentos cancelada.");
+    assertSessionIdentity(identity);
+    if (!identity.userId || generation !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+    const currentOrganizationId = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (generation !== getReadCacheGeneration() || currentOrganizationId !== initialActiveOrganizationId) throw new SessionIdentityChangedError();
+  };
+  await assertContext();
+  return { organizationId, identity, assertContext };
+};
+
+const readTrainingPlanPages = async <Row extends { id: string; createdat: string }>(
+  endpoint: string,
+  context: Awaited<ReturnType<typeof captureTrainingRead>>,
+  limit?: number,
+  orderBy: TrainingPlansOrderBy = "createdat_desc",
+): Promise<Row[]> => {
+  const rows: Row[] = [];
+  const ids = new Set<string>();
+  const maximum = typeof limit === "number" && limit > 0 ? Math.floor(limit) : Infinity;
+  let cursor: Row | undefined;
+  let readOlderBucket = false;
+  for (let page = 0; page < 1000; page += 1) {
+    await context.assertContext();
+    const size = Math.min(500, maximum - rows.length);
+    // Drain ties using both index keys, then move to older timestamps only
+    // after an empty response. A short page can still be a backend row cap.
+    const pagination = orderBy === "version_desc" ? `&offset=${rows.length}` : cursor
+      ? readOlderBucket ? `&createdat=lt.${encodeURIComponent(cursor.createdat)}`
+        : `&createdat=eq.${encodeURIComponent(cursor.createdat)}&id=lt.${encodeURIComponent(cursor.id)}`
+      : "";
+    const batch = await supabaseGet<Row[]>(`${endpoint}&limit=${size}${pagination}`, context.identity);
+    await context.assertContext();
+    if (!batch.length) {
+      if (orderBy === "createdat_desc" && cursor && !readOlderBucket) {
+        readOlderBucket = true;
+        continue;
+      }
+      return rows;
+    }
+    for (const row of batch) {
+      if (!row.id || !row.createdat || !Number.isFinite(Date.parse(row.createdat))) {
+        throw new Error("A paginação de planejamentos retornou registros inválidos.");
+      }
+      if (ids.has(row.id)) throw new Error("A paginação de planejamentos retornou registros repetidos.");
+      ids.add(row.id);
+      rows.push(row);
+    }
+    cursor = batch[batch.length - 1];
+    readOlderBucket = false;
+    if (rows.length >= maximum) return rows.slice(0, maximum);
+  }
+  throw new Error("O volume de planejamentos excedeu o limite seguro de leitura.");
+};
+
+export type CalendarTrainingPlanApplication = Pick<TrainingPlan, "id" | "classId" | "applyDate" | "applyDays" | "createdAt">;
+export type TrainingPlanSummary = Pick<TrainingPlan, "id" | "classId" | "title" | "tags" | "applyDate" | "applyDays" | "createdAt" | "version" | "status">;
+
+export async function getTrainingPlanSummaries(options: { organizationId: string; classIds?: string[]; signal?: AbortSignal }): Promise<TrainingPlanSummary[]> {
+  if (!options.organizationId.trim()) throw new Error("Organização não informada.");
+  const context = await captureTrainingRead(options.organizationId, options.signal);
+  const classIds = options.classIds ? Array.from(new Set(options.classIds.map(id => id.trim()).filter(Boolean))).sort() : undefined;
+  if (classIds && classIds.length === 0) return [];
+  const classFilter = classIds ? `&classid=in.(${classIds.map(id => encodeURIComponent(JSON.stringify(id))).join(",")})` : "";
+  const cacheKey = `${CACHE_KEYS.trainingPlans}_${options.organizationId}_summaries_v1${classIds ? `_classes_${encodeURIComponent(JSON.stringify(classIds))}` : ""}`;
+  try {
+    type SummaryRow = Pick<TrainingPlanRow, "id" | "classid" | "title" | "tags" | "applydate" | "applydays" | "createdat" | "version" | "status">;
+    const endpoint = `/training_plans?select=id,classid,title,tags,applydate,applydays,createdat,version,status&organization_id=eq.${encodeURIComponent(options.organizationId)}${classFilter}&order=createdat.desc,id.desc`;
+    let rows: SummaryRow[];
+    try {
+      rows = await readTrainingPlanPages<SummaryRow>(endpoint, context);
+    } catch (error) {
+      if (!isMissingVersioningReadError(error)) throw error;
+      rows = await readTrainingPlanPages<SummaryRow>(endpoint.replace(",version,status", ""), context);
+    }
+    const summaries = rows.map(row => ({ id: row.id, classId: row.classid, title: row.title, tags: row.tags ?? [], applyDate: row.applydate ?? "", applyDays: row.applydays ?? [], createdAt: row.createdat, version: row.version ?? undefined, status: row.status ?? undefined }));
+    await writeCache(cacheKey, summaries);
+    await context.assertContext();
+    return summaries;
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    await context.assertContext();
+    const cached = await readCache<TrainingPlanSummary[]>(cacheKey);
+    await context.assertContext();
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+export async function getTrainingPlanById(id: string, options: { organizationId: string; signal?: AbortSignal }): Promise<TrainingPlan | null> {
+  if (!id.trim() || !options.organizationId.trim()) throw new Error("Planejamento ou organização não informado.");
+  const context = await captureTrainingRead(options.organizationId, options.signal);
+  const cacheKey = `${CACHE_KEYS.trainingPlans}_${options.organizationId}_detail_v1_${encodeURIComponent(id)}`;
+  try {
+    const rows = await supabaseGet<TrainingPlanRow[]>(`/training_plans?select=*&id=eq.${encodeURIComponent(id)}&organization_id=eq.${encodeURIComponent(options.organizationId)}&limit=1`, context.identity);
+    await context.assertContext();
+    const plan = rows[0] ? mapTrainingPlanRow(rows[0]) : null;
+    await writeCache(cacheKey, plan);
+    await context.assertContext();
+    return plan;
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    await context.assertContext();
+    const cached = await readCache<TrainingPlan>(cacheKey);
+    await context.assertContext();
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+// Calendar markers do not need lesson bodies, pedagogy or all historical dates.
+// Legacy plans with BOTH a date and recurring weekdays still participate weekly.
+export async function getCalendarTrainingPlanApplications(options: {
+  organizationId: string;
+  startDate: string;
+  endDate: string;
+  signal?: AbortSignal;
+}): Promise<CalendarTrainingPlanApplication[]> {
+  if (!options.organizationId.trim()) throw new Error("Organização não informada.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(options.startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(options.endDate) || options.startDate > options.endDate) {
+    throw new Error("Intervalo do calendário inválido.");
+  }
+  const context = await captureTrainingRead(options.organizationId, options.signal);
+  const cacheKey = `${CACHE_KEYS.trainingPlans}_${options.organizationId}_calendar_v1_${options.startDate}_${options.endDate}`;
+  try {
+    const filter = `or=(and(applydate.gte.${options.startDate},applydate.lte.${options.endDate}),applydays.not.eq.{})`;
+    const rows = await readTrainingPlanPages<Pick<TrainingPlanRow, "id" | "classid" | "applydate" | "applydays" | "createdat">>(
+      `/training_plans?select=id,classid,applydate,applydays,createdat&organization_id=eq.${encodeURIComponent(options.organizationId)}&${encodeURI(filter)}&order=createdat.desc,id.desc`,
+      context,
+    );
+    const applications = rows.map(row => ({ id: row.id, classId: row.classid, applyDate: row.applydate ?? "", applyDays: row.applydays ?? [], createdAt: row.createdat }));
+    await writeCache(cacheKey, applications);
+    await context.assertContext();
+    return applications;
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    await context.assertContext();
+    const cached = await readCache<CalendarTrainingPlanApplication[]>(cacheKey);
+    await context.assertContext();
+    if (cached) return cached;
+    throw error;
+  }
+}
 
 const logVersioningSchemaFallback = (operation: "insert" | "update", error: unknown) => {
   const message = String(error ?? "");
@@ -198,10 +355,14 @@ export async function getTrainingPlans(
     return plans.filter((plan) => plan.status === "generated");
   };
 
-  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
-  const cacheKey = `${CACHE_KEYS.trainingPlans}_${organizationId ?? "none"}`;
+  const context = await captureTrainingRead(options.organizationId, options.signal);
+  const { organizationId } = context;
+  if (!organizationId) return [];
+  const classIds = options.classIds ? Array.from(new Set(options.classIds.map(id => id.trim()).filter(Boolean))).sort() : undefined;
+  const cacheKey = `${CACHE_KEYS.trainingPlans}_${organizationId ?? "none"}${classIds ? `_query_v1_${encodeURIComponent(JSON.stringify({ classIds, classId: options.classId, status: options.status, applyDate: options.applyDate, applyWeekday: options.applyWeekday, orderBy: options.orderBy, limit: options.limit }))}` : ""}`;
   try {
     const classId = options.classId?.trim() || "";
+    if (classIds && classIds.length === 0) return [];
     const orderBy = options.orderBy ?? "createdat_desc";
     const status = options.status;
     const applyDate = options.applyDate?.trim() || undefined;
@@ -209,42 +370,45 @@ export async function getTrainingPlans(
     const limit = options.limit;
     const endpoint = buildTrainingPlansEndpoint(organizationId, {
       classId,
+      classIds,
       status,
       applyDate,
       applyWeekday,
       orderBy,
-      limit,
     });
     let rows: TrainingPlanRow[];
     try {
-      rows = await supabaseGet<TrainingPlanRow[]>(endpoint);
+      rows = await readTrainingPlanPages<TrainingPlanRow>(endpoint, context, limit, orderBy);
     } catch (error) {
       if (!isMissingVersioningReadError(error)) throw error;
       const fallbackEndpoint = buildTrainingPlansEndpoint(organizationId, {
         classId,
+        classIds,
         applyDate,
         applyWeekday,
         orderBy: "createdat_desc",
-        limit,
       });
-      rows = await supabaseGet<TrainingPlanRow[]>(fallbackEndpoint);
+      rows = await readTrainingPlanPages<TrainingPlanRow>(fallbackEndpoint, context, limit);
     }
     const mapped = rows.map(mapTrainingPlanRow);
     const filtered = applyStatusFilter(mapped, status);
-    const canCache =
+    const canCache = Boolean(classIds) || (
       !classId &&
       !status &&
       !applyDate &&
       typeof applyWeekday !== "number" &&
       !limit &&
-      orderBy === "createdat_desc";
+      orderBy === "createdat_desc");
     if (canCache) {
-      await writeCache(cacheKey, mapped);
+      await writeCache(cacheKey, classIds ? filtered : mapped);
+      await context.assertContext();
     }
     return filtered;
   } catch (error) {
     if (isNetworkError(error)) {
+      await context.assertContext();
       const cached = await readCache<TrainingPlan[]>(cacheKey);
+      await context.assertContext();
       if (cached) {
         const classId = options.classId?.trim() || "";
         const status = options.status;
@@ -252,7 +416,8 @@ export async function getTrainingPlans(
         const applyWeekday = options.applyWeekday;
         const orderBy = options.orderBy ?? "createdat_desc";
         const limit = options.limit;
-        const byClass = classId ? cached.filter((plan) => plan.classId === classId) : cached;
+        const byClass = classId ? cached.filter((plan) => plan.classId === classId)
+          : classIds ? cached.filter((plan) => classIds.includes(plan.classId)) : cached;
         const byDate = applyDate ? byClass.filter((plan) => plan.applyDate === applyDate) : byClass;
         const byWeekday =
           typeof applyWeekday === "number" && Number.isFinite(applyWeekday)

@@ -3,11 +3,16 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import { Platform } from "react-native";
 
 import { WebSidebar } from "../WebSidebar";
+import { registerPendingEditsNavigation } from "../../navigation/pending-edits-navigation";
 
 const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 const mockReplace = jest.fn();
 const mockHistoryPushState = jest.fn();
 const mockHistoryReplaceState = jest.fn();
+const mockSetActiveRole = jest.fn(async () => true);
+const mockRefreshRole = jest.fn(async () => {});
+let mockNavigationState: { routes: { name: string }[] } = { routes: [] };
 let mockPathname = "/prof/home";
 let mockAvailableRoles = ["trainer", "student"];
 const mockOrganizationContext = {
@@ -27,8 +32,11 @@ const mockOrganizationContext = {
 
 jest.mock("expo-router", () => ({
   usePathname: () => mockPathname,
+  useRootNavigationState: () => mockNavigationState,
+  useNavigationContainerRef: () => ({ current: { getRootState: () => mockNavigationState } }),
   useRouter: () => ({
     push: mockPush,
+    navigate: mockNavigate,
     replace: mockReplace,
   }),
 }));
@@ -59,8 +67,8 @@ jest.mock("../../auth/auth", () => ({
 jest.mock("../../auth/role", () => ({
   useRole: () => ({
     availableRoles: mockAvailableRoles,
-    refresh: jest.fn(),
-    setActiveRole: jest.fn(),
+    refresh: mockRefreshRole,
+    setActiveRole: mockSetActiveRole,
   }),
 }));
 
@@ -84,7 +92,10 @@ describe("WebSidebar profile menu", () => {
     mockAvailableRoles = ["trainer", "student"];
     mockOrganizationContext.organizations = [{ id: "org-1", role_level: 50 }];
     mockPush.mockClear();
+    mockNavigate.mockClear();
     mockReplace.mockClear();
+    mockSetActiveRole.mockClear(); mockRefreshRole.mockClear(); mockOrganizationContext.setDevProfilePreview.mockClear();
+    mockNavigationState = { routes: [] };
     mockHistoryPushState.mockClear();
     mockHistoryReplaceState.mockClear();
     mockOrganizationContext.activeOrganization.role_level = 50;
@@ -139,6 +150,28 @@ describe("WebSidebar profile menu", () => {
       configurable: true,
       value: originalPlatformOS,
     });
+  });
+
+  it("keeps every workspace setter and navigation behind the pending-edit guard", async () => {
+    const screen = render(React.createElement(WebSidebar, {
+      role: "prof", showCompact: true, canExpand: true, canPersistExpansion: true,
+    }));
+    fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
+    fireEvent.press(screen.getByLabelText("Alternar perfil"));
+    let release: (() => void) | undefined;
+    const cleanup = registerPendingEditsNavigation(navigate => { release = navigate; });
+    (window.localStorage.setItem as jest.Mock).mockClear();
+    try {
+      fireEvent.press(screen.getByLabelText("Abrir workspace Aluno"));
+      expect(mockSetActiveRole).not.toHaveBeenCalled(); expect(mockRefreshRole).not.toHaveBeenCalled();
+      expect(mockOrganizationContext.setDevProfilePreview).not.toHaveBeenCalled();
+      expect(window.localStorage.setItem).not.toHaveBeenCalled();
+      expect(mockPush).not.toHaveBeenCalled(); expect(mockReplace).not.toHaveBeenCalled();
+      expect(screen.getByLabelText("Alternar workspace")).toBeTruthy();
+      await act(async () => { release!(); for (let i = 0; i < 10; i++) await Promise.resolve(); });
+      expect(mockSetActiveRole.mock.calls.length + mockOrganizationContext.setDevProfilePreview.mock.calls.length).toBeGreaterThan(0);
+      expect(mockReplace).toHaveBeenCalledWith("/student/home"); expect(mockHistoryPushState).not.toHaveBeenCalled();
+    } finally { cleanup(); }
   });
 
   it("keeps only unrestricted professor navigation visible while permissions are loading", () => {
@@ -241,15 +274,10 @@ describe("WebSidebar profile menu", () => {
 
     fireEvent.press(screen.getByLabelText("Planejamento"));
 
-    expect(mockHistoryPushState).toHaveBeenCalledWith(
-      { key: "class" },
-      "",
-      "/class/c_123"
-    );
-    expect(mockReplace).toHaveBeenCalledWith("/prof/planning", {
-      withAnchor: true,
-    });
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockHistoryPushState).not.toHaveBeenCalled();
+    expect(mockHistoryReplaceState).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith("/prof/planning");
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it("opens from the compact avatar trigger", () => {

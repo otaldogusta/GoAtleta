@@ -1,4 +1,5 @@
-import type { ClassGroup, Student } from "../../../core/models";
+import type { ClassGroup } from "../../../core/models";
+import type { ClassStudentRecord } from "../../../core/student-read-models";
 import {
   resolveClassDevelopmentLevelLabel,
   type ClassDevelopmentLevelLabel,
@@ -48,7 +49,7 @@ export type ClassCardViewModel = {
 
 type BuildClassCardViewModelParams = {
   classGroup: ClassGroup;
-  students?: Student[];
+  students?: ClassStudentRecord[];
   teacher?: {
     name?: string | null;
     photoUrl?: string | null;
@@ -108,8 +109,8 @@ export const formatCompactPersonName = (name: string) => {
   return `${givenName} ${lastName[0]?.toLocaleUpperCase("pt-BR") ?? ""}.`;
 };
 
-export const groupStudentsByClassId = (students: Student[]) => {
-  return students.reduce<Record<string, Student[]>>((acc, student) => {
+export const groupStudentsByClassId = (students: ClassStudentRecord[]) => {
+  return students.reduce<Record<string, ClassStudentRecord[]>>((acc, student) => {
     const classId = student.classId?.trim();
     if (!classId) return acc;
     if (!acc[classId]) acc[classId] = [];

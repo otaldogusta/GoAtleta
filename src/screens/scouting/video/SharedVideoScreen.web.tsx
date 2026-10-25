@@ -5,7 +5,6 @@ import { getSessionIdentity, isSessionIdentityCurrent, subscribeSession } from '
 import { buildLoginRedirectHref } from '../../../auth/post-login-redirect';
 import { videoShareCodePattern } from '../../../core/scouting-video-sharing';
 import { useAppTheme } from '../../../ui/app-theme';
-import { Studio } from './ScoutingVideoStudio.web';
 import { StudioAction } from './StudioUI.web';
 import { studioStyles } from './studio-styles';
 import { readSharedVideo, SharedVideoError, type SharedVideo } from '../../../api/scouting-video-sharing';
@@ -14,11 +13,19 @@ import type { CSSProperties } from 'react';
 import { markRender, measureAsync } from '../../../observability/perf';
 
 const pendingKey = 'goatleta:shared-video-login';
+type SharedStudioComponent = typeof import('./ScoutingVideoStudio.web').Studio;
+let studioModule: Promise<SharedStudioComponent> | null = null;
+const loadStudio = () => {
+  if (!studioModule) studioModule = import('./ScoutingVideoStudio.web').then(module => module.Studio)
+    .catch(error => { studioModule = null; throw error; });
+  return studioModule;
+};
 export default function SharedVideoScreen() {
   markRender('screen.scouting.shared.render.web');
   const router = useRouter(), { colors } = useAppTheme();
   const [access, setAccess] = useState<{ id: string; code: string } | null>(null);
   const [value, setValue] = useState<SharedVideo | null>(null), [error, setError] = useState('');
+  const [Studio, setStudio] = useState<SharedStudioComponent | null>(null);
   const [epoch, setEpoch] = useState(0), mediaFailures = useRef(0);
   useEffect(() => {
     const read = () => {
@@ -66,6 +73,14 @@ export default function SharedVideoScreen() {
     document.addEventListener('visibilitychange', visible);
     return () => { stopped = true; controller?.abort(); clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
   }, [access, epoch]);
+  useEffect(() => {
+    if (!value) return;
+    let current = true;
+    void loadStudio().then(component => { if (current) setStudio(() => component); }).catch(() => {
+      if (current) { setValue(null); setError('SERVICE_UNAVAILABLE'); }
+    });
+    return () => { current = false; };
+  }, [value]);
   const mediaError = useCallback(() => {
     // One renewed URL may recover an expired media request; a broken file must
     // not generate an unbounded signing loop.
@@ -74,11 +89,8 @@ export default function SharedVideoScreen() {
   }, []);
   if (typeof document === 'undefined') return null;
   const close = () => router.replace('/');
-  if (value) return createPortal(<Studio org="" userId="" classId="" sessionId="" teamName={value.teamName} students={[]}
-    session={{ title: value.title, opponent: value.opponent, status: 'concluido' }}
-    shared={{ document: value.document, source: value.mediaUrl, onMediaError: mediaError }} onClose={close}/>, document.body);
   const message = error === 'LOGIN_REQUIRED' ? 'Entre com a conta vinculada à equipe para assistir.' : error === 'ACCESS_DENIED' ? 'Sua conta não tem acesso a esta análise.' : error === 'LINK_UNAVAILABLE' ? 'Este link expirou, foi revogado ou não é válido.' : error === 'MEDIA_UNAVAILABLE' ? 'Não foi possível carregar o vídeo.' : error ? 'Não foi possível abrir a análise. Tente novamente.' : 'Abrindo análise…';
-  return createPortal(<div className="sv sv-shared-status" style={{ '--sv-bg': colors.background, '--sv-panel': colors.card, '--sv-text': colors.text, '--sv-muted': colors.muted, '--sv-line': colors.border, '--sv-green': colors.primaryBg } as CSSProperties}>
+  const status = <div className="sv sv-shared-status" style={{ '--sv-bg': colors.background, '--sv-panel': colors.card, '--sv-text': colors.text, '--sv-muted': colors.muted, '--sv-line': colors.border, '--sv-green': colors.primaryBg } as CSSProperties}>
     <style>{studioStyles}</style><section><h1>Estúdio de scouting</h1><p role={error ? 'alert' : 'status'}>{message}</p><div className="sv-wrap">
       {error === 'LOGIN_REQUIRED' ? <StudioAction primary label="Entrar para assistir" onPress={() => {
         if (!access) return;
@@ -87,5 +99,8 @@ export default function SharedVideoScreen() {
         router.push(buildLoginRedirectHref('/scouting/shared') as '/login');
       }}>Entrar para assistir</StudioAction> : error && error !== 'LINK_UNAVAILABLE' && error !== 'ACCESS_DENIED' ? <StudioAction primary label="Tentar novamente" onPress={() => { mediaFailures.current = 0; setError(''); setEpoch(n => n + 1); }}>Tentar novamente</StudioAction> : null}
       <StudioAction label="Ir para o Go Atleta" onPress={close}>Go Atleta</StudioAction>
-    </div></section></div>, document.body);
+    </div></section></div>;
+  return createPortal(value && Studio ? <Studio org="" userId="" classId="" sessionId="" teamName={value.teamName} students={[]}
+    session={{ title: value.title, opponent: value.opponent, status: 'concluido' }}
+    shared={{ document: value.document, source: value.mediaUrl, onMediaError: mediaError }} onClose={close}/> : status, document.body);
 }

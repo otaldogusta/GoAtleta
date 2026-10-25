@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
 import { AnimatedBottomTabs } from "../../src/components/navigation/AnimatedBottomTabs";
 import { AppShell } from "../../src/ui/AppShell";
 
@@ -8,6 +9,7 @@ export default function CoordinationTabsLayout() {
   return (
     <AppShell role="coord">
       <Tabs
+        backBehavior={Platform.OS === "web" ? "fullHistory" : undefined}
         initialRouteName="dashboard"
         tabBar={(props) => <AnimatedBottomTabs {...props} role="coord" />}
         screenOptions={{

@@ -1,4 +1,4 @@
-import { usePathname, useRouter } from "expo-router";
+import { useNavigationContainerRef, usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
@@ -12,7 +12,8 @@ import {
   isTrainerPathAllowed,
 } from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
-import { navigateToPrimaryRoute } from "../navigation/primary-route-navigation";
+import { navigateToPrimaryRoute, replaceWorkspaceRoute } from "../navigation/primary-route-navigation";
+import { requestPendingEditsNavigation } from "../navigation/pending-edits-navigation";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { formatUnreadNotificationBadge } from "../notifications/unread-notification-count";
 import { resolveNotificationOrganizationId } from "../notifications/notification-organization";
@@ -274,6 +275,9 @@ export function WebSidebar({
   canPersistExpansion,
 }: WebSidebarProps) {
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
+  const navigationRef = useNavigationContainerRef();
+  const currentNavigationState = useCallback(() => navigationRef.current?.getRootState() ?? rootNavigationState, [navigationRef, rootNavigationState]);
   const pathname = usePathname();
   const isPlatformWorkspace =
     role === "coord" && pathname.startsWith("/platform");
@@ -416,9 +420,9 @@ export function WebSidebar({
         return;
       }
       closeProfileMenu();
-      navigateToPrimaryRoute({ router, href: href as never });
+      navigateToPrimaryRoute({ router, href: href as never, navigationState: currentNavigationState });
     },
-    [pathname, router, closeProfileMenu],
+    [pathname, router, closeProfileMenu, currentNavigationState],
   );
 
   const setSidebarExpanded = useCallback(
@@ -517,7 +521,7 @@ export function WebSidebar({
     };
   }, [isProfileMenuOpen, closeProfileMenu]);
 
-  const applyProfilePreview = useCallback(
+  const applyAuthorizedProfilePreview = useCallback(
     async (preview: ProfileSwitchId) => {
       if (!visibleProfileSwitchIds.includes(preview)) return;
       closeProfileMenu();
@@ -538,14 +542,14 @@ export function WebSidebar({
         if (preview === "family") {
           const changed = await setActiveRole("family");
           if (!changed) return;
-          router.replace(previewRoutes.family as never);
+          replaceWorkspaceRoute({ router, href: previewRoutes.family as never, navigationState: currentNavigationState });
           return;
         }
         if (!setDevProfilePreview) return;
         await setDevProfilePreview(preview);
         await refreshRole();
       }
-      router.replace(previewRoutes[preview] as never);
+      replaceWorkspaceRoute({ router, href: previewRoutes[preview] as never, navigationState: currentNavigationState });
     },
     [
       closeProfileMenu,
@@ -554,10 +558,15 @@ export function WebSidebar({
       visibleProfileSwitchIds,
       refreshRole,
       router,
+      currentNavigationState,
       setActiveRole,
       setDevProfilePreview,
     ],
   );
+
+  const applyProfilePreview = useCallback((preview: ProfileSwitchId) => {
+    requestPendingEditsNavigation(() => { void applyAuthorizedProfilePreview(preview); });
+  }, [applyAuthorizedProfilePreview]);
 
   const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
     visibleProfileSwitchIds.includes(option.id),

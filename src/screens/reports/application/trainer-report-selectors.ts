@@ -12,8 +12,32 @@ import {
 } from "../../../core/scouting";
 import { simulateClassEvolution } from "../../../core/simulator/evolution-simulator";
 import { buildTeamIntelligenceSnapshot } from "../../../api/reports";
+import type { AttendanceDailySummary } from "../../../db/attendance-summary";
 
 export type AttendanceSummaryByClass = Record<string, { total: number; present: number }>;
+
+export function buildAggregatedAttendanceSummary(days: AttendanceDailySummary[]) {
+  const byClass: AttendanceSummaryByClass = Object.create(null);
+  const weeks = Array.from({ length: 5 }, () => ({ total: 0, present: 0 }));
+  let total = 0;
+  let present = 0;
+  for (const day of days) {
+    total += day.total;
+    present += day.present;
+    const cls = byClass[day.classId] ?? { total: 0, present: 0 };
+    cls.total += day.total;
+    cls.present += day.present;
+    byClass[day.classId] = cls;
+    const week = weeks[Math.min(Math.floor((Number(day.date.slice(8, 10)) - 1) / 7), 4)];
+    week.total += day.total;
+    week.present += day.present;
+  }
+  return {
+    summary: { total, present, absent: total - present, percent: total ? Math.round(present / total * 100) : 0 },
+    byClass,
+    weekly: weeks.map((week, index) => ({ label: `S${index + 1}`, percent: week.total ? Math.round(week.present / week.total * 100) : 0, total: week.total })).filter(week => week.total > 0),
+  };
+}
 
 export const formatTrainerReportDateLabel = (iso: string) => {
   const date = iso.split("T")[0];
@@ -156,7 +180,7 @@ export function buildPerformanceRows({
   reportTab: string;
   classId: string;
   studentScoutingLogs: StudentScoutingLog[];
-  studentsForClass: Student[];
+  studentsForClass: Pick<Student, "id" | "name">[];
 }) {
   if (reportTab !== "students") return [];
   if (!classId) return [];

@@ -1,4 +1,4 @@
-import { newVideoDocument, splitVideoRally, type VideoDocument, type VideoHistory } from '../../../core/scouting-video';
+import { newVideoDocument, splitVideoRally, undoVideo, type VideoDocument, type VideoHistory } from '../../../core/scouting-video';
 import { parseStoredVideoDraft, persistVideoDraft, serializeVideoDraft } from '../video/video-draft-storage';
 
 const mockStorage = new Map<string, string>();
@@ -143,4 +143,84 @@ test('a failed write rejects its caller but does not poison later saves of that 
     expect(mockStorage.get('recovered')).toBe('retry');
     await persistVideoDraft('recovered', 'after-cleanup');
     expect(mockStorage.get('recovered')).toBe('after-cleanup');
+});
+
+describe('linear draft serialization', () => {
+    const savedAt = '2026-10-25T12:00:00.000Z';
+    beforeEach(() => { jest.spyOn(Date.prototype, 'toISOString').mockReturnValue(savedAt); });
+    afterEach(() => { jest.restoreAllMocks(); });
+
+    test.each([0, 1, 20, 25])('preserves exact envelope JSON for %i small history entries, Unicode, escaping and sync metadata', count => {
+        const rich: VideoDocument = { ...document, media: { ...media, name: 'Jogo 🏐 "final" \\ quadra\nSão Luís.mp4' },
+            contacts: [{ id: 'contact', time: 2, skill: 'Ataque', team: 'us', athlete: 'João 🏐 "A"\n\\', studentId: null, outcome: 'Em jogo' }] };
+        const source = { present: rich, past: Array.from({ length: count }, (_, index) => edit(`Edição 🏐 "${index}"\\\n`, rich)), future: [edit('Future must not persist')] };
+        const sync = { revision: 3, dirty: true, pending: { id: 'id-🏐-"-\\', expectedRevision: 3, matchesCurrent: true } };
+        const expected = JSON.stringify({ document: rich, past: source.past.slice(-20), savedAt, sync });
+        const actual = serializeVideoDraft(source, sync);
+        expect(actual).toBe(expected); expect(source.past).toHaveLength(count);
+        expect(parseStoredVideoDraft(actual).history.present).toEqual(rich);
+    });
+
+    test('keeps an entry at exactly 1500000 UTF-16 characters and drops it one character above the limit', () => {
+        const overhead = JSON.stringify({ document, past: [edit('')], savedAt }).length;
+        const exact = edit('x'.repeat(1500000 - overhead));
+        const source = { present: document, past: [exact], future: [] };
+        const output = serializeVideoDraft(source);
+        expect(output.length).toBe(1500000); expect(JSON.parse(output).past).toHaveLength(1);
+        const overflow = serializeVideoDraft({ ...source, past: [{ ...exact, label: exact.label + 'x' }] });
+        expect(JSON.parse(overflow).past).toEqual([]); expect(JSON.parse(overflow).document).toEqual(document);
+        expect(source.past[0]).toBe(exact);
+    });
+
+    test('the budget counts string characters rather than UTF-8 bytes', () => {
+        const overhead = JSON.stringify({ document, past: [edit('')], savedAt }).length;
+        const available = 1500000 - overhead;
+        const unicode = edit('🏐'.repeat(Math.floor(available / 2)) + (available % 2 ? 'x' : ''));
+        const output = serializeVideoDraft({ present: document, past: [unicode], future: [] });
+        expect(output.length).toBe(1500000); expect(Buffer.byteLength(output, 'utf8')).toBeGreaterThan(1500000);
+        expect(JSON.parse(output).past[0].label).toBe(unicode.label);
+    });
+
+    test('retains the largest contiguous suffix and never skips an oversized middle entry to keep an older one', () => {
+        const older = edit('Older small'), oversized = edit('x'.repeat(1500000)), newest = edit('Newest small');
+        const output = serializeVideoDraft({ present: document, past: [older, oversized, newest], future: [] });
+        expect(output).toBe(JSON.stringify({ document, past: [newest], savedAt }));
+    });
+
+    test('keeps both newest entries when two fit but adding the third would overflow', () => {
+        const past = [edit('a'.repeat(600000)), edit('b'.repeat(600000)), edit('c'.repeat(600000))];
+        const output = serializeVideoDraft({ present: document, past, future: [] });
+        expect(output).toBe(JSON.stringify({ document, past: past.slice(1), savedAt }));
+        expect(output.length).toBeLessThanOrEqual(1500000);
+        expect(JSON.stringify({ document, past, savedAt }).length).toBeGreaterThan(1500000);
+    });
+
+    test('serializes current document and timestamp once, without touching history when the present alone is over budget', () => {
+        const present = trackedDocument(45000), currentJson = jest.fn(() => present);
+        const pastJson = jest.fn(() => { throw new Error('History must not be serialized'); });
+        const source = { present: { ...present, toJSON: currentJson }, past: [{ ...edit(), toJSON: pastJson }], future: [] };
+        const output = serializeVideoDraft(source, { revision: 9, dirty: true });
+        expect(currentJson).toHaveBeenCalledTimes(1); expect(pastJson).not.toHaveBeenCalled(); expect(Date.prototype.toISOString).toHaveBeenCalledTimes(1);
+        expect(output.length).toBeGreaterThan(1500000); expect(JSON.parse(output).past).toEqual([]);
+        expect(parseStoredVideoDraft(output).history.present).toEqual(present);
+    });
+
+    test('serializes each candidate entry at most once and stops at the first suffix boundary', () => {
+        const olderJson = jest.fn(() => edit('Older should not be inspected'));
+        const largeJson = jest.fn(() => edit('x'.repeat(1500000)));
+        const newestJson = jest.fn(() => edit('Newest'));
+        const source = { present: document, past: [{ ...edit(), toJSON: olderJson }, { ...edit(), toJSON: largeJson }, { ...edit(), toJSON: newestJson }], future: [] };
+        expect(JSON.parse(serializeVideoDraft(source)).past).toEqual([edit('Newest')]);
+        expect(newestJson).toHaveBeenCalledTimes(1); expect(largeJson).toHaveBeenCalledTimes(1); expect(olderJson).not.toHaveBeenCalled();
+    });
+
+    test('persisted history restores undo/redo while omitting the future and preserving the in-memory source', () => {
+        const second = splitVideoRally(initial, 15, 'second'), third = splitVideoRally(second, 30, 'third');
+        const source = { present: third, past: [{ ...edit('First'), before: initial, after: second }, { ...edit('Second'), before: second, after: third }], future: [edit('Future')] };
+        const snapshot = JSON.stringify(source);
+        const restored = parseStoredVideoDraft(serializeVideoDraft(source)).history;
+        expect(restored.future).toEqual([]); expect(undoVideo(undoVideo(restored)).present).toEqual(initial);
+        expect(undoVideo(undoVideo(undoVideo(undoVideo(restored)), true), true).present).toEqual(third);
+        expect(JSON.stringify(source)).toBe(snapshot);
+    });
 });

@@ -26,13 +26,22 @@ import { normalizeCpfDigits, validateCpf } from "../utils/cpf";
 import { normalizeRg } from "../utils/document-normalization";
 import { safeJsonParse } from "../utils/safe-json";
 import { deriveRaStartYear, normalizeRaDigits } from "../utils/student-ra";
-import { getSessionUserId } from "../auth/session";
+import { projectClassStudentRecord, projectStudentDirectoryRecord, type ClassStudentRecord, type StudentDirectoryRecord } from "../core/student-read-models";
+import { readStudentFinancialStatuses } from "./student-financial-read";
+import {
+  assertSessionIdentity,
+  getAccessToken,
+  getSessionIdentity,
+  getSessionUserId,
+  SessionIdentityChangedError,
+} from "../auth/session";
 import { listClassHeadsByClassIds } from "../api/class-responsibles";
 import { createNotification } from "../api/notifications";
 import { getClassById, getClasses } from "./classes";
 import {
     CACHE_KEYS,
     getActiveOrganizationId,
+    getReadCacheGeneration,
     getScopedOrganizationId,
     isAuthError,
     isMissingColumnInSchemaCache,
@@ -126,6 +135,8 @@ export type AttendanceExportStudent = Pick<
   "id" | "name" | "membershipStatus"
 >;
 
+export type StudentBirthdayCandidate = Pick<Student, "id" | "name" | "birthDate">;
+
 // ---------------------------------------------------------------------------
 // Row mappers / internal helpers
 // ---------------------------------------------------------------------------
@@ -139,15 +150,95 @@ const buildAttendanceCacheOrgKey = (organizationId: string | null | undefined) =
 const EXPORT_PAGE_SIZE = 500;
 const EXPORT_MAX_PAGE_REQUESTS = 1000;
 
-const getAllExportPages = async <Row extends { id: string }>(
+type StudentReadContext = {
+  identity: ReturnType<typeof getSessionIdentity>;
+  assertCurrent: () => Promise<void>;
+};
+type StudentDirectoryTask<Row = Student> = {
+  revision: number;
+  base: Promise<Row[]>;
+  financial?: Promise<Row[]>;
+};
+class StudentDirectoryChangedError extends Error {}
+let studentDirectoryRevision = 0;
+const pendingStudentDirectories = new Map<string, StudentDirectoryTask>();
+const pendingDirectoryRecords = new Map<string, StudentDirectoryTask<StudentDirectoryRecord>>();
+const pendingClassStudentRecords = new Map<string, StudentDirectoryTask<ClassStudentRecord>>();
+const pendingDetailCacheWrites = new Map<string, Promise<void>>();
+type StudentDetailCacheEntry = { kind: "full"; student: Student } | { kind: "invalidated" };
+
+const persistStudentDetail = (cacheKey: string, studentId: string, entry: StudentDetailCacheEntry, context: StudentReadContext) => {
+  const queueKey = JSON.stringify([context.identity.userId, cacheKey, studentId]);
+  const previous = pendingDetailCacheWrites.get(queueKey) ?? Promise.resolve();
+  const work = previous.catch(() => undefined).then(async () => {
+    await context.assertCurrent();
+    await writeCache(`${cacheKey}_detail_${encodeURIComponent(studentId)}`, entry);
+    await context.assertCurrent();
+  });
+  const tracked = work.finally(() => { if (pendingDetailCacheWrites.get(queueKey) === tracked) pendingDetailCacheWrites.delete(queueKey); });
+  pendingDetailCacheWrites.set(queueKey, tracked);
+  return tracked;
+};
+
+const invalidateStudentDirectoryReads = async (organizationId: string | null, studentIds: readonly string[]) => {
+  studentDirectoryRevision += 1;
+  pendingStudentDirectories.clear();
+  pendingDirectoryRecords.clear();
+  pendingClassStudentRecords.clear();
+  if (!organizationId) return;
+  const identity = getSessionIdentity();
+  const generation = getReadCacheGeneration();
+  const initialOrganization = getActiveOrganizationId();
+  const context = { identity, assertCurrent: async () => {
+    assertSessionIdentity(identity);
+    const initialOrganizationId = await initialOrganization;
+    const current = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (generation !== getReadCacheGeneration() || current !== initialOrganizationId) throw new SessionIdentityChangedError();
+  } };
+  // Register every per-ID tombstone before any await; a later fresh read joins
+  // after it, while an earlier in-flight commit must settle before it.
+  const tombstones = [...new Set(studentIds)].map(id =>
+    persistStudentDetail(buildStudentsCacheKey(organizationId), id, { kind: "invalidated" }, context));
+  // Attach all rejection handlers before yielding, including identity changes.
+  await Promise.all([...tombstones, (async () => {
+    // Only these derived caches are invalidated; preserve the existing full cache.
+    for (const suffix of ["directory", "class_avatars"]) {
+      await context.assertCurrent();
+      await writeCache(`${buildStudentsCacheKey(organizationId)}_${suffix}`, null);
+    }
+  })()]);
+};
+
+const studentDirectoryTask = <Row>(key: string, read: (revision: number) => Promise<Row[]>, pending: Map<string, StudentDirectoryTask<Row>>) => {
+  const current = pending.get(key);
+  if (current) return current;
+  const task: StudentDirectoryTask<Row> = { revision: studentDirectoryRevision, base: read(studentDirectoryRevision) };
+  task.base = task.base.finally(() => {
+    if (pending.get(key) === task) pending.delete(key);
+  });
+  pending.set(key, task);
+  return task;
+};
+
+const getAllStudentReadPages = async <Row extends { id: string }>(
   buildPath: (offset: number, limit: number) => string,
   label: string,
+  context?: {
+    identity: ReturnType<typeof getSessionIdentity>;
+    assertCurrent: () => Promise<void>;
+  },
 ) => {
   const rows: Row[] = [];
   const seenIds = new Set<string>();
 
   for (let request = 0; request < EXPORT_MAX_PAGE_REQUESTS; request += 1) {
-    const page = await supabaseGet<Row[]>(buildPath(rows.length, EXPORT_PAGE_SIZE));
+    await context?.assertCurrent();
+    const path = buildPath(rows.length, EXPORT_PAGE_SIZE);
+    const page = context
+      ? await supabaseGet<Row[]>(path, context.identity)
+      : await supabaseGet<Row[]>(path);
+    await context?.assertCurrent();
     if (page.length === 0) return rows;
 
     let added = 0;
@@ -162,7 +253,47 @@ const getAllExportPages = async <Row extends { id: string }>(
     }
   }
 
-  throw new Error(`O volume de ${label} excedeu o limite seguro de exportação.`);
+  throw new Error(`O volume de ${label} excedeu o limite seguro de leitura.`);
+};
+
+// Canonical students.name is NOT NULL. Let PostgreSQL compare names using its
+// own collation; the id breaks ties without client-side sorting or OFFSET scans.
+const getAllStudentNameReadPages = async <Row extends { id: string; name: string }>(
+  basePath: string,
+  label: string,
+  context: {
+    identity: ReturnType<typeof getSessionIdentity>;
+    assertCurrent: () => Promise<void>;
+  },
+): Promise<Row[]> => {
+  const rows: Row[] = [];
+  const seenIds = new Set<string>();
+  const quote = (value: string) => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  let cursor: { name: string; id: string } | null = null;
+  for (let request = 0; request < EXPORT_MAX_PAGE_REQUESTS; request += 1) {
+    await context.assertCurrent();
+    // A plain top-level bound is indexable. Only values inside the logical
+    // expression use PostgREST quoting (outer quotes here would be literal data).
+    const lowerBound: string = cursor ? `&name=gte.${encodeURIComponent(cursor.name)}` : "";
+    const cursorFilter: string = cursor
+      ? `&or=${encodeURIComponent(`(name.gt.${quote(cursor.name)},and(name.eq.${quote(cursor.name)},id.gt.${quote(cursor.id)}))`)}`
+      : "";
+    const page: Row[] = await supabaseGet<Row[]>(
+      `${basePath}${lowerBound}${cursorFilter}&order=name.asc,id.asc&limit=${EXPORT_PAGE_SIZE}`,
+      context.identity,
+    );
+    await context.assertCurrent();
+    if (page.length === 0) return rows;
+    for (const row of page) {
+      if (typeof row.name !== "string") throw new Error(`A paginação de ${label} recebeu um nome inválido.`);
+      if (seenIds.has(row.id)) throw new Error(`A paginação de ${label} retornou registros repetidos.`);
+      seenIds.add(row.id);
+      rows.push(row);
+    }
+    const last = page[page.length - 1];
+    cursor = { name: last.name, id: last.id };
+  }
+  throw new Error(`O volume de ${label} excedeu o limite seguro de leitura.`);
 };
 
 const readAttendanceCacheStore = async () =>
@@ -272,7 +403,8 @@ const buildStudentsInFilter = (ids: string[]) =>
 
 const loadStudentFinancialStatusMap = async (
   studentIds: string[],
-  organizationId: string | null | undefined
+  organizationId: string | null | undefined,
+  context?: StudentReadContext,
 ): Promise<Map<string, Student["financialStatus"]>> => {
   const normalizedStudentIds = Array.from(
     new Set(studentIds.map((id) => id.trim()).filter(Boolean))
@@ -280,6 +412,9 @@ const loadStudentFinancialStatusMap = async (
   if (!organizationId || normalizedStudentIds.length === 0) return new Map();
 
   try {
+    await context?.assertCurrent();
+    const projected = await readStudentFinancialStatuses(organizationId, normalizedStudentIds, context);
+    if (projected !== null) return new Map(projected.map(row => [row.student_id, row.status]));
     const chunks: string[][] = [];
     for (let offset = 0; offset < normalizedStudentIds.length; offset += 100) {
       chunks.push(normalizedStudentIds.slice(offset, offset + 100));
@@ -289,16 +424,19 @@ const loadStudentFinancialStatusMap = async (
         supabaseGet<Pick<StudentFinancialStatusRow, "student_id" | "status">[]>(
           `/student_financial_statuses?select=student_id,status&organization_id=eq.${encodeURIComponent(
             organizationId
-          )}&student_id=in.(${buildStudentsInFilter(chunk)})`
+          )}&student_id=in.(${buildStudentsInFilter(chunk)})`,
+          context?.identity,
         )
       )
     );
+    await context?.assertCurrent();
     return new Map(
       pages
         .flat()
         .map((row) => [row.student_id, row.status] as const)
     );
   } catch (error) {
+    if (error instanceof StudentDirectoryChangedError || error instanceof SessionIdentityChangedError) throw error;
     // Safe rollout fallback: before the migration exists, or when the current
     // member has no readable financial rows, general athlete flows stay usable
     // and expose only `unknown`. Never fall back to the legacy column.
@@ -314,19 +452,23 @@ const loadStudentFinancialStatusMap = async (
   }
 };
 
-const hydrateStudentFinancialStatuses = async (
-  students: Student[],
-  organizationId: string | null | undefined
-): Promise<Student[]> => {
-  const statuses = await loadStudentFinancialStatusMap(
-    students.map((student) => student.id),
-    organizationId
-  );
-  if (statuses.size === 0) return students;
-  return students.map((student) => ({
-    ...student,
-    financialStatus: statuses.get(student.id) ?? "unknown",
-  }));
+const hydrateStudentFinancialStatuses = async <Row extends Pick<Student, "id" | "financialStatus">>(
+  students: Row[],
+  organizationId: string | null | undefined,
+  includeFinancial = true,
+  context?: StudentReadContext,
+  task?: StudentDirectoryTask<Row>,
+): Promise<Row[]> => {
+  if (!includeFinancial) return students;
+  if (task?.financial) return task.financial;
+  const work = async () => {
+    const statuses = await loadStudentFinancialStatusMap(students.map(student => student.id), organizationId, context);
+    if (statuses.size === 0) return students;
+    return students.map(student => ({ ...student, financialStatus: statuses.get(student.id) ?? "unknown" }));
+  };
+  const promise = work();
+  if (task) task.financial = promise;
+  return promise;
 };
 
 const sanitizeCachedStudentFinancialStatuses = (students: Student[]) =>
@@ -949,68 +1091,300 @@ export async function linkExistingStudentByIdentity(params: {
 }
 
 export async function getStudents(
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; includeFinancial?: boolean } = {}
 ): Promise<Student[]> {
   const startedAt = Date.now();
-  try {
-    const activeOrganizationId = await getScopedOrganizationId(
-      options.organizationId,
-      "getStudents"
-    );
-    if (!activeOrganizationId) return [];
-    const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
-    const rows = await supabaseGet<StudentRow[]>(
-      `/students?select=*&organization_id=eq.${encodeURIComponent(
-        activeOrganizationId
-      )}&order=name.asc`
-    );
-    const safeMapped = rows.map((row) => mapStudentRow(row, activeOrganizationId));
-    // Cache only the sanitized athlete projection. A financial administrator
-    // and a professor may use the same device/profile cache in sequence.
-    await writeCache(cacheKey, safeMapped);
-    const mapped = await hydrateStudentFinancialStatuses(
-      safeMapped,
-      activeOrganizationId
-    );
-    Sentry.addBreadcrumb({
-      category: "sqlite-query",
-      message: "getStudents",
-      level: "info",
-      data: { ms: Date.now() - startedAt, rows: mapped.length },
-    });
-    return mapped;
-  } catch (error) {
-    if (isNetworkError(error)) {
-      const activeOrganizationId =
-        options.organizationId ?? (await getActiveOrganizationId());
-      const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
-      const cached = await readCache<Student[]>(cacheKey);
-      if (cached) {
-        const safeCached = sanitizeCachedStudentFinancialStatuses(cached);
-        await writeCache(cacheKey, safeCached);
-        return safeCached;
-      }
-      return [];
+  const identity = getSessionIdentity();
+  const accessToken = getAccessToken();
+  const cacheGeneration = getReadCacheGeneration();
+  // Student/family inboxes can explicitly read their authorized organization
+  // while the professional workspace points elsewhere. Preserve that scope;
+  // only a change to the starting workspace invalidates this compound read.
+  const initialActiveOrganizationId = await getActiveOrganizationId();
+  const activeOrganizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getStudents",
+  );
+  if (!activeOrganizationId) return [];
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+  const assertContext = async () => {
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+    const currentOrganizationId = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration() || currentOrganizationId !== initialActiveOrganizationId) {
+      throw new SessionIdentityChangedError();
     }
-    throw error;
+  };
+  const cacheKey = buildStudentsCacheKey(activeOrganizationId);
+  const taskKey = JSON.stringify([identity.userId, identity.generation, cacheGeneration,
+    accessToken, initialActiveOrganizationId, activeOrganizationId, "full-students"]);
+  const assertRevision = async (revision: number) => {
+    await assertContext();
+    if (revision !== studentDirectoryRevision) throw new StudentDirectoryChangedError();
+  };
+  const readBase = async (revision: number) => {
+    const context = { identity, assertCurrent: () => assertRevision(revision) };
+    const rows = await getAllStudentNameReadPages<StudentRow>(
+      `/students?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
+      "atletas", context,
+    );
+    const safeMapped = rows.map(row => mapStudentRow(row, activeOrganizationId));
+    // Shared directory storage never contains authorized financial state.
+    await writeCache(cacheKey, safeMapped);
+    await context.assertCurrent();
+    await writeCache(`${cacheKey}_birthdays`, null);
+    await context.assertCurrent();
+    for (const suffix of ["directory", "class_avatars"]) {
+      await writeCache(`${cacheKey}_${suffix}`, null);
+      await context.assertCurrent();
+    }
+    return safeMapped;
+  };
+  let recoveries = 0;
+  for (;;) {
+    await assertContext();
+    const task = studentDirectoryTask(taskKey, readBase, pendingStudentDirectories);
+    try {
+      const safeMapped = await task.base;
+      const context = { identity, assertCurrent: () => assertRevision(task.revision) };
+      await context.assertCurrent();
+      const mapped = await hydrateStudentFinancialStatuses(
+        safeMapped, activeOrganizationId, options.includeFinancial !== false, context, task,
+      );
+      await context.assertCurrent();
+      Sentry.addBreadcrumb({ category: "sqlite-query", message: "getStudents", level: "info",
+        data: { ms: Date.now() - startedAt, rows: mapped.length } });
+      // Student is a flat model. Each consumer owns its array and editable objects.
+      return mapped.map(student => ({ ...student }));
+    } catch (error) {
+      try {
+        // Recheck the same revision on rejected GETs and every offline storage boundary.
+        await assertRevision(task.revision);
+        if (isNetworkError(error)) {
+          const cached = await readCache<Student[]>(cacheKey);
+          await assertRevision(task.revision);
+          if (cached) {
+            const safeCached = sanitizeCachedStudentFinancialStatuses(cached);
+            await writeCache(cacheKey, safeCached);
+            await assertRevision(task.revision);
+            return safeCached;
+          }
+          return [];
+        }
+      } catch (changed) {
+        if (!(changed instanceof StudentDirectoryChangedError)) throw changed;
+        if (recoveries >= 3) throw new Error("Os dados dos atletas estão mudando durante a leitura. Tente novamente.");
+        recoveries += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+const captureStudentReadContext = async (organizationId: string | null | undefined, feature: string) => {
+  const identity = getSessionIdentity();
+  const token = getAccessToken();
+  const generation = getReadCacheGeneration();
+  const initialOrganizationId = await getActiveOrganizationId();
+  const resolvedOrganizationId = await getScopedOrganizationId(organizationId, feature);
+  if (!resolvedOrganizationId) return null;
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+  const assertCurrent = async () => {
+    assertSessionIdentity(identity);
+    const current = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (generation !== getReadCacheGeneration() || current !== initialOrganizationId) throw new SessionIdentityChangedError();
+  };
+  await assertCurrent();
+  return { identity, organizationId: resolvedOrganizationId, assertCurrent,
+    key: JSON.stringify([identity.userId, identity.generation, token, generation, initialOrganizationId, resolvedOrganizationId]) };
+};
+
+const readStudentProjection = async <Row extends { id: string; name: string }, DatabaseRow extends { id: string; name: string }>(
+  organizationId: string | null | undefined,
+  projection: {
+    suffix: string; columns: string; map: (row: DatabaseRow, organizationId: string) => Row;
+    fromFull: (student: Student) => Row; sanitize: (row: Row) => Row;
+    pending: Map<string, StudentDirectoryTask<Row>>;
+    hydrate?: (rows: Row[], context: StudentReadContext, task: StudentDirectoryTask<Row>, organizationId: string) => Promise<Row[]>;
+  },
+): Promise<Row[]> => {
+  const captured = await captureStudentReadContext(organizationId, projection.suffix);
+  if (!captured) return [];
+  const key = `${buildStudentsCacheKey(captured.organizationId)}_${projection.suffix}`;
+  const assertRevision = async (revision: number) => {
+    await captured.assertCurrent();
+    if (revision !== studentDirectoryRevision) throw new StudentDirectoryChangedError();
+  };
+  const read = async (revision: number) => {
+    const context = { identity: captured.identity, assertCurrent: () => assertRevision(revision) };
+    const rows = await getAllStudentNameReadPages<DatabaseRow>(
+      `/students?select=${projection.columns}&organization_id=eq.${encodeURIComponent(captured.organizationId)}`,
+      "atletas", context,
+    );
+    const mapped = rows.map(row => projection.map(row, captured.organizationId));
+    await context.assertCurrent();
+    await writeCache(key, mapped);
+    await context.assertCurrent();
+    return mapped;
+  };
+  let recoveries = 0;
+  for (;;) {
+    await captured.assertCurrent();
+    const task = studentDirectoryTask(`${captured.key}:${projection.suffix}`, read, projection.pending);
+    try {
+      const rows = await task.base;
+      const context = { identity: captured.identity, assertCurrent: () => assertRevision(task.revision) };
+      await context.assertCurrent();
+      const result = projection.hydrate ? await projection.hydrate(rows, context, task, captured.organizationId) : rows;
+      await context.assertCurrent();
+      return result.map(row => ({ ...row }));
+    } catch (error) {
+      try {
+        await assertRevision(task.revision);
+        if (isNetworkError(error)) {
+          const cached = await readCache<Row[]>(key);
+          await assertRevision(task.revision);
+          if (cached) return cached.map(projection.sanitize);
+          const full = await readCache<Student[]>(buildStudentsCacheKey(captured.organizationId));
+          await assertRevision(task.revision);
+          return full?.map(projection.fromFull) ?? [];
+        }
+      } catch (changed) {
+        if (!(changed instanceof StudentDirectoryChangedError)) throw changed;
+        if (recoveries >= 3) throw new Error("Os dados dos atletas estão mudando durante a leitura. Tente novamente.");
+        recoveries++;
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
+export async function getStudentDirectoryRecords(
+  options: { organizationId?: string | null; includeFinancial?: boolean } = {},
+): Promise<StudentDirectoryRecord[]> {
+  type DirectoryRow = Pick<StudentRow, "id" | "name" | "organization_id" | "student_user_id" | "photo_url" | "ra" | "is_experimental" | "membership_status" | "classid" | "age" | "phone" | "login_email" | "guardian_name" | "guardian_phone" | "guardian_relation" | "birthdate">;
+  return readStudentProjection<StudentDirectoryRecord, DirectoryRow>(options.organizationId, {
+    suffix: "directory",
+    columns: "id,name,organization_id,student_user_id,photo_url,ra,is_experimental,membership_status,classid,age,phone,login_email,guardian_name,guardian_phone,guardian_relation,birthdate",
+    pending: pendingDirectoryRecords,
+    map: (row, organizationId) => ({ id: row.id, name: row.name, organizationId: row.organization_id ?? organizationId,
+      studentUserId: row.student_user_id ?? null, photoUrl: row.photo_url ?? undefined,
+      ra: row.ra ?? null, isExperimental: Boolean(row.is_experimental),
+      membershipStatus: row.membership_status === "inactive" ? "inactive" : "active", financialStatus: "unknown",
+      classId: row.classid ?? "", age: row.age, phone: row.phone,
+      loginEmail: row.login_email ?? "", guardianName: row.guardian_name ?? "",
+      guardianPhone: row.guardian_phone ?? "", guardianRelation: row.guardian_relation ?? "", birthDate: row.birthdate ?? "" }),
+    fromFull: row => projectStudentDirectoryRecord({ ...row, financialStatus: "unknown" }),
+    sanitize: row => projectStudentDirectoryRecord({ ...row, financialStatus: "unknown" }),
+    hydrate: (rows, context, task, organizationId) => hydrateStudentFinancialStatuses(rows, organizationId, options.includeFinancial !== false, context, task),
+  });
+}
+
+export async function getClassStudentRecords(options: { organizationId?: string | null } = {}): Promise<ClassStudentRecord[]> {
+  type AvatarRow = Pick<StudentRow, "id" | "name" | "organization_id" | "classid" | "photo_url">;
+  return readStudentProjection<ClassStudentRecord, AvatarRow>(options.organizationId, {
+    suffix: "class_avatars", columns: "id,name,organization_id,classid,photo_url", pending: pendingClassStudentRecords,
+    map: (row, organizationId) => ({ id: row.id, name: row.name, organizationId: row.organization_id ?? organizationId,
+      classId: row.classid ?? "", photoUrl: row.photo_url ?? undefined }),
+    fromFull: projectClassStudentRecord, sanitize: projectClassStudentRecord,
+  });
+}
+
+// Global birthday checks need no profile, medical or financial hydration. Keep
+// their small cache separate so a partial projection never replaces the directory.
+export async function getStudentBirthdayCandidates(
+  options: { organizationId?: string | null } = {},
+): Promise<StudentBirthdayCandidate[]> {
+  const identity = getSessionIdentity();
+  const cacheGeneration = getReadCacheGeneration();
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getStudentBirthdayCandidates",
+  );
+  if (!organizationId) return [];
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+
+  const assertIdentity = () => {
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+  };
+  const assertContext = async () => {
+    assertIdentity();
+    const activeOrganizationId = await getActiveOrganizationId();
+    assertIdentity();
+    if (activeOrganizationId !== organizationId) throw new SessionIdentityChangedError();
+  };
+  await assertContext();
+  const cacheKey = `${buildStudentsCacheKey(organizationId)}_birthdays`;
+  const projectCandidate = (student: StudentBirthdayCandidate): StudentBirthdayCandidate => ({
+    id: student.id,
+    name: student.name,
+    birthDate: student.birthDate ?? "",
+  });
+
+  try {
+    type BirthdayRow = Pick<StudentRow, "id" | "name" | "birthdate">;
+    const rows = await getAllStudentNameReadPages<BirthdayRow>(
+      `/students?select=id,name,birthdate&organization_id=eq.${encodeURIComponent(organizationId)}`,
+      "aniversários",
+      { identity, assertCurrent: assertContext },
+    );
+    await assertContext();
+    const candidates = rows.map((row) => projectCandidate({
+      id: row.id, name: row.name, birthDate: row.birthdate ?? "",
+    }));
+    assertIdentity();
+    await writeCache(cacheKey, candidates);
+    await assertContext();
+    return candidates;
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    await assertContext();
+    const cachedCandidates = await readCache<StudentBirthdayCandidate[]>(cacheKey);
+    await assertContext();
+    if (cachedCandidates) return cachedCandidates.map(projectCandidate);
+    // Before this projection was loaded, retain the previous directory fallback.
+    const cachedStudents = await readCache<StudentBirthdayCandidate[]>(buildStudentsCacheKey(organizationId));
+    await assertContext();
+    return cachedStudents?.map(projectCandidate) ?? [];
   }
 }
 
 export async function getAttendanceExportStudents(
-  options: { organizationId?: string | null } = {},
+  options: { organizationId?: string | null; classId?: string; orderByName?: boolean } = {},
 ): Promise<AttendanceExportStudent[]> {
+  const identity = getSessionIdentity();
+  const generation = getReadCacheGeneration();
+  const initialActiveOrganizationId = await getActiveOrganizationId();
   const organizationId = await getScopedOrganizationId(
     options.organizationId,
     "getAttendanceExportStudents",
   );
   if (!organizationId) return [];
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+  if (options.classId === "") return [];
+  const assertCurrent = async () => {
+    assertSessionIdentity(identity);
+    const currentOrganizationId = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (generation !== getReadCacheGeneration() || currentOrganizationId !== initialActiveOrganizationId) throw new SessionIdentityChangedError();
+  };
+  const context = { identity, assertCurrent };
+  const classFilter = options.classId === undefined ? "" : `&classid=eq.${encodeURIComponent(options.classId)}`;
+  const basePath = `/students?select=id,name,membership_status&organization_id=eq.${encodeURIComponent(organizationId)}${classFilter}`;
 
   type ExportStudentRow = Pick<StudentRow, "id" | "name" | "membership_status">;
-  const rows = await getAllExportPages<ExportStudentRow>(
-    (offset, limit) =>
-      `/students?select=id,name,membership_status&organization_id=eq.${encodeURIComponent(organizationId)}&order=id.asc&limit=${limit}&offset=${offset}`,
-    "atletas",
-  );
+  const rows = options.orderByName
+    ? await getAllStudentNameReadPages<ExportStudentRow>(basePath, "atletas", context)
+    : await getAllStudentReadPages<ExportStudentRow>(
+      (offset, limit) => `${basePath}&order=id.asc&limit=${limit}&offset=${offset}`,
+      "atletas", context,
+    );
+  await assertCurrent();
 
   return rows.map((row) => ({
     id: row.id,
@@ -1102,25 +1476,48 @@ export async function getStudentsByClass(
 
 export async function getStudentById(
   id: string,
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; allowCached?: boolean } = {}
 ): Promise<Student | null> {
-  const activeOrganizationId =
-    options.organizationId ?? (await getActiveOrganizationId());
-  const rows = await supabaseGet<StudentRow[]>(
-    activeOrganizationId
-      ? "/students?select=*&id=eq." +
-          encodeURIComponent(id) +
-          "&organization_id=eq." +
-          encodeURIComponent(activeOrganizationId)
-      : "/students?select=*&id=eq." + encodeURIComponent(id)
-  );
-  const row = rows[0];
-  if (!row) return null;
-  const [student] = await hydrateStudentFinancialStatuses(
-    [mapStudentRow(row, activeOrganizationId)],
-    activeOrganizationId
-  );
-  return student ?? null;
+  const captured = await captureStudentReadContext(options.organizationId, "getStudentById");
+  if (!captured) return null;
+  const revision = studentDirectoryRevision;
+  const context = { identity: captured.identity, assertCurrent: async () => {
+    await captured.assertCurrent();
+    if (revision !== studentDirectoryRevision) throw new StudentDirectoryChangedError();
+  } };
+  const cacheKey = buildStudentsCacheKey(captured.organizationId);
+  const isFull = (student: Student | undefined): student is Student => Boolean(student &&
+    student.id === id && student.organizationId === captured.organizationId &&
+    ["name", "phone", "loginEmail", "guardianName", "guardianPhone", "guardianRelation", "birthDate", "healthIssueNotes", "medicationNotes", "healthObservations", "positionPrimary", "positionSecondary", "athleteObjective", "learningStyle", "createdAt"].every(key => typeof student[key as keyof Student] === "string") &&
+    typeof student.healthIssue === "boolean" && typeof student.medicationUse === "boolean" && typeof student.age === "number");
+  try {
+    await context.assertCurrent();
+    const rows = await supabaseGet<StudentRow[]>(
+      `/students?select=*&id=eq.${encodeURIComponent(id)}&organization_id=eq.${encodeURIComponent(captured.organizationId)}&limit=1`, captured.identity,
+    );
+    await context.assertCurrent();
+    const row = rows[0];
+    if (!row) return null;
+    if (row.id !== id || row.organization_id !== captured.organizationId) throw new Error("A ficha recebida não corresponde ao atleta solicitado.");
+    const mapped = mapStudentRow(row, captured.organizationId);
+    await persistStudentDetail(cacheKey, id, { kind: "full", student: { ...mapped, financialStatus: "unknown" } }, context);
+    const [student] = await hydrateStudentFinancialStatuses([mapped], captured.organizationId, true, context);
+    await context.assertCurrent();
+    return student ?? null;
+  } catch (error) {
+    await context.assertCurrent();
+    if (!isNetworkError(error)) throw error;
+    if (options.allowCached === false) throw error;
+    const detail = await readCache<StudentDetailCacheEntry>(`${cacheKey}_detail_${encodeURIComponent(id)}`);
+    await context.assertCurrent();
+    if (detail?.kind === "invalidated") throw new Error("Conecte-se à internet para atualizar esta ficha.");
+    if (detail?.kind === "full" && isFull(detail.student)) return { ...detail.student, financialStatus: "unknown" };
+    const full = await readCache<Student[]>(cacheKey);
+    await context.assertCurrent();
+    const cached = full?.find(student => student.id === id);
+    if (isFull(cached)) return { ...cached, financialStatus: "unknown" };
+    throw new Error("Conecte-se à internet para carregar esta ficha pela primeira vez.");
+  }
 }
 
 export async function getStudentOperationalHistory(
@@ -1240,12 +1637,14 @@ export async function saveStudent(student: Student) {
   }
   try {
     await supabasePost("/students", [payload]);
+    await invalidateStudentDirectoryReads(activeOrganizationId, [student.id]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (isMissingColumnInSchemaCache(error, "college_course")) {
       const fallbackPayload = { ...payload };
       delete fallbackPayload.college_course;
       await supabasePost("/students", [fallbackPayload]);
+      await invalidateStudentDirectoryReads(activeOrganizationId, [student.id]);
       return;
     }
     if (message.includes("students_cpf_athlete_account_excl")) {
@@ -1332,6 +1731,7 @@ export async function updateStudent(student: Student) {
         : "/students?id=eq." + encodeURIComponent(student.id),
       payload
     );
+    await invalidateStudentDirectoryReads(activeOrganizationId, [student.id]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (isMissingColumnInSchemaCache(error, "college_course")) {
@@ -1346,6 +1746,7 @@ export async function updateStudent(student: Student) {
           : "/students?id=eq." + encodeURIComponent(student.id),
         fallbackPayload
       );
+      await invalidateStudentDirectoryReads(activeOrganizationId, [student.id]);
       return;
     }
     if (message.includes("students_cpf_athlete_account_excl")) {
@@ -1419,6 +1820,7 @@ export async function updateStudentPhoto(studentId: string, photoUrl: string | n
       photo_url: photoUrl?.trim() || null,
     }
   );
+  await invalidateStudentDirectoryReads(activeOrganizationId, [studentId]);
 }
 
 export async function updateStudentOperationalStatus(
@@ -1430,11 +1832,12 @@ export async function updateStudentOperationalStatus(
   },
   options: { organizationId?: string | null } = {}
 ) {
-  const activeOrganizationId =
-    options.organizationId ?? (await getActiveOrganizationId());
+  const captured = await captureStudentReadContext(options.organizationId, "updateStudentOperationalStatus");
+  const activeOrganizationId = captured?.organizationId;
   if (!activeOrganizationId) {
     throw new Error("Selecione uma organização ativa.");
   }
+  if (!captured) throw new Error("Selecione uma organização ativa.");
 
   if (patch.membershipStatus && patch.financialStatus) {
     throw new Error("Atualize o vínculo e o financeiro separadamente.");
@@ -1463,11 +1866,14 @@ export async function updateStudentOperationalStatus(
 
   let updatedRow: StudentRow | null = null;
   if (Object.keys(payload).length > 0) {
+    await captured.assertCurrent();
     const updatedRows = await supabasePatch<StudentRow[]>(
       `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
       payload,
       { Prefer: "return=representation" }
     );
+    await captured.assertCurrent();
+    await invalidateStudentDirectoryReads(activeOrganizationId, [studentId]);
     updatedRow = updatedRows[0] ?? null;
     if (updatedRows.length !== 1 || !updatedRow) {
       throw new Error(
@@ -1490,6 +1896,7 @@ export async function updateStudentOperationalStatus(
     | Pick<StudentFinancialStatusRow, "student_id" | "status">
     | null = null;
   if (patch.financialStatus) {
+    await captured.assertCurrent();
     const financialRows = await supabasePost<StudentFinancialStatusRow[]>(
       "/rpc/set_student_financial_status",
       {
@@ -1498,6 +1905,8 @@ export async function updateStudentOperationalStatus(
         p_status: patch.financialStatus,
       }
     );
+    await captured.assertCurrent();
+    await invalidateStudentDirectoryReads(activeOrganizationId, [studentId]);
     financialReceipt = financialRows[0] ?? null;
     if (
       financialRows.length !== 1 ||
@@ -1513,8 +1922,9 @@ export async function updateStudentOperationalStatus(
 
   if (!updatedRow) {
     const rows = await supabaseGet<StudentRow[]>(
-      `/students?select=*&id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&limit=1`
+      `/students?select=*&id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&limit=1`, captured.identity,
     );
+    await captured.assertCurrent();
     updatedRow = rows[0] ?? null;
   }
   if (!updatedRow) {
@@ -1522,12 +1932,19 @@ export async function updateStudentOperationalStatus(
   }
 
   const baseStudent = mapStudentRow(updatedRow, activeOrganizationId);
+  if (baseStudent.id !== studentId || baseStudent.organizationId !== activeOrganizationId) throw new Error("A ficha recebida não corresponde ao atleta solicitado.");
+  const revision = studentDirectoryRevision;
+  const context = { identity: captured.identity, assertCurrent: async () => {
+    await captured.assertCurrent();
+    if (revision !== studentDirectoryRevision) throw new StudentDirectoryChangedError();
+  } };
+  await persistStudentDetail(buildStudentsCacheKey(activeOrganizationId), studentId, { kind: "full", student: { ...baseStudent, financialStatus: "unknown" } }, context);
   if (financialReceipt) {
     return { ...baseStudent, financialStatus: financialReceipt.status };
   }
   const [hydratedStudent] = await hydrateStudentFinancialStatuses(
     [baseStudent],
-    activeOrganizationId
+    activeOrganizationId, true, context,
   );
   return hydratedStudent ?? baseStudent;
 }
@@ -1571,6 +1988,7 @@ export async function inactivateStudents(
     { Prefer: "return=representation" }
   );
 
+  await invalidateStudentDirectoryReads(activeOrganizationId, studentIds);
   const confirmedIds = new Set(updatedRows.map((row) => row.id));
   if (
     updatedRows.length !== studentIds.length ||
@@ -1614,6 +2032,7 @@ export async function deleteStudent(id: string) {
           encodeURIComponent(activeOrganizationId)
       : "/students?id=eq." + encodeURIComponent(id)
   );
+  await invalidateStudentDirectoryReads(activeOrganizationId, [id]);
 }
 
 export async function deleteStudents(ids: string[]) {
@@ -1630,6 +2049,7 @@ export async function deleteStudents(ids: string[]) {
           ")"
       : "/students?id=in.(" + inFilter + ")"
   );
+  await invalidateStudentDirectoryReads(activeOrganizationId, filteredIds);
 }
 
 export async function moveStudentsToClass(
@@ -1656,6 +2076,7 @@ export async function moveStudentsToClass(
     },
     { Prefer: "return=representation" },
   );
+  await invalidateStudentDirectoryReads(activeOrganizationId, filteredIds);
   const movedCount = Number(receiptRows[0]?.moved_count ?? -1);
   if (movedCount !== new Set(filteredIds).size) {
     throw new Error(
@@ -1740,6 +2161,7 @@ export async function setStudentClassIds(
     `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}`,
     { classid: nextPrimaryClassId }
   );
+  await invalidateStudentDirectoryReads(organizationId, [studentId]);
 
   for (const row of existingRows) {
     if (after.includes(row.class_id) || row.status === "inactive") continue;
@@ -2283,20 +2705,107 @@ export async function getAttendanceByStudent(
   }
 }
 
-export async function getAttendanceAll(
-  options: { organizationId?: string | null; startIso?: string; endIso?: string } = {}
-): Promise<AttendanceRecord[]> {
-  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+type AttendanceReadOptions = { organizationId?: string | null; startIso?: string; endIso?: string };
+export type AttendanceSignalRecord = Pick<AttendanceRecord, "id" | "studentId" | "date" | "status" | "createdAt">;
+
+async function readAttendanceRows<Row extends Pick<AttendanceRow, "id" | "date">>(
+  options: AttendanceReadOptions,
+  columns: string,
+  feature: string,
+): Promise<Row[]> {
+  const identity = getSessionIdentity();
+  const cacheGeneration = getReadCacheGeneration();
+  const initialActiveOrganizationId = await getActiveOrganizationId();
+  const organizationId = await getScopedOrganizationId(options.organizationId, feature);
+  if (!organizationId) return [];
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+  let failed = false;
+  let firstError: unknown;
+  const assertContext = async () => {
+    if (failed) throw firstError;
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+    const currentOrganizationId = await getActiveOrganizationId();
+    if (failed) throw firstError;
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration() || currentOrganizationId !== initialActiveOrganizationId) {
+      throw new SessionIdentityChangedError();
+    }
+  };
   const startIso = options.startIso?.trim() || "";
   const endIso = options.endIso?.trim() || "";
-  const rows = await supabaseGet<AttendanceRow[]>(
-    organizationId
-      ? `/attendance_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}${
-          startIso ? `&date=gte.${encodeURIComponent(startIso)}` : ""
-        }${endIso ? `&date=lt.${encodeURIComponent(endIso)}` : ""}&order=date.desc`
-      : `/attendance_logs?select=*${startIso ? `&date=gte.${encodeURIComponent(startIso)}` : ""}${
-          endIso ? `&date=lt.${encodeURIComponent(endIso)}` : ""
-        }&order=date.desc`
+  const pageSize = !startIso && !endIso ? 1000 : EXPORT_PAGE_SIZE;
+  // The column is DATE: split civil dates, preserving the caller's original
+  // timestamp bounds at the edges instead of partitioning hours/time zones.
+  const dateDay = (value: string) => {
+    const key = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(value)?.[1];
+    if (!key || !Number.isFinite(Date.parse(value))) return null;
+    const day = Date.parse(`${key}T00:00:00.000Z`);
+    return Number.isFinite(day) && new Date(day).toISOString().slice(0, 10) === key ? day : null;
+  };
+  const startDay = dateDay(startIso);
+  const endDay = dateDay(endIso);
+  const days = startDay !== null && endDay !== null ? (endDay - startDay) / 86_400_000 : 0;
+  const width = Math.ceil(days / 4);
+  const ranges = days >= 8 && days <= 31 && startDay !== null
+    ? Array.from({ length: Math.ceil(days / width) }, (_, index) => ({
+      start: index === 0 ? startIso : new Date(startDay + index * width * 86_400_000).toISOString().slice(0, 10),
+      end: (index + 1) * width >= days ? endIso : new Date(startDay + (index + 1) * width * 86_400_000).toISOString().slice(0, 10),
+    }))
+    : [{ start: startIso, end: endIso }];
+  const seenIds = new Set<string>();
+  let requests = 0;
+  const quoteFilterValue = (value: string) => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const readRange = async (range: { start: string; end: string }) => {
+    const rangeRows: Row[] = [];
+    let cursor: Pick<AttendanceRow, "date" | "id"> | null = null;
+    try {
+      for (;;) {
+        await assertContext();
+        if (failed) throw firstError;
+        if (requests >= EXPORT_MAX_PAGE_REQUESTS) throw new Error("O volume de chamadas excedeu o limite seguro de leitura.");
+        requests += 1;
+        // Each disjoint range remains serial and indexed; one shared budget
+        // and failure guard prevent runaway or partial multi-range reads.
+        const lowerDate: string = cursor?.date ?? range.start;
+        const cursorFilter: string = cursor
+          ? `&or=${encodeURIComponent(`(date.gt.${quoteFilterValue(cursor.date)},and(date.eq.${quoteFilterValue(cursor.date)},id.gt.${quoteFilterValue(cursor.id)}))`)}`
+          : "";
+        const page: Row[] = await supabaseGet<Row[]>(
+          `/attendance_logs?select=${columns}&organization_id=eq.${encodeURIComponent(organizationId)}${
+            lowerDate ? `&date=gte.${encodeURIComponent(lowerDate)}` : ""
+          }${range.end ? `&date=lt.${encodeURIComponent(range.end)}` : ""}${cursorFilter}&order=date.asc,id.asc&limit=${pageSize}`,
+          identity,
+        );
+        await assertContext();
+        if (failed) throw firstError;
+        if (!page.length) return rangeRows;
+        for (const row of page) {
+          if (!row.id || !row.date || seenIds.has(row.id)) throw new Error("A paginação de chamadas retornou registros inválidos ou repetidos.");
+          seenIds.add(row.id);
+          rangeRows.push(row);
+        }
+        cursor = page[page.length - 1];
+      }
+    } catch (error) {
+      if (!failed) {
+        firstError = error;
+        failed = true;
+      }
+      throw firstError;
+    }
+  };
+  const pages = await Promise.all(ranges.map(readRange));
+  await assertContext();
+  const rows = pages.flat();
+  // Preserve the public newest-first order while reading forward efficiently.
+  rows.reverse();
+  return rows;
+}
+
+export async function getAttendanceAll(options: AttendanceReadOptions = {}): Promise<AttendanceRecord[]> {
+  const rows = await readAttendanceRows<AttendanceRow>(
+    options, "id,classid,studentid,date,status,note,pain_score,createdat", "getAttendanceAll",
   );
   return rows.map((row) => ({
     id: row.id,
@@ -2308,6 +2817,15 @@ export async function getAttendanceAll(
     painScore: row.pain_score ?? 0,
     createdAt: row.createdat,
   }));
+}
+
+export async function getAttendanceSignalRecords(
+  options: { organizationId?: string | null } = {},
+): Promise<AttendanceSignalRecord[]> {
+  type SignalRow = Pick<AttendanceRow, "id" | "studentid" | "date" | "status" | "createdat">;
+  const rows = await readAttendanceRows<SignalRow>(options, "id,studentid,date,status,createdat", "getAttendanceSignalRecords");
+  return rows.map(row => ({ id: row.id, studentId: row.studentid, date: row.date,
+    status: row.status === "faltou" ? "faltou" : "presente", createdAt: row.createdat }));
 }
 
 export async function getAttendanceExportRecords(
@@ -2340,7 +2858,7 @@ export async function getAttendanceExportRecords(
     AttendanceRow,
     "id" | "classid" | "studentid" | "date" | "status"
   >;
-  const rows = await getAllExportPages<ExportAttendanceRow>(
+  const rows = await getAllStudentReadPages<ExportAttendanceRow>(
     (offset, limit) =>
       `/attendance_logs?select=id,classid,studentid,date,status&organization_id=eq.${encodeURIComponent(organizationId)}${
         startIso ? `&date=gte.${encodeURIComponent(startIso)}` : ""

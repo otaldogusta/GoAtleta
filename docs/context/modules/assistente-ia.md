@@ -23,6 +23,18 @@ O backend resolve autorização, memória, governança, periodização e fontes.
 
 ## Contratos a preservar
 
+- Em 25/10, `getSignals` usa a projeção mínima de atletas das turmas; só consome
+  ID/nome/turma e não hidrata fichas completas ou finanças. Regras, severidades,
+  histórico, cache e modelos dos sinais permanecem iguais; igualdade de saída
+  validada em testes focados. [Evidências locais](../../operations/performance-lists-memory-local-2026-10-25.md).
+- Sinais operacionais conservam o histórico completo de faltas consecutivas.
+  Leituras simultâneas compartilham somente trabalho pendente da mesma conta,
+  geração, workspace inicial, organização solicitada e instante explícito.
+  O cache curto de resultados usa esse contexto e relógio real; troca de contexto
+  impede publicação antiga. O motor dispensa hidratação financeira do diretório.
+  Presenças usam projeção tipada de ID/aluno/data/status/criação, sem notas/dor;
+  `createdAt` conserva o desempate no mesmo dia e o histórico não é truncado.
+  [Medições locais da segunda rodada](../../operations/performance-global-startup-round2-local-2026-10-24.md).
 - Organização ativa explícita, associação validada e turma pertencente ao workspace. Conteúdo de mensagens, memórias, documentos e snapshots nunca altera permissões.
 - `lessonContext` identifica versão, organização, turma e data. Cliente rejeita envelope incompatível; servidor fixa turma e descarta rascunho em `discuss`.
 - Rascunho exige blocos/tempos válidos. Aplicação explícita confere plano de origem, preserva versões e reconhece reenvio; não garante exclusão global de concorrência entre editores.
@@ -36,6 +48,10 @@ O backend resolve autorização, memória, governança, periodização e fontes.
 
 ## Decisões e histórico
 
+- Em 23/10, navegação pelo ScreenChat passou a ler conversa/histórico vigentes na
+  confirmação por ref atualizada após commit React, permitindo cache entre teclas.
+  Busy, permissão, desmontagem e identidade continuam bloqueando navegação indevida.
+  Chats dedicado/da aula já recebem cache do Compiler. [Medição local e regressões](../../operations/performance-local-2026-10-23.md), sem certificar fluidez nativa.
 - Roteador atual: `gpt-5.6-luna` para rotina/proativo, `gpt-5.6-terra` para análise complexa; `gpt-4o-mini` permanece permitido. Override e escolha manual válida precedem automático; orçamento é do servidor.
 - Saudação exata é determinística após autorização. Não há classificação paga nem escalada automática por qualidade. Voz usa `gpt-transcribe`; PDF/embeddings têm políticas independentes.
 - [Planejamento contextual](../../operations/planning-assistant-local.md) registra unificação, privacidade e smoke de 30/09; sua pendência de frontend exige conciliação com Git/deploy.

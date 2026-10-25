@@ -3,10 +3,12 @@
 // ---------------------------------------------------------------------------
 
 import * as Sentry from "@sentry/react-native";
+import { assertSessionIdentity, getSessionIdentity, SessionIdentityChangedError } from "../auth/session";
 import type { ScoutingLog, SessionLog, StudentScoutingLog } from "../core/models";
 import { getClassById } from "./classes";
 import {
     getActiveOrganizationId,
+    getReadCacheGeneration,
     getScopedOrganizationId,
     isAuthError,
     isMissingRelation,
@@ -471,14 +473,43 @@ export async function getSessionLogsByRange(
   options: { organizationId?: string | null } = {}
 ): Promise<SessionLog[]> {
   const startedAt = Date.now();
+  const identity = getSessionIdentity();
+  const cacheGeneration = getReadCacheGeneration();
+  const initialActiveOrganizationId = await getActiveOrganizationId();
   const organizationId = await getScopedOrganizationId(
     options.organizationId,
     "getSessionLogsByRange"
   );
   if (!organizationId) return [];
-  const rows = await supabaseGet<SessionLogRow[]>(
-    `/session_logs?select=id,client_id,classid,organization_id,rpe,technique,attendance,activity,conclusion,participants_count,pain_score,createdat&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
-  );
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+  const assertContext = async () => {
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+    const currentOrganizationId = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration() || currentOrganizationId !== initialActiveOrganizationId) {
+      throw new SessionIdentityChangedError();
+    }
+  };
+  const rows: SessionLogRow[] = [];
+  const seenIds = new Set<string>();
+  const pageSize = 500;
+  // Read through an empty page, including when the server caps below pageSize.
+  for (let request = 0; ; request += 1) {
+    if (request >= 1000) throw new Error("O volume de relatórios excedeu o limite seguro de leitura.");
+    await assertContext();
+    const page = await supabaseGet<SessionLogRow[]>(
+      `/session_logs?select=id,client_id,classid,organization_id,rpe,technique,attendance,activity,conclusion,participants_count,pain_score,createdat&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}&order=createdat.asc,id.asc&limit=${pageSize}&offset=${rows.length}`,
+      identity,
+    );
+    await assertContext();
+    if (!page.length) break;
+    for (const row of page) {
+      if (seenIds.has(row.id)) throw new Error("A paginação de relatórios retornou registros repetidos.");
+      seenIds.add(row.id);
+      rows.push(row);
+    }
+  }
   const mapped = rows.map((row) => ({
     id: row.id,
     clientId: row.client_id ?? row.id,

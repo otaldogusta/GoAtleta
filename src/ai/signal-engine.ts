@@ -1,10 +1,13 @@
 import { listAdminPendingSessionLogs } from "../api/reports";
+import { assertSessionIdentity, getSessionIdentity, SessionIdentityChangedError } from "../auth/session";
 import { listCheckinsByRange } from "../data/attendance-checkins";
+import { getActiveOrganizationId, getReadCacheGeneration } from "../db/client";
 import {
-  getAttendanceAll,
+  getAttendanceSignalRecords,
+  type AttendanceSignalRecord,
   getClasses,
   getSessionLogsByRange,
-  getStudents,
+  getClassStudentRecords,
 } from "../db/seed";
 
 export type SignalType =
@@ -44,10 +47,11 @@ const severityPriority: Record<SignalSeverity, number> = {
   low: 1,
 };
 
-const cacheByOrganization = new Map<
+const cacheByContext = new Map<
   string,
   { expiresAt: number; signals: Signal[] }
 >();
+const pendingByContext = new Map<string, Promise<Signal[]>>();
 
 const recommendedActionsByType: Record<SignalType, string[]> = {
   attendance_drop: [
@@ -222,7 +226,7 @@ const buildRepeatedAbsenceSignals = (params: {
   organizationId: string;
   nowMs: number;
   nowIso: string;
-  attendanceLogs: Awaited<ReturnType<typeof getAttendanceAll>>;
+  attendanceLogs: AttendanceSignalRecord[];
   studentsById: Map<string, { name: string; classId: string }>;
 }): Signal[] => {
   const logsByStudent = new Map<string, typeof params.attendanceLogs>();
@@ -455,27 +459,16 @@ const buildEngagementRiskSignal = (params: {
 };
 
 export const __clearSignalEngineCacheForTests = () => {
-  cacheByOrganization.clear();
+  cacheByContext.clear();
+  pendingByContext.clear();
 };
 
-export async function getSignals(params: {
-  organizationId: string;
-  nowIso?: string;
-}): Promise<Signal[]> {
-  const organizationId = params.organizationId?.trim();
-  if (!organizationId) return [];
-
-  const now = getNowContext(params.nowIso);
-  const cached = cacheByOrganization.get(organizationId);
-  if (cached && cached.expiresAt > now.nowMs) {
-    return cached.signals;
-  }
-
+async function loadSignals(organizationId: string, now: ReturnType<typeof getNowContext>): Promise<Signal[]> {
   const [classes, students, attendanceLogs, sessionLogs, pendingReports, nfcCheckins] =
     await Promise.all([
       getClasses({ organizationId }),
-      getStudents({ organizationId }),
-      getAttendanceAll({ organizationId }),
+      getClassStudentRecords({ organizationId }),
+      getAttendanceSignalRecords({ organizationId }),
       getSessionLogsByRange(now.longFromIso, now.nowIso, { organizationId }),
       listAdminPendingSessionLogs({ organizationId }),
       listCheckinsByRange({
@@ -536,10 +529,52 @@ export async function getSignals(params: {
     signals.push(engagementRisk);
   }
 
-  const finalSignals = dedupeSignals(signals);
-  cacheByOrganization.set(organizationId, {
-    expiresAt: now.nowMs + CACHE_TTL_MS,
-    signals: finalSignals,
+  return dedupeSignals(signals);
+}
+
+export async function getSignals(params: {
+  organizationId: string;
+  nowIso?: string;
+}): Promise<Signal[]> {
+  const organizationId = params.organizationId?.trim();
+  if (!organizationId) return [];
+  const identity = getSessionIdentity();
+  if (!identity.userId) throw new Error("Sessão expirada. Entre novamente.");
+  const generation = getReadCacheGeneration();
+  const initialOrganizationId = await getActiveOrganizationId();
+  const assertCurrent = async () => {
+    assertSessionIdentity(identity);
+    const currentOrganizationId = await getActiveOrganizationId();
+    assertSessionIdentity(identity);
+    if (generation !== getReadCacheGeneration() || currentOrganizationId !== initialOrganizationId) throw new SessionIdentityChangedError();
+  };
+  await assertCurrent();
+  // Explicit analysis times have independent results. Wall time controls the TTL
+  // even when a caller keeps requesting the same historical analysis time.
+  const key = JSON.stringify([identity.userId, identity.generation, generation, initialOrganizationId, organizationId, params.nowIso ?? null]);
+  const nowMs = Date.now();
+  for (const [cachedKey, cached] of cacheByContext) {
+    if (cached.expiresAt <= nowMs) cacheByContext.delete(cachedKey);
+  }
+  const cached = cacheByContext.get(key);
+  if (cached) return cached.signals;
+  const existing = pendingByContext.get(key);
+  if (existing) {
+    const signals = await existing;
+    await assertCurrent();
+    return signals;
+  }
+  const pending = loadSignals(organizationId, getNowContext(params.nowIso)).then(async signals => {
+    await assertCurrent();
+    cacheByContext.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, signals });
+    return signals;
   });
-  return finalSignals;
+  pendingByContext.set(key, pending);
+  try {
+    const signals = await pending;
+    await assertCurrent();
+    return signals;
+  } finally {
+    if (pendingByContext.get(key) === pending) pendingByContext.delete(key);
+  }
 }

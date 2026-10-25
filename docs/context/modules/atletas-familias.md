@@ -24,12 +24,41 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 ## Contratos a preservar
 
+- Em 25/10, listas usam `StudentDirectoryRecord` (16 colunas de cadastro) e
+  turmas/sinais usam `ClassStudentRecord` (5 colunas), com paginação integral de
+  500, cache separado e sem substituir o leitor FULL de exportação/domínio.
+  A ficha completa baixa ao abrir, opção escolhida pelo usuário; loading/erro
+  não montam editor com dados parciais. Ficha já sincronizada permanece offline;
+  primeira abertura exige conexão, salvo FULL legado disponível. Cache por ID
+  sanitiza finanças; tombstone impede reviver ficha alterada do FULL legado,
+  preservando as demais. Salvar relê a ficha canônica antes de fechar; seleção,
+  foco, identidade e geração descartam respostas antigas. [Contrato e evidências](../../operations/performance-lists-memory-local-2026-10-25.md).
+- URLs assinadas de fotos mantêm TTL de 50 minutos, limpeza de expiradas e LRU
+  limitado a 512 entradas; acesso, fila compartilhada e grants continuam escopados.
+- Em 24/10/2026, diretório e aniversários passaram a ler todas as páginas, sem
+  gravar listas parciais no cache. A retomada usa cursor `(name,id)`, comparado pelo
+  PostgreSQL, e índice aditivo por organização/nome/ID testado só no banco isolado.
+  Organização explícita autorizada do aluno/família
+  pode diferir da ativa; a guarda fixa a sessão e o workspace inicial contra mudanças.
+  Fotos do diretório/turmas são solicitadas por página/visibilidade, com fila de seis
+  e grants separados por contexto. [Medições e limites locais](../../operations/performance-stress-local-2026-10-24.md).
+
 - Cadastro ativo/inativo, matrícula, vínculo de login e condição financeira são
   dimensões diferentes. Não deduzir acesso pela presença de telefone ou e-mail na ficha.
+- Leituras equivalentes pendentes de `getStudents` compartilham somente a tarefa
+  base sanitizada, por sessão/token/geração/organização. Hidratação financeira é
+  separada e exclusiva dos chamadores habilitados; cada consumidor recebe cópias.
+  Escritas canônicas invalidam a tarefa e retomam a leitura, com orçamento finito;
+  troca de identidade ou workspace rejeita o resultado. A tarefa sai do mapa ao
+  concluir a base, sem acrescentar TTL ao diretório. [Segunda rodada local](../../operations/performance-global-startup-round2-local-2026-10-24.md).
 - A gestão operacional usa inativação. Não reintroduzir exclusão permanente em
   Gestão/turma nem apagar atletas ao remover uma turma com vínculos.
 - Dados financeiros são hidratados pela projeção autorizada; o cache geral guarda
   atletas sem esse estado sensível. Ausência de permissão não deve quebrar o cadastro.
+  `getStudents({ includeFinancial: false })` permite à lista de turmas pular essa
+  hidratação; o padrão continua habilitado. Campos, ordem, cache sanitizado e
+  guardas de identidade/geração/organização permanecem iguais. A opção não atribui
+  um estado financeiro calculado nem muda a autorização.
 - Tipos `athlete`, `guardian`, `payer`, `viewer` têm capacidades explícitas.
   [relationship-presets.ts](../../../src/family/application/relationship-presets.ts) mantém saúde/consentimento
   desabilitados e exige leitura financeira quando `canPay` estiver ativo.

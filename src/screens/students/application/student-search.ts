@@ -1,4 +1,5 @@
-import type { ClassGroup, Student } from "../../../core/models";
+import type { ClassGroup } from "../../../core/models";
+import type { StudentDirectoryRecord } from "../../../core/student-read-models";
 
 export const ALL_STUDENTS_UNITS_LABEL = "Todas";
 
@@ -26,7 +27,7 @@ export const normalizedTextMatchesToken = (text: string, token: string) => {
 };
 
 export const studentMatchesSearch = (params: {
-  student: Student;
+  student: StudentDirectoryRecord;
   classGroup?: ClassGroup | null;
   unitName?: string;
   query: string;
@@ -60,7 +61,7 @@ export const hasActiveStudentSearch = (query: string | null | undefined) =>
   normalizeStudentSearchText(query).length > 0;
 
 export const filterStudentsForList = (params: {
-  students: Student[];
+  students: StudentDirectoryRecord[];
   classById: ReadonlyMap<string, ClassGroup>;
   unitFilter: string;
   unitLabel: (value: string) => string;

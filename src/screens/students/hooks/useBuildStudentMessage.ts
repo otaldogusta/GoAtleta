@@ -39,7 +39,7 @@ export function useBuildStudentMessage({
 }: UseBuildStudentMessageParams) {
   const buildStudentMessage = useCallback(
     (
-      student: Student,
+      student: Pick<Student, "name">,
       cls: ClassGroup | null,
       templateId: WhatsAppTemplateId,
       fields: Record<string, string>

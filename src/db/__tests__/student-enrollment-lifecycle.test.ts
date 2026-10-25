@@ -10,6 +10,7 @@ jest.mock("@sentry/react-native", () => ({
 jest.mock("../client", () => ({
   CACHE_KEYS: { attendanceRecords: "attendance", students: "students" },
   getActiveOrganizationId: jest.fn(() => Promise.resolve("org-1")),
+  getReadCacheGeneration: () => 1,
   getScopedOrganizationId: jest.fn((value: string | null | undefined) =>
     Promise.resolve(value ?? "org-1"),
   ),
@@ -27,6 +28,10 @@ jest.mock("../client", () => ({
 
 jest.mock("../../auth/session", () => ({
   getSessionUserId: jest.fn(() => Promise.resolve("user-1")),
+  getSessionIdentity: () => ({ userId: "user-1", generation: 1 }),
+  getAccessToken: () => "fixture-token",
+  assertSessionIdentity: jest.fn(),
+  SessionIdentityChangedError: class extends Error {},
 }));
 
 // eslint-disable-next-line import/first -- load the module only after its Jest dependencies are mocked

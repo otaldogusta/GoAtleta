@@ -1,4 +1,5 @@
 const mockSupabasePatch = jest.fn();
+jest.mock("../student-financial-read", () => ({ readStudentFinancialStatuses: async () => null }));
 const mockSupabaseGet = jest.fn();
 const mockSupabasePost = jest.fn();
 const mockGetSessionUserId = jest.fn();
@@ -17,6 +18,7 @@ jest.mock("../client", () => ({
     students: "students",
   },
   getActiveOrganizationId: jest.fn(() => Promise.resolve("org-1")),
+  getReadCacheGeneration: () => 1,
   getScopedOrganizationId: jest.fn((value: string | null | undefined) =>
     Promise.resolve(value ?? "org-1"),
   ),
@@ -34,6 +36,10 @@ jest.mock("../client", () => ({
 
 jest.mock("../../auth/session", () => ({
   getSessionUserId: () => mockGetSessionUserId(),
+  getSessionIdentity: () => ({ userId: "user-1", generation: 1 }),
+  getAccessToken: () => "fixture-token",
+  assertSessionIdentity: jest.fn(),
+  SessionIdentityChangedError: class extends Error {},
 }));
 
 // eslint-disable-next-line import/first -- load the module only after its Jest dependencies are mocked
@@ -281,7 +287,9 @@ describe("student financial hydration", () => {
         ]);
       }
       return Promise.resolve([
-        { ...inactiveStudentRow, financial_status: "regular" },
+        ...(!new URL(path, "https://example.test").searchParams.has("or")
+          ? [{ ...inactiveStudentRow, financial_status: "regular" }]
+          : []),
       ]);
     });
 
@@ -300,7 +308,9 @@ describe("student financial hydration", () => {
         return Promise.resolve([]);
       }
       return Promise.resolve([
-        { ...inactiveStudentRow, financial_status: "delinquent" },
+        ...(!new URL(path, "https://example.test").searchParams.has("or")
+          ? [{ ...inactiveStudentRow, financial_status: "delinquent" }]
+          : []),
       ]);
     });
 

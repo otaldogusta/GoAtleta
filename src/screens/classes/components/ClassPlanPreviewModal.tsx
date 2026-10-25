@@ -338,7 +338,7 @@ export function ClassPlanPreviewModal({
     const prepareDownload = () => idleCallback(async () => {
       try {
         const [{ SessionPlanDocument }, { createWebPdfBlob }] = await Promise.all([
-          import("../../../pdf/session-plan-document"),
+          import("../../../pdf/pdf-runtime"),
           import("../../../pdf/export-pdf"),
         ]);
         const document = createElement(SessionPlanDocument, { data: pdfData });
@@ -411,7 +411,7 @@ export function ClassPlanPreviewModal({
         return;
       }
 
-      const { SessionPlanDocument } = await import("../../../pdf/session-plan-document");
+      const { SessionPlanDocument } = await import("../../../pdf/pdf-runtime");
       await pdfModule.exportPdf({
         html: sessionPlanHtml(pdfData),
         fileName: pdfModule.safeFileName(fileName.replace(/\.pdf$/i, "")) + ".pdf",
