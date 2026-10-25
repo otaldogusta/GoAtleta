@@ -76,9 +76,20 @@ usuários simultâneos ou validação em aparelho.
   Assinatura, pacote `com.otaldogusta.goatleta`, runtime/canal e Updates habilitado
   conferidos no manifesto compilado; binário sem debug. Instalação por ADB no
   aparelho conectado concluída, preservando o pacote de teste e seus dados.
-  Abertura na tela inicial aprovada; login e smoke autenticado ainda pendentes.
+  Abertura inicial e smoke autenticado no Samsung SM-S931B/Android 17 aprovados:
+  painel, lista de 63 atletas, ficha completa/retorno, quatro turmas,
+  turma/planejamento e retorno. Nenhum cadastro ou relatório foi editado/salvo.
+  Três reaberturas frias preservaram a sessão e o workspace Coordenação.
   Os 645 ms da Activity na primeira abertura não medem conteúdo interativo ou
   navegação autenticada e não são comparação de performance.
+- Após autenticação, Activity `TotalTime` de 420/390/469 ms nas três reaberturas;
+  esses valores continuam distintos de tempo até interação. PSS do processo
+  após os fluxos: 341.921 KB; após reaberturas: 226.274/236.432/244.881 KB.
+  São pontos de processo, não heap ou teste prolongado de estabilidade.
+  Filtros `AndroidRuntime:E`, `ReactNativeJS:E` e `libc:F` não encontraram linhas
+  nos PIDs/janelas observados dos fluxos e da última reabertura. Não equivale a
+  consulta global ao Sentry ou certificação de ausência de crashes/vazamento.
+  Capturas e recibos autenticados ficaram privados, fora do Git.
 - O aparelho conectado tinha somente `com.otaldogusta.goatleta.perf`, versão
   `1.0.3-perf`. O manifesto compilado indica runtime 1.0.3, canal `perf` e
   Updates desabilitado, portanto esse APK não recebe o OTA de produção. A tela
