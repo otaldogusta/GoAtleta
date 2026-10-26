@@ -222,7 +222,7 @@ describe("WebSidebar profile menu", () => {
     } });
     const view = render(React.createElement(WebSidebar, { role: "coord", showCompact: true }));
     fireEvent.press(view.getByLabelText("Agenda"));
-    expect(mockReplace).toHaveBeenCalledWith("/coord/calendar", { withAnchor: true });
+    expect(mockPush).toHaveBeenCalledWith("/coord/calendar");
     expect(view.getByLabelText("Eventos")).toBeTruthy();
   });
 
