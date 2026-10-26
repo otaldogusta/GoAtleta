@@ -6,9 +6,9 @@ type SidebarItemWithKey = {
 
 const PROFESSOR_NAVIGATION_ORDER = [
   "home",
-  "planning",
   "classes",
   "students",
+  "planning",
   "calendar",
   "nfc",
   "absence",
@@ -23,6 +23,8 @@ const COORDINATION_NAVIGATION_ORDER = [
   "dashboard",
   "classes",
   "students",
+  "planning",
+  "calendar",
   "management",
   "finance",
   "events",

@@ -16,6 +16,7 @@ import {
   useRef,
   useState
 } from "react";
+import type { ReactNode } from "react";
 import {
   FlatList,
   Platform,
@@ -176,7 +177,16 @@ type MonthCalendarDayModel = {
   agendaItems: AgendaItemModel[];
 };
 
-export default function CalendarScreen() {
+type StudentCalendarProps = {
+  studentClasses?: ClassGroup[];
+  studentLoading?: boolean;
+  studentError?: boolean;
+  onMonthChange?: (month: Date) => void;
+  headerActions?: ReactNode;
+};
+
+export default function CalendarScreen({ studentClasses, studentLoading = false, studentError = false, onMonthChange, headerActions }: StudentCalendarProps = {}) {
+  const studentMode = studentClasses !== undefined;
   markRender("screen.calendar.render.root");
   const router = useRouter();
   const calendarPath = usePathname();
@@ -190,12 +200,12 @@ export default function CalendarScreen() {
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
-    if (!organizationId) return;
+    if (studentMode || !organizationId) return;
     void listCalendarPauses(organizationId).then(rows => {
       if (alive) setCalendarPauses({ organizationId, rows });
     }).catch(() => { /* Keep the last verified calendar; retry on organization change. */ });
     return () => { alive = false; };
-  }, [activeOrganization?.id]);
+  }, [activeOrganization?.id, studentMode]);
 
   const params = useLocalSearchParams();
   const targetClassId =
@@ -207,17 +217,19 @@ export default function CalendarScreen() {
       ? targetDateParam
       : "";
   const openApply =
-    typeof params.openApply === "string" ? params.openApply === "1" : false;
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
+    !studentMode && typeof params.openApply === "string" ? params.openApply === "1" : false;
+  const [staffClasses, setClasses] = useState<ClassGroup[]>([]);
+  const classes = studentClasses ?? staffClasses;
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [unitFilter, setUnitFilter] = useState(() => typeof params.unit === "string" ? params.unit : "Todas");
+  const [unitFilter, setUnitFilter] = useState(() => !studentMode && typeof params.unit === "string" ? params.unit : "Todas");
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const seed = targetDate ? new Date(targetDate + "T00:00:00") : new Date();
     return new Date(seed.getFullYear(), seed.getMonth(), 1);
   });
   const [selectedDate, setSelectedDate] = useState(() => targetDate || formatIsoDate(new Date()));
+  useEffect(() => { onMonthChange?.(visibleMonth); }, [visibleMonth, onMonthChange]);
   const [showApplyPicker, setShowApplyPicker] = useState(false);
   const [applyPickerClassId, setApplyPickerClassId] = useState("");
   const [applyPickerDate, setApplyPickerDate] = useState("");
@@ -298,6 +310,7 @@ export default function CalendarScreen() {
     let alive = true;
     (async () => {
       try {
+        if (studentMode) return;
         const classList = await measureAsync("screen.calendar.load.classes", () => getClasses());
         if (!alive) return;
         setClasses(classList);
@@ -318,11 +331,11 @@ export default function CalendarScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [studentMode]);
 
   useEffect(() => {
     let alive = true;
-    if (!activeOrganization?.id) {
+    if (studentMode || !activeOrganization?.id) {
       Promise.resolve().then(() => {
         setEvents([]);
       });
@@ -352,7 +365,7 @@ export default function CalendarScreen() {
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id]);
+  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id, studentMode]);
 
   const applyTargetHandled = useRef(false);
   useEffect(() => {
@@ -713,6 +726,7 @@ export default function CalendarScreen() {
   };
 
   const applyPlanToDay = async (plan: TrainingPlan) => {
+    if (studentMode) return;
     if (!applyPickerClassId || !applyPickerDate) return;
     const targetClassId = applyPickerClassId;
     const targetDate = applyPickerDate;
@@ -792,13 +806,14 @@ export default function CalendarScreen() {
 
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        {loadingData ? (
+        {(studentMode ? studentLoading : loadingData) ? (
           <ScreenLoadingState />
         ) : (
           <>
           <ScreenPageHeader
             title="Calendário mensal"
-            onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+            right={headerActions}
+            onBack={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : "/prof/home" })}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Text style={{ color: colors.text, fontSize: mobileAgenda ? 18 : 20, fontWeight: "600" }}>{monthTitle}</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{monthSummaryLabel}</Text></View>
@@ -839,7 +854,7 @@ export default function CalendarScreen() {
               </View>
             ) : null}
 
-            <CalendarUnitSelect value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value }); }} />
+            {!studentMode ? <CalendarUnitSelect value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value }); }} /> : null}
 
             <View onLayout={event => setAgendaHeight(event.nativeEvent.layout.height)} style={{ position: "relative", width: "100%", flexDirection: splitAgenda ? "row" : "column", gap: mobileAgenda ? 12 : 20, alignItems: "flex-start", ...(mobileAgenda ? { flex: 1, minHeight: 0, overflow: "hidden" } : {}) }}>
               <View style={{ width: "100%", flex: splitAgenda ? 1 : undefined, minWidth: 0, backgroundColor: colors.card, borderRadius: 16, padding: isCompactLayout ? 12 : 20, borderWidth: 1, borderColor: colors.border, ...(mobileAgenda ? { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, paddingHorizontal: 4, paddingVertical: 0, flexShrink: 0 } : {}) }}>
@@ -875,12 +890,12 @@ export default function CalendarScreen() {
                   <View style={agendaStyles.headerText}><Text accessibilityRole="header" style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View>
                   {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel={calendarCollapsed ? "Mostrar mês completo" : "Mostrar semana"} onPress={() => { setCalendarCollapsed(value => !value); }} style={agendaStyles.toggle}><GoAtletaIcon name="calendar" size={20} color={colors.muted} /></Pressable> : <GoAtletaIcon name="calendar" size={20} color={colors.muted} />}
                 </View>}>
-                {selectedDay?.agendaItems.length ? selectedDay.agendaItems.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.timeLabel}, ${item.title}`} onPress={() => { if (item.kind === "class") router.push({ pathname: "/class/[id]", params: { id: item.classId, calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", calendarDate: item.dateIso, calendarUnit: unitFilter } }); else router.push({ pathname: "/events/[id]", params: { id: item.eventId } }); }} style={agendaStyles.event}>
+                {selectedDay?.agendaItems.length ? selectedDay.agendaItems.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.timeLabel}, ${item.title}`} onPress={() => { if (studentMode && item.kind === "class") { router.push({ pathname: "/student-plan", params: { classId: item.classId, date: item.dateIso } }); return; } if (item.kind === "class") router.push({ pathname: "/class/[id]", params: { id: item.classId, calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", calendarDate: item.dateIso, calendarUnit: unitFilter } }); else router.push({ pathname: "/events/[id]", params: { id: item.eventId } }); }} style={agendaStyles.event}>
                   <View style={agendaStyles.time}><Text style={agendaStyles.timeText}>{item.timeLabel.split(" - ")[0]}</Text>{item.timeLabel.includes(" - ") ? <Text style={agendaStyles.count}>{item.timeLabel.split(" - ")[1]}</Text> : null}</View>
                   <View style={agendaColorStyles[item.dotColor].bar} />
                   <View style={agendaStyles.eventContent}><Text style={agendaStyles.eventTitle}>{item.title}</Text><Text style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
                   <GoAtletaIcon name="chevronForward" size={14} color={colors.muted} />
-                </Pressable>) : <Text style={agendaStyles.empty}>Nenhuma aula ou evento neste dia.</Text>}
+                </Pressable>) : <Text style={agendaStyles.empty}>{studentMode ? studentError ? "Não foi possível carregar seus treinos." : "Nenhum treino neste dia." : "Nenhuma aula ou evento neste dia."}</Text>}
                 </CalendarEventSheet>
               </View>
             </View>
@@ -888,7 +903,7 @@ export default function CalendarScreen() {
       </>
         )}
       <ModalSheet
-        visible={showApplyPicker}
+        visible={!studentMode && showApplyPicker}
         onClose={closeApplyPicker}
         cardStyle={[applyPickerCardStyle, { paddingBottom: 12 }]}
         position="center"

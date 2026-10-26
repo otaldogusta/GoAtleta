@@ -58,6 +58,26 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 
 ## Decisões e fontes
 
+- Agenda da coordenação: o menu web oferece `Agenda` após `Planejamento`, em
+  `/coord/calendar`, reutilizando o calendário mensal e a boundary `calendar`.
+  A rota mantém o shell de coordenação; `Eventos` continua como entrada de gestão.
+  Em 26/10/2026, navegação e calendário carregado conferidos em localhost:8081;
+  testes de menu/permissão, tipos e org-scope passaram. Ajuste local, sem publicação.
+
+- Atalhos do painel de coordenação reutilizam `ShortcutCard` para as áreas
+  principais do menu e Perfil, incluindo Agenda e Atletas. Eventos identifica
+  criação e gestão; Agenda abre o calendário. Fonte: `HomeProfessorBelowFold.tsx`.
+  Menu e cards priorizam Turmas, Atletas, Planejamento e Agenda após o início;
+  ferramentas complementares vêm depois. Ordem conferida em localhost:8081.
+
+- Professor: após Início, o menu prioriza Turmas, Alunos, Planejamento e Agenda.
+  Os cards seguem a mesma ordem e mantêm as condições de permissão existentes.
+  Fontes: `web-sidebar-navigation.ts` e `HomeProfessorBelowFold.tsx`.
+
+- Atleta usa o mesmo `CalendarScreen` de professor/coordenação, com dados do
+  vínculo fornecidos pelo adaptador de agenda e gestão desativada. Ver contrato
+  e validação em [atletas e famílias](atletas-familias.md).
+
 [Índice UI](../../ui/README.md) é a fonte visual existente: abra somente o guia
 de tokens, componentes, formulário ou responsividade afetado. Home do professor
 é referência de densidade. [Auditoria de densidade](../../ui/DENSITY_AUDIT.md) e

@@ -1,6 +1,7 @@
 import type { MemberPermissionKey } from "../api/members";
 
 export const trainerPermissionByPrefix = [
+  { prefix: "/coord/calendar", permissionKey: "calendar" },
   { prefix: "/coord/finance", permissionKey: "financial" },
   { prefix: "/coord/family-access", permissionKey: "students" },
   { prefix: "/prof/students", permissionKey: "students" },

@@ -1008,6 +1008,12 @@ export function WebSidebar({
     ],
     coord: [
       {
+        key: "calendar",
+        label: "Agenda",
+        href: "/coord/calendar",
+        icon: "calendar",
+      },
+      {
         key: "students",
         label: "Atletas",
         href: "/coord/students",
@@ -1727,6 +1733,7 @@ export function WebSidebar({
           >
             {isProfileMenuOpen ? renderProfileMenu("compact") : null}
             <Pressable
+              suppressWebHoverFeedback
               accessibilityLabel={
                 isProfileMenuOpen
                   ? "Fechar menu de perfil"
@@ -1737,17 +1744,11 @@ export function WebSidebar({
               style={{
                 width: 58,
                 height: 58,
-                borderRadius: 18,
+                borderRadius: 29,
                 alignSelf: "center",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: isProfileMenuOpen
-                  ? "rgba(255,255,255,0.13)"
-                  : "rgba(255,255,255,0.08)",
-                borderWidth: 1,
-                borderColor: isProfileMenuOpen
-                  ? "rgba(65, 217, 132, 0.62)"
-                  : "rgba(255,255,255,0.10)",
+                backgroundColor: "transparent",
               }}
             >
               <View

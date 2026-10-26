@@ -181,6 +181,18 @@ describe("WebSidebar profile menu", () => {
     expect(screen.getByLabelText("Planejamento")).toBeTruthy();
   });
 
+  it("opens the coordination agenda without switching to the professor workspace", () => {
+    mockPathname = "/coord/events";
+    mockOrganizationContext.memberPermissions.events = true;
+    Object.defineProperty(window, "history", { configurable: true, value: {
+      state: { key: "events" }, pushState: mockHistoryPushState, replaceState: mockHistoryReplaceState,
+    } });
+    const view = render(React.createElement(WebSidebar, { role: "coord", showCompact: true }));
+    fireEvent.press(view.getByLabelText("Agenda"));
+    expect(mockReplace).toHaveBeenCalledWith("/coord/calendar", { withAnchor: true });
+    expect(view.getByLabelText("Eventos")).toBeTruthy();
+  });
+
   it("does not expand the default invite permissions into unrelated areas", () => {
     mockOrganizationContext.organizations[0].role_level = 10;
     mockOrganizationContext.activeOrganization.role_level = 10;

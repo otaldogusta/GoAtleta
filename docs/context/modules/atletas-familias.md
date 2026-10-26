@@ -44,6 +44,16 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 ## Decisões atuais e limites
 
+- Agenda do atleta reutiliza o calendário mensal de `app/calendar.tsx` em modo
+  de leitura, alimentado exclusivamente pela turma vinculada via `classId` e
+  organização do atleta em `app/agenda/index.tsx`. Mudança de vínculo descarta
+  dados e estado anteriores. Sem consultas gerais de turmas, planos, eventos ou
+  pausas de gestão nesse modo; parâmetros `openApply` não abrem ações de equipe.
+  Treinos abrem `/student-plan` e a exportação ICS do vínculo foi preservada.
+  Em 26/10/2026, mês, dia com treino e abertura/retorno conferidos no localhost;
+  10 testes de leitura, navegação, erro e seleção passaram, assim como tipos e
+  org-scope. Exportação acompanha o mês exibido. Prints privados em
+  `.tmp/coord-shortcuts/atleta/`. Sem publicação.
 - Responsável sem convite foi exercitado com cadastro, OTP, solicitação,
   conferência e aprovação reais no Supabase/Mailpit locais em 25/10/2026.
   Vínculo familiar preservou o login próprio da atleta e não criou papel de equipe;

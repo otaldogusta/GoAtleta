@@ -19,9 +19,9 @@ describe("web sidebar navigation", () => {
 
     expect(orderWebSidebarItems("prof", items).map((item) => item.key)).toEqual([
       "home",
-      "planning",
       "classes",
       "students",
+      "planning",
       "calendar",
       "nfc",
       "absence",
@@ -43,8 +43,10 @@ describe("web sidebar navigation", () => {
     ]);
   });
 
-  it("places coordination students beside classes", () => {
+  it("prioritizes the coordination daily workflow", () => {
     const items = [
+      { key: "planning" },
+      { key: "calendar" },
       { key: "management" },
       { key: "finance" },
       { key: "events" },
@@ -57,6 +59,8 @@ describe("web sidebar navigation", () => {
       "dashboard",
       "classes",
       "students",
+      "planning",
+      "calendar",
       "management",
       "finance",
       "events",

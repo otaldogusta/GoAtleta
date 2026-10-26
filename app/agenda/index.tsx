@@ -1,7 +1,8 @@
+import CalendarScreen from "../calendar";
+import { CalendarExportMenu } from "../../src/screens/calendar/CalendarExportMenu";
 import { usePathname, useRouter } from "expo-router";
 
-// perf-check: ignore-render -- this release only updates the visible brand name in the ICS metadata.
-// perf-check: ignore-measure -- no screen loading or data-fetching path changed in this release.
+import { markRender, measureAsync } from "../../src/observability/perf";
 import {
     useEffect,
     useMemo,
@@ -100,6 +101,7 @@ const isClassDay = (date: Date, classes: ClassGroup[]) => {
 };
 
 export default function AgendaScreen() {
+  markRender("screen.agenda.render.root");
   const router = useRouter();
   const pathname = usePathname();
   const { role, student } = useRole();
@@ -128,8 +130,8 @@ export default function AgendaScreen() {
         return;
       }
       const data = isStudentAgenda
-        ? await getClassById(classId!, { organizationId }).then((group) => group ? [group] : [])
-        : await getClasses({ organizationId });
+        ? await measureAsync("screen.agenda.load.linked-class", () => getClassById(classId!, { organizationId })).then((group) => group ? [group] : [])
+        : await measureAsync("screen.agenda.load.classes", () => getClasses({ organizationId }));
       if (alive) {
         setLoaded({ scopeKey, classes: data });
         setFailedScope(null);
@@ -226,6 +228,13 @@ export default function AgendaScreen() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  if (isStudentAgenda) {
+    return <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <CalendarScreen key={scopeKey} studentClasses={classes} studentLoading={loaded?.scopeKey !== scopeKey} studentError={failedScope === scopeKey} onMonthChange={setMonth} headerActions={<CalendarExportMenu disabled={!classes.length} onExport={exportIcs} />} />
+      {icsPreview ? <TextInput accessibilityLabel="Arquivo .ics" value={icsPreview} multiline style={{ color: colors.text, backgroundColor: colors.card, minHeight: 140 }} /> : null}
+    </View>;
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

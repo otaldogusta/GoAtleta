@@ -141,10 +141,22 @@ function HomeProfessorBelowFoldBase({
         route: "/coord/classes",
       },
       {
+        label: "Atletas",
+        description: "Cadastros e vínculos",
+        icon: "students",
+        route: "/coord/students",
+      },
+      {
         label: "Planejamento",
         description: "Planos e aulas",
         icon: "planning",
         route: "/coord/planning",
+      },
+      {
+        label: "Agenda",
+        description: "Aulas e eventos",
+        icon: "calendar",
+        route: "/coord/calendar",
       },
       {
         label: "Gestão",
@@ -160,7 +172,7 @@ function HomeProfessorBelowFoldBase({
       },
       {
         label: "Eventos",
-        description: "Agenda institucional",
+        description: "Criar e gerenciar eventos",
         icon: "events",
         route: "/coord/events",
       },
@@ -194,6 +206,12 @@ function HomeProfessorBelowFoldBase({
         icon: "assistant",
         route: "/coord/assistant",
       },
+      {
+        label: "Perfil",
+        description: "Conta e configurações",
+        icon: "profile",
+        route: "/coord/profile",
+      },
     ] as const;
 
     return (
@@ -221,26 +239,6 @@ function HomeProfessorBelowFoldBase({
       <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {canOpenTrainingShortcut ? (
-          <ShortcutCard
-            label="Planejamento"
-            description="Modelos e planejamentos"
-            icon="planning"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/planning")}
-          />
-        ) : null}
-
-        {canOpenStudentsShortcut ? (
-          <ShortcutCard
-            label="Consultoria online"
-            description="Prescrição individual"
-            icon="consultation"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/consultation")}
-          />
-        ) : null}
-
         {canOpenClassesShortcut ? (
           <ShortcutCard
             label="Turmas"
@@ -261,23 +259,23 @@ function HomeProfessorBelowFoldBase({
           />
         ) : null}
 
+        {canOpenTrainingShortcut ? (
+          <ShortcutCard
+            label="Planejamento"
+            description="Modelos e planejamentos"
+            icon="planning"
+            mobile={mobile}
+            onPress={() => navigateToShortcut("/prof/planning")}
+          />
+        ) : null}
+
         {canOpenCalendarShortcut ? (
           <ShortcutCard
-            label="Calendário mensal"
+            label="Agenda"
             description="Aulas e chamada"
             icon="calendar"
             mobile={mobile}
             onPress={() => navigateToShortcut("/prof/calendar")}
-          />
-        ) : null}
-
-        {canOpenAbsenceNoticesShortcut ? (
-          <ShortcutCard
-            label="Notificações"
-            description="Atualizações e ausências"
-            icon="absenceNotices"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/absence-notices")}
           />
         ) : null}
 
@@ -288,6 +286,16 @@ function HomeProfessorBelowFoldBase({
             icon="nfc"
             mobile={mobile}
             onPress={() => navigateToShortcut("/prof/nfc-attendance")}
+          />
+        ) : null}
+
+        {canOpenAbsenceNoticesShortcut ? (
+          <ShortcutCard
+            label="Notificações"
+            description="Atualizações e ausências"
+            icon="absenceNotices"
+            mobile={mobile}
+            onPress={() => navigateToShortcut("/prof/absence-notices")}
           />
         ) : null}
 
@@ -311,13 +319,13 @@ function HomeProfessorBelowFoldBase({
           />
         ) : null}
 
-        {canOpenRegulationHistoryShortcut ? (
+        {canOpenStudentsShortcut ? (
           <ShortcutCard
-            label="Regulamentos"
-            description="Fontes e histórico"
-            icon="regulations"
+            label="Consultoria online"
+            description="Prescrição individual"
+            icon="consultation"
             mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/regulation-history")}
+            onPress={() => navigateToShortcut("/prof/consultation")}
           />
         ) : null}
 
@@ -328,6 +336,16 @@ function HomeProfessorBelowFoldBase({
             icon="assistant"
             mobile={mobile}
             onPress={() => navigateToShortcut("/prof/assistant")}
+          />
+        ) : null}
+
+        {canOpenRegulationHistoryShortcut ? (
+          <ShortcutCard
+            label="Regulamentos"
+            description="Fontes e histórico"
+            icon="regulations"
+            mobile={mobile}
+            onPress={() => navigateToShortcut("/prof/regulation-history")}
           />
         ) : null}
       </View>
