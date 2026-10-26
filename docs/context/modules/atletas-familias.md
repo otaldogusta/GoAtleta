@@ -44,6 +44,10 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 ## Decisões atuais e limites
 
+- Responsável sem convite foi exercitado com cadastro, OTP, solicitação,
+  conferência e aprovação reais no Supabase/Mailpit locais em 25/10/2026.
+  Vínculo familiar preservou o login próprio da atleta e não criou papel de equipe;
+  [20 capturas, escopo e limites](../../operations/entry-guardian-local-2026-10-25.md).
 - O perfil compartilhado é composição visual; autorização permanece nas APIs/RPCs e
   capacidades de cada consumidor. A aba financeira do atleta exige `canViewFinance`.
 - Aluno, professor e coordenação editam o próprio perfil na aba Configurações,

@@ -12,6 +12,10 @@ const mockResumeStaffSignup = jest.fn();
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
 let mockAccessStatus = "review_required";
 let mockStaffSetupRequired = false;
+let mockStoredTrainer = "";
+let mockRole = "pending";
+let mockAvailableRoles: string[] = [];
+const mockSetActiveRole = jest.fn();
 const mockSession = { user: { id: "user", email: "student@example.test", app_metadata: { email_verified_hybrid_at: "verified", staff_invite_setup_required: false } }, access_token: "token", refresh_token: "refresh", expires_at: 4_000_000_000 };
 const getMockSession = () => {
   mockSession.user.app_metadata.staff_invite_setup_required = mockStaffSetupRequired;
@@ -27,7 +31,13 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("../auth", () => ({ useAuth: () => ({ session: getMockSession(), loading: false, signOut: jest.fn(), resendSignupCode: mockResend }) }));
-jest.mock("../role", () => ({ useRole: () => ({ role: "pending", loading: false, refresh: mockRefresh, studentAccessResolution: mockAccessStatus }) }));
+jest.mock("../pending-invite", () => ({ ...jest.requireActual("../pending-invite"),
+  getPendingInvite: jest.fn().mockResolvedValue(""),
+  getPendingTrainerInvite: async () => mockStoredTrainer,
+  clearPendingTrainerInvite: async () => { mockStoredTrainer = ""; },
+}));
+jest.mock("../role", () => ({ useRole: () => ({ role: mockRole, availableRoles: mockAvailableRoles,
+  setActiveRole: mockSetActiveRole, loading: false, refresh: mockRefresh, studentAccessResolution: mockAccessStatus }) }));
 jest.mock("../../api/student-invite", () => ({ claimStudentInvite: jest.fn() }));
 jest.mock("../../api/staff-invite", () => ({ resumeStaffSignup: (...args: unknown[]) => mockResumeStaffSignup(...args) }));
 jest.mock("../../api/trainer-invite", () => ({ claimTrainerInvite: (...args: unknown[]) => mockClaimTrainerInvite(...args) }));
@@ -64,6 +74,69 @@ beforeEach(() => {
   mockClaimTrainerInvite.mockResolvedValue({ status: "ok" });
   mockResumeStaffSignup.mockResolvedValue({ setup_required: true, organization_id: "org-1" });
   mockStaffSetupRequired = false;
+  mockStoredTrainer = "";
+  mockRole = "pending";
+  mockAvailableRoles = [];
+});
+
+it.each([false, true])("only enters an approved athlete request after the role confirms access: %s", async (hasAuthorizedRole) => {
+  jest.useFakeTimers();
+  try {
+    const request = { id: "request", requestKind: "athlete", status: "pending", organizationName: "Instituição Teste" };
+    mockListRequests.mockResolvedValue([request]);
+    const view = render(React.createElement(PendingScreen));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("Solicitação enviada")).toBeTruthy();
+    mockListRequests.mockResolvedValue([{ ...request, status: "approved" }]);
+    mockRefresh.mockImplementation(async () => {
+      mockRole = hasAuthorizedRole ? "student" : "pending";
+      mockAvailableRoles = hasAuthorizedRole ? ["student"] : [];
+    });
+    await act(async () => { jest.advanceTimersByTime(12000); });
+    if (hasAuthorizedRole) expect(mockRouter.replace).toHaveBeenCalledWith("/student/home");
+    else {
+      expect(mockRouter.replace).not.toHaveBeenCalled();
+      expect(screen.getByText("Vínculo aprovado")).toBeTruthy();
+      expect(screen.queryByLabelText("Buscar instituição")).toBeNull();
+    }
+    view.unmount();
+  } finally { jest.clearAllTimers(); jest.useRealTimers(); }
+});
+
+it("shows a stored expired invite instead of the institution search and allows recovery", async () => {
+  mockStoredTrainer = "ABCD-EFGH";
+  mockClaimTrainerInvite.mockRejectedValue(new Error("Invite expired"));
+  await mountPending();
+  expect(screen.getByText("Convite expirado")).toBeTruthy();
+  expect(screen.queryByText("Encontre sua instituição")).toBeNull();
+  await act(async () => fireEvent.press(screen.getByText("Usar outro convite")));
+  expect(screen.getByLabelText("Link ou código do convite")).toBeTruthy();
+});
+
+it.each(["athlete", "guardian"])("allows another invitation after an approved %s request", async (requestKind) => {
+  mockStoredTrainer = "ABCD-EFGH";
+  mockListRequests.mockResolvedValue([{ id: "request", requestKind, status: "approved", organizationName: "Instituição Teste" }]);
+  mockClaimTrainerInvite.mockRejectedValue(new Error("Invite expired"));
+  await mountPending();
+  expect(screen.getByText("Convite expirado")).toBeTruthy();
+  await act(async () => fireEvent.press(screen.getByText("Usar outro convite")));
+  expect(screen.getByText("Inserir convite")).toBeTruthy();
+  expect(screen.queryByLabelText("Buscar instituição")).toBeNull();
+  expect(screen.queryByText("Verificar acesso")).toBeNull();
+  fireEvent.changeText(screen.getByLabelText("Link ou código do convite"), "NEW-CODE");
+  expect(screen.getByLabelText("Link ou código do convite").props.value).toBe("NEW-CODE");
+  fireEvent.press(screen.getByLabelText("Fechar convite"));
+  expect(screen.getByText("Vínculo aprovado")).toBeTruthy();
+  expect(screen.queryByLabelText("Link ou código do convite")).toBeNull();
+});
+
+it("keeps a pending request visible without repeating reconciliation actions", async () => {
+  mockAccessStatus = "review_required";
+  mockListRequests.mockResolvedValue([{ id: "request", requestKind: "athlete", status: "pending", organizationName: "Instituição Teste" }]);
+  await mountPending();
+  expect(screen.getByText("Solicitação enviada")).toBeTruthy();
+  expect(screen.queryByText("Verificar novamente")).toBeNull();
+  expect(mockClaimTrainerInvite).not.toHaveBeenCalled();
 });
 
 it("submits an athlete link from profile without choosing a staff plan", async () => {

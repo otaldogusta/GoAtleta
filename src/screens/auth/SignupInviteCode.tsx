@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, Animated, Platform, Text, TextInput, View } from "react-native";
+import { AccessibilityInfo, ActivityIndicator, Animated, Platform, TextInput, View } from "react-native";
 import { validateTrainerInvite } from "../../api/trainer-invite";
 import { getPastedStaffInviteProof, getInviteEmailSuggestion, normalizeInviteCodeInput } from "../../auth/invite-code-input";
 import type { StaffInviteProof } from "../../auth/staff-invite-link";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { AuthFieldError } from "../../ui/AuthFieldError";
 
 export function SignupInviteCode({ code, disabled, submissionError = "", onChange, onVerified, onRemove }: {
   code: string;
@@ -75,24 +76,7 @@ export function SignupInviteCode({ code, disabled, submissionError = "", onChang
       borderColor: error ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
       overflow: "visible", zIndex: 1, transform: [{ translateX: shake }],
       backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg }}>
-      {error ? (
-        <View accessibilityRole="alert" pointerEvents="none"
-          style={{ position: "absolute", top: -38, left: 0, zIndex: 60, maxWidth: "100%" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6,
-            backgroundColor: colors.dangerSolidBg, borderRadius: 8,
-            paddingHorizontal: 10, paddingVertical: 6, alignSelf: "flex-start",
-            ...(Platform.OS === "web"
-              ? { boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any
-              : { shadowColor: "#000", shadowOpacity: 0.24, shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 3 }, elevation: 6 }) }}>
-            <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
-            <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600", flexShrink: 1 }}>{error}</Text>
-          </View>
-          <View style={{ width: 0, height: 0, marginLeft: 14, borderLeftWidth: 6,
-            borderRightWidth: 6, borderTopWidth: 6, borderLeftColor: "transparent",
-            borderRightColor: "transparent", borderTopColor: colors.dangerSolidBg }} />
-        </View>
-      ) : null}
+      <AuthFieldError message={error} />
       <TextInput accessibilityLabel="Código de convite" placeholder="Código de convite"
         placeholderTextColor={colors.placeholder} value={code} editable={!disabled && (Boolean(submissionError) || status !== "valid")}
         autoCapitalize="characters" autoCorrect={false} maxLength={4096}

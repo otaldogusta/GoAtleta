@@ -515,7 +515,7 @@ export default function PendingScreen() {
       }).start();
 
       const timer = setTimeout(() => {
-        router.replace(resolvedRoleHome ?? "/prof/home");
+        router.replace("/");
       }, 1800);
       return () => clearTimeout(timer);
     }
@@ -833,15 +833,22 @@ export default function PendingScreen() {
     hasStoredInvite: Boolean(storedToken || storedTrainerCode),
   });
   const studentAccessCopy =
-    pendingViewState === "waiting"
+    pendingViewState === "waiting" && !accessRequest
       ? getStudentAccessPendingCopy(studentAccessResolution)
       : null;
   const pendingCopy =
-    accessRequest?.status === "pending"
+    pendingViewState !== "waiting"
+      ? { ...getPendingInviteCopy(pendingViewState),
+          subtitle: inviteIssue && message ? message : getPendingInviteCopy(pendingViewState).subtitle }
+      : inviteEntryOpen && accessRequest?.status === "approved"
+        ? { title: "Novo convite", subtitle: "Use o convite recebido." }
+      : accessRequest?.status === "pending"
       ? {
           title: "Solicitação enviada",
           subtitle: `A ${accessRequest.organizationName ?? "instituição"} revisará seu acesso.`,
         }
+      : accessRequest?.status === "approved"
+        ? { title: "Vínculo aprovado", subtitle: "Confirmando seu acesso à instituição." }
       : accessRequest?.status === "rejected"
         ? {
             title: "Solicitação recusada",
@@ -853,7 +860,6 @@ export default function PendingScreen() {
               subtitle: message || studentAccessCopy.subtitle,
             }
           : {
-              ...getPendingInviteCopy(pendingViewState),
               title: "Encontre sua instituição",
               subtitle: "Solicite seu vínculo com a instituição.",
             };
@@ -973,7 +979,7 @@ export default function PendingScreen() {
               </Animated.View>
             </>
 
-            {Boolean(storedToken || storedTrainerCode) && (
+            {Boolean(storedToken || storedTrainerCode) && !hasTerminalInviteIssue && (
               <View
                 style={{
                   width: "100%",
@@ -986,39 +992,6 @@ export default function PendingScreen() {
                   alignItems: "center",
                 }}
               >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.xs,
-                  }}
-                >
-                  <GoAtletaIcon
-                    name="link"
-                    size={16}
-                    color={colors.primaryBg}
-                  />
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontSize: 14,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Convite encontrado
-                  </Text>
-                </View>
-                {Boolean(message) && (
-                  <Text
-                    style={{
-                      color: colors.dangerSolidBg,
-                      fontSize: 13,
-                      textAlign: "center",
-                    }}
-                  >
-                    {message}
-                  </Text>
-                )}
                 {!hasTerminalInviteIssue ? (
                   <Button
                     label={
@@ -1050,6 +1023,12 @@ export default function PendingScreen() {
                 </Pressable>
               </View>
             )}
+
+            {inviteIssue && (hasTerminalInviteIssue || (!storedToken && !storedTrainerCode)) ? (
+              <Button label="Usar outro convite" onPress={() => {
+                void clearStoredInvite().then(openInviteEntry);
+              }} />
+            ) : null}
 
             {studentAccessCopy ? (
               <Button
@@ -1085,7 +1064,12 @@ export default function PendingScreen() {
               />
             ) : null}
 
-            {pendingViewState === "waiting" && !studentAccessCopy ? (
+            {pendingViewState === "waiting" && accessRequest?.status === "approved" && !inviteEntryOpen ? (
+              <Button label={roleLoading ? "Verificando..." : "Verificar acesso"}
+                disabled={roleLoading} onPress={() => { void refresh(); }} />
+            ) : null}
+
+            {pendingViewState === "waiting" && !studentAccessCopy && (accessRequest?.status !== "approved" || inviteEntryOpen) ? (
               <View
                 style={{
                   width: compactContentWidth,
@@ -1098,7 +1082,7 @@ export default function PendingScreen() {
                   gap: spacing.md,
                 }}
               >
-                {accessRequest?.status === "pending" ? (
+                {accessRequest?.status === "approved" ? null : accessRequest?.status === "pending" ? (
                   <View style={{ gap: spacing.sm }}>
                     <View
                       style={{
@@ -1490,7 +1474,7 @@ export default function PendingScreen() {
                 )}
 
                 <>
-                  <View style={{ height: 1, backgroundColor: colors.border }} />
+                  {accessRequest?.status !== "approved" ? <View style={{ height: 1, backgroundColor: colors.border }} /> : null}
                   {!inviteEntryOpen ? (
                     <Pressable
                       accessibilityRole="button"

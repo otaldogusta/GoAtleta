@@ -1,3 +1,5 @@
+import { normalizeInviteCodeInput } from "./invite-code-input";
+
 export type PendingInviteEntry =
   | { kind: "route"; href: string }
   | { kind: "staff_code"; code: string };
@@ -11,7 +13,7 @@ export function resolvePendingInviteEntry(value: string): PendingInviteEntry | n
   if (!input) return null;
 
   if (STAFF_CODE_PATTERN.test(input)) {
-    return { kind: "staff_code", code: input };
+    return { kind: "staff_code", code: input.toUpperCase() };
   }
 
   let url: URL;
@@ -22,9 +24,10 @@ export function resolvePendingInviteEntry(value: string): PendingInviteEntry | n
   }
 
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  const inviteCode = url.searchParams.get("inviteCode")?.trim() ||
-    (pathname === "/staff-invite" ? url.searchParams.get("code")?.trim() : "");
-  if (inviteCode && STAFF_CODE_PATTERN.test(inviteCode)) {
+  const inviteCode = normalizeInviteCodeInput(input);
+  if (STAFF_CODE_PATTERN.test(inviteCode)) {
+    // The current account claims the code. Never persist a pasted email proof
+    // or switch identities implicitly from this authenticated entry.
     return { kind: "staff_code", code: inviteCode };
   }
 

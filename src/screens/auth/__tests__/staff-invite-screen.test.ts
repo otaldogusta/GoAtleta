@@ -1,10 +1,10 @@
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import StaffInviteScreen from "../../../../app/staff-invite";
 import SignupScreen from "../SignupScreen";
 import { StaffInviteEntryProvider } from "../../../auth/staff-invite-entry";
-import { StaffInviteUnavailableError } from "../../../api/staff-invite";
+import { StaffInviteUnavailableError, resumeStaffSignup } from "../../../api/staff-invite";
 const entry = (key = "initial") => React.createElement(StaffInviteEntryProvider, null, React.createElement(StaffInviteScreen, { key }));
 
 const mockAccept = jest.fn();
@@ -15,11 +15,13 @@ const mockSetOrganization = jest.fn();
 const mockSignOut = jest.fn();
 const mockClearPending = jest.fn();
 const mockRefresh = jest.fn();
+let mockRouteCode = "";
+let mockSession: any = { user: { email: "owner@example.com" } };
 const mockSetup = { setup_required: true, organization_id: "org-1", session: { user: { id: "recipient", email: "recipient@example.com" }, access_token: "recipient-token", refresh_token: "recipient-refresh", expires_at: 1 } };
 const mockFreshSetup = { ...mockSetup, session: { ...mockSetup.session, access_token: "fresh-token", refresh_token: "fresh-refresh", expires_at: 4_000_000_000 } };
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, setParams: mockSetParams }), useLocalSearchParams: () => ({}), usePathname: () => "/staff-invite" }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, setParams: mockSetParams }), useLocalSearchParams: () => ({ code: mockRouteCode }), usePathname: () => "/staff-invite" }));
 jest.mock("../../../api/staff-invite", () => ({ ...jest.requireActual("../../../api/staff-invite"), resumeStaffSignup: jest.fn(), refreshStaffSignupSession: (...args: unknown[]) => mockRefresh(...args) }));
-jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { email: "owner@example.com" } }, loading: false, acceptStaffInvite: mockAccept, completeStaffInvite: mockComplete, signOut: mockSignOut }) }));
+jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: mockSession, loading: false, acceptStaffInvite: mockAccept, completeStaffInvite: mockComplete, signOut: mockSignOut }) }));
 jest.mock("../../../auth/pending-invite", () => ({ savePendingTrainerInvite: jest.fn().mockResolvedValue(undefined), clearPendingTrainerInvite: (...args: unknown[]) => mockClearPending(...args) }));
 jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ setActiveOrganizationId: mockSetOrganization }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
@@ -32,7 +34,10 @@ jest.mock("../../../ui/Button", () => ({ Button: ({ label, disabled, onPress }: 
 describe("employee invitation screen", () => {
   const originalOS = Platform.OS;
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.clearAllMocks();
+    mockSession = { user: { email: "owner@example.com" } };
+    mockRouteCode = "";
     Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
     Object.defineProperty(window, "location", { configurable: true, value: { pathname: "/staff-invite", search: "", hash: `#code=TEST-CODE&token_hash=${"a".repeat(64)}&type=magiclink` } });
     Object.defineProperty(window, "history", { configurable: true, value: { state: {}, replaceState: jest.fn() } });
@@ -40,6 +45,7 @@ describe("employee invitation screen", () => {
     mockRefresh.mockResolvedValue(mockFreshSetup);
     mockComplete.mockResolvedValue({ ...mockSetup, setup_required: false });
   });
+  afterEach(() => { cleanup(); jest.clearAllTimers(); jest.useRealTimers(); });
   afterAll(() => Object.defineProperty(Platform, "OS", { configurable: true, value: originalOS }));
   it("does not consume the email proof or log out until the user confirms", async () => {
     jest.useFakeTimers();
@@ -134,5 +140,48 @@ describe("employee invitation screen", () => {
     expect(screen.getByText("Convite indisponível")).toBeTruthy();
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(mockAccept).not.toHaveBeenCalled();
+  });
+  it.each(["Criar conta", "Já tenho conta"])("continues a code-only invitation through %s without claiming it", async (action) => {
+    window.location.hash = "";
+    mockRouteCode = "ABCD-EFGH";
+    mockSession = null;
+    const screen = render(entry());
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: action })));
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: action === "Criar conta" ? "/signup" : "/login", params: { inviteCode: "ABCD-EFGH" } });
+    expect(mockAccept).not.toHaveBeenCalled();
+    expect(mockComplete).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+  it("clears the pending invite when cancelling completion to prevent automatic re-entry", async () => {
+    const screen = render(entry());
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
+    await act(async () => fireEvent.press(screen.getByLabelText("Voltar")));
+    expect(mockClearPending).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith("/");
+    expect(mockComplete).not.toHaveBeenCalled();
+  });
+  it("routes an existing account with only a code through the authoritative claim flow", async () => {
+    window.location.hash = "";
+    mockRouteCode = "ABCD-EFGH";
+    const screen = render(entry());
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Aceitar convite" })));
+    expect(mockReplace).toHaveBeenCalledWith("/pending");
+    expect(resumeStaffSignup).not.toHaveBeenCalled();
+    expect(mockAccept).not.toHaveBeenCalled();
+    expect(mockComplete).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockSetOrganization).not.toHaveBeenCalled();
+  });
+  it("resumes password setup only for an account marked as requiring it", async () => {
+    window.location.hash = "";
+    mockRouteCode = "ABCD-EFGH";
+    mockSession = { ...mockSetup.session, user: { ...mockSetup.session.user, app_metadata: { staff_invite_setup_required: true } } };
+    (resumeStaffSignup as jest.Mock).mockResolvedValue(mockSetup);
+    const screen = render(entry());
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Continuar cadastro" })));
+    expect(resumeStaffSignup).toHaveBeenCalledWith("ABCD-EFGH", mockSession);
+    expect(screen.UNSAFE_getByType(SignupScreen)).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockSetOrganization).not.toHaveBeenCalled();
   });
 });

@@ -29,6 +29,10 @@ Para autenticação, a referência concreta é o erro de confirmação de senha 
 `src/screens/auth/SignupScreen.tsx` (`confirmError`). O convite em
 `src/screens/auth/SignupInviteCode.tsx` deve seguir esse mesmo padrão:
 
+`src/ui/AuthFieldError.tsx` compartilha esse balão entre convite no cadastro e
+código de confirmação de e-mail. O wrapper do campo mantém zIndex e overflow;
+a primitive não reserva altura nem contém mensagem de sucesso.
+
 - Balão compacto, largura pelo conteúdo, alinhado à esquerda; sem esticar com
   `right: 0` ou `flex: 1`. Limitar largura e permitir quebra em telas estreitas.
 - Fundo `colors.dangerSolidBg`; texto e ícone `colors.dangerSolidText`, nunca uma

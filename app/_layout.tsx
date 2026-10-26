@@ -21,14 +21,13 @@ import {
   shouldRestrictToEmailVerification,
 } from "../src/auth/email-verification-state";
 import { FirstAccessProfileGate } from "../src/auth/FirstAccessProfileGate";
-import { resolveOAuthEntryTarget } from "../src/auth/oauth-post-login";
+import { getOAuthCallbackCode, resolveOAuthEntryTarget } from "../src/auth/oauth-post-login";
 import {
   getPendingInvite,
   getPendingRelationshipInvite,
   getPendingTrainerInvite,
-  resolveAuthenticatedTrainerInviteEntry,
+  resolvePostAuthEntryTarget,
   resolvePendingInviteRedirect,
-  savePendingTrainerInvite,
   shouldRedirectPendingRole,
 } from "../src/auth/pending-invite";
 import {
@@ -231,8 +230,9 @@ function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { inviteCode: entryInviteCode } = useGlobalSearchParams<{
+  const { inviteCode: entryInviteCode, next: entryNext } = useGlobalSearchParams<{
     inviteCode?: string;
+    next?: string;
   }>();
   const lastPathRef = useRef<string | null>(null);
   const {
@@ -296,7 +296,7 @@ function RootLayoutContent() {
     () =>
       Platform.OS === "web" &&
       typeof window !== "undefined" &&
-      (new URLSearchParams(window.location.search).has("code") ||
+      (Boolean(getOAuthCallbackCode(window.location.pathname, window.location.search)) ||
         new URLSearchParams(window.location.hash.replace(/^#/, "")).has(
           "access_token",
         )),
@@ -707,6 +707,23 @@ function RootLayoutContent() {
     // Do not redirect users away from reset-password screen during password recovery
     if (normalizedPathname === "/reset-password") return;
 
+    if (session && ["/onboarding", "/welcome", "/login", "/signup"].includes(normalizedPathname)) {
+      if (roleLoading || platformAccessLoading) return;
+      let active = true;
+      void resolvePostAuthEntryTarget({
+        user: session.user,
+        routeTrainerCode: typeof entryInviteCode === "string" ? entryInviteCode : undefined,
+        next: entryNext,
+        defaultTarget: appHomeHref,
+      }).then((target) => {
+        if (active) router.replace(target as Parameters<typeof router.replace>[0]);
+      }).catch(() => {
+        // Keep the access flow recoverable if local invite storage cannot be read.
+        if (active) router.replace("/pending");
+      });
+      return () => { active = false; };
+    }
+
     if (
       shouldRestrictToEmailVerification({
         user: session?.user,
@@ -720,43 +737,10 @@ function RootLayoutContent() {
     }
 
     let redirectTo: string | null = null;
-    const trainerInviteCode = resolveAuthenticatedTrainerInviteEntry({
-      hasSession: Boolean(session),
-      pathname: normalizedPathname,
-      routeCode:
-        typeof entryInviteCode === "string" ? entryInviteCode : undefined,
-    });
-
-    if (trainerInviteCode) {
-      void savePendingTrainerInvite(trainerInviteCode).then(() => {
-        router.replace("/pending");
-      });
-      return;
-    }
-
     if (roleLoading) return;
 
-    const authDestinationHref = appHomeHref;
-
-    if (
-      session &&
-      platformAccessLoading &&
-      ["/onboarding", "/welcome", "/login", "/signup"].includes(
-        normalizedPathname,
-      )
-    ) {
-      return;
-    }
-
     if (normalizedPathname === "/onboarding") {
-      redirectTo = session ? authDestinationHref : "/welcome";
-    } else if (
-      session &&
-      ["/onboarding", "/welcome", "/login", "/signup"].includes(
-        normalizedPathname,
-      )
-    ) {
-      redirectTo = authDestinationHref;
+      redirectTo = "/welcome";
     } else if (!session && normalizedPathname === "/") {
       redirectTo = "/welcome";
     } else if (platformRouteAccess.redirectTo && !session) {
@@ -873,6 +857,7 @@ function RootLayoutContent() {
     isDevPlatformDashboardPreview,
     effectiveProfile,
     entryInviteCode,
+    entryNext,
     loading,
     memberPermissions,
     navReady,
@@ -907,7 +892,7 @@ function RootLayoutContent() {
 
     // Process OAuth code from query params
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
+    const code = getOAuthCallbackCode(window.location.pathname, window.location.search);
     if (code) {
       const nextAfterAuth = sanitizePostLoginRedirect(urlParams.get("next"));
       oauthHandledHrefRef.current = authHref;

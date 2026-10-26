@@ -1,4 +1,4 @@
-import { isRecentlyCreatedAuthUser, resolveOAuthEntryTarget } from "../oauth-post-login";
+import { getOAuthCallbackCode, isRecentlyCreatedAuthUser, resolveOAuthEntryTarget } from "../oauth-post-login";
 import type { AuthSession } from "../session";
 
 const buildSession = (createdAt: string): AuthSession => ({
@@ -9,6 +9,11 @@ const buildSession = (createdAt: string): AuthSession => ({
 });
 
 describe("OAuth post-login entry", () => {
+  it("does not redeem a staff invitation code as an OAuth authorization code", () => {
+    expect(getOAuthCallbackCode("/staff-invite", "?code=ABCD-EFGH")).toBeNull();
+    expect(getOAuthCallbackCode("/staff-invite/", "?code=ABCD-EFGH")).toBeNull();
+    expect(getOAuthCallbackCode("/login", "?code=oauth-code")).toBe("oauth-code");
+  });
   const nowMs = Date.parse("2026-09-12T12:00:00.000Z");
 
   it("sends a newly created account to the student home instead of a stale deep link", () => {

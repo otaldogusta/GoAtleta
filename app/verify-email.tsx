@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     KeyboardAvoidingView,
+    Animated,
     Platform,
     ScrollView,
     Text,
@@ -26,6 +27,10 @@ import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { Button } from "../src/ui/Button";
+import { ScreenHeader } from "../src/ui/ScreenHeader";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
+import { AuthFieldError } from "../src/ui/AuthFieldError";
 
 const normalizeVerifyError = (message: string) => {
   const raw = String(message ?? "").toLowerCase();
@@ -54,7 +59,12 @@ export default function VerifyEmailScreen() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [resendBusy, setResendBusy] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const requestInFlight = useRef(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [shakeAnim] = useState(() => new Animated.Value(0));
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState("");
   const [cursorVisible, setCursorVisible] = useState(true);
@@ -62,7 +72,11 @@ export default function VerifyEmailScreen() {
   const emailInputRef = useRef<TextInput | null>(null);
 
   useEffect(() => {
-    if (typeof params.email === "string" && params.email.trim()) {
+    Animated.spring(enterAnim, { toValue: 1, useNativeDriver: true }).start();
+  }, [enterAnim]);
+
+  useEffect(() => {
+    if (!session?.user?.email && typeof params.email === "string" && params.email.trim()) {
       const incoming = params.email.trim();
       Promise.resolve().then(() => {
         setEmail(incoming);
@@ -83,24 +97,30 @@ export default function VerifyEmailScreen() {
   }, [params.email, session?.user?.email]);
 
   useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setTimeout(() => setResendCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
+
+  useEffect(() => {
     if (params.delivery !== "failed") return;
     Promise.resolve().then(() => {
-      setMessage("Não foi possível enviar o código. Toque em Reenviar.");
+      setError("Não foi possível enviar o código. Toque em Reenviar.");
     });
   }, [params.delivery]);
 
   const isWideLayout = width >= 900;
   const contentPadding = isWideLayout ? 32 : 20;
-  const titleSize = isWideLayout ? 42 : 34;
-  const otpSize = width < 390 ? 44 : width >= 900 ? 60 : 52;
   const otpGap = width < 390 ? 6 : width >= 900 ? 12 : 10;
+  const otpSize = Math.min(isWideLayout ? 60 : 52,
+    Math.floor((Math.min(width - contentPadding * 2, 440) - otpGap * 5) / 6));
 
-  const canConfirmEmailChange = emailDraft.trim().length > 4 && emailDraft.trim() !== email.trim();
+  const canConfirmEmailChange = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailDraft.trim()) && emailDraft.trim() !== email.trim();
 
   const codeLengthTarget = 6;
 
   const canSubmit = useMemo(() => {
-    return email.trim().length > 4 && code.trim().length >= 6;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && /^\d{6}$/.test(code);
   }, [code, email]);
 
   const otpDigits = useMemo(() => {
@@ -109,30 +129,37 @@ export default function VerifyEmailScreen() {
   }, [code, codeLengthTarget]);
 
   const onResend = async () => {
+    if (requestInFlight.current || resendCountdown > 0) return;
     if (!email.trim()) {
-      setMessage("Informe o e-mail para reenviar o código.");
+      setError("Informe o e-mail para reenviar o código.");
       return;
     }
     setResendBusy(true);
+    requestInFlight.current = true;
     setMessage("");
+    setError("");
     try {
       await resendSignupCode(email.trim(), "verify-email");
+      setResendCountdown(60);
       setMessage("Código reenviado para seu e-mail. Verifique também a caixa de spam.");
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Falha ao reenviar código.";
-      setMessage(normalizeVerifyError(detail));
+    } catch {
+      setError("Não foi possível reenviar o código. Tente novamente em instantes.");
     } finally {
       setResendBusy(false);
+      requestInFlight.current = false;
     }
   };
 
   const onVerify = async () => {
+    if (requestInFlight.current) return;
     if (!canSubmit) {
-      setMessage("Preencha e-mail e código para continuar.");
+      setError("Preencha e-mail e código para continuar.");
       return;
     }
     setBusy(true);
+    requestInFlight.current = true;
     setMessage("");
+    setError("");
     try {
       const verifiedSession = await verifySignupCode(email.trim(), code.trim());
       await refreshUser();
@@ -180,18 +207,23 @@ export default function VerifyEmailScreen() {
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao validar código.";
-      setMessage(normalizeVerifyError(detail));
+      setError(normalizeVerifyError(detail));
+      Animated.sequence([8, -8, 5, -5, 0].map((toValue) =>
+        Animated.timing(shakeAnim, { toValue, duration: 50, useNativeDriver: true }))).start();
     } finally {
       setBusy(false);
+      requestInFlight.current = false;
     }
   };
 
   const onConfirmEmailChange = () => {
     const nextEmail = emailDraft.trim();
-    if (!nextEmail) return;
+    if (!canConfirmEmailChange || session) return;
     setEmail(nextEmail);
+    setCode("");
+    setError("");
     setEditingEmail(false);
-    setMessage("");
+    setMessage("Reenvie o código para confirmar este e-mail.");
   };
 
   const handleBack = useCallback(() => {
@@ -216,6 +248,7 @@ export default function VerifyEmailScreen() {
       event.preventDefault();
       setCode(pastedCode);
       setMessage("");
+      setError("");
     };
 
     input.addEventListener("paste", handlePaste);
@@ -237,6 +270,7 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -251,16 +285,20 @@ export default function VerifyEmailScreen() {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ width: "100%", maxWidth: 440, alignSelf: "center", gap: 22 }}>
+          <Animated.View style={{ width: "100%", maxWidth: 440, alignSelf: "center", gap: 22,
+            opacity: enterAnim, transform: [{ translateX: shakeAnim },
+              { translateY: enterAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }}>
+            <Pressable accessibilityLabel="Voltar" disabled={busy || resendBusy} onPress={handleBack}
+              suppressWebHoverFeedback style={({ hovered }: any) => ({ width: 38, height: 38, borderRadius: 19,
+                alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg,
+                borderWidth: 1, borderColor: hovered ? colors.primaryBg : colors.border })}>
+              <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
+            </Pressable>
             <View style={{ gap: 10 }}>
-              <Text style={{ fontSize: titleSize, fontWeight: "800", color: colors.text }}>
-                Confirmar e-mail
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                Digite o código de 6 dígitos recebido no seu e-mail.
-              </Text>
+              <ScreenHeader title="Confirmar e-mail" subtitle="Digite o código de 6 dígitos recebido no seu e-mail." />
               <Pressable
                 onPress={() => setEditingEmail(true)}
+                disabled={Boolean(session) || busy || resendBusy}
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
                 {editingEmail ? (
@@ -312,12 +350,18 @@ export default function VerifyEmailScreen() {
               style={{
                 minHeight: 74,
                 justifyContent: "center",
+                position: "relative", zIndex: error ? 50 : 1, overflow: "visible",
               }}
             >
+              <AuthFieldError message={error} />
               <TextInput
                 ref={codeInputRef}
+                accessibilityLabel="Código de confirmação"
                 value={code}
-                onChangeText={(value) => setCode(normalizeOtpCode(value))}
+                editable={!busy && !resendBusy}
+                onChangeText={(value) => { setCode(normalizeOtpCode(value)); setMessage(""); setError(""); }}
+                autoComplete="one-time-code"
+                textContentType="oneTimeCode"
                 keyboardType={Platform.OS === "ios" ? "number-pad" : "numeric"}
                 maxLength={6}
                 style={{
@@ -341,7 +385,7 @@ export default function VerifyEmailScreen() {
                         height: otpSize,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: isActive || hovered ? colors.text : colors.border,
+                        borderColor: error ? colors.dangerSolidBg : isActive || hovered ? colors.text : colors.border,
                         backgroundColor: hovered ? colors.inputBg : colors.card,
                         alignItems: "center",
                         justifyContent: "center",
@@ -366,42 +410,21 @@ export default function VerifyEmailScreen() {
 
             {message ? <Text style={{ color: colors.muted }}>{message}</Text> : null}
 
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Pressable
-                onPress={handleBack}
-                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-              >
-                <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
-                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.text }}>Voltar</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={onVerify}
-                disabled={busy}
-                style={{
-                  minWidth: 132,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  backgroundColor: busy ? colors.primaryDisabledBg : colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {busy ? "Validando..." : "Continuar"}
-                </Text>
-              </Pressable>
-            </View>
+              <Button label="Continuar" loading={busy} loadingLabel="Validando..."
+                onPress={() => void onVerify()} disabled={!canSubmit || busy || resendBusy || editingEmail} />
 
             <View style={{ alignItems: "center", gap: 4, marginTop: 10 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Não recebeu o código?</Text>
-              <Pressable onPress={onResend} disabled={resendBusy} style={{ paddingVertical: 4 }}>
+              <Pressable onPress={onResend} disabled={busy || resendBusy || resendCountdown > 0 || editingEmail}
+                suppressWebHoverFeedback style={{ paddingVertical: 4, opacity: resendCountdown > 0 ? 0.55 : 1 }}>
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                  {resendBusy ? "Reenviando..." : "Reenviar e-mail"}
+                  {resendBusy ? "Reenviando..." : resendCountdown > 0
+                    ? `Reenviar em ${Math.floor(resendCountdown / 60)}:${String(resendCountdown % 60).padStart(2, "0")}`
+                    : "Reenviar e-mail"}
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

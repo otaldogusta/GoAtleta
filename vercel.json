@@ -4,6 +4,11 @@
   "devCommand": "npm run web",
   "installCommand": "npm ci",
   "framework": null,
+  "git": {
+    "deploymentEnabled": {
+      "codex/fluxo-entrada-20261025": false
+    }
+  },
   "redirects": [
     {
       "source": "/(.*)",

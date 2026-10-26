@@ -123,7 +123,7 @@ export default function StudentInviteScreen() {
   useEffect(() => {
     if (!tokenValue) return;
     void savePendingInvite(tokenValue);
-  }, [tokenValue]);
+  }, [tokenValue, session?.user.id]);
 
   useEffect(() => {
     let active = true;

@@ -18,7 +18,7 @@ const mockReplace = jest.fn();
 const mockResend = jest.fn();
 const mockValidateInvite = jest.fn();
 jest.mock("../../../api/trainer-invite", () => ({ validateTrainerInvite: (...args: unknown[]) => mockValidateInvite(...args) }));
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, canGoBack: () => false }), useLocalSearchParams: () => ({}) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, setParams: jest.fn(), canGoBack: () => false }), useLocalSearchParams: () => ({}) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: mockCurrentSession, signUp: mockSignUp, resendSignupCode: mockResend, signInWithOAuth: jest.fn(), acceptStaffInvite: mockAcceptStaff, completeStaffInvite: mockCompleteStaff }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
@@ -202,8 +202,8 @@ describe("canonical signup screen", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it("keeps ordinary signup and verification unchanged", async () => {
-    mockSignUp.mockResolvedValue({ user: { id: "new-user" } });
+  it.each([null, { user: { id: "new-user" } }])("continues ordinary signup to OTP with session %j", async (session) => {
+    mockSignUp.mockResolvedValue(session);
     mockResend.mockResolvedValue(undefined);
     const screen = render(React.createElement(SignupScreen));
     expect(screen.getByText("Comece agora")).toBeTruthy();

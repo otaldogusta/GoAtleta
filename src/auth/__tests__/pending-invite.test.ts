@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   clearPendingInvite,
+  clearPendingInvites,
   clearPendingRelationshipInvite,
   clearPendingTrainerInvite,
   getPendingInvite,
@@ -10,6 +11,7 @@ import {
   resolveAuthenticatedTrainerInviteEntry,
   resolvePendingInviteRedirect,
   resolvePendingTrainerCode,
+  resolvePostAuthEntryTarget,
   requiresTrainerInviteEmailVerification,
   savePendingInvite,
   savePendingRelationshipInvite,
@@ -26,7 +28,48 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 
 describe("pending invite storage", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+  });
+
+  test("the latest explicit invitation replaces stale invitations from other entry flows", async () => {
+    const values = new Map<string, string>();
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key) => values.get(key) ?? null);
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(async (key, value) => { values.set(key, value); });
+    (AsyncStorage.removeItem as jest.Mock).mockImplementation(async (key) => { values.delete(key); });
+    await savePendingRelationshipInvite("expired-family-token");
+    await savePendingTrainerInvite("ABCD-EFGH");
+    expect(await getPendingRelationshipInvite()).toBe("");
+    expect(await getPendingTrainerInvite()).toBe("ABCD-EFGH");
+    // A later family or legacy athlete entry must also supersede the staff code.
+    await savePendingRelationshipInvite("fresh-family-token");
+    expect(await getPendingTrainerInvite()).toBe("");
+    await savePendingInvite("fresh-student-token");
+    expect(await getPendingRelationshipInvite()).toBe("");
+    expect(await getPendingInvite()).toBe("fresh-student-token");
+  });
+
+  test("logout clears all entry intentions, including legacy keys left together by old versions", async () => {
+    const values = new Map([
+      ["pending_student_invite_v1", "old-student"],
+      ["pending_student_relationship_invite_v1", "old-family"],
+      ["pending_trainer_invite_v1", "old-staff"],
+    ]);
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key) => values.get(key) ?? null);
+    (AsyncStorage.removeItem as jest.Mock).mockImplementation(async (key) => { values.delete(key); });
+    await clearPendingInvites();
+    expect(await getPendingInvite()).toBe("");
+    expect(await getPendingRelationshipInvite()).toBe("");
+    expect(await getPendingTrainerInvite()).toBe("");
+  });
+
+  test("serializes selections so the last selected type wins even without awaiting the first write", async () => {
+    const values = new Map<string, string>();
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key) => values.get(key) ?? null);
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(async (key, value) => { values.set(key, value); });
+    (AsyncStorage.removeItem as jest.Mock).mockImplementation(async (key) => { values.delete(key); });
+    await Promise.all([savePendingInvite("old-student"), savePendingTrainerInvite("ABCD-EFGH")]);
+    expect(await getPendingInvite()).toBe("");
+    expect(await getPendingTrainerInvite()).toBe("ABCD-EFGH");
   });
 
   test("keeps student, relationship and trainer invitations in separate keys", async () => {
@@ -288,5 +331,34 @@ describe("pending invite storage", () => {
         isInviteRoute: false,
       })
     ).toBe(true);
+  });
+});
+
+describe("post-auth entry continuity", () => {
+  const user = { email: "person@example.test", app_metadata: { email_verified_hybrid_at: "verified" } };
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue("");
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+  });
+  it("persists the route invite before sending an unverified account to OTP", async () => {
+    expect(await resolvePostAuthEntryTarget({ user: { email: user.email }, routeTrainerCode: "abcd-efgh", defaultTarget: "/student/home" }))
+      .toBe("/verify-email?email=person%40example.test");
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("pending_trainer_invite_v1", "ABCD-EFGH");
+    expect(AsyncStorage.getItem).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["pending_trainer_invite_v1", "ABCD-EFGH", "/pending"],
+    ["pending_student_invite_v1", "student-token", "/pending"],
+    ["pending_student_relationship_invite_v1", "family-token", "/family-invite/family-token"],
+  ])("resumes %s instead of the default portal", async (key, value, target) => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (name) => name === key ? value : "");
+    expect(await resolvePostAuthEntryTarget({ user, defaultTarget: "/student/home", next: "/coord/dashboard" })).toBe(target);
+  });
+  it("preserves the free home without an invitation or a granted institutional role", async () => {
+    expect(await resolvePostAuthEntryTarget({ user, defaultTarget: "/student/home", next: "https://untrusted.test" })).toBe("/student/home");
+  });
+  it("honors a safe return target only after invitations have been resolved", async () => {
+    expect(await resolvePostAuthEntryTarget({ user, defaultTarget: "/student/home", next: "/student/profile" })).toBe("/student/profile");
   });
 });

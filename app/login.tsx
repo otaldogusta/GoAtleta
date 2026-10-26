@@ -22,11 +22,6 @@ import { Pressable } from "../src/ui/Pressable";
 
 import { useAuth } from "../src/auth/auth";
 import {
-  getPendingInvite,
-  getPendingRelationshipInvite,
-  getPendingTrainerInvite,
-  resolvePendingInviteRedirect,
-  resolvePendingTrainerCode,
   savePendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
@@ -53,7 +48,7 @@ export default function LoginScreen() {
 
   const solidInputBg = colors.inputBg;
   const loginInputBg = mode === "dark" ? "#121c30" : solidInputBg;
-  const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
+  const { signIn, resetPassword, signInWithOAuth } = useAuth();
   const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
   const {
@@ -242,41 +237,6 @@ export default function LoginScreen() {
       return undefined;
     }, [refreshBiometricAvailability])
   );
-
-  useEffect(() => {
-    if (!session) return;
-    let alive = true;
-    void (async () => {
-      const [pendingStudentToken, pendingRelationshipToken, storedTrainerCode] = await Promise.all([
-        getPendingInvite(),
-        getPendingRelationshipInvite(),
-        getPendingTrainerInvite(),
-      ]);
-      if (!alive) return;
-      const pendingTrainerCode = resolvePendingTrainerCode({
-        routeCode: typeof inviteCode === "string" ? inviteCode : undefined,
-        storedCode: storedTrainerCode,
-      });
-      const hasPendingInvite = Boolean(
-        pendingStudentToken || pendingRelationshipToken || pendingTrainerCode,
-      );
-      if (!hasPendingInvite && !loginRedirectTarget) {
-        // The root authorization boundary chooses the role/platform home after
-        // its authoritative access checks finish.
-        return;
-      }
-      const target = resolvePendingInviteRedirect({
-        pendingStudentToken,
-        pendingTrainerCode,
-        pendingRelationshipToken,
-        defaultTarget: loginRedirectTarget ?? "/",
-      });
-      router.replace(target as Parameters<typeof router.replace>[0]);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [inviteCode, loginRedirectTarget, router, session]);
 
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);
@@ -538,7 +498,8 @@ export default function LoginScreen() {
 
             <ScreenHeader
               title={showReset ? "Recuperar senha" : "Bem-vindo de volta"}
-              subtitle={showReset ? "Digite seu e-mail para receber o link de acesso." : "Retome seus planos com foco e praticidade."}
+              subtitle={showReset ? "Digite seu e-mail para receber o link de acesso." : inviteCode
+                ? "Entre com a conta que recebeu o convite." : "Entre na sua conta."}
             />
 
             <Animated.View
@@ -1014,7 +975,7 @@ export default function LoginScreen() {
               <Text style={{ color: colors.muted }}>Não tem conta?</Text>
               <Pressable
                 accessibilityRole="link"
-                onPress={() => router.replace("/signup")}
+                onPress={() => router.replace({ pathname: "/signup", params: inviteCode ? { inviteCode } : undefined })}
                 suppressWebHoverFeedback
                 style={({ pressed }: any) => ({
                   paddingVertical: 4,

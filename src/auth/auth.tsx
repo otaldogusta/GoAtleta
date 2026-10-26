@@ -27,6 +27,7 @@ import { hasConfirmedPhone } from "./phone-verification";
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
 import { getGoogleLinkUrl } from "../api/auth-link-google";
 import { revokeAuthSession } from "./auth-signout";
+import { clearPendingInvites } from "./pending-invite";
 import type { AuthSession } from "./session";
 import {
   forceRefreshAccessToken,
@@ -810,7 +811,7 @@ export function AuthProvider({
     const accessToken = session?.access_token ?? "";
     clearAiCache();
     setSession(null);
-    await saveSession(null, false);
+    await Promise.all([saveSession(null, false), clearPendingInvites()]);
     await clearLocalReadCaches();
 
     try {

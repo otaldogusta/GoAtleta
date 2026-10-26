@@ -49,6 +49,28 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Decisões atuais e limites
 
+- Leitura de papel com falha transitória tem recuperação limitada e nova tentativa
+  ao retomar a aba/conexão, sem restaurar autorização de cache após falha.
+  [Correção e testes locais de retomada](../../operations/startup-resume-local-2026-10-25.md).
+  Eventos simultâneos de retomada não reiniciam o contador de uma tentativa já
+  iniciada; [revisão do pacote](../../operations/entry-package-review-local-2026-10-25.md).
+  Link de equipe só com código encaminha conta existente à validação normal em
+  `/pending`; conclusão de senha exige a marca confiável de cadastro pendente.
+  Uma solicitação já aprovada não pode ocultar o formulário ao usar outro convite.
+- Entrada revisada localmente em 25/10/2026: o layout resolve confirmação de e-mail,
+  convite persistido e destino do papel antes de sair de login/cadastro. Código de
+  equipe não é código OAuth. Cadastro sem sessão continua em OTP; conta sem vínculo
+  conserva a área pessoal de atleta. Aprovação de solicitação só entra no portal
+  após o papel autorizado estar disponível. [Fluxos e evidências locais](../../operations/entry-flow-local-2026-10-25.md).
+  O convite escolhido substitui intenções antigas de outros tipos, com gravações
+  serializadas. Ciclo com cadastro, OTP recebido e claim real passou em Supabase
+  e Mailpit locais; [prints e limites](../../operations/entry-cycle-local-2026-10-25.md).
+  Logout limpa as três intenções de convite; rota explícita de convite legado
+  repersiste seu token ao trocar a conta. Ciclo sem convite também passou: cadastro,
+  OTP, solicitação, conferência e aprovação como atleta, sem papel de equipe.
+  [Evidência sem convite](../../operations/entry-no-invite-local-2026-10-25.md).
+  Ambiente hospedado não exercitado e nenhuma publicação.
+
 - Presença no avatar usa heartbeat autenticado por instituição e leitura
   administrativa. Backend ativado em 22/10/2026; publicação do frontend autorizada,
   disponibilidade depende do deploy. Sem sinal, mostra desconhecido;

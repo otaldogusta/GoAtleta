@@ -1,52 +1,75 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { hasVerifiedEmailAccess } from "./email-verification-state";
+import { sanitizePostLoginRedirect } from "./post-login-redirect";
 
 const STUDENT_KEY = "pending_student_invite_v1";
 const TRAINER_KEY = "pending_trainer_invite_v1";
 const STUDENT_RELATIONSHIP_KEY = "pending_student_relationship_invite_v1";
+const INVITE_KEYS = [STUDENT_KEY, TRAINER_KEY, STUDENT_RELATIONSHIP_KEY];
+let pendingWrite: Promise<void> = Promise.resolve();
+
+const writeInvite = (work: () => Promise<void>) => {
+  pendingWrite = pendingWrite.catch(() => undefined).then(work);
+  return pendingWrite;
+};
+
+// A newly selected invitation replaces older entry intentions, including ones
+// left by a different account on this browser. Serialize writes across routes.
+const selectInvite = (key: string, value: string) => writeInvite(async () => {
+  await Promise.all(INVITE_KEYS.filter((other) => other !== key).map((other) => AsyncStorage.removeItem(other)));
+  await AsyncStorage.setItem(key, value);
+});
+
+export const clearPendingInvites = () => writeInvite(async () => {
+  await Promise.all(INVITE_KEYS.map((key) => AsyncStorage.removeItem(key)));
+});
 
 export const savePendingInvite = async (token: string) => {
   const trimmed = token.trim();
   if (!trimmed) return;
-  await AsyncStorage.setItem(STUDENT_KEY, trimmed);
+  await selectInvite(STUDENT_KEY, trimmed);
 };
 
 export const getPendingInvite = async (): Promise<string> => {
+  await pendingWrite;
   const value = await AsyncStorage.getItem(STUDENT_KEY);
   return value ?? "";
 };
 
 export const clearPendingInvite = async () => {
-  await AsyncStorage.removeItem(STUDENT_KEY);
+  await writeInvite(() => AsyncStorage.removeItem(STUDENT_KEY));
 };
 
 export const savePendingTrainerInvite = async (code: string) => {
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) return;
-  await AsyncStorage.setItem(TRAINER_KEY, trimmed);
+  await selectInvite(TRAINER_KEY, trimmed);
 };
 
 export const getPendingTrainerInvite = async (): Promise<string> => {
+  await pendingWrite;
   const value = await AsyncStorage.getItem(TRAINER_KEY);
   return value ?? "";
 };
 
 export const clearPendingTrainerInvite = async () => {
-  await AsyncStorage.removeItem(TRAINER_KEY);
+  await writeInvite(() => AsyncStorage.removeItem(TRAINER_KEY));
 };
 
 export const savePendingRelationshipInvite = async (token: string) => {
   const trimmed = token.trim();
   if (!trimmed) return;
-  await AsyncStorage.setItem(STUDENT_RELATIONSHIP_KEY, trimmed);
+  await selectInvite(STUDENT_RELATIONSHIP_KEY, trimmed);
 };
 
 export const getPendingRelationshipInvite = async (): Promise<string> => {
+  await pendingWrite;
   const value = await AsyncStorage.getItem(STUDENT_RELATIONSHIP_KEY);
   return value ?? "";
 };
 
 export const clearPendingRelationshipInvite = async () => {
-  await AsyncStorage.removeItem(STUDENT_RELATIONSHIP_KEY);
+  await writeInvite(() => AsyncStorage.removeItem(STUDENT_RELATIONSHIP_KEY));
 };
 
 export const resolvePendingTrainerCode = ({
@@ -116,6 +139,32 @@ export const resolvePendingInviteRedirect = ({
   return pendingStudentToken.trim() || pendingTrainerCode.trim()
     ? "/pending"
     : defaultTarget;
+};
+
+// The root owns post-auth navigation. Resolve persisted invitations before the
+// default portal so the login screen and the root cannot race one another.
+export const resolvePostAuthEntryTarget = async ({
+  user,
+  routeTrainerCode,
+  next,
+  defaultTarget,
+}: {
+  user: Parameters<typeof hasVerifiedEmailAccess>[0] & { email?: string | null };
+  routeTrainerCode?: string;
+  next?: unknown;
+  defaultTarget: string;
+}) => {
+  if (routeTrainerCode?.trim()) await savePendingTrainerInvite(routeTrainerCode);
+  if (!hasVerifiedEmailAccess(user)) {
+    return `/verify-email?email=${encodeURIComponent(user?.email ?? "")}`;
+  }
+  const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
+    getPendingInvite(), getPendingRelationshipInvite(), getPendingTrainerInvite(),
+  ]);
+  return resolvePendingInviteRedirect({
+    pendingStudentToken, pendingRelationshipToken, pendingTrainerCode,
+    defaultTarget: sanitizePostLoginRedirect(next) ?? defaultTarget,
+  });
 };
 
 export const shouldReturnTrainerInviteToSignup = ({

@@ -39,6 +39,7 @@ import {
 import { getSessionUserId, getValidAccessToken } from "./session";
 import { reconcileMyStudentAccess, type StudentAccessResolution } from "./student-access-reconciliation";
 import { mapStudentSelfProfile } from "./student-self-profile";
+import { useRoleRecovery } from "./use-role-recovery";
 
 export type { UserRole } from "./role-types";
 
@@ -438,6 +439,12 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
             ? caughtError
             : new Error(String(caughtError));
         Sentry.captureException(parsedError);
+        if (__DEV__) {
+          console.warn("[role] authorization read failed", {
+            name: parsedError.name,
+            status: (parsedError as Error & { status?: number }).status,
+          });
+        }
         setError(parsedError);
         setRole(null);
         setAvailableRoles([]);
@@ -454,6 +461,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   );
 
   const retry = useCallback(() => refresh(), [refresh]);
+  useRoleRecovery(error, loading, retry, sessionSnapshotKey);
 
   useEffect(() => {
     if (lastAutomaticRefreshKeyRef.current === sessionSnapshotKey) return;

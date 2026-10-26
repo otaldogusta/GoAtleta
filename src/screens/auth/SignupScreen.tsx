@@ -301,20 +301,9 @@ useEffect(() => {
           ...(inviteCode.trim() ? { inviteCode: inviteCode.trim() } : {}),
         },
       };
-      if (inviteCode.trim()) {
-        await savePendingTrainerInvite(inviteCode.trim());
-        if (session) {
-          router.replace(verifyEmailRoute);
-        } else {
-          router.replace("/login");
-        }
-      } else {
-        if (session) {
-          router.replace(verifyEmailRoute);
-        } else {
-          router.replace("/login");
-        }
-      }
+      // Auth may require confirmation before returning a session. The account
+      // still continues through OTP, rather than asking it to log in again.
+      router.replace(verifyEmailRoute);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
       const normalized = detail.toLowerCase();
@@ -439,7 +428,9 @@ useEffect(() => {
 
             <ScreenHeader
               title={completion ? "Conclua seu cadastro" : "Comece agora"}
-              subtitle={completion ? "" : "Monte planos, turmas e calendários no seu ritmo."}
+              subtitle={completion ? "Defina sua senha para concluir o acesso à instituição." : inviteCode.trim()
+                ? "Confirme seu e-mail para continuar com o convite."
+                : "Crie sua conta. Depois, vincule-se à sua instituição."}
             />
 
             <Animated.View
@@ -921,7 +912,13 @@ useEffect(() => {
                     inviteEmailSuggestion.current = emailSuggestion;
                   }}
                   onVerified={handleInviteVerified}
-                  onRemove={() => { setInviteSubmissionError(""); pastedProof.current = null; pendingSetup.current = null; inviteEmailSuggestion.current = undefined; setInviteCode(""); setVerifiedInviteCode(""); setShowInviteCode(false); }} />
+                  onRemove={() => {
+                    setInviteSubmissionError(""); pastedProof.current = null; pendingSetup.current = null;
+                    inviteEmailSuggestion.current = undefined;
+                    setInviteCode(""); setVerifiedInviteCode(""); setShowInviteCode(false);
+                    void clearPendingTrainerInvite();
+                    router.setParams({ inviteCode: "" });
+                  }} />
               ) : null}
 
               {canResendInviteAccess && inviteSubmissionError ? (

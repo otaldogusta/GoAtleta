@@ -150,6 +150,26 @@ const flushMicrotasks = async () => {
 describe("RoleProvider bootstrap resilience", () => {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
 
+  it("automatically recovers a transient profile read without granting a cached role", async () => {
+    jest.useFakeTimers();
+    let unavailable = true;
+    mockGetMyStudentContexts.mockResolvedValue([buildFamilyContext("child-1")]);
+    jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+      ok: !unavailable, status: unavailable ? 503 : 200,
+      text: async () => unavailable ? "temporary outage" :
+        String(input).includes("/rpc/is_trainer") ? "false" : "[]",
+    }) as Response);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    expect(latestRoleState).toMatchObject({ role: null, availableRoles: [], loading: false });
+    expect(latestRoleState?.error).toBeTruthy();
+    unavailable = false;
+    await act(async () => { jest.advanceTimersByTime(1000); await flushMicrotasks(); });
+    expect(latestRoleState).toMatchObject({ role: "family", error: null, selectedFamilyStudent: { studentId: "child-1" } });
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     roleStateSnapshots = [];

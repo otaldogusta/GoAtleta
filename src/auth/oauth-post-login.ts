@@ -2,6 +2,11 @@ import type { AuthSession } from "./session";
 
 const NEW_ACCOUNT_WINDOW_MS = 10 * 60 * 1000;
 
+export const getOAuthCallbackCode = (pathname: string, search: string) =>
+  pathname.replace(/\/+$/, "") === "/staff-invite"
+    ? null
+    : new URLSearchParams(search).get("code");
+
 export const isRecentlyCreatedAuthUser = (
   user: AuthSession["user"] | null | undefined,
   nowMs = Date.now(),

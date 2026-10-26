@@ -22,6 +22,7 @@ export default function StaffInviteScreen() {
   const params = useLocalSearchParams<{ code?: string }>();
   const resumeCode = typeof params.code === "string" && /^[A-Z0-9-]{4,128}$/i.test(params.code) ? params.code : "";
   const { session, loading, acceptStaffInvite, completeStaffInvite, signOut } = useAuth();
+  const needsSignup = session?.user.app_metadata?.staff_invite_setup_required === true;
   const { setActiveOrganizationId } = useOrganization();
   const { proof, clear: clearProof } = useStaffInviteEntry();
   const inFlight = useRef(false);
@@ -53,6 +54,16 @@ export default function StaffInviteScreen() {
     setError("");
     try {
       await savePendingTrainerInvite(proof?.code ?? resumeCode);
+      if (!proof && !session) {
+        router.replace({ pathname: "/signup", params: { inviteCode: resumeCode } });
+        return;
+      }
+      if (!proof && session && !needsSignup) {
+        // Existing accounts claim the code through the same verified access
+        // boundary as login/OTP, not the temporary password-setup endpoint.
+        router.replace("/pending");
+        return;
+      }
       // Preserve the old session if validation fails. Replace only after the
       // recipient is authenticated AND the organization accepted the claim.
       const result = proof ? await acceptStaffInvite(proof)
@@ -98,9 +109,9 @@ export default function StaffInviteScreen() {
     }
   };
   const login = async () => {
-    if (!proof) return;
-    const code = proof.code;
-    await signOut();
+    const code = proof?.code ?? resumeCode;
+    if (!code) return;
+    if (session) await signOut();
     await savePendingTrainerInvite(code);
     router.replace({ pathname: "/login", params: { inviteCode: code } });
   };
@@ -119,8 +130,7 @@ export default function StaffInviteScreen() {
       onSubmit: complete,
       onCancel: () => {
         setSetup(null);
-        clearProof();
-        router.replace("/");
+        void leave();
       },
     }} />;
   }
@@ -138,15 +148,16 @@ export default function StaffInviteScreen() {
       <Text style={[styles.title, { color: colors.text }]}>{invalid ? "Convite indisponível" : "Convite da instituição"}</Text>
       <Text style={[styles.copy, { color: colors.muted }]}>
         {invalid ? "Peça um novo convite à instituição." : resumeCode
-          ? "Confirme o convite para continuar seu cadastro."
+          ? session ? needsSignup ? "Continue o cadastro com a conta convidada." : "Use o convite com a conta conectada." : "Crie sua conta ou entre para usar este convite."
           : session
           ? `Você está conectado como ${session.user.email}. Continuar troca para a conta convidada.`
           : "Aceite para entrar com a conta que recebeu este convite."}
       </Text>
       {error && !invalid ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
-      {!invalid ? <Button label={busy ? "Validando convite..." : resumeCode ? "Continuar cadastro" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
+      {!invalid ? <Button label={busy ? "Validando convite..." : resumeCode ? session ? needsSignup ? "Continuar cadastro" : "Aceitar convite" : "Criar conta" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
         disabled={!ready || loading || busy} onPress={() => void accept()} /> : null}
       {error && proof && !invalid ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
+      {!invalid && resumeCode && !session ? <Button label="Já tenho conta" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
     </View>
   </ScrollView>;
 }
