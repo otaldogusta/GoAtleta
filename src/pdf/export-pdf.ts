@@ -18,8 +18,8 @@ export const createWebPdfBlob = async (webDocument: ReactElement) => {
   if (Platform.OS !== "web") {
     throw new Error("PDF preview is only available on web.");
   }
-  const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
-  return pdf(webDocument as any).toBlob();
+  const { renderWebPdfBlob } = await import("./pdf-runtime");
+  return renderWebPdfBlob(webDocument);
 };
 
 export const downloadWebPdfBlob = (blob: Blob, fileName: string) => {

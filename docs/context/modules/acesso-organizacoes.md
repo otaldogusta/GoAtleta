@@ -39,6 +39,7 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
   de identidade e limpeza de caches antes de publicar o novo contexto.
 - A matriz de rotas é proteção de interface; RLS/RPC/Edge continuam responsáveis por
   negar leitura e escrita indevidas. Alterar somente um redirecionamento é insuficiente.
+- Entradas diretas aguardam organização e permissões, ocultando os filhos sem redirecionar antes de aplicar a decisão final de acesso.
 - Links de recuperação/expiração são interceptados no bootstrap. O parâmetro `next`
   passa por [post-login-redirect.ts](../../../src/auth/post-login-redirect.ts), que aceita destinos internos seguros.
 
@@ -70,6 +71,21 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
   OTP, solicitação, conferência e aprovação como atleta, sem papel de equipe.
   [Evidência sem convite](../../operations/entry-no-invite-local-2026-10-25.md).
   Ambiente hospedado não exercitado e nenhuma publicação.
+- A navegação web reutiliza somente um branch de workspace ou um detalhe com
+  contexto integral idêntico; mudanças de contexto mantêm entradas distintas.
+  A troca de workspace aguarda a guarda de edição antes de alterar papel/prévia.
+  O histórico Voltar/Avançar é parte do contrato, inclusive ao reutilizar telas.
+  Entradas e IDs pertencem ao SDK: abas web usam `fullHistory` e a raiz compõe
+  snapshots públicos de navegação por visita, sem armazenar estado de editores.
+  POP de outra rota e invalidação de chaves conservam o resultado do SDK.
+  O nativo mantém seu padrão; testes locais não confirmam o soak final.
+  A volta da turma à agenda verifica a chave pública da origem e conserva seu
+  estado local; essa chave não participa da autorização dos dados.
+  [Teste prolongado e validação local de 24/10](../../operations/performance-boot-soak-local-2026-10-24.md).
+- Em 23/10, consumidores de acesso à plataforma passaram a compartilhar somente
+  a consulta pendente da mesma identidade/geração. Sem TTL de concessão; chamada
+  posterior consulta o servidor. Loading nega e novo login da mesma conta invalida
+  respostas anteriores. [Testes e limites locais](../../operations/performance-local-2026-10-23.md).
 
 - Presença no avatar usa heartbeat autenticado por instituição e leitura
   administrativa. Backend ativado em 22/10/2026; publicação do frontend autorizada,

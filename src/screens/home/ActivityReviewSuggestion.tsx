@@ -12,14 +12,19 @@ import { useAppTheme } from "../../ui/app-theme";
 import { claimActivityNotice } from "../../core/activity-notice";
 import { radius, spacing } from "../../theme/tokens";
 
+const EMPTY_ACTIVITY_ITEMS: MissingClassActivity[] = [];
+
 export function ActivityReviewSuggestion({ organizationId, userId, classes, today, onPresence, onSaved, onAvailable, openRequest = 0 }: {
   organizationId: string; userId: string; onAvailable?: (count: number) => void; openRequest?: number; classes: ClassGroup[]; today: string;
   onPresence: (visible: boolean) => void; onSaved: () => Promise<void>;
 }) {
-  const [items, setItems] = useState<MissingClassActivity[]>([]);
+  const readScope = JSON.stringify([organizationId, userId, today]);
+  const [itemSnapshot, setItemSnapshot] = useState<{ scope: string; rows: MissingClassActivity[] }>({ scope: "", rows: [] });
+  const items = itemSnapshot.scope === readScope ? itemSnapshot.rows : EMPTY_ACTIVITY_ITEMS;
   const [dismissed, setDismissed] = useState(true);
   const [requested, setRequested] = useState(openRequest);
   const [open, setOpen] = useState(false);
+  const [panelScope, setPanelScope] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [draft, setDraft] = useState<ReviewDraft>({reason:null,start:"",end:"",note:"",resolution:null,newDate:""});
   const [saving, setSaving] = useState(false);
@@ -27,11 +32,12 @@ export function ActivityReviewSuggestion({ organizationId, userId, classes, toda
   const { colors } = useAppTheme();
   useEffect(() => {
     let alive = true;
-    void Promise.all([loadActivityReview(organizationId,today), listCalendarPauses(organizationId)])
-      .then(([data,pauses]) => { if (alive) setItems(missingClassActivity({ classes: classes.filter(c => data.enrolledClassIds.has(c.id)), ...data, pauses, today })); })
-      .catch(() => { if (alive) setItems([]); }); // No suggestion from incomplete evidence.
-    return () => { alive = false; };
-  }, [organizationId,classes,today]);
+    const controller = new AbortController();
+    void Promise.all([loadActivityReview(organizationId,today,controller.signal), listCalendarPauses(organizationId)])
+      .then(([data,pauses]) => { if (alive) setItemSnapshot({ scope: readScope, rows: missingClassActivity({ classes: classes.filter(c => data.enrolledClassIds.has(c.id)), ...data, pauses, today }) }); })
+      .catch(() => { if (alive) setItemSnapshot({ scope: readScope, rows: [] }); }); // No suggestion from incomplete evidence.
+    return () => { alive = false; controller.abort(); };
+  }, [organizationId,classes,today,readScope]);
   useEffect(() => {
     onAvailable?.(items.length);
     return () => onAvailable?.(0);
@@ -46,16 +52,17 @@ export function ActivityReviewSuggestion({ organizationId, userId, classes, toda
   const visible = items.length > 0 && !dismissed;
   useEffect(() => { onPresence(visible); return () => onPresence(false); }, [onPresence,visible]);
   const begin = useCallback(() => {
+    setPanelScope(readScope);
     setSelected(items.map(i => i.classId)); setError("");
     const dates = items.flatMap(i => i.dates).sort();
     setDraft({reason:null,start:dates[0],end:dates[dates.length-1],note:"",resolution:null,newDate:""}); setOpen(true);
-  }, [items]);
+  }, [items,readScope]);
   if (openRequest !== requested) {
     setRequested(openRequest);
     if (items.length) begin();
   }
   const {reason,start,end} = draft;
-  const valid = validReviewDraft(draft,selected);
+  const valid = panelScope === readScope && validReviewDraft(draft,selected);
   const save = async () => {
     if (!valid || saving || !reason) return;
     setSaving(true); setError("");
@@ -63,7 +70,7 @@ export function ActivityReviewSuggestion({ organizationId, userId, classes, toda
       if (["recess","suspended","held"].includes(reason)) await saveActivityReview(organizationId,selected,start,end,reason);
       else await saveActivityReview(organizationId,selected,start,end,reason,{note:draft.note.trim(),resolution:draft.resolution,newDate:draft.newDate});
       await onSaved();
-      setItems(current => current.filter(item => !selected.includes(item.classId) || item.dates[0] < start || item.dates[0] > end));
+      setItemSnapshot(current => current.scope !== readScope ? current : { scope: readScope, rows: current.rows.filter(item => !selected.includes(item.classId) || item.dates[0] < start || item.dates[0] > end) });
       setDismissed(true);
       setOpen(false);
     } catch (failure) {
@@ -81,7 +88,7 @@ export function ActivityReviewSuggestion({ organizationId, userId, classes, toda
       <Text style={{color:colors.muted}}>{items[0].name}: {items[0].dates.length} datas previstas seguidas sem chamada.{items.length > 1 ? ` Mais ${items.length - 1} turma(s) para revisar.` : ""}</Text>
       <View style={styles.actions}><Button label="Revisar período" onPress={begin}/></View>
     </View> : null}
-    <ActivityReviewPanel visible={open} items={items} selected={selected} onSelected={setSelected} draft={draft} onDraft={setDraft} saving={saving} error={error} onClose={() => { if(!saving)setOpen(false); }} onSave={()=>void save()} />
+    <ActivityReviewPanel visible={open && panelScope === readScope} items={items} selected={selected} onSelected={setSelected} draft={draft} onDraft={setDraft} saving={saving} error={error} onClose={() => { if(!saving)setOpen(false); }} onSave={()=>void save()} />
   </>;
 }
 const styles=StyleSheet.create({

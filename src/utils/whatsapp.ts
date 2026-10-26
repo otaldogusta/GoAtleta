@@ -23,7 +23,7 @@ export type ContactResult = {
   status: "ok" | "invalid" | "missing";
 };
 
-export function getContactPhone(student: Student): ContactResult {
+export function getContactPhone(student: Pick<Student, "phone" | "guardianPhone">): ContactResult {
   const guardian = normalizePhoneBR(student.guardianPhone);
   if (guardian.isValid) {
     return { phoneDigits: guardian.phoneDigits, source: "guardian", status: "ok" };

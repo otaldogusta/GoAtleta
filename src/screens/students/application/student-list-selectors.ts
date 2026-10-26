@@ -4,22 +4,22 @@ import { ALL_STUDENTS_UNITS_LABEL } from "./student-search";
 
 export type StudentListPalette = { bg: string; text: string };
 
-export type StudentListClassGroup = {
+export type StudentListClassGroup<Row = Student> = {
   classId: string;
   className: string;
   gender: ClassGender;
   scheduleLabel: string;
   palette: StudentListPalette | null;
-  students: Student[];
+  students: Row[];
 };
 
-export type StudentListUnitGroup = {
+export type StudentListUnitGroup<Row = Student> = {
   unitName: string;
-  classes: StudentListClassGroup[];
+  classes: StudentListClassGroup<Row>[];
 };
 
-export const groupStudentsByClassId = (students: Student[]) => {
-  const byClass = new Map<string, Student[]>();
+export const groupStudentsByClassId = <Row extends Pick<Student, "classId">>(students: Row[]) => {
+  const byClass = new Map<string, Row[]>();
   students.forEach((student) => {
     const key = student.classId || "";
     const bucket = byClass.get(key) ?? [];
@@ -29,10 +29,10 @@ export const groupStudentsByClassId = (students: Student[]) => {
   return byClass;
 };
 
-export const buildStudentListGroups = (params: {
+export const buildStudentListGroups = <Row extends Pick<Student, "classId" | "name">>(params: {
   classes: ClassGroup[];
   classById: ReadonlyMap<string, ClassGroup>;
-  studentsByClassId: ReadonlyMap<string, Student[]>;
+  studentsByClassId: ReadonlyMap<string, Row[]>;
   unitFilter: string;
   unitLabel: (value: string) => string;
   hasActiveSearch: boolean;
@@ -40,7 +40,7 @@ export const buildStudentListGroups = (params: {
   resolveClassPalette: (cls: ClassGroup, unitName: string) => StudentListPalette | null;
   resolveUnitPalette: (unitName: string) => StudentListPalette | null;
   formatClassScheduleLabel: (cls: ClassGroup | null) => string;
-}): StudentListUnitGroup[] => {
+}): StudentListUnitGroup<Row>[] => {
   const filteredUnits =
     params.unitFilter === ALL_STUDENTS_UNITS_LABEL ? null : new Set([params.unitFilter]);
   const unitMap = new Map<
@@ -51,7 +51,7 @@ export const buildStudentListGroups = (params: {
         {
           cls: ClassGroup | null;
           className: string;
-          students: Student[];
+          students: Row[];
         }
       >;
     }

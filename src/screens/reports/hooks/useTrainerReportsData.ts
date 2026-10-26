@@ -1,20 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type {
-  AttendanceRecord,
   ClassGroup,
   SessionLog,
-  Student,
   StudentScoutingLog,
 } from "../../../core/models";
 import {
-  getAttendanceAll,
   getClasses,
   getSessionLogsByRange,
   getStudentScoutingByRange,
-  getStudents,
 } from "../../../db/seed";
+import { getAttendanceExportStudents, type AttendanceExportStudent } from "../../../db/students";
 import { measureAsync } from "../../../observability/perf";
+import { getMonthlyAttendanceSummary, type AttendanceDailySummary } from "../../../db/attendance-summary";
 
 type ReportTabId = "month" | "reports" | "students";
 
@@ -36,12 +34,19 @@ export function useTrainerReportsData({
   rangeBounds,
 }: UseTrainerReportsDataParams) {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const studentScope = useMemo(() => ({ organizationId, classId, enabled: reportTab === "students" }), [organizationId, classId, reportTab]);
+  const [studentState, setStudentState] = useState<{ scope: typeof studentScope | null; rows: AttendanceExportStudent[]; error: string | null }>({ scope: null, rows: [], error: null });
+  const baseScope = useMemo(() => ({ organizationId }), [organizationId]);
+  const [loadedBaseScope, setLoadedBaseScope] = useState<typeof baseScope | null>(null);
+  const attendanceScope = useMemo(() => ({ organizationId, monthKey }), [organizationId, monthKey]);
+  const [attendanceState, setAttendanceState] = useState<{ scope: typeof attendanceScope | null; days: AttendanceDailySummary[]; error: string | null }>({ scope: null, days: [], error: null });
   const [loadingBase, setLoadingBase] = useState(true);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
-  const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
-  const [studentScoutingLogs, setStudentScoutingLogs] = useState<StudentScoutingLog[]>([]);
+  const [sessionState, setSessionState] = useState<{ scope: typeof attendanceScope | null; logs: SessionLog[]; error: string | null }>({ scope: null, logs: [], error: null });
+  const scoutingStart = formatIsoDate(rangeBounds.start);
+  const scoutingEnd = formatIsoDate(rangeBounds.end);
+  const scoutingScope = useMemo(() => ({ organizationId, classId, enabled: reportTab === "students", scoutingStart, scoutingEnd }), [organizationId, classId, reportTab, scoutingStart, scoutingEnd]);
+  const [scoutingState, setScoutingState] = useState<{ scope: typeof scoutingScope | null; rows: StudentScoutingLog[]; error: string | null }>({ scope: null, rows: [], error: null });
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,29 +54,25 @@ export function useTrainerReportsData({
     (async () => {
       if (!organizationId) {
         setClasses([]);
-        setStudents([]);
+        setLoadedBaseScope(baseScope);
         setLoadError(null);
         setLoadingBase(false);
         return;
       }
       try {
         setLoadError(null);
-        const [cls, st] = await measureAsync(
+        const cls = await measureAsync(
           "screen.reportsTrainer.load.base",
-          () =>
-            Promise.all([
-              getClasses({ organizationId }),
-              getStudents({ organizationId }),
-            ]),
+          () => getClasses({ organizationId }),
           { screen: "reportsTrainer", organizationId }
         );
         if (!alive) return;
         setClasses(cls);
-        setStudents(st);
+        setLoadedBaseScope(baseScope);
       } catch (error) {
         if (!alive) return;
         setClasses([]);
-        setStudents([]);
+        setLoadedBaseScope(baseScope);
         setLoadError(error instanceof Error ? error.message : "Falha ao carregar relatórios.");
       } finally {
         if (alive) setLoadingBase(false);
@@ -80,27 +81,37 @@ export function useTrainerReportsData({
     return () => {
       alive = false;
     };
-  }, [organizationId]);
+  }, [baseScope, organizationId]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!studentScope.enabled || !organizationId || !classId) return;
+    void measureAsync("screen.reportsTrainer.load.highlightStudents", () => getAttendanceExportStudents({
+      organizationId, classId, orderByName: true,
+    }), { screen: "reportsTrainer", organizationId, classId }).then(rows => {
+      if (alive) setStudentState({ scope: studentScope, rows, error: null });
+    }).catch(error => {
+      if (alive) setStudentState({ scope: studentScope, rows: [], error: error instanceof Error ? error.message : "Falha ao carregar atletas." });
+    });
+    return () => { alive = false; };
+  }, [classId, organizationId, studentScope]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!organizationId) {
-        setAttendance([]);
+        setAttendanceState({ scope: attendanceScope, days: [], error: null });
         setLoadingAttendance(false);
         return;
       }
       try {
         setLoadingAttendance(true);
-        const start = new Date(month.getFullYear(), month.getMonth(), 1);
-        const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
         const att = await measureAsync(
           "screen.reportsTrainer.load.attendance",
           () =>
-            getAttendanceAll({
+            getMonthlyAttendanceSummary({
               organizationId,
-              startIso: start.toISOString(),
-              endIso: end.toISOString(),
+              monthKey,
             }),
           {
             screen: "reportsTrainer",
@@ -109,11 +120,10 @@ export function useTrainerReportsData({
           }
         );
         if (!alive) return;
-        setAttendance(att);
+        setAttendanceState({ scope: attendanceScope, days: att, error: null });
       } catch (error) {
         if (!alive) return;
-        setAttendance([]);
-        setLoadError(error instanceof Error ? error.message : "Falha ao carregar presença.");
+        setAttendanceState({ scope: attendanceScope, days: [], error: error instanceof Error ? error.message : "Falha ao carregar presença." });
       } finally {
         if (alive) setLoadingAttendance(false);
       }
@@ -121,13 +131,13 @@ export function useTrainerReportsData({
     return () => {
       alive = false;
     };
-  }, [month, monthKey, organizationId]);
+  }, [attendanceScope, monthKey, organizationId]);
 
   useEffect(() => {
     let alive = true;
     if (!organizationId) {
       Promise.resolve().then(() => {
-        setSessionLogs([]);
+        if (alive) setSessionState({ scope: attendanceScope, logs: [], error: null });
       });
       return () => {
         alive = false;
@@ -142,63 +152,48 @@ export function useTrainerReportsData({
         { screen: "reportsTrainer", month: monthKey }
       );
       if (!alive) return;
-      setSessionLogs(logs);
+      setSessionState({ scope: attendanceScope, logs, error: null });
     })().catch((error) => {
       if (!alive) return;
-      setSessionLogs([]);
-      setLoadError(error instanceof Error ? error.message : "Falha ao carregar relatórios.");
+      setSessionState({ scope: attendanceScope, logs: [], error: error instanceof Error ? error.message : "Falha ao carregar relatórios." });
     });
     return () => {
       alive = false;
     };
-  }, [month, monthKey, organizationId]);
+  }, [attendanceScope, month, monthKey, organizationId]);
 
   useEffect(() => {
     let alive = true;
-    if (reportTab !== "students") {
-      Promise.resolve().then(() => {
-        setStudentScoutingLogs([]);
-      });
-      return () => {
-        alive = false;
-      };
-    }
-    if (!classId) {
-      Promise.resolve().then(() => {
-        setStudentScoutingLogs([]);
-      });
-      return () => {
-        alive = false;
-      };
-    }
-    const startKey = formatIsoDate(rangeBounds.start);
-    const endKey = formatIsoDate(rangeBounds.end);
+    if (!scoutingScope.enabled || !organizationId || !classId) return;
     (async () => {
       const logs = await measureAsync(
         "screen.reportsTrainer.load.studentScouting",
-        () => getStudentScoutingByRange(classId, startKey, endKey),
-        { screen: "reportsTrainer", classId, startKey, endKey }
+        () => getStudentScoutingByRange(classId, scoutingStart, scoutingEnd),
+        { screen: "reportsTrainer", classId, startKey: scoutingStart, endKey: scoutingEnd }
       );
       if (!alive) return;
-      setStudentScoutingLogs(logs);
+      setScoutingState({ scope: scoutingScope, rows: logs, error: null });
     })().catch((error) => {
       if (!alive) return;
-      setStudentScoutingLogs([]);
-      setLoadError(error instanceof Error ? error.message : "Falha ao carregar scouting.");
+      setScoutingState({ scope: scoutingScope, rows: [], error: error instanceof Error ? error.message : "Falha ao carregar scouting." });
     });
     return () => {
       alive = false;
     };
-  }, [classId, rangeBounds, reportTab]);
+  }, [classId, organizationId, scoutingStart, scoutingEnd, scoutingScope]);
 
   return {
-    classes,
-    students,
-    attendance,
-    loading: loadingBase || loadingAttendance,
-    sessionLogs,
-    studentScoutingLogs,
-    loadError,
+    classes: loadedBaseScope === baseScope ? classes : [],
+    students: studentState.scope === studentScope && studentScope.enabled ? studentState.rows : [],
+    attendanceDays: attendanceState.scope === attendanceScope ? attendanceState.days : [],
+    loading: loadingBase || loadingAttendance || loadedBaseScope !== baseScope || attendanceState.scope !== attendanceScope ||
+      Boolean(studentScope.enabled && organizationId && classId && studentState.scope !== studentScope),
+    sessionLogs: sessionState.scope === attendanceScope ? sessionState.logs : [],
+    studentScoutingLogs: scoutingState.scope === scoutingScope && scoutingScope.enabled ? scoutingState.rows : [],
+    loadError: (attendanceState.scope === attendanceScope ? attendanceState.error : null) ??
+      (sessionState.scope === attendanceScope ? sessionState.error : null) ??
+      (studentState.scope === studentScope && studentScope.enabled ? studentState.error : null) ??
+      (scoutingState.scope === scoutingScope && scoutingScope.enabled ? scoutingState.error : null) ?? loadError,
   };
 }
 

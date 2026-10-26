@@ -29,6 +29,28 @@ operacionais. O scanner QR existente é uma ferramenta mobile de leitura de cont
 
 ## Contratos a preservar
 
+- Em 24/10/2026, relatórios por intervalo passaram a paginar resumos sem fotos;
+  chamadas globais usam cursor de data/ID, guardas de identidade e ordenação pública
+  mais recente primeiro. Erros não publicam totais parciais. O índice correspondente
+  foi aplicado somente em backend isolado local; [evidência e limites](../../operations/performance-stress-local-2026-10-24.md).
+  Intervalos válidos de 8–31 dias usam até quatro faixas DATE contíguas, com cursor
+  serial por faixa e orçamento/identidade/falha compartilhados; demais leituras seguem seriais.
+  A leitura global sem intervalo solicita páginas de 1.000; intervalos mantêm 500.
+  O término exige página vazia, inclusive quando o servidor limita a resposta a
+  menos linhas. Não reduzir o histórico para acelerar sinais de faltas consecutivas.
+  Sinais usam DTO explícito de ID/aluno/data/status/criação pelo mesmo pager
+  guardado; o leitor completo conserva oito campos e as exportações são preservadas.
+  [Comparação integral Auth/RLS da segunda rodada](../../operations/performance-global-startup-round2-local-2026-10-24.md).
+  A continuação de 24/10 otimiza a avaliação das políticas SELECT por escopo,
+  conservando autorização e escritas. Contagem global e leitura estrangeira
+  deixaram de atingir timeout no banco isolado; [testes e limites](../../operations/performance-boot-soak-local-2026-10-24.md).
+
+- A sugestão de pausa no início da coordenação lê somente existência de chamada
+  por turma matriculada/dia nos 28 dias anteriores. A RPC é `SECURITY INVOKER`,
+  exige administrador e conserva RLS; não transfere chamadas individuais/notas/saúde.
+  Até a ativação dessa migration, o cliente usa leitura completa paginada por cursor.
+  Falha ou troca de usuário/organização não publica sugestão com evidência parcial.
+
 - Aula e relatório usam turma/data explícitas. O rascunho do relatório é versionado
   e separado por usuário/organização/turma/data; rascunho local não é envio concluído.
 - O relatório sincroniza a sessão estruturada pelo caminho existente; plano gerado,

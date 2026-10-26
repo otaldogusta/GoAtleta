@@ -1113,7 +1113,7 @@ function CoordinationScreenContent() {
       }
 
       const [{ CoordinationAiDocument }, { exportPdf, safeFileName }] = await Promise.all([
-        import("../src/pdf/coordination-ai-document"),
+        import("../src/pdf/pdf-runtime"),
         import("../src/pdf/export-pdf"),
       ]);
       const fileName = `${safeFileName(bundle.title)}_${safeFileName(bundle.generatedAt)}.pdf`;

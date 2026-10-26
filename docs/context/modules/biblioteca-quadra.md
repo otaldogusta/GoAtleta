@@ -1,5 +1,12 @@
 # Biblioteca, quadra visual e scouting
 
+Atualização local de 24/10/2026: o workspace usa diretamente `CourtEditorCanvas`
+com as mesmas props, evitando carregar Skia pelo wrapper legado. Renderer e
+documentos legados permanecem preservados. Três suítes/49 testes aprovados;
+gestos em aparelho continuam pendentes. PDF web usa a fronteira compartilhada
+[pdf-runtime.web](../../../src/pdf/pdf-runtime.web.tsx). Medições e limites em
+[Desempenho local](../../operations/performance-local-2026-10-23.md).
+
 Base inspecionada: `d5120cff`, em 05/10/2026. Inventário do código local do Go Atleta;
 publicação, qualidade pedagógica e sincronização remota exigem evidência própria.
 
@@ -33,6 +40,18 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- Em 25/10, o hook de rascunho suspende bootstrap, retries e autosave ao ocultar
+  o estúdio, preservando RAM/histórico e recibos de escritas já enviadas.
+  Posições normalizadas idênticas são compartilhadas como array/pontos imutáveis
+  entre etapas do Undo; parser e alterações reais de trajetória permanecem
+  independentes. O serializer grava o documento uma vez e mantém o maior sufixo
+  contíguo do histórico que caiba nos mesmos 20 passos/1.500.000 caracteres,
+  sem truncar o documento atual. [Provas e limites locais](../../operations/performance-lists-memory-local-2026-10-25.md).
+- O estúdio compartilhado web é importado após a autorização do documento.
+  Falha do chunk usa o estado existente de indisponibilidade e permite nova
+  tentativa; respostas após perda de acesso/desmontagem não montam o estúdio.
+  Modo de leitura e renderer nativo permanecem preservados.
+  [Startup e validação local da segunda rodada](../../operations/performance-global-startup-round2-local-2026-10-24.md).
 - `TrainingPlan.pedagogy.blocks` é referência semântica; campos legados de
   aquecimento/principal/volta à calma conservam compatibilidade de apresentação.
 - Seleção de catálogo segue contexto de turma, ciclo, semana, aula e restrições;
@@ -81,6 +100,32 @@ capacidades comprovadas por este mapa. Referenciar aula não reescreve plano apl
 Estúdio de vídeo integrado localmente ao scouting web em 12/10: [implementação e limites](../../ui/SCOUTING_VIDEO_IMPLEMENTACAO_2026-10-12.md), baseada no [mockup](../../ui/SCOUTING_VIDEO_MOCKUP_2026-10-12.md). Player, rallies/contatos temporais, pontos anotados, timeline, histórico e exportação funcionam com arquivo e rascunho locais. Anotações não escrevem estatísticas oficiais. Supabase mantém a autorização da sessão. Processamento automático local e compartilhamento por link evoluíram em 13/10, conforme o contrato abaixo; ativação remota permanece pendente. [Continuidade e proposta YouTube](../../operations/scouting-video-handoff-2026-10-13.md).
 
 ## Validação seletiva
+
+Em 23/10, `useVideoDraft` passou a reutilizar a assinatura do documento imutável
+entre atualizações do relógio do player. `dirty` acompanha edição/Undo/Redo/salvar;
+autosave, revisão, conflito e readonly permanecem. Benchmark com saída Expo/Compiler
+e 61 testes registrados não certificam FPS do estúdio ou Android.
+Ver [evidência e limites](../../operations/performance-local-2026-10-23.md).
+
+No retorno web da quadra, uma turma imediatamente anterior com o mesmo ID é
+reutilizada por Voltar, conservando seus parâmetros. Entrada direta, outro
+destino e nativo mantêm o fallback anterior. Confirmação/preservação de rascunho
+precedem a saída. [Continuação e teste prolongado](../../operations/performance-boot-soak-local-2026-10-24.md).
+
+Em 24/10, o [storage do rascunho de vídeo](../../../src/screens/scouting/video/video-draft-storage.ts)
+passou a usar IndexedDB no navegador para documentos grandes; o nativo mantém
+AsyncStorage. A chave conserva usuário/organização/sessão/fingerprint, incluindo
+backups, e uma gravação só confirma no commit da transação. Rascunhos legados
+continuam legíveis quando a chave ainda não existe no IndexedDB; falha de leitura
+não autoriza recuperar uma cópia antiga. Erros preservam dirty e impedem a RPC;
+o autosave para de repetir até nova ação, e a tentativa manual pode sincronizar
+após gravar. Nenhum cache, autenticação ou rascunho legado é apagado.
+Contrato e smoke pesado em [Carga local](../../operations/performance-stress-local-2026-10-24.md).
+
+O estúdio web retido conserva o modelo/editor, mas sua superfície e efeitos
+externos seguem o foco da rota: pausa, libera mídia/frames/listeners/URLs próprias
+e o bloqueio do app no blur, retomando pausado. Saída explícita conserva a guarda
+existente; foco não salva nem descarta a edição. [Continuação local](../../operations/performance-boot-soak-local-2026-10-24.md).
 
 Atualização local em 16/10: o [rascunho de vídeo](../../../src/screens/scouting/video/use-video-draft.ts)
 recupera/sincroniza o documento editável por sessão e fingerprint via Supabase,

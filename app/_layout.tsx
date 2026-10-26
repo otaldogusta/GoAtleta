@@ -8,6 +8,7 @@ import {
 import Head from "expo-router/head";
 import "../src/ui/web-font-timeout-fallback";
 import "../src/navigation/browser-pending-edits";
+import { withWebStackHistory } from "../src/navigation/web-stack-history";
 import { StatusBar } from "expo-status-bar";
 import * as Updates from "expo-updates";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -1282,6 +1283,7 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
           </View>
         ) : null}
         <Stack
+          UNSTABLE_router={Platform.OS === "web" ? withWebStackHistory : undefined}
           screenOptions={{
             headerShown: false,
             headerTitleAlign: "center",

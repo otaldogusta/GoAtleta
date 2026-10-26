@@ -1,4 +1,5 @@
-import { supabaseRestPost } from "./rest";
+import { assertSessionIdentity, getSessionIdentity, type SessionIdentity } from "../auth/session";
+import { supabaseRestPost, supabaseRestRequest } from "./rest";
 
 export type AccessRequestOrganization = { id: string; name: string };
 export type AccessProduct = "goatleta" | "goatleta_pro";
@@ -101,8 +102,34 @@ export async function platformListAccessRequests(): Promise<OrganizationAccessRe
   return (rows ?? []).map(mapAccessRequest);
 }
 
+let platformAdminAccessInFlight: {
+  identity: SessionIdentity;
+  promise: Promise<boolean>;
+} | null = null;
+
 export async function isPlatformAdmin(): Promise<boolean> {
-  return Boolean(await supabaseRestPost<boolean>("/rpc/is_platform_admin", {}));
+  const identity = getSessionIdentity();
+  if (!identity.userId) return false;
+  if (platformAdminAccessInFlight?.identity.userId === identity.userId &&
+      platformAdminAccessInFlight.identity.generation === identity.generation) {
+    return platformAdminAccessInFlight.promise;
+  }
+  const assertCurrent = () => assertSessionIdentity(identity);
+  const request = supabaseRestRequest<boolean>("/rpc/is_platform_admin", {
+    method: "POST",
+    body: {},
+    prefer: "return=representation",
+    assertContextCurrent: assertCurrent,
+  }).then(allowed => {
+    assertCurrent();
+    return allowed === true;
+  });
+  // Share only pending work. A subsequent check must ask the server again.
+  const shared: Promise<boolean> = request.finally(() => {
+    if (platformAdminAccessInFlight?.promise === shared) platformAdminAccessInFlight = null;
+  });
+  platformAdminAccessInFlight = { identity, promise: shared };
+  return shared;
 }
 
 export async function platformReviewAccessRequest({

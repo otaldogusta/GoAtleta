@@ -28,3 +28,13 @@ O gate obrigatório é `npm run build:verified`, com os recibos e logs reais em
 `.tmp/validation/`. Somente após aprovação desse gate o pacote segue para commit
 e push de `main`. O status remoto de CI e Vercel deve ser conferido pelo SHA
 publicado; esta nota, preparada antes do gate, não declara o deploy concluído.
+
+## Preservação da produção existente
+
+A conferência da Vercel identificou `82eb2299` como commit já publicado em
+produção, ainda ausente de `main`. Ele foi incorporado para preservar as
+melhorias de performance e leitura escopada. Conflitos de calendário mantêm
+snapshots, projeções e retorno de navegação desse commit, com o modo somente
+leitura do atleta separado das consultas e ações de equipe. O checklist
+combina os dois históricos. As migrations desse commit são histórico da
+integração; nenhuma aplicação remota de banco foi executada nesta entrega.

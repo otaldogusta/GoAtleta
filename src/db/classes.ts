@@ -10,9 +10,10 @@ import type { ClassGroup } from "../core/models";
 import { canonicalizeUnitLabel } from "../core/unit-label";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
 import { normalizeUnitKey } from "../core/unit-key";
-import { assertSessionIdentity, getSessionIdentity, getSessionUserId, type SessionIdentity } from "../auth/session";
+import { assertSessionIdentity, getSessionIdentity, getSessionUserId, SessionIdentityChangedError, type SessionIdentity } from "../auth/session";
 import {
   getActiveOrganizationId,
+  getReadCacheGeneration,
   getScopedOrganizationId,
   isAuthError,
   isMissingColumnInSchemaCache,
@@ -258,13 +259,23 @@ export async function seedStudentsIfEmpty() {
 
 export async function getClasses(options: { organizationId?: string | null } = {}): Promise<ClassGroup[]> {
   const startedAt = Date.now();
+  const identity = getSessionIdentity();
+  const cacheGeneration = getReadCacheGeneration();
+  const assertContext = () => {
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+  };
   try {
-    const units = await safeGetUnits();
-    const unitMap = new Map(units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)]));
     const activeOrganizationId = await getScopedOrganizationId(options.organizationId, "getClasses");
+    assertContext();
     if (!activeOrganizationId) return [];
     const cacheKey = buildClassesCacheKey(activeOrganizationId);
-    const rows = await supabaseGet<ClassRow[]>(`/classes?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&order=name.asc`);
+    const [units, rows] = await Promise.all([
+      safeGetUnits(identity),
+      supabaseGet<ClassRow[]>(`/classes?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&order=name.asc`, identity),
+    ]);
+    assertContext();
+    const unitMap = new Map(units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)]));
     const mapped = sortClassesBySchedule(rows.map((row) => {
       const unitFromId = row.unit_id ? unitMap.get(row.unit_id) : undefined;
       const unitLabel = canonicalizeUnitLabel(unitFromId ?? row.unit ?? null) ?? canonicalizeUnitLabel(row.unit ?? "") ?? "Sem unidade";
@@ -286,14 +297,19 @@ export async function getClasses(options: { organizationId?: string | null } = {
       };
     }));
     await writeCache(cacheKey, mapped);
-    Sentry.addBreadcrumb({ category: "sqlite-query", message: "getClasses", level: "info", data: { ms: Date.now() - startedAt, rows: mapped.length } });
+    assertContext();
     const profiles = await getClassPedagogicalProfiles(activeOrganizationId);
+    assertContext();
     const profileByClass = new Map(profiles.map(profile => [profile.class_id, profile]));
+    Sentry.addBreadcrumb({ category: "sqlite-query", message: "getClasses", level: "info", data: { ms: Date.now() - startedAt, rows: mapped.length } });
     return mapped.map(cls => ({ ...cls, pedagogicalProfile: profileByClass.get(cls.id) }));
   } catch (error) {
     if (isNetworkError(error)) {
+      assertContext();
       const activeOrganizationId = options.organizationId ?? (await getActiveOrganizationId());
+      assertContext();
       const cached = await readCache<ClassGroup[]>(buildClassesCacheKey(activeOrganizationId ?? null));
+      assertContext();
       return (cached ?? []).map(cls => ({ ...cls, pedagogicalProfileUnavailable: true }));
     }
     throw error;

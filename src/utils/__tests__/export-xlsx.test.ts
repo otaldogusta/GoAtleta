@@ -2,6 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
 import { exportWorkbookXlsx, XLSX_MIME } from "../export-xlsx";
+import { loadXlsx } from "../load-xlsx";
 
 jest.mock("react-native", () => ({
   Platform: { OS: "android" },
@@ -43,6 +44,17 @@ jest.mock("../load-xlsx", () => ({
 }));
 
 describe("exportWorkbookXlsx on Android", () => {
+  beforeEach(() => jest.clearAllMocks());
+  it("does not write/open/share after the caller scope changes during deferred XLSX loading", async () => {
+    const runtime = await loadXlsx();
+    let release!: (value: typeof runtime) => void;
+    jest.mocked(loadXlsx).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    let current = true;
+    const pending = exportWorkbookXlsx({fileName:"report.xlsx",sheets:[{name:"Report",rows:[["Data"]]}],assertCurrent:()=>{if(!current)throw new Error("Scope changed");}});
+    current = false;release(runtime);
+    await expect(pending).rejects.toThrow("Scope changed");
+    expect(FileSystem.writeAsStringAsync).not.toHaveBeenCalled();expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();expect(Sharing.shareAsync).not.toHaveBeenCalled();
+  });
   it("opens the named workbook in a compatible app before offering sharing", async () => {
     const fileName = "chamada-turma-e2e-local-2026-08.xlsx";
     const uri = `file:///documents/${fileName}`;

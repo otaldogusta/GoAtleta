@@ -3,7 +3,7 @@ import type { Student } from "../../../core/models";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getStudentLoginAccessLabel } from "../application/student-login-access";
 
-export function StudentLoginAccessStatus({ student, compact = false }: { student: Student; compact?: boolean }) {
+export function StudentLoginAccessStatus({ student, compact = false }: { student: Pick<Student, "studentUserId" | "loginEmail">; compact?: boolean }) {
   const { colors } = useAppTheme();
   const label = getStudentLoginAccessLabel(student);
   return <Text accessibilityLabel={`Login do atleta: ${label}`} style={[styles.label, { color: colors.muted }]}>{getStudentLoginAccessLabel(student, compact)}</Text>;

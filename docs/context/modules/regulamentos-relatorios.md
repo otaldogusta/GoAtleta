@@ -30,6 +30,11 @@ de torneio, início do professor/coordenação ou relatórios.
 
 ## Contratos a preservar
 
+- Relatórios por intervalo e chamadas globais leem conjuntos completos sob cap
+  do servidor. Chamada usa cursor data/ID e índice aditivo, validado só em backend
+  isolado local. Totais, erros e negação devem conservar seus estados distintos;
+  [carga pesada, tempos e limites](../../operations/performance-stress-local-2026-10-24.md).
+
 - Fontes, versões, cláusulas e atualizações carregam `organizationId`; preservar
   filtros da organização nas leituras, alterações e resolução de regras.
 - Versões distinguem `draft`, `active`, `pending_next_cycle`, `archived` e políticas
@@ -46,6 +51,11 @@ de torneio, início do professor/coordenação ou relatórios.
   por turma/data e normalização de percentuais. Exportação deve refletir o recorte exibido.
 - Planilhas mantêm cabeçalhos em [export-schemas.ts](../../../src/utils/export-schemas.ts) e adaptador comum
   para escrita/download/compartilhamento; não replicar lógica de exportação em cada tela.
+- PDF web usa uma única fronteira assíncrona compartilhada em
+  [pdf-runtime.web](../../../src/pdf/pdf-runtime.web.tsx), incluindo documentos e
+  renderer; preservar dados/HTML/nome de arquivo capturados antes do await.
+  Nativo conserva a exportação HTML. Evidência e limites do pacote local de
+  24/10 em [Desempenho local](../../operations/performance-local-2026-10-23.md).
 - Eventos e decisões de feriado conservam organização e recorte de data; o calendário
   do professor exclui aulas com pausa explícita ao compor o dia. O mês compacto
   seleciona uma data e exibe sua agenda completa por horário; filtros afetam
@@ -94,6 +104,16 @@ de torneio, início do professor/coordenação ou relatórios.
 
 ## Decisões atuais e limites
 
+- Continuação local de 24/10: a abertura do relatório mensal lê contagens por
+  turma/dia via `get_monthly_attendance_summary_v1`, `SECURITY INVOKER` sob o RLS
+  vigente; não baixa os registros individuais. XLSX busca o mês completo no clique,
+  com proteção de identidade/organização/mês/geração até o download. A nova
+  migration habilita a leitura agregada. No preflight de 25/10, foi encontrado
+  o servidor remoto sem essa RPC: somente ausência exata da assinatura permite
+  ler/agregar o mês completo pelo leitor paginado canônico, sob o mesmo RLS.
+  Negação, falha, payload inválido ou troca de contexto mantêm erro sem total parcial.
+  [Compatibilidade de release](../../operations/performance-web-release-2026-10-25.md).
+  [Comparação, testes e ativação local](../../operations/performance-boot-soak-local-2026-10-24.md).
 - `/reports` redireciona a `/coord/management`; `/coord/dashboard` usa `HomeAdmin`.
   Não recuperar uma arquitetura antiga só pelo nome de rota.
 - `/regulation-sources` é alias do histórico; não é um segundo painel independente.

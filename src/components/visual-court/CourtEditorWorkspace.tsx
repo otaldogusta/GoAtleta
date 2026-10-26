@@ -19,8 +19,7 @@ import { useDisclosureMotion } from "../../ui/useDisclosureMotion";
 import { createWebPortal } from "../../ui/web-portal";
 import { addBlankStep, alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, removeStep, reorderStep, reorderStepToIndex, type CourtDrawing, type CourtSelectionClipboard, type EditorSnapshot } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualActorRole, CourtVisualPayload } from "../../core/visual-court";
-import type { CourtEditorCanvasProps, CourtTool } from "./CourtEditorCanvas";
-import { VisualCourtCanvas } from "./VisualCourtCanvas";
+import { CourtEditorCanvas, type CourtEditorCanvasProps, type CourtTool } from "./CourtEditorCanvas";
 import { useCourtEditor } from "./useCourtEditor";
 import { CourtPerspectiveCanvas } from "./CourtPerspectiveCanvas";
 import type { CourtPerspectiveShortcut } from "./CourtPerspectiveCanvas.types";
@@ -525,7 +524,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const root = <View style={[styles.root, Platform.OS === "web" ? { position: "fixed" } as never : null]}>
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
       <View style={{ flex: 1 }}>
-      {courtView === "2d" ? <VisualCourtCanvas {...canvasProps} /> : null}
+      {courtView === "2d" ? <CourtEditorCanvas {...canvasProps} /> : null}
       {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d"} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
       </View>
 

@@ -37,9 +37,22 @@ atualizar dependências apenas para organizar documentação.
   existência, evidência datada, pendência, conferência e proposta.
 - Commit, push, PR, migrations e deploy são atos separados que exigem escopo
   autorizado. Scripts disponíveis não constituem autorização para executá-los.
+- O patch fixado em `expo-router@57.0.17` sincroniza o índice no POP do navegador
+  e compõe `UNSTABLE_router` com `useMemo`, preservando a função Expo original
+  quando não há override do chamador. `postinstall` aplica pelo `patch-package`
+  existente e verifica versão/hashes dos dois arquivos em
+  [check-expo-router-history-patch.cjs](../../../scripts/check-expo-router-history-patch.cjs).
+  A aplicação real passou duas vezes numa fixture pristina de dois arquivos,
+  com idempotência e sem tentativas de rede/subprocessos; não substitui `npm ci`
+  completo. Atualizar o SDK exige revisar esse contrato; [evidências e pendências](../../operations/performance-boot-soak-local-2026-10-24.md).
 
 ## Fontes e o que é histórico
 
+- [Listas e memória de 25/10](../../operations/performance-lists-memory-local-2026-10-25.md):
+  DTOs, ficha sob demanda, cache web, RPC financeira e histórico de vídeo;
+  resultados sintéticos locais separados de memória do isolate e validação remota.
+- [Consulta global/startup e soak de 24/10](../../operations/performance-global-startup-round2-local-2026-10-24.md):
+  versão local imutável, comparações completas e experimento descartado; não comprova produção.
 - [Workstations](../../operations/workstations.md): preparação e continuidade.
 - [Handoff](../../operations/handoff.md): log de decisões/entregas com datas;
   localizar a seção pertinente por busca, sem carregar toda a cronologia.

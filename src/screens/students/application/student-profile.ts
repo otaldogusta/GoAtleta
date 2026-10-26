@@ -1,10 +1,10 @@
 import type { ClassGroup, Student } from "../../../core/models";
 
 /** Resolve only from the authorized directory; a URL never widens its scope. */
-export function resolveStudentProfile(
+export function resolveStudentProfile<Row extends Pick<Student, "id" | "organizationId" | "classId">>(
   id: string | string[] | undefined,
   organizationId: string | undefined,
-  students: Student[],
+  students: Row[],
   classes: Map<string, ClassGroup>,
 ) {
   if (typeof id !== "string" || !organizationId) return null;

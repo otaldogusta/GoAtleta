@@ -26,6 +26,10 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 
 - Destinatário, organização e escopo da caixa participam da autorização. Contagem,
   paginação, marcação e assinaturas não devem misturar contextos institucionais.
+- Em 23/10, GETs idênticos compartilham somente trabalho pendente por sessão/token,
+  geração, organização e filtros. Mutações invalidam leituras; consumidor atrasado
+  acompanha a geração atual sem apagar o refresh recente. Troca de identidade ou
+  workspace impede replay. [Contrato, regressões e limites](../../operations/performance-local-2026-10-23.md).
 - Famílias usam a caixa `student`; resolver a instituição a partir do atleta/contexto
   selecionado, não somente da organização que o usuário usou como membro da equipe.
 - `create-notification` valida usuário no servidor, payload e política de entrega.
@@ -46,6 +50,15 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 
 ## Decisões atuais e limites
 
+- A [leitura composta de eventos](../../../src/api/events.ts) pagina eventos e
+  vínculos com ordenação determinística até página vazia. O filtro de vínculos usa
+  lotes de 50 IDs, evitando URLs excessivas; falha ou mudança de contexto rejeita
+  a lista inteira. Organização explícita autorizada pode diferir do workspace
+  inicial, que permanece fixo durante a leitura. RLS e escritas não são alterados.
+- Detalhes de evento web ocultam portal/dropdowns ao perder foco. Navegação com
+  edição pendente aguarda descarte/continuação e revalida identidade, organização,
+  evento, foco e baseline após a confirmação; salvar permanece uma ação explícita.
+  [Validação local de 24/10](../../operations/performance-boot-soak-local-2026-10-24.md).
 - A caixa filtra erros técnicos para não mostrar stack traces ao usuário. Alguns
   caminhos de leitura retornam vazio em falha; isso não é evidência de caixa sem eventos.
 - OTP confirma propriedade do telefone por Supabase Auth `phone_change`; não cria

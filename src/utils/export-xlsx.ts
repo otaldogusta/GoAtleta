@@ -31,6 +31,8 @@ export type ExportWorkbookInput = {
   fileName: string;
   sheets: XlsxSheetInput[];
   dialogTitle?: string;
+  /** Optional caller scope guard, including the async module/file handoffs. */
+  assertCurrent?: () => void;
 };
 
 export type ExportWorkbookResult = {
@@ -212,6 +214,7 @@ export async function exportWorkbookXlsx(
   input: ExportWorkbookInput
 ): Promise<ExportWorkbookResult> {
   const XLSX = await loadXlsx();
+  input.assertCurrent?.();
   const workbook = XLSX.utils.book_new();
 
   input.sheets.forEach((sheet, index) => {
@@ -235,6 +238,7 @@ export async function exportWorkbookXlsx(
       throw new Error("Exportacao XLSX indisponivel neste ambiente web.");
     }
     const workbookArray = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    input.assertCurrent?.();
     const blob = new Blob([workbookArray], { type: XLSX_MIME });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -256,11 +260,14 @@ export async function exportWorkbookXlsx(
 
   const uri = `${baseDir}${input.fileName}`;
   const workbookBase64 = XLSX.write(workbook, { bookType: "xlsx", type: "base64" });
+  input.assertCurrent?.();
   await writeAsStringAsync(uri, workbookBase64, { encoding: EncodingType.Base64 });
+  input.assertCurrent?.();
 
-  const opened = await tryOpenXlsx(uri);
+  const opened = await tryOpenXlsx(uri, input.assertCurrent);
   if (!opened) {
     const canShare = await Sharing.isAvailableAsync();
+    input.assertCurrent?.();
     if (canShare) {
       await Sharing.shareAsync(uri, {
         dialogTitle: input.dialogTitle ?? "Exportar planilha",
@@ -273,11 +280,12 @@ export async function exportWorkbookXlsx(
   return { fileName: input.fileName, uri };
 }
 
-async function tryOpenXlsx(uri: string): Promise<boolean> {
+async function tryOpenXlsx(uri: string, assertCurrent?: () => void): Promise<boolean> {
   if (Platform.OS !== "android") return false;
 
   try {
     const contentUri = await getContentUriAsync(uri);
+    assertCurrent?.();
     try {
       await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
         data: contentUri,
@@ -286,13 +294,16 @@ async function tryOpenXlsx(uri: string): Promise<boolean> {
       });
       return true;
     } catch {
+      assertCurrent?.();
       const canOpen = await Linking.canOpenURL(contentUri);
+      assertCurrent?.();
       if (canOpen) {
         await Linking.openURL(contentUri);
         return true;
       }
     }
   } catch {
+    assertCurrent?.();
     return false;
   }
 

@@ -4,6 +4,7 @@ import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
 import { getFriendlyErrorMessage, isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
 import { trainingHistoryTitle } from "../../src/core/training-history-title";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { navigateBackToCalendar, navigateToDetailRoute } from "../../src/navigation/primary-route-navigation";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,7 +34,6 @@ import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
-import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
 import { exportPdf } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import { ClassEditModalPickers, ModernClassEditModalBody } from "../../src/screens/classes/components/ClassEditModalBody";
@@ -198,7 +198,7 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, is
 export default function ClassDetails() {
   markRender("screen.classDetails.render.root");
 
-  const { id, section, date, settings, calendarSource, calendarDate, calendarUnit } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string; calendarSource?: string; calendarDate?: string; calendarUnit?: string }>();
+  const { id, section, date, settings, calendarSource, calendarDate, calendarUnit, calendarOriginKey } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string; calendarSource?: string; calendarDate?: string; calendarUnit?: string; calendarOriginKey?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const scopedRoutes = useTrainerRouteScope();
@@ -2319,10 +2319,13 @@ export default function ClassDetails() {
         daysLabel: classDays.map((day) => dayNames[day]).filter(Boolean).join(" e "),
       });
 
+      const webDocument = Platform.OS === "web"
+        ? await import("../../src/pdf/pdf-runtime").then(({ ClassRosterDocument }) => <ClassRosterDocument data={data} />)
+        : undefined;
       await exportPdf({
         html: classRosterHtml(data),
         fileName,
-        webDocument: <ClassRosterDocument data={data} />,
+        webDocument,
       });
       logAction("Exportar lista da turma", {
         classId: cls.id,
@@ -2546,7 +2549,7 @@ export default function ClassDetails() {
 
   const handleOpenScouting = () => {
     if (!cls) return;
-    router.push({ pathname: "/class/[id]/scouting", params: { id: cls.id } });
+    navigateToDetailRoute({ router, navigationState: () => navigation.getState(), href: { pathname: "/class/[id]/scouting", params: { id: cls.id } } });
   };
 
   const handleOpenStudents = () => {
@@ -2562,7 +2565,7 @@ export default function ClassDetails() {
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
           onBack={() => requestAttendanceAction(() => {
             const calendar = calendarReturnRoute(calendarSource, calendarDate, calendarUnit);
-            if (calendar) router.replace(calendar, { withAnchor: true });
+            if (calendar) navigateBackToCalendar({ router, href: calendar, navigationState: navigation.getState(), originKey: calendarOriginKey });
             else navigateBackOrReplace({ router, fallback: scopedRoutes.classes });
           })}
           right={

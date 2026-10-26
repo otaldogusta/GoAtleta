@@ -28,6 +28,7 @@ import { useConfirmDialog } from "../../../ui/confirm-dialog";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useSaveToast } from "../../../ui/save-toast";
 
+type FamilyStudent = Pick<Student, "id" | "name">;
 type AnchorLayout = { x: number; y: number; width: number; height: number };
 type PanelMode = "quick" | "drawer" | null;
 
@@ -94,7 +95,7 @@ const defaultInviteSeed = (): InviteSeed => ({
 
 const QUICK_INVITE_SEED = defaultInviteSeed();
 
-function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel, onCreated }: { organizationId: string; student: Student; compact: boolean; seed: InviteSeed; onCancel?: () => void; onCreated: () => void | Promise<void> }) {
+function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel, onCreated }: { organizationId: string; student: FamilyStudent; compact: boolean; seed: InviteSeed; onCancel?: () => void; onCreated: () => void | Promise<void> }) {
     const { colors } = useAppTheme();
     const { showSaveToast } = useSaveToast();
     const [email, setEmail] = useState(seed.email ?? "");
@@ -371,7 +372,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
     );
 }
 
-function RelationshipEditor({ organizationId, student, relationship, onCancel, onSaved }: { organizationId: string; student: Student; relationship: StudentRelationship; onCancel: () => void; onSaved: () => void | Promise<void> }) {
+function RelationshipEditor({ organizationId, student, relationship, onCancel, onSaved }: { organizationId: string; student: FamilyStudent; relationship: StudentRelationship; onCancel: () => void; onSaved: () => void | Promise<void> }) {
     const { colors } = useAppTheme();
     const { showSaveToast } = useSaveToast();
     const [choice, setChoice] = useState<RelationshipChoice>(() => {
@@ -515,7 +516,7 @@ function FamilyAccessPanelContent({
 }: {
     mode: PanelMode;
     organizationId: string;
-    student: Student | null;
+    student: FamilyStudent | null;
     className: string;
     compact: boolean;
     anchorLayout: AnchorLayout | null;

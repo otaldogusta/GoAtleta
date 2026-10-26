@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Text, View } from "react-native";
 
 import { getMyMemberPermissions } from "../../../api/members";
 import type { ClassStaffAssignment } from "../../../api/class-responsibles";
@@ -14,7 +14,6 @@ import {
   getAttendanceExportStudents,
   type AttendanceExportStudent,
 } from "../../../db/students";
-import { AttendanceSummaryDocument } from "../../../pdf/attendance-summary-document";
 import { exportPdf, safeFileName } from "../../../pdf/export-pdf";
 import {
   attendanceSummaryHtml,
@@ -435,10 +434,13 @@ export function AttendanceExportModal({
           ...data,
           rows: data.summary,
         };
+        const webDocument = Platform.OS === "web"
+          ? await import("../../../pdf/pdf-runtime").then(({ AttendanceSummaryDocument }) => <AttendanceSummaryDocument data={pdfData} />)
+          : undefined;
         await exportPdf({
           html: attendanceSummaryHtml(pdfData),
           fileName: `${fileBase}.pdf`,
-          webDocument: <AttendanceSummaryDocument data={pdfData} />,
+          webDocument,
         });
       }
       showSaveToast({

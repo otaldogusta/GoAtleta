@@ -7,6 +7,7 @@ const mockListClassHeadsByClassIds = jest.fn();
 const mockCreateNotification = jest.fn();
 const mockGetSessionUserId = jest.fn();
 const mockGetClasses = jest.fn();
+let mockIdentity = { userId: "guardian-1", generation: 1 };
 
 jest.mock("@sentry/react-native", () => ({
   captureException: jest.fn(),
@@ -19,6 +20,7 @@ jest.mock("../client", () => ({
     students: "students",
   },
   getActiveOrganizationId: jest.fn(() => Promise.resolve("org-1")),
+  getReadCacheGeneration: () => 1,
   getScopedOrganizationId: jest.fn((value: string | null | undefined) =>
     Promise.resolve(value ?? "org-1")
   ),
@@ -31,6 +33,8 @@ jest.mock("../client", () => ({
   supabaseGet: (...args: unknown[]) => mockSupabaseGet(...args),
   supabasePatch: (...args: unknown[]) => mockSupabasePatch(...args),
   supabasePost: (...args: unknown[]) => mockSupabasePost(...args),
+  // This fixture has no readable financial statuses; keep the real reader/guards.
+  supabaseRequest: jest.fn(async () => "[]"),
   writeCache: jest.fn(),
 }));
 
@@ -47,9 +51,18 @@ jest.mock("../../api/notifications", () => ({
   createNotification: (...args: unknown[]) => mockCreateNotification(...args),
 }));
 
-jest.mock("../../auth/session", () => ({
-  getSessionUserId: () => mockGetSessionUserId(),
-}));
+jest.mock("../../auth/session", () => {
+  class Changed extends Error {}
+  return {
+    getSessionUserId: () => mockGetSessionUserId(),
+    getSessionIdentity: () => ({ ...mockIdentity }),
+    getAccessToken: () => "fixture-token",
+    assertSessionIdentity: (identity: typeof mockIdentity) => {
+      if (identity.userId !== mockIdentity.userId || identity.generation !== mockIdentity.generation) throw new Changed();
+    },
+    SessionIdentityChangedError: Changed,
+  };
+});
 
 jest.mock("../nfc-sync", () => ({
   enqueueWrite: jest.fn(),
@@ -86,10 +99,14 @@ const classItem = {
 describe("absence notice notifications", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIdentity = { userId: "guardian-1", generation: 1 };
     mockSupabasePost.mockResolvedValue([absenceRow]);
     mockSupabasePatch.mockResolvedValue([]);
     mockSupabaseGet.mockImplementation((path: string) => {
-      if (path.startsWith("/students")) return Promise.resolve([studentRow]);
+      if (path.startsWith("/students?")) {
+        const query = new URL(path, "https://fixture.test").searchParams;
+        return Promise.resolve(query.has("or") ? [] : [studentRow]);
+      }
       if (path.startsWith("/absence_notices")) return Promise.resolve([absenceRow]);
       return Promise.resolve([]);
     });
@@ -166,6 +183,7 @@ describe("absence notice notifications", () => {
   });
 
   test("does not notify or push to the acting user when they are also responsible", async () => {
+    mockIdentity = { userId: "trainer-1", generation: 1 };
     mockGetSessionUserId.mockResolvedValue("trainer-1");
 
     await createAbsenceNotice({
@@ -194,6 +212,7 @@ describe("absence notice notifications", () => {
   });
 
   test("status update skips the acting user and deduplicates responsible notification", async () => {
+    mockIdentity = { userId: "trainer-1", generation: 1 };
     mockGetSessionUserId.mockResolvedValue("trainer-1");
     mockListClassHeadsByClassIds.mockResolvedValue([
       {

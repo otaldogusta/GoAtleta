@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { StyleProp, ViewStyle } from "react-native";
+import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import {
   Animated,
   FlatList,
@@ -41,6 +41,7 @@ type Props = {
   onDuplicateClass?: (item: ClassGroup) => void;
   onDeleteClass: (item: ClassGroup) => void;
   classCardViewModelsById: Record<string, ClassCardViewModel>;
+  onVisiblePhotoClassesChange?: (classIds: string[]) => void;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
   onScrollBeginDrag?: () => void;
@@ -60,6 +61,7 @@ export const ClassesListSection = memo(function ClassesListSection({
   onDuplicateClass,
   onDeleteClass,
   classCardViewModelsById,
+  onVisiblePhotoClassesChange,
   refreshing,
   onRefresh,
   onScrollBeginDrag,
@@ -73,6 +75,12 @@ export const ClassesListSection = memo(function ClassesListSection({
   const compactControls = availableWidth < 520;
   const [selectedUnitKey, setSelectedUnitKey] = useState(ALL_UNITS_KEY);
   const [classSearch, setClassSearch] = useState("");
+  const [viewableClassIds, setViewableClassIds] = useState<string[]>([]);
+  const photoViewabilityConfig = useRef({ itemVisiblePercentThreshold: 1 }).current;
+  const onPhotoViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken<ClassGroup>[] }) => {
+    const ids = viewableItems.filter((item) => item.isViewable).map((item) => item.item.id);
+    setViewableClassIds((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
+  }, []);
   const [tableAscending, setTableAscending] = useState(true);
   const [sortKey, setSortKey] = useState<"name" | "time" | "age" | "students" | "teacher" | null>(null);
   const [sortIndicator] = useState(() => new Animated.Value(0));
@@ -132,6 +140,11 @@ export const ClassesListSection = memo(function ClassesListSection({
       return tableAscending ? result : -result;
     });
   }, [allClasses, classCardViewModelsById, classSearch, selectedUnit?.items, sortKey, tableAscending]);
+  const visiblePhotoClassKey = selectedClasses.filter((item) => viewableClassIds.includes(item.id)).map((item) => item.id).join("\0");
+  useEffect(() => {
+    onVisiblePhotoClassesChange?.(visiblePhotoClassKey ? visiblePhotoClassKey.split("\0") : []);
+  }, [visiblePhotoClassKey, onVisiblePhotoClassesChange]);
+  useEffect(() => () => onVisiblePhotoClassesChange?.([]), [onVisiblePhotoClassesChange]);
   const selectSort = useCallback((key: Exclude<typeof sortKey, null>) => {
     if (sortKey === key) {
       setSortKey(null);
@@ -329,6 +342,8 @@ export const ClassesListSection = memo(function ClassesListSection({
           data={selectedClasses}
           keyExtractor={(item) => item.id}
           renderItem={renderClass}
+          onViewableItemsChanged={onPhotoViewableItemsChanged}
+          viewabilityConfig={photoViewabilityConfig}
           initialNumToRender={12}
           maxToRenderPerBatch={12}
           windowSize={7}

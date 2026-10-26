@@ -9,6 +9,7 @@ type RestRequestOptions = {
   body?: unknown;
   prefer?: "return=representation" | "return=minimal";
   additionalHeaders?: Record<string, string>;
+  assertContextCurrent?: () => void;
 };
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
@@ -60,8 +61,9 @@ const requestWithToken = async (
   });
 };
 
-const waitForAccessToken = async (): Promise<string> => {
+const waitForAccessToken = async (assertContextCurrent?: () => void): Promise<string> => {
   let token = await getValidAccessToken();
+  assertContextCurrent?.();
   if (token) return token;
 
   // Handles startup/login races where session persistence completes moments later.
@@ -69,6 +71,7 @@ const waitForAccessToken = async (): Promise<string> => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 200));
     token = await getValidAccessToken();
+    assertContextCurrent?.();
     if (token) return token;
   }
   return "";
@@ -78,24 +81,30 @@ export const supabaseRestRequest = async <T>(
   path: string,
   options: RestRequestOptions = {}
 ): Promise<T> => {
-  const token = await waitForAccessToken();
+  const token = await waitForAccessToken(options.assertContextCurrent);
+  options.assertContextCurrent?.();
   if (!token) {
     throw new Error("Missing auth token");
   }
 
   let res = await requestWithToken(token, path, options);
+  options.assertContextCurrent?.();
   if (res.status === 401) {
     const refreshedToken = await forceRefreshAccessToken();
+    options.assertContextCurrent?.();
     if (refreshedToken) {
       res = await requestWithToken(refreshedToken, path, options);
+      options.assertContextCurrent?.();
     }
   }
 
-  return parseResponse<T>(res);
+  const result = await parseResponse<T>(res);
+  options.assertContextCurrent?.();
+  return result;
 };
 
-export const supabaseRestGet = async <T>(path: string): Promise<T> =>
-  supabaseRestRequest<T>(path, { method: "GET" });
+export const supabaseRestGet = async <T>(path: string, assertContextCurrent?: () => void): Promise<T> =>
+  supabaseRestRequest<T>(path, { method: "GET", assertContextCurrent });
 
 export const supabaseRestPost = async <T>(
   path: string,

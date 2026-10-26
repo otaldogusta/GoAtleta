@@ -27,6 +27,9 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
   ver [paridade entre campos](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
 - Marca pública **Go Atleta**, tema e primitives existentes. Selecionar tokens
   antes de criar medidas/cores independentes ou trocar bibliotecas.
+- Bandeiras web carregam o conjunto de SVGs apenas ao montar o ícone, com a mesma
+  área e composição finais. Falha decorativa preserva país/DDI e pode tentar de
+  novo numa montagem posterior; o renderer nativo permanece intacto.
 - Autenticação: bloco central de até 440 px; campo com altura 50, raio 12 e
   padding horizontal 14 no container. Regras completas estão no `AGENTS.md`.
 - `AnchoredDropdown` usa portal no web por padrão; camada `floatingList` fica
@@ -36,6 +39,10 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 - Reutilizar `Pressable`; links secundários têm feedback textual sem caixa de
   hover (`suppressWebHoverFeedback`). Preservar foco, teclado, acessibilidade e
   saída com alterações não salvas.
+- `ModalSheet` web respeita o foco da rota, liberando portal, rolagem e Escape
+  ao ocultar uma tela retida, sem disparar fechamento/descarte nos chamadores.
+  Contexto global fora de telas conserva a visibilidade; o nativo não observa
+  esse foco. [Correção e validação local de 24/10](../../operations/performance-boot-soak-local-2026-10-24.md).
 - Respeitar variantes web/nativo e reduced motion. Alterações em representação
   visual não devem excluir dados do usuário; ver [quadra](biblioteca-quadra.md).
 - Copy curta, sem repetir alertas ou atribuir cada resultado à IA.

@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     FlatList,
@@ -24,26 +24,22 @@ import { useOrganization } from "../../src/providers/organization-context";
 import { shadow } from "../../src/theme/tokens";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import {
-    buildAttendanceSummaryByClass,
+    buildAggregatedAttendanceSummary,
     buildAvgPresenceByClass,
     buildClassRows,
     buildEntityMap,
-    buildMonthAttendance,
     buildPerformanceRows,
     buildPseSummary,
     buildSessionLogRows,
     buildSimulationHighlights,
-    buildTrainerReportSummary,
     buildTrainerReportUnits,
     buildTrainerTeamIntelligence,
     buildUniqueSessionLogs,
-    buildWeeklySummary,
 } from "../../src/screens/reports/application/trainer-report-selectors";
 import { useTrainerReportsData } from "../../src/screens/reports/hooks/useTrainerReportsData";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
-import { REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR } from "../../src/utils/export-schemas";
-import { exportWorkbookXlsx } from "../../src/utils/export-xlsx";
+import { exportTrainerAttendance } from "../../src/screens/reports/application/export-trainer-attendance";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 
@@ -118,6 +114,14 @@ export default function ReportsScreen() {
   const highlightModalStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 440 });
   const [reportTab, setReportTab] = useState<ReportTabId>("month");
   const monthKey = useMemo(() => formatMonthKey(month), [month]);
+  const organizationId = activeOrganization?.id ?? null;
+  const exportScope = useRef<{ organizationId: string | null; monthKey: string } | null>(null);
+  const exportBusy = useRef(false);
+  const [isExporting, setIsExporting] = useState(false);
+  useLayoutEffect(() => {
+    exportScope.current = { organizationId, monthKey };
+    return () => { exportScope.current = null; };
+  }, [organizationId, monthKey]);
   const cardStyle = {
     padding: isMobile ? 10 : 16,
     borderRadius: isMobile ? 16 : 22,
@@ -171,13 +175,13 @@ export default function ReportsScreen() {
   const {
     classes,
     students,
-    attendance,
+    attendanceDays,
     loading,
     sessionLogs,
     studentScoutingLogs,
     loadError,
   } = useTrainerReportsData({
-    organizationId: activeOrganization?.id ?? null,
+    organizationId,
     month,
     monthKey,
     classId,
@@ -185,24 +189,12 @@ export default function ReportsScreen() {
     rangeBounds,
   });
 
-  const monthAttendance = useMemo(
-    () => buildMonthAttendance(attendance, monthKey),
-    [attendance, monthKey]
-  );
-
-  const attendanceSummaryByClass = useMemo(
-    () => buildAttendanceSummaryByClass(monthAttendance),
-    [monthAttendance]
-  );
-
-  const studentMap = useMemo(() => buildEntityMap(students), [students]);
+  const aggregatedAttendance = useMemo(() => buildAggregatedAttendanceSummary(attendanceDays), [attendanceDays]);
+  const attendanceSummaryByClass = aggregatedAttendance.byClass;
 
   const classMap = useMemo(() => buildEntityMap<ClassGroup>(classes), [classes]);
 
-  const summary = useMemo(
-    () => buildTrainerReportSummary(monthAttendance),
-    [monthAttendance]
-  );
+  const summary = aggregatedAttendance.summary;
 
   const uniqueSessionLogs = useMemo(
     () => buildUniqueSessionLogs(sessionLogs),
@@ -245,10 +237,7 @@ export default function ReportsScreen() {
     }
   }, [classId, classesForUnit]);
 
-  const studentsForClass = useMemo(() => {
-    if (!classId) return students;
-    return students.filter((s) => s.classId === classId);
-  }, [students, classId]);
+  const studentsForClass = students;
 
   const classRows = useMemo(
     () => buildClassRows(classes, attendanceSummaryByClass),
@@ -266,48 +255,27 @@ export default function ReportsScreen() {
   );
 
   const exportXlsx = async () => {
+    const scope = exportScope.current;
+    if (exportBusy.current || !scope?.organizationId || loading || loadError) return;
+    exportBusy.current = true;
+    setIsExporting(true);
     try {
-      await measureAsync("screen.reportsTrainer.export.xlsx", async () => {
-        const rows = [
-          [...REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR],
-          ...monthAttendance.map((r) => [
-            r.date,
-            classMap[r.classId]?.name ?? "",
-            studentMap[r.studentId]?.name ?? "",
-            r.status,
-            r.note ?? "",
-          ]),
-        ];
-        await exportWorkbookXlsx({
-          fileName: `relatorio_${monthKey}.xlsx`,
-          sheets: [
-            {
-              name: "Relatorio",
-              rows,
-              options: {
-                freezeHeaderRow: true,
-                autoFilterHeaderRow: true,
-                autoSizeColumns: true,
-                columnWidths: [12, 24, 28, 14, 42],
-                minColumnWidth: 10,
-                maxColumnWidth: 48,
-              },
-            },
-          ],
-          dialogTitle: "Exportar relatório",
-        });
-      });
+      await measureAsync("screen.reportsTrainer.export.xlsx", () => exportTrainerAttendance({
+        organizationId: scope.organizationId!, monthKey: scope.monthKey,
+        classNames: Object.fromEntries(classes.map(cls => [cls.id, cls.name])),
+        isCurrent: () => exportScope.current === scope,
+      }));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Falha ao exportar relatório XLSX.";
       Alert.alert("Relatórios", message);
+    } finally {
+      exportBusy.current = false;
+      if (exportScope.current) setIsExporting(false);
     }
   };
 
-  const weeklySummary = useMemo(
-    () => buildWeeklySummary(monthAttendance),
-    [monthAttendance]
-  );
+  const weeklySummary = aggregatedAttendance.weekly;
 
   const performanceRows = useMemo(
     () =>
@@ -408,6 +376,7 @@ export default function ReportsScreen() {
             >
               <Text style={sectionTitleStyle}>Mês atual</Text>
               <Pressable
+                disabled={isExporting || Boolean(loadError)}
                 onPress={() => {
                   void exportXlsx();
                 }}
@@ -416,10 +385,11 @@ export default function ReportsScreen() {
                   paddingHorizontal: 12,
                   borderRadius: 999,
                   backgroundColor: colors.primaryBg,
+                  opacity: isExporting || loadError ? 0.55 : 1,
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  Exportar XLSX
+                  {isExporting ? "Exportando..." : "Exportar XLSX"}
                 </Text>
               </Pressable>
             </View>
@@ -782,7 +752,10 @@ export default function ReportsScreen() {
                       <Pressable
                         key={unit}
                         onPress={() => {
-                          setUnitFilter(unit);
+                          if (unit !== unitFilter) {
+                            setUnitFilter(unit);
+                            setClassId(classes.find(cls => (cls.unit || "Sem unidade") === unit)?.id ?? "");
+                          }
                           setUnitPickerOpen(false);
                           setClassPickerOpen(false);
                         }}

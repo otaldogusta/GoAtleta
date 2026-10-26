@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactElement,
 } from "react";
 import {
   ScrollView,
@@ -23,6 +22,7 @@ import {
   type StudentFamilyAccessStatus,
 } from "../../api/student-relationship-invite";
 import type { ClassGroup, Student } from "../../core/models";
+import type { StudentDirectoryRecord } from "../../core/student-read-models";
 import {
   countStudentFilterExclusions,
   createEmptyStudentFilterExclusions,
@@ -61,13 +61,6 @@ import { StudentsEmptyState } from "./components/StudentsEmptyState";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 
-type RenderStudentItemArgs = {
-  item: Student;
-  paletteOverride: { bg: string; text: string };
-  classNameOverride: string;
-  unitNameOverride: string;
-};
-
 type FilterOption<T extends string> = {
   value: T;
   label: string;
@@ -81,20 +74,20 @@ export type StudentsListTabProps = {
   setStudentsUnitFilter: (unit: string) => void;
   studentsSearch: string;
   setStudentsSearch: (search: string) => void;
-  students: Student[];
-  studentsFiltered: Student[];
-  studentsGrouped: StudentListUnitGroup[];
+  students: StudentDirectoryRecord[];
+  studentsFiltered: StudentDirectoryRecord[];
+  studentsGrouped: StudentListUnitGroup<StudentDirectoryRecord>[];
   classById: Map<string, ClassGroup>;
   unitLabel: (value: string) => string;
   expandedUnits: Record<string, boolean>;
   expandedClasses: Record<string, boolean>;
   toggleUnitExpanded: (unitName: string) => void;
   toggleClassExpanded: (classId: string) => void;
-  renderStudentItem: (args: RenderStudentItemArgs) => ReactElement | null;
-  onStudentPress?: (student: Student) => void;
-  onPhotoPress?: (student: Student) => void;
-  resolveStudentPhotoUrl?: (student: Student) => string | null;
-  onStudentWhatsApp?: (student: Student) => void;
+  onStudentPress?: (student: StudentDirectoryRecord) => void;
+  onPhotoPress?: (student: StudentDirectoryRecord) => void;
+  resolveStudentPhotoUrl?: (student: StudentDirectoryRecord) => string | null;
+  onVisiblePhotoStudentsChange?: (studentIds: string[]) => void;
+  onStudentWhatsApp?: (student: StudentDirectoryRecord) => void;
   birthdayStudentIds?: ReadonlySet<string>;
   loading?: boolean;
   canViewFinancialStatus?: boolean;
@@ -314,6 +307,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   onStudentPress,
   onPhotoPress,
   resolveStudentPhotoUrl,
+  onVisiblePhotoStudentsChange,
   onStudentWhatsApp,
   birthdayStudentIds,
   loading = false,
@@ -415,12 +409,12 @@ export const StudentsListTab = memo(function StudentsListTab({
     setFamilyAnchorLayout(null);
   };
 
-  const openFamilyDrawer = (student: Student) => {
+  const openFamilyDrawer = (student: StudentDirectoryRecord) => {
     setFamilyAnchorLayout(null);
     setFamilyPanel({ mode: "drawer", studentId: student.id });
   };
 
-  const openQuickFamilyInvite = (student: Student) => {
+  const openQuickFamilyInvite = (student: StudentDirectoryRecord) => {
     if (compactFilters) {
       setFamilyAnchorLayout(null);
       setFamilyPanel({ mode: "quick", studentId: student.id });
@@ -624,10 +618,14 @@ export const StudentsListTab = memo(function StudentsListTab({
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = filteredRows.slice(
+  const pageRows = useMemo(() => filteredRows.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
-  );
+  ), [filteredRows, currentPage, pageSize]);
+  useEffect(() => {
+    onVisiblePhotoStudentsChange?.(pageRows.map((student) => student.id));
+  }, [pageRows, onVisiblePhotoStudentsChange]);
+  useEffect(() => () => onVisiblePhotoStudentsChange?.([]), [onVisiblePhotoStudentsChange]);
   const firstResult =
     filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const lastResult = Math.min(currentPage * pageSize, filteredRows.length);

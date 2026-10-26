@@ -5,8 +5,9 @@ import { Text } from "react-native";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { PeriodizationOverviewWorkspace } from "../PeriodizationOverviewWorkspace";
 
-jest.mock("@expo/vector-icons", () => ({
-  Ionicons: (props: Record<string, unknown>) => {
+jest.mock("@expo/vector-icons/Ionicons", () => ({
+  __esModule: true,
+  default: (props: Record<string, unknown>) => {
     const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("Ionicons", props);
   },
