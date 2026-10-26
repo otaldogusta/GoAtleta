@@ -16,14 +16,15 @@ import { useResponsiveLayout } from "./use-responsive-layout";
 type AppShellProps = {
   role: AppRole;
   children: ReactNode;
+  chromeVisible?: boolean;
 };
 
-export function AppShell({ role, children }: AppShellProps) {
+export function AppShell({ role, children, chromeVisible = true }: AppShellProps) {
   const layout = useResponsiveLayout("dashboard");
   const { colors } = useAppTheme();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileSidebarProgress] = useState(() => new Animated.Value(0));
-  const isNativeMobile = Platform.OS !== "web" && !layout.usesWorkspaceShell;
+  const isNativeMobile = chromeVisible && Platform.OS !== "web" && !layout.usesWorkspaceShell;
   if (!isNativeMobile && mobileSidebarOpen) setMobileSidebarOpen(false);
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
@@ -79,12 +80,12 @@ export function AppShell({ role, children }: AppShellProps) {
             : null,
         ]}
       >
-        <AdaptiveSidebar
+        {chromeVisible ? <AdaptiveSidebar
           role={role}
           showCompact={layout.usesWorkspaceShell}
           canExpand={layout.canExpandSidebar}
           canPersistExpansion={layout.canPersistExpandedSidebar}
-        />
+        /> : null}
         <View
           style={{
             flex: 1,

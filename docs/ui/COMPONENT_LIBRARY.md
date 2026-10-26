@@ -29,7 +29,14 @@ superfícies automaticamente.
 
 ## Componentes existentes
 
+- `RootWebShell` mantém a árvore acima do navegador web estável.
+  `AppShell.chromeVisible` controla a sidebar sem desmontar o conteúdo/Stack.
+  [Regressão e validação](../operations/class-return-retention-local-2026-10-26.md).
+
 - `ScreenPageHeader`: título, retorno, descrição e ação contextual.
+  Breadcrumbs usam o destino por papel e consultam o estado atual do container
+  somente após a guarda de edição liberar a saída; reutilizam o workspace
+  existente por `navigateToPrimaryRoute`, sem substituir Turmas pelo painel inicial.
 - `Button` e `Pressable`: ações e estados interativos.
 - Links secundários em texto usam `Pressable` com
   `suppressWebHoverFeedback`: no hover, apenas o texto clareia e ganha

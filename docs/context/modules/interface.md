@@ -22,6 +22,19 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 
 ## Contratos a preservar
 
+- Na web, `RootWebShell` conserva os ancestrais do Stack entre rotas;
+  `AppShell.chromeVisible` altera apenas o chrome. Não alternar Fragment/shell
+  acima do navegador. [Causa e validação local](../../operations/class-return-retention-local-2026-10-26.md).
+
+- Breadcrumbs de `BackTitleHeader` encaminham a leitura atual da árvore de navegação
+  a `navigateToPrimaryRoute`, como a sidebar. A leitura ocorre após liberar guardas
+  de edição, permitindo reutilizar o workspace existente sem abrir sua tela inicial.
+
+- `DateInput` preserva o texto e o cursor durante a edição; normaliza e valida
+  ao sair ou confirmar. Na web, o ícone abre o calendário nativo do navegador
+  quando não há callback próprio; calendários explícitos e renderização nativa
+  continuam nos caminhos existentes, sem remontar o campo ao mudar o valor.
+
 - Antes de criar um estado visual, reutilizar o equivalente aprovado e comparar
   a renderização. Erros de autenticação seguem o balão da confirmação de senha;
   ver [paridade entre campos](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).

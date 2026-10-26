@@ -9,10 +9,13 @@ import { getTrainerScopedRoutes } from "../../../navigation/profile-route-scope"
 import { registerPendingEditsNavigation } from "../../../navigation/pending-edits-navigation";
 let mockPathname = "/class/123";
 const mockDismissTo = jest.fn();
+const mockPush = jest.fn();
+const mockGetRootState = jest.fn(() => ({ routes: [{ name: "coord" }, { name: "class/[id]" }] }));
+const mockNavigationRef = { current: { getRootState: mockGetRootState } };
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { text: "#fff", muted: "#aaa", secondaryBg: "#222" } }) }));
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
-jest.mock("expo-router", () => ({ usePathname: () => mockPathname, useRouter: () => ({ push: jest.fn(), replace: jest.fn(), dismissTo: mockDismissTo }) }));
+jest.mock("expo-router", () => ({ usePathname: () => mockPathname, useRouter: () => ({ push: mockPush, replace: jest.fn(), dismissTo: mockDismissTo }), useRootNavigationState: () => undefined, useNavigationContainerRef: () => mockNavigationRef }));
 jest.mock("../../../navigation/use-trainer-route-scope", () => ({ useTrainerRouteScope: () => jest.requireActual("../../../navigation/profile-route-scope").getTrainerScopedRoutes("coord") }));
 jest.mock("../../../navigation/primary-route-navigation", () => ({ navigateToPrimaryRoute: jest.fn() }));
 it("dismisses athlete settings to the overview only after the draft guard releases it", () => {
@@ -29,12 +32,12 @@ it("dismisses athlete settings to the overview only after the draft guard releas
   act(() => r.unmount());
   mockPathname = "/class/123";
 });
-it("opens the classes tab through anchored primary navigation instead of landing on Home", () => {
+it("opens the classes tab with the current root snapshot instead of creating a new workspace", () => {
   let r!: TestRenderer.ReactTestRenderer;
   act(() => { r = TestRenderer.create(React.createElement(BackTitleHeader, { title: "Hipopótamos", onBack: jest.fn() })); });
   const link = r.root.findAll(n => n.props.accessibilityRole === "link" && n.props.onPress).find(n => n.props.accessibilityLabel === "Ir para Turmas")!;
   act(() => link.props.onPress());
-  expect(navigateToPrimaryRoute).toHaveBeenCalledWith(expect.objectContaining({ href: "/coord/classes" }));
+  expect(navigateToPrimaryRoute).toHaveBeenCalledWith(expect.objectContaining({ href: "/coord/classes", navigationState: expect.any(Function) }));
   act(() => r.unmount());
 });
 it("keeps back navigation separate from the title and accessory", () => {
@@ -69,4 +72,21 @@ it.each([
   ["/unknown", "Detalhes", "Go Atleta"],
 ])("resolves display context for %s", (path, title, expected) => {
   expect(resolvePageHeaderContext(path, title)).toBe(expected);
+});
+
+
+it("reads the current root only when the attendance exit guard releases the breadcrumb", () => {
+  let pending: (() => void) | undefined;
+  const guard = (navigate: () => void) => { pending = navigate; };
+  let view!: TestRenderer.ReactTestRenderer;
+  jest.mocked(navigateToPrimaryRoute).mockClear();
+  act(() => { view = TestRenderer.create(React.createElement(BackTitleHeader, { title: "Raposas", onBack: jest.fn(), onBreadcrumbNavigate: guard })); });
+  act(() => view.root.findAll(n => n.props.accessibilityLabel === "Ir para Turmas" && n.props.onPress)[0].props.onPress());
+  expect(navigateToPrimaryRoute).not.toHaveBeenCalled();
+  mockGetRootState.mockReturnValue({ routes: [{ name: "coord" }, { name: "coord" }, { name: "class/[id]" }] });
+  act(() => pending!());
+  const options = jest.mocked(navigateToPrimaryRoute).mock.calls[0][0];
+  expect(options.href).toBe("/coord/classes");
+  expect((options.navigationState as () => unknown)()).toEqual(mockGetRootState());
+  act(() => view.unmount());
 });

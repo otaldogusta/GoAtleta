@@ -1,3 +1,4 @@
+import { resolveClassDevelopmentLevelLabel } from "../../../core/class-development-level";
 import type { AttendanceRecord, ClassGroup, Student } from "../../../core/models";
 import { buildClassDocumentPdfFileName } from "../../../pdf/class-document-file-name";
 import { resolveAttendanceStudentsForDate } from "../../attendance/attendance-roster";
@@ -10,7 +11,38 @@ export function resolveClassRosterExportStudents(
   return resolveAttendanceStudentsForDate(students, [], history, now);
 }
 
+export type AttendanceExportClassInfo = {
+  scheduleLabel: string;
+  daysLabel: string;
+  ageBandLabel: string;
+  levelLabel: string;
+  genderLabel: string;
+  trainingSpace: string;
+};
+
+export function buildAttendanceExportClassInfo(group: ClassGroup): AttendanceExportClassInfo {
+  const match = group.startTime?.match(/^(\d{2}):(\d{2})$/);
+  let scheduleLabel = "Horário não definido";
+  if (match) {
+    const start = Number(match[1]) * 60 + Number(match[2]);
+    const end = start + (group.durationMinutes || 60);
+    const endTime = `${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+    scheduleLabel = `${group.startTime} - ${endTime}`;
+  }
+  return {
+    scheduleLabel,
+    daysLabel: (group.daysOfWeek ?? []).map((day) => ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][day]).filter(Boolean).join(", ") || "Dias não definidos",
+    ageBandLabel: group.ageBand || "Faixa não definida",
+    levelLabel: group.mvLevel || group.level ? resolveClassDevelopmentLevelLabel(group) : "Nível não definido",
+    genderLabel: ({ masculino: "Masculino", feminino: "Feminino", misto: "Misto" })[group.gender] || "",
+    trainingSpace: group.trainingSpace?.trim() || "",
+  };
+}
+
 export type AttendanceExportDetailRow = {
+  studentId?: string;
+  classInfo?: AttendanceExportClassInfo;
+  classId?: string;
   date: string;
   unit: string;
   className: string;
@@ -33,6 +65,8 @@ type AttendanceExportSourceRecord = Pick<
 >;
 
 export type AttendanceExportSummaryRow = {
+  classId?: string;
+  classInfo?: AttendanceExportClassInfo;
   unit: string;
   className: string;
   professorNames: string;
@@ -146,6 +180,9 @@ export function buildAttendanceExportData({
     const classGroup = classById.get(record.classId)!;
     const student = studentById.get(record.studentId);
     return {
+      studentId: record.studentId,
+      classInfo: buildAttendanceExportClassInfo(classGroup),
+      classId: record.classId,
       date: record.date,
       unit: classGroup.unit,
       className: classGroup.name,
@@ -166,6 +203,8 @@ export function buildAttendanceExportData({
       const present = classRecords.filter((record) => record.status === "presente").length;
       const absent = classRecords.length - present;
       return {
+        classId: classGroup.id,
+        classInfo: buildAttendanceExportClassInfo(classGroup),
         unit: classGroup.unit,
         className: classGroup.name,
         professorNames: getProfessorNames(classGroup.id),

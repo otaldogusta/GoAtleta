@@ -23,6 +23,7 @@ function setup() {
     coverage: jest.fn().mockResolvedValue([]), publish: jest.fn(), loading: jest.fn() };
   const scope = { activeOrganization: { id: "org-a" }, isCoordinationScope: true, setLoading: calls.loading,
     classFocused: true, classLoadScope: "scope-a", classLoadScopeRef: { current: "scope-a" }, classLoadRequestRef: { current: 0 },
+    classDataScope: "data-a", loadedClassDataScopeRef: { current: null as string | null },
     classIdentity: { userId: "user-a", generation: 1 }, classCacheGeneration: 1,
     getSessionIdentity: () => ({ userId: "user-a", generation: 1 }), getReadCacheGeneration: () => 1,
     getClasses: calls.classes, getTrainingIntegrationRules: async () => [], getClassStudentRecords: calls.students,
@@ -66,4 +67,24 @@ test("an old caller invoked only after the workspace switch cannot begin I/O or 
   await (load as (alive?: { current: boolean }) => Promise<void>)();
   expect(scope.classLoadRequestRef.current).toBe(0);
   for (const call of [calls.classes, calls.students, calls.heads, calls.coverage, calls.loading]) expect(call).not.toHaveBeenCalled();
+});
+
+
+test("retained list revalidates without replacing its loaded content with a shimmer", async () => {
+  const { calls, load, scope } = setup();
+  await load({ current: true });
+  expect(calls.loading).toHaveBeenNthCalledWith(1, true);
+  expect(scope.loadedClassDataScopeRef.current).toBe("data-a");
+  calls.loading.mockClear();
+  await load({ current: true });
+  expect(calls.classes).toHaveBeenCalledTimes(2);
+  expect(calls.loading).not.toHaveBeenCalledWith(true);
+  expect(calls.publish).toHaveBeenCalled();
+});
+
+test("a different authorization scope cannot reuse the prior loaded list", async () => {
+  const { calls, load, scope } = setup();
+  scope.loadedClassDataScopeRef.current = "other-user-org-permissions";
+  await load({ current: true });
+  expect(calls.loading).toHaveBeenNthCalledWith(1, true);
 });

@@ -29,6 +29,11 @@ operacionais. O scanner QR existente é uma ferramenta mobile de leitura de cont
 
 ## Contratos a preservar
 
+- Retorno à lista conserva dados do mesmo escopo durante revalidação. Troca de
+  identidade, organização, permissões ou cache exige novo carregamento. O detalhe
+  lê turma com organização explícita e descarta respostas antigas de sessão/cache.
+  [Retenção e limites locais](../../operations/class-return-retention-local-2026-10-26.md).
+
 - Em 24/10/2026, relatórios por intervalo passaram a paginar resumos sem fotos;
   chamadas globais usam cursor de data/ID, guardas de identidade e ordenação pública
   mais recente primeiro. Erros não publicam totais parciais. O índice correspondente
@@ -68,6 +73,13 @@ operacionais. O scanner QR existente é uma ferramenta mobile de leitura de cont
 - Vincular tag é ação administrativa; não reassociar tag ocupada silenciosamente.
 - O scanner QR atual não grava presença: exibe conteúdo e permite copiar/abrir URL.
   Não descrever QR como alternativa completa ao check-in NFC sem implementação.
+- Exportação consolidada mantém identidade da turma antes de mês/ano. PDF abre
+  com resumo e depois usa grades mensais por atleta/data, com horário, dias,
+  faixa etária, nível, grupo, local e professores da configuração atual.
+  Cada turma termina todos os meses antes da próxima; continuações repetem contexto,
+  cabeçalho e legenda. `-` significa sem registro no recorte, nunca falta implícita.
+  XLSX mantém Contexto/Resumo e abas por turma com metadados e registros completos.
+  [Composição, filtros e validação](../../ui/EXPORTACAO_CHAMADAS.md).
 - Exportação mantém filtros de período, turma, professor, aluno e vínculo; não
   perder registros históricos de alunos inativos ou não localizados.
 

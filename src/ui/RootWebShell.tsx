@@ -57,12 +57,15 @@ export function RootWebShell({ children }: { children: ReactNode }) {
     }
   }, [explicitRole]);
 
-  if (!shouldWrapSharedProfileRoute(pathname)) {
+  const chromeVisible = shouldWrapSharedProfileRoute(pathname);
+  // On web the root Stack must keep the same React ancestors across visits.
+  // Swapping Fragment/AppShell here remounts every route and resets nested tabs.
+  if (Platform.OS !== "web" && !chromeVisible) {
     return <>{children}</>;
   }
 
   return (
-    <AppShell role={selectedRole}>
+    <AppShell role={selectedRole} chromeVisible={chromeVisible}>
       {children}
     </AppShell>
   );

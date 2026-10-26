@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { usePathname, useRouter, type Href } from "expo-router";
+import { useNavigationContainerRef, usePathname, useRootNavigationState, useRouter, type Href } from "expo-router";
 import { resolvePageBreadcrumbs } from "../../navigation/page-header-context";
 import { useTrainerRouteScope } from "../../navigation/use-trainer-route-scope";
 import { navigateToPrimaryRoute } from "../../navigation/primary-route-navigation";
@@ -13,11 +13,17 @@ type BackTitleHeaderProps = { title: string; onBack: () => void; context?: strin
 export function BackTitleHeader({ title, onBack, context, accessory, style, onBreadcrumbNavigate }: BackTitleHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
+  const navigationRef = useNavigationContainerRef();
+  const currentNavigationState = useCallback(
+    () => navigationRef.current?.getRootState() ?? rootNavigationState,
+    [navigationRef, rootNavigationState],
+  );
   const routes = useTrainerRouteScope();
   const breadcrumbs = resolvePageBreadcrumbs(pathname, title, routes, context).map(item => ({ label: item.label, onPress: () => {
     const navigate = () => item.href === getScopedProfilePath(pathname)
       ? requestPendingEditsNavigation(() => router.dismissTo(item.href as Href))
-      : navigateToPrimaryRoute({ router, href: item.href as Href });
+      : navigateToPrimaryRoute({ router, href: item.href as Href, navigationState: currentNavigationState });
     if (onBreadcrumbNavigate) onBreadcrumbNavigate(navigate); else navigate();
   } }));
   return <PageBreadcrumbHeader title={title} breadcrumbs={breadcrumbs} onBack={onBack} accessory={accessory} style={[{ marginBottom: 4 }, style]} />;

@@ -1,3 +1,5 @@
+import { getSessionIdentity, isSessionIdentityCurrent } from "../../src/auth/session";
+import { getReadCacheGeneration } from "../../src/db/client";
 import { calendarReturnRoute } from "../../src/screens/calendar/application/calendar-return-route";
 import { confirmPlanWithoutPeriodization } from "../../src/screens/classes/application/confirm-plan-without-periodization";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
@@ -206,6 +208,10 @@ export default function ClassDetails() {
   const { colors, mode } = useAppTheme();
   const { session } = useAuth();
   const { activeOrganization } = useOrganization();
+  const detailIdentity = getSessionIdentity();
+  const detailDataScope = JSON.stringify([
+    detailIdentity.userId, detailIdentity.generation, getReadCacheGeneration(), activeOrganization?.id, id,
+  ]);
   const { showSaveToast } = useSaveToast();
   const insets = useSafeAreaInsets();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -283,6 +289,7 @@ export default function ClassDetails() {
   } | null>(null);
   const rosterColumnsTriggerRef = useRef<View>(null);
   const [cls, setCls] = useState<ClassGroup | null>(null);
+  const [loadedDetailDataScope, setLoadedDetailDataScope] = useState<string | null>(null);
   useEffect(() => subscribeClassProfile(profile => {
     setCls(current => current?.id === profile.class_id && current.organizationId === profile.organization_id ? { ...current, pedagogicalProfile: profile } : current);
   }), []);
@@ -1042,12 +1049,15 @@ export default function ClassDetails() {
 
   useEffect(() => {
     let alive = true;
+    const identity = getSessionIdentity();
+    const cacheGeneration = getReadCacheGeneration();
+    const isCurrent = () => alive && isSessionIdentityCurrent(identity) && cacheGeneration === getReadCacheGeneration();
     (async () => {
-      if (!session?.user?.id) { if (alive) { setCls(null); setLoading(false); } return; }
+      if (!session?.user?.id || !activeOrganization?.id) { if (isCurrent()) { setCls(null); setLoadedDetailDataScope(detailDataScope); setLoading(false); } return; }
       setLoading(true);
       try {
-        const dataResult = await measureAsync("screen.classDetails.load.initial", () => getClassById(id), { screen: "classDetails", classId: id });
-        if (alive) {
+        const dataResult = await measureAsync("screen.classDetails.load.initial", () => getClassById(id, { organizationId: activeOrganization.id }), { screen: "classDetails", classId: id });
+        if (isCurrent()) {
           const data = dataResult;
           const nextStartTime = data?.startTime ?? "14:00";
           const nextDuration = data?.durationMinutes ?? 60;
@@ -1075,25 +1085,29 @@ export default function ClassDetails() {
           setCoachNameOverride(data?.id ? (coachNameByClass[data.id] ?? "") : "");
           setLoading(false);
         }
+        if (!isCurrent()) return;
         void getStudentsByClass(id).catch(() => []).then((students) => {
-          if (!alive) return;
+          if (!isCurrent()) return;
           setStudentCount(students.length);
           setMissingContactCount(students.filter((student) => getContactPhone(student).status !== "ok").length);
         });
       } catch (error) {
-        if (!alive) return;
+        if (!isCurrent()) return;
         setCls(null);
         if (!isAuthSessionError(error) && !isRequestCancellationError(error) && !(error instanceof Error && error.name === "SessionIdentityChangedError")) {
           Alert.alert("Não foi possível carregar a turma", "Tente abrir a turma novamente.");
         }
       } finally {
-        if (alive) setLoading(false);
+        if (isCurrent()) {
+          setLoadedDetailDataScope(detailDataScope);
+          setLoading(false);
+        }
       }
     })();
     return () => {
       alive = false;
     };
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, coachNameByClass, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, session?.user?.id]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, coachNameByClass, activeOrganization?.id, detailDataScope, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, session?.user?.id]);
 
   useEffect(() => {
     if (!id || !selectedLessonDateKey) {
@@ -2097,7 +2111,7 @@ export default function ClassDetails() {
     }
   }, [cls, confirmDialog, handleOpenPlanning, isGeneratingPlan, selectedLessonDateKey, showSaveToast, setIsGeneratingPlan]);
 
-  if (loading) {
+  if (loading || loadedDetailDataScope !== detailDataScope) {
     return <ScreenLoadingState />;
   }
 

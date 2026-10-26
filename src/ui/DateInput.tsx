@@ -1,5 +1,6 @@
-import { useState, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import {
+    Platform,
     TextInput,
     type TextInputProps,
     View,
@@ -73,9 +74,25 @@ function DateInputField({
   accessibilityHint,
   inputRef,
 }: DateInputProps) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+  const pickerRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(value ? formatShortDate(value) : "");
-  const canOpenCalendar = Boolean(onOpenCalendar);
+  useEffect(() => {
+    // Synchronize external date changes without remounting the focused field.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInputValue(formatShortDate(value));
+  }, [value]);
+  const canOpenCalendar = Boolean(onOpenCalendar) || Platform.OS === "web";
+  const openCalendar = () => {
+    if (onOpenCalendar) {
+      onOpenCalendar();
+      return;
+    }
+    const picker = pickerRef.current;
+    if (!picker) return;
+    if (typeof picker.showPicker === "function") picker.showPicker();
+    else picker.click();
+  };
 
   const commitInputValue = () => {
     if (!inputValue) {
@@ -83,12 +100,14 @@ function DateInputField({
       return;
     }
 
-    const iso = parseDateInputToIso(inputValue);
+    const formatted = formatDateInput(inputValue);
+    const iso = parseDateInputToIso(formatted);
     if (!iso) {
       setInputValue(formatShortDate(value));
       return;
     }
 
+    setInputValue(formatted);
     if (iso !== value) onChange(iso);
   };
 
@@ -100,10 +119,10 @@ function DateInputField({
         borderWidth: invalid ? 2 : 1,
         borderColor: invalid ? colors.dangerSolidBg : colors.border,
         borderRadius: 12,
-        backgroundColor: colors.background,
-        paddingHorizontal: 12,
+        backgroundColor: colors.inputBg,
+        paddingHorizontal: 14,
         overflow: "hidden",
-        minHeight: 44,
+        minHeight: 50,
         position: "relative",
       }}
     >
@@ -112,8 +131,8 @@ function DateInputField({
         placeholder={placeholder}
         value={inputValue}
         onChangeText={(text) => {
-          const formatted = formatDateInput(text);
-          setInputValue(formatted);
+          // Preserve the caret and partially edited day/month/year until commit.
+          setInputValue(text);
         }}
         onBlur={(event) => {
           commitInputValue();
@@ -122,12 +141,12 @@ function DateInputField({
         onSubmitEditing={commitInputValue}
         keyboardType="numeric"
         onFocus={onFocus}
-        selectTextOnFocus
         accessibilityLabel={accessibilityLabel ?? placeholder}
         accessibilityHint={accessibilityHint}
         placeholderTextColor={colors.placeholder}
         style={{
           flex: 1,
+          borderRadius: 0,
           paddingVertical: 12,
           paddingRight: 36,
           color: colors.inputText,
@@ -135,7 +154,8 @@ function DateInputField({
         }}
       />
       <Pressable
-        onPress={onOpenCalendar}
+        accessibilityLabel={`Abrir calendário: ${accessibilityLabel ?? placeholder}`}
+        onPress={openCalendar}
         disabled={!canOpenCalendar}
         style={{
           position: "absolute",
@@ -154,10 +174,28 @@ function DateInputField({
           color={canOpenCalendar ? colors.muted : colors.placeholder}
         />
       </Pressable>
+      {Platform.OS === "web" && !onOpenCalendar ? (
+        <input
+          ref={pickerRef}
+          type="date"
+          value={value}
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event) => {
+            const next = event.currentTarget.value;
+            setInputValue(formatShortDate(next));
+            onChange(next);
+          }}
+          style={{
+            position: "absolute", right: 20, bottom: 0, width: 1, height: 1,
+            opacity: 0, pointerEvents: "none", colorScheme: mode,
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
 export function DateInput(props: DateInputProps) {
-  return <DateInputField key={props.value || "empty-date-value"} {...props} />;
+  return <DateInputField {...props} />;
 }

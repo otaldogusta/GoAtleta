@@ -1,3 +1,4 @@
+import { buildAttendanceExportDetailSheets } from "../application/attendance-export-groups";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 
@@ -409,19 +410,12 @@ export function AttendanceExportModal({
             {
               name: "Resumo",
               rows: [
-                ["Unidade", "Turma", "Professor", "Datas com chamada", "Presenças", "Faltas", "Frequência"],
-                ...data.summary.map((row) => [row.unit, row.className, row.professorNames, row.sessions, row.present, row.absent, `${row.attendanceRate}%`]),
+                ["Unidade", "Turma", "Professor", "Datas com chamada", "Presenças", "Faltas", "Frequência", "Horário", "Dias", "Faixa etária", "Nível"],
+                ...data.summary.map((row) => [row.unit, row.className, row.professorNames, row.sessions, row.present, row.absent, `${row.attendanceRate}%`, row.classInfo?.scheduleLabel ?? "", row.classInfo?.daysLabel ?? "", row.classInfo?.ageBandLabel ?? "", row.classInfo?.levelLabel ?? ""]),
               ],
               options: { freezeHeaderRow: true, autoFilterHeaderRow: true, autoSizeColumns: true },
             },
-            {
-              name: "Registros",
-              rows: [
-                ["Data", "Unidade", "Turma", "Professor", "Atleta", "Vínculo", "Presença"],
-                ...data.details.map((row) => [formatDate(row.date), row.unit, row.className, row.professorNames, row.studentName, row.membershipStatus, row.attendanceStatus]),
-              ],
-              options: { freezeHeaderRow: true, autoFilterHeaderRow: true, autoSizeColumns: true },
-            },
+            ...buildAttendanceExportDetailSheets(data.details),
           ],
         });
       } else {

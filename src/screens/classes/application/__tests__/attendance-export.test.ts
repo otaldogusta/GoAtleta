@@ -1,6 +1,8 @@
+import { buildAttendanceMonthlyPages, paginateAttendanceSummary, groupAttendanceExportDetails } from "../attendance-export-groups";
 import type { AttendanceRecord, ClassGroup, Student } from "../../../../core/models";
 import { buildClassDocumentPdfFileName } from "../../../../pdf/class-document-file-name";
 import {
+  buildAttendanceExportClassInfo,
   buildAttendanceExportData,
   buildAttendanceExportFileParts,
   buildClassRosterPdfFileName,
@@ -298,4 +300,58 @@ describe("attendance operational export", () => {
       startTime: "18:30",
     })).toBe("Lista de chamada - Turma Iniciação - 18h30 - Outubro 2026.pdf");
   });
+});
+
+
+test("keeps each class together across months and years, including namesakes", () => {
+  const result = buildAttendanceExportData({
+    classes: [classGroup("a", "Águias", "Centro"), classGroup("b", "Águias", "Centro")],
+    students: [student("s", "Ana")],
+    records: [
+      attendance("1", "b", "s", "2026-01-01", "presente"),
+      attendance("2", "a", "s", "2026-01-02", "faltou"),
+      attendance("3", "a", "s", "2025-12-10", "presente"),
+      attendance("4", "a", "s", "2026-01-01", "presente"),
+    ],
+    startDate: "2025-12-01", endDate: "2026-01-31",
+  });
+  const original = [...result.details];
+  const groups = groupAttendanceExportDetails(result.details);
+  expect(groups.map((group) => group.key)).toEqual(["a", "b"]);
+  expect(groups[0].months.map((month) => month.label)).toEqual(["Dezembro de 2025", "Janeiro de 2026"]);
+  expect(groups[0].months[1].rows.map((row) => row.date)).toEqual(["2026-01-01", "2026-01-02"]);
+  expect(groups.flatMap((group) => group.months.flatMap((month) => month.rows))).toHaveLength(4);
+  expect(result.details).toEqual(original);
+  expect(groupAttendanceExportDetails([])).toEqual([]);
+});
+
+
+test("exports the same current class identity, schedule and development labels as the class list", () => {
+  const group = { ...classGroup("a", "Hipopótamos", "Centro"), startTime: "18:00", durationMinutes: 60, daysOfWeek: [3, 5], ageBand: "09-11", mvLevel: "MV2", level: 1, gender: "misto", trainingSpace: "Quadra 2" } as ClassGroup;
+  const result = buildAttendanceExportData({ classes: [group], students: [student("s", "Ana")], records: [attendance("1", "a", "s", "2026-10-01", "presente")], startDate: "2026-10-01", endDate: "2026-10-31" });
+  expect(result.details[0]).toMatchObject({ studentId: "s", classId: "a", classInfo: { scheduleLabel: "18:00 - 19:00", daysLabel: "Qua, Sex", ageBandLabel: "09-11", levelLabel: "Intermediário", genderLabel: "Misto", trainingSpace: "Quadra 2" } });
+  expect(result.summary[0].classInfo).toEqual(result.details[0].classInfo);
+  expect(buildAttendanceExportClassInfo(classGroup("empty", "Sem horário", "Centro"))).toMatchObject({ scheduleLabel: "Horário não definido", ageBandLabel: "Faixa não definida", levelLabel: "Nível não definido" });
+});
+
+test("monthly PDF pages preserve missing marks, namesakes and every record across row/date parts", () => {
+  const records = Array.from({ length: 31 }, (_, day) => Array.from({ length: 35 }, (_, index) => attendance(`${day}-${index}`, "a", `s${index}`, `2026-10-${String(day + 1).padStart(2, "0")}`, index % 2 ? "presente" : "faltou"))).flat();
+  records.pop(); // No record is never converted into a failure.
+  const result = buildAttendanceExportData({ classes: [classGroup("a", "Hipopótamos", "Centro")], students: Array.from({ length: 35 }, (_, i) => student(`s${i}`, "Mesmo nome")), records, startDate: "2026-10-01", endDate: "2026-10-31" });
+  const pages = buildAttendanceMonthlyPages(result.details);
+  expect(pages).toHaveLength(9);
+  const exportedMarks = pages.flatMap((page) => page.athletes.flatMap((athlete) => page.dates.flatMap((date) => athlete.statuses.get(date) ?? [])));
+  expect(exportedMarks).toHaveLength(records.length);
+  expect(exportedMarks.filter((mark) => mark === "F")).toHaveLength(result.totalAbsent);
+  expect(pages.every((page) => page.dates.length <= 12 && page.athletes.length <= 17)).toBe(true);
+  const missing = pages.find((page) => page.dates.includes("2026-10-31") && page.athletes.some((athlete) => athlete.key === "s34"))!;
+  expect(missing.athletes.find((athlete) => athlete.key === "s34")!.statuses.has("2026-10-31")).toBe(false);
+});
+
+
+test("repeats bounded summary pages without losing classes", () => {
+  const rows = Array.from({ length: 20 }, (_, index) => ({ classId: String(index), unit: "Centro", className: `Turma ${index}`, professorNames: "Joana", sessions: 1, present: 1, absent: 0, attendanceRate: 100 }));
+  const parts = paginateAttendanceSummary(rows);
+  expect(parts.map((part) => part.length)).toEqual([9, 9, 2]);
+  expect(parts.flat()).toEqual(rows);
 });

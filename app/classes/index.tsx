@@ -199,6 +199,11 @@ export default function ClassesScreen() {
   const classIdentity = getSessionIdentity();
   const classCacheGeneration = getReadCacheGeneration();
   const classLoadScope = JSON.stringify([classIdentity.userId, classIdentity.generation, classCacheGeneration, activeOrganization?.id, classFocused]);
+  const classDataScope = JSON.stringify([
+    classIdentity.userId, classIdentity.generation, classCacheGeneration,
+    activeOrganization?.id, activeOrganization?.role_level, isCoordinationScope, memberPermissions,
+  ]);
+  const loadedClassDataScopeRef = useRef<string | null>(null);
   const classLoadScopeRef = useRef(classLoadScope);
   const classLoadRequestRef = useRef(0);
   useLayoutEffect(() => {
@@ -975,7 +980,9 @@ export default function ClassesScreen() {
     const isAlive = () => (!alive || alive.current) && request === classLoadRequestRef.current && classLoadScopeRef.current === classLoadScope &&
       getSessionIdentity().userId === classIdentity.userId && getSessionIdentity().generation === classIdentity.generation && getReadCacheGeneration() === classCacheGeneration;
     if (!isAlive()) return;
-    setLoading(true);
+    // Returning to a retained list revalidates in the background; a new identity
+    // or permission scope still gets the blocking initial loading state.
+    setLoading(loadedClassDataScopeRef.current !== classDataScope);
     try {
       const [data, rules, studentList] = await Promise.all([
         measureAsync(
@@ -1058,7 +1065,10 @@ export default function ClassesScreen() {
           console.warn("[ClassesScreen] Failed to load class coverage summaries", error);
         }
       }
-      if (isAlive()) setClasses(data);
+      if (isAlive()) {
+        loadedClassDataScopeRef.current = classDataScope;
+        setClasses(data);
+      }
       if (isAlive()) setIntegrationRules(rules);
       if (isAlive()) setStudents(studentList);
       if (isAlive()) {
@@ -1080,7 +1090,7 @@ export default function ClassesScreen() {
     } finally {
       if (isAlive()) setLoading(false);
     }
-  }, [isCoordinationScope, activeOrganization?.id, classFocused, classLoadScope, classIdentity.userId, classIdentity.generation, classCacheGeneration]);
+  }, [isCoordinationScope, activeOrganization?.id, classFocused, classLoadScope, classDataScope, classIdentity.userId, classIdentity.generation, classCacheGeneration]);
 
   useFocusEffect(
     useCallback(() => {

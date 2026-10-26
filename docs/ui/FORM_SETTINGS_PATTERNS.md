@@ -238,3 +238,19 @@ lint sem erros/avisos, tipos, encoding, marca, JWT, escopo, assets, arquitetura,
 performance e export web. Depois disso, somente este registro documental e o
 checklist receberam o resultado; geração e diff foram conferidos novamente.
 O CI valida o commit publicado de forma independente.
+
+
+## Edição de datas
+
+`src/ui/DateInput.tsx` mantém o rascunho durante a digitação, sem reaplicar
+máscara ou selecionar todo o texto a cada edição. Ao sair ou pressionar Enter,
+normaliza para DD/MM/AAAA e só confirma uma data válida; uma data impossível
+restaura o valor anterior. Na web, o ícone abre o calendário nativo do navegador
+por padrão, seguindo o tema. Um `onOpenCalendar` explícito conserva o calendário
+do fluxo; o controle HTML não é renderizado no nativo.
+
+Em 26/10/2026, conferência no localhost autenticado do checkout em execução:
+os ícones De/Até abriram o calendário nativo; seleção alterou 01/10 para 02/10.
+Edição apenas do mês produziu 02/09/2026, com cursor ainda no mês (posição 5),
+e o blur confirmou 2026-09-02 sem alterar Até. Nove testes focados e lint
+aprovados. Nenhuma chamada gravada ou exportação enviada durante a conferência.
