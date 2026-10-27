@@ -22,6 +22,13 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
 
 ## Contratos a preservar
 
+- Compartilhamento da quadra usa cópia isolada, tabela sem grants diretos e
+  RPCs de gerenciamento restritas à turma/organização/autor. Leitura pública
+  exige ID e código de 256 bits, guardado como hash; sem consulta ao documento
+  original. Migration aplicada com autorização em 27/10; grants e RLS remotos
+  conferidos. Smoke autenticado e publicação do cliente permanecem separados.
+  [Contrato e limites](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md).
+
 - A leitura financeira usa `get_student_financial_statuses_v1`, JSON escalar
   com até 5.000 IDs por chamada, `SECURITY INVOKER` e RLS/grants de tabela
   preservados. Só a ausência exata da assinatura permite os GETs legados;

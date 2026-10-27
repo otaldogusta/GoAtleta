@@ -60,7 +60,11 @@ das mãos. Câmera frontal/lateral/livre e visibilidade são controles de
 apresentação. As alças 3D editam alvo do saque, passe, levantamento, contato de
 ataque e direção do ataque por comandos validados do documento compartilhado.
 Ctrl+Z e Ctrl+Shift+Z usam o mesmo histórico das ferramentas existentes.
-Compartilhar abre a exportação já existente; Biblioteca usa o fluxo existente.
+Compartilhar originalmente abria a exportação. Em 27/10, o cliente web passou a
+abrir o diálogo de link com prévia de leitura e revogação; migration ativada em
+27/10 com autorização. Publicação do cliente segue o fechamento de release.
+[Contrato e validação local](QUADRA_COMPARTILHAMENTO_2026-10-27.md).
+Biblioteca usa o fluxo existente; Exportar permanece no menu do documento.
 
 ## Validação
 

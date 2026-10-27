@@ -31,6 +31,7 @@ import { CourtSimulationModes, CourtSimulationSettings, CourtSimulationTransport
 import { buildCourtLibraryItems, filterCourtLibraryItems, type CourtLibraryFilter, type CourtLibraryLocation } from "./court-library";
 import { CourtActionButton, CourtSwitchRow, CourtSizeControl, CourtRosterPicker, CourtToolIcon, type CourtActionIcon } from "./CourtEditorControls";
 import { exportCourt } from "./court-export";
+import { CourtSharing } from "./CourtSharing";
 
 const TOOLS: { id: CourtTool; label: string; icon: CourtActionIcon }[] = [
   { id: "select", label: "Selecionar e mover", icon: "navigate" },
@@ -95,6 +96,8 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const overlayScale = (transformOrigin: ViewStyle["transformOrigin"]): Pick<ViewStyle, "transform" | "transformOrigin"> | undefined =>
     Platform.OS === "web" ? { transform: [{ scale: uiScale }], transformOrigin } : undefined;
   const [courtView, setCourtView] = useState<"2d" | "3d">("2d");
+  const [sharing, setSharing] = useState(false);
+  const closeSharing = useCallback(() => setSharing(false), []);
   const [perspectiveMounted, setPerspectiveMounted] = useState(false);
   const [cameraView, setCameraView] = useState<"front" | "side" | "orbit">("front");
   const [cameraReset, setCameraReset] = useState(0);
@@ -442,13 +445,14 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={editor.saving ? "Salvando jogada" : "Salvar jogada"} hitSlop={2} disabled={!editor.canSave} onPress={() => void editor.save()} style={({ hovered, pressed }) => ({ width: denseControls ? 34 : narrowHeader ? 44 : 34, height: denseControls ? 34 : narrowHeader ? 44 : 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: !editor.canSave ? 0.55 : hovered || pressed ? 0.9 : 1 })}>{editor.saving ? <ActivityIndicator size="small" color={colors.primaryText} /> : <GoAtletaIcon name="save" size={18} color={colors.primaryText} />}</Pressable>
     <View ref={documentMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls || !narrowHeader} label="Opções da jogada" icon="ellipsisHorizontal" onPress={() => toggleActionMenu("document")} active={actionMenu === "document"} /></View>
   </>;
-  const runMenuCommand = (command: "library" | "undo" | "redo" | "new" | "export" | "settings" | "refresh-rotations" | "edit-step" | "duplicate-step" | "continue-step" | "delete-step" | "rotate-selection" | "delete-selection") => {
+  const runMenuCommand = (command: "library" | "undo" | "redo" | "new" | "export" | "share" | "settings" | "refresh-rotations" | "edit-step" | "duplicate-step" | "continue-step" | "delete-step" | "rotate-selection" | "delete-selection") => {
     switch (command) {
       case "library": setLibraryDetails(false); setLibraryNewOpen(false); setLibraryMenuId(null); openWorkspaceTab("library"); break;
       case "undo": stop(); editor.undo(); break;
       case "redo": stop(); editor.redo(); break;
       case "new": setBoardName(""); setNewBoardOpen(true); break;
       case "export": setPanel("export"); break;
+      case "share": stop(); setSharing(true); break;
       case "settings": setPanel("settings"); break;
       case "refresh-rotations": mutateStep(replaceReceptionRotationSequence(payload, stepIndex)); break;
       case "edit-step": openStepEditor(); break;
@@ -465,6 +469,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     { label: "Refazer", icon: "arrowForward", command: "redo", disabled: !editor.canRedo },
     { label: "Nova quadra", icon: "add", command: "new", disabled: editor.saving },
     { label: "Exportar", icon: "download", command: "export" },
+    ...(Platform.OS === "web" ? [{ label: "Compartilhar", icon: "link" as const, command: "share" as const }] : []),
     { label: "Configurar quadra", icon: "management", command: "settings" },
   ] : actionMenu === "step" ? [
     ...(isLegacyReceptionRotationSequence(payload) ? [{ label: "Atualizar rotações", icon: "restore" as const, command: "refresh-rotations" as const }] : []),
@@ -522,6 +527,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
         </>}
   </View>;
   const root = <View style={[styles.root, Platform.OS === "web" ? { position: "fixed" } as never : null]}>
+    {sharing && editor.cls?.organizationId ? <CourtSharing key={`${editor.cls.organizationId}:${classId}:${editor.activeDocumentId ?? payload.timeline.steps[0].id}`} payload={payload} scope={{ org: editor.cls.organizationId, classId, key: editor.activeDocumentId ?? payload.timeline.steps[0].id }} onClose={closeSharing} /> : null}
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
       <View style={{ flex: 1 }}>
       {courtView === "2d" ? <CourtEditorCanvas {...canvasProps} /> : null}
@@ -541,7 +547,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
       {editor.draftError ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ position: "absolute", top: insets.top + 74 * uiScale, ...overlayScale("top center"), alignSelf: "center", maxWidth: headerWidth, color: colors.dangerText, fontSize: 11 }}>{editor.draftError}</Text> : null}
       <CourtSimulationModes uiScale={uiScale} mode={simulationMode} disabled={changingCourt} top={insets.top + (compactWeb ? 74 : width <= 560 ? 82 : 86) * uiScale} onChange={next => configureSimulation({ mode: next })} />
       <CourtWorkspacePanel uiScale={uiScale} disabled={changingCourt} tab={workspaceTab} onTabChange={changeWorkspaceTab} open={workspacePanelOpen && !panel} onToggle={() => { setPanel(null); setWorkspacePanelOpen(value => panel ? true : !value); }} top={insets.top + (compactWeb ? 124 : 144) * uiScale} bottom={compactWeb ? mobileOverlays.panelBottom : insets.bottom + (compact ? 124 : 88) * uiScale}
-        adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={simulationMode === "receive" || rotationSequence} attackArcValue={attackArcValue} disabled={changingCourt} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => setPanel("export")} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
+        adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={simulationMode === "receive" || rotationSequence} attackArcValue={attackArcValue} disabled={changingCourt} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") setSharing(true); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
         steps={<CourtStepGallery payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
       <CourtSimulationTransport uiScale={uiScale} showRotation={simulationMode === "receive" || rotationSequence} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("steps")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />

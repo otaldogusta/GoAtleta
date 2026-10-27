@@ -40,6 +40,14 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- Compartilhamento web da quadra implementado localmente em 27/10: cópia por
+  link de leitura, prévia 3D/2D e revogação, com a composição do Studio Scouting.
+  Sem hook de edição no player; vínculos aluno/aula removidos. RLS/RPCs e testes
+  SQL isolados aprovados; migration aplicada com autorização em 27/10 e grants
+  remotos conferidos. Smoke com conta real em localhost validou publicar, ler,
+  reproduzir, prévia e revogar. Publicação do cliente permanece separada.
+  [Contrato e evidência](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md).
+
 - Em 25/10, o hook de rascunho suspende bootstrap, retries e autosave ao ocultar
   o estúdio, preservando RAM/histórico e recibos de escritas já enviadas.
   Posições normalizadas idênticas são compartilhadas como array/pontos imutáveis
