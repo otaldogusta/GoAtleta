@@ -21,10 +21,13 @@ notas são conteúdo compartilhado; vínculos de aluno/aula e organização não
 parte da projeção. A função SQL também remove vínculos pessoais de `actorMeta` e
 `lessonLink`, independentemente do serializer cliente.
 
-O player reutiliza `CourtPerspectiveCanvas`, `CourtEditorCanvas` e o transporte
-existente: começa em 3D, permite câmera, 2D, etapas, pausa, reinício, busca e
-velocidade. Não monta o hook de edição ou persistência, não carrega elenco e não
-oferece callbacks de mutação; o bridge recebe `disabled=true`.
+O editor e o player reutilizam a mesma composição `CourtWorkspaceView`, incluindo
+cabeçalho, ferramentas, painel e transporte. O controlador de leitura separado
+não monta o hook de edição/persistência, não carrega elenco e ignora mutações.
+Câmera, zoom, visibilidade de guias, etapas e reprodução são locais à apresentação.
+Adicionar, mover, excluir, reordenar e salvar ficam desabilitados; o documento
+publicado permanece imutável. A prévia suspende também foco e atalhos do editor
+ao fundo; o bridge recebe `disabled=true`.
 
 ## Autorização e ativação
 
@@ -76,3 +79,82 @@ quadra, lint, tipos, escopo, arquitetura, performance e export web. A revisão f
 da tipografia e desta evidência exige nova execução do executor, que decide o
 reaproveitamento pelos hashes. Push/deploy e confirmação de produção são etapas
 separadas; o smoke local com backend real não comprova publicação do cliente.
+
+
+## Paridade do estúdio em leitura — validação local de 27/10
+
+A prévia e a rota compartilhada na 8081 usam o mesmo estúdio. Inspeção visual
+e comparação das posições/dimensões do cabeçalho, ferramentas e transporte
+confirmaram paridade em desktop (825 × 704). Reprodução das seis etapas, câmera,
+2D/3D, zoom e guias funcionaram; ferramentas de edição, biblioteca e salvamento
+permaneceram bloqueados. Fechar a prévia preservou a jogada do editor.
+Sete suítes focadas/153 testes passaram, incluindo bloqueio de mutações,
+navegação e bridge. Tipos e escopo aprovados. Nenhuma migration/RPC foi alterada.
+Esta revisão visual está local na 8081; sua publicação no cliente público é uma
+etapa separada. Os ajustes concorrentes da agenda foram preservados.
+
+
+## Ajustes temporários do visitante — 27/10
+
+Sistema, modo, saque, alvo e demais parâmetros de simulação podem ser alterados
+na memória da prévia e do visualizador. Não passam pelo controlador de escrita,
+histórico, rascunho ou persistência. Restaurar retorna à cópia recebida; fechar
+o visualizador descarta os ajustes. Ferramentas autorais, biblioteca, salvar e
+exportar continuam bloqueados. Isto amplia o contrato de leitura descrito acima:
+a cópia publicada é imutável, mas sua simulação local é explorável.
+O modelo 5×1 é inicial; documentos e rascunhos são carregados por turma, sem
+propagar alterações automaticamente para todas as turmas. Testes focados de
+leitura/controles e smoke na 8081 validaram os ajustes e a restauração.
+
+Em 27/10, removido o deslocamento vertical legado dos controles de vista em
+desktop abaixo de 1000 px: zoom/movimento ficam na linha inferior do transporte.
+Conferência visual na 8081 em 825 × 704 e sete testes de layout mobile aprovados;
+a separação vertical necessária no celular permanece preservada.
+
+Na prévia 3D, o destino do saque também aceita arraste e setas como ajuste
+temporário. A exceção do bridge permite somente simulation-handle/serve com
+capacidade explícita, token/revisão e limites válidos; outros comandos continuam
+bloqueados. Pausa/atividade preservam o bloqueio durante reprodução. Smoke na
+8081 confirmou mudança da trajetória por arraste; testes verificam imutabilidade
+da cópia recebida e rejeição de outros comandos. Publicação continua pendente.
+
+Progresso web refinado em 27/10: trilha fina arredondada, preenchimento verde,
+marcador circular discreto e foco de teclado visível. O input range e seus
+eventos permanecem nativos. Conferência na 8081 em 1063 × 704, incluindo busca
+por clique/teclado e progresso parcial; 19 testes dos controles aprovados.
+
+Identidade dos centrais corrigida em 27/10: ao abrir a sequência canônica 5×1
+de seis recepções, reparar referências trocadas de c1/c2 por rotação, preservando
+rótulos autorais, coordenadas, trajetórias e o documento de origem. A mesma
+reparação pura vale no bootstrap do editor e na leitura pública, sem escrita
+remota automática. Sequências customizadas e outros sistemas permanecem intactos.
+No documento da conta em 8081, confirmado C¹ em P2/P1/P6 e C² em P5/P4/P3.
+Testes de sequência, leitura, editor e reparo aprovados; tipos aprovados.
+
+Escala web responsiva corrigida em 27/10: abaixo de 700 px, os overlays mantêm
+a escala compacta, sem salto para 1. Ícones da reprodução mantêm o tamanho
+visual web; áreas de toque e tamanhos nativos são preservados. Conferência
+visual na 8081 em 617 × 704 e 26 testes de controles/layout aprovados.
+
+Layout responsivo dos controles de vista passa a considerar a escala efetiva:
+quando cabe com margem de 6 px, usa a mesma linha inferior do transporte,
+inclusive em 617 px. Sem espaço, mantém separação vertical. Conferência visual
+na 8081 em 617 × 704 e dez testes de layout aprovados.
+
+Em telas estreitas sem espaço ao lado do transporte, os controles de vista
+agora formam uma coluna de 40 px junto à direita, com base fixa na reserva
+do painel. Removido o degrau adicional que elevava a antiga barra horizontal.
+Conferência visual na 8081 em 320 × 704 e quinze testes de layout aprovados.
+
+Abaixo de 401 px na web, a reprodução passa a duas linhas: play/reinício/busca
+em cima; rodízio, velocidade e etapas abaixo, com separador e espaçamento.
+O progresso deixa de disputar largura com as demais ações. A reserva do painel
+e dos controles verticais acompanha a nova altura. Conferência visual na 8081
+em 319 × 704 e 34 testes de controles/layout aprovados.
+
+Prévia simplificada em 27/10: ferramentas de edição da esquerda ocultas; alça
+do painel ocultada quando fechado no modo leitura, mantendo recolher quando
+aberto. A listinha do transporte abre Etapas e permite alternar para Ajustes.
+Controles de vista usam a mesma base inferior do transporte, em coluna quando
+necessário; transporte até 400 px reserva margem lateral adicional para evitar
+sobreposição. Testes de leitura/painel/controles/layout aprovados; tipos aprovados.

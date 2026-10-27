@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { CourtSimulation } from "../../core/court-simulation-model";
 import { radius, shadow, spacing } from "../../theme/tokens";
@@ -59,7 +59,17 @@ function Range({ label, value, min, max, step, onChange, disabled = false, text,
     if (!disabled && next !== null && next !== boundedValue) onChange(next);
   };
   const cancel = () => { draftRef.current = null; setDraft(null); };
-  if (Platform.OS === "web") return <input
+  if (Platform.OS === "web") return <>
+    {transport ? <style>{`
+      .court-playback-seek{appearance:none;-webkit-appearance:none;background:transparent;outline:none;border:0;padding:0;touch-action:pan-y}
+      .court-playback-seek::-webkit-slider-runnable-track{height:4px;border-radius:999px;background:linear-gradient(to right,${colors.primaryBg} 0 var(--court-progress),${colors.border} var(--court-progress) 100%)}
+      .court-playback-seek::-moz-range-track{height:4px;border-radius:999px;background:linear-gradient(to right,${colors.primaryBg} 0 var(--court-progress),${colors.border} var(--court-progress) 100%)}
+      .court-playback-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:11px;height:11px;margin-top:-3.5px;border:2px solid ${colors.surface};border-radius:50%;background:${colors.primaryBg};box-shadow:0 0 0 1px ${colors.primaryBg};transition:box-shadow 120ms ease}
+      .court-playback-seek::-moz-range-thumb{width:7px;height:7px;border:2px solid ${colors.surface};border-radius:50%;background:${colors.primaryBg};box-shadow:0 0 0 1px ${colors.primaryBg}}
+      .court-playback-seek:hover::-webkit-slider-thumb,.court-playback-seek:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px ${colors.primaryBg}33}
+      .court-playback-seek:focus-visible{outline:2px solid ${colors.primaryBg};outline-offset:3px;border-radius:6px}
+    `}</style> : null}
+    <input className={transport ? "court-playback-seek" : undefined}
     type="range" min={min} max={max} step={step} value={bounded} disabled={disabled}
     aria-label={label} aria-valuetext={text}
     onChange={(event) => {
@@ -71,8 +81,8 @@ function Range({ label, value, min, max, step, onChange, disabled = false, text,
     onKeyUp={commitOnEnd ? commit : undefined}
     onBlur={commitOnEnd ? commit : undefined}
     onDoubleClick={onReset}
-    style={{ display: "block", width: "100%", minWidth: 0, height: touch ? transport ? 40 : 44 : 14, margin: 0, accentColor: colors.primaryBg, cursor: disabled ? "default" : "ew-resize", opacity: disabled ? 0.55 : 1 }}
-  />;
+    style={{ ...(transport ? { "--court-progress": `${clamp((bounded - min) / (max - min), 0, 1) * 100}%` } : {}), display: "block", width: "100%", minWidth: 0, height: touch ? transport ? 40 : 44 : 14, margin: 0, accentColor: colors.primaryBg, cursor: disabled ? "default" : "ew-resize", opacity: disabled ? 0.55 : 1 } as CSSProperties}
+  /></>;
   const choose = (position: number) => {
     chooseValue(clamp(Math.round((min + clamp(position / width, 0, 1) * (max - min)) / step) * step, min, max));
   };
@@ -89,7 +99,7 @@ function IconButton({ label, icon, onPress, primary = false, disabled = false, c
   const { width: controlWidth } = useWindowDimensions();
   const touch = Platform.OS !== "web" || (transport && controlWidth <= 700);
   return <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ hovered, pressed }) => [styles.iconButton, { minWidth: primary ? 44 : touch ? 40 : 28, minHeight: touch ? transport ? 40 : 44 : 28, flexShrink: 0, backgroundColor: primary ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
-    {children}<GoAtletaIcon name={icon} size={touch ? primary ? 18 : 16 : primary ? 12 : 14} color={primary ? colors.primaryText : colors.muted} />
+    {children}<GoAtletaIcon name={icon} size={Platform.OS !== "web" ? primary ? 18 : 16 : primary ? 12 : 14} color={primary ? colors.primaryText : colors.muted} />
   </Pressable>;
 }
 
@@ -120,11 +130,8 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
   const boundedSpeed = clamp(speed, 0.25, 2);
   const rate = `${boundedSpeed.toFixed(2).replace(/0$/, "").replace(".", ",")}×`;
   const nextSpeed = PLAYBACK_SPEEDS.find(value => value > boundedSpeed) ?? PLAYBACK_SPEEDS[0];
-  return <View accessibilityLabel="Reprodução da jogada" style={[styles.transport, { bottom, width: Math.min(440, width - 24), paddingHorizontal: compact ? 4 : 8, paddingVertical: touch ? 0 : 5, transform: [{ scale: uiScale }], transformOrigin: "bottom center", borderColor: colors.border, backgroundColor: colors.surface }, shadow.elevated]}>
-    <View style={[styles.transportRow, { gap: compact ? 2 : touch ? 4 : 8 }]}>
-      <IconButton transport label={playing ? "Pausar jogada" : "Reproduzir jogada"} icon={playing ? "pause" : "play"} onPress={onPlay} primary disabled={disabled} />
-      <IconButton transport label="Voltar ao início da jogada" icon="refresh" onPress={onRestart} disabled={disabled} />
-      {showRotation ? touch ? <>
+  const twoRows = Platform.OS === "web" && width <= 400;
+  const rotationControls = <>      {showRotation ? touch && !twoRows ? <>
         <IconButton transport label={`Rotação anterior: ${ROTATIONS[(selectedRotation + 5) % 6]}`} icon="chevronBack" onPress={onPreviousRotation} disabled={disabled} />
         <IconButton transport label={`Próxima rotação: ${ROTATIONS[(selectedRotation + 1) % 6]}`} icon="chevronForward" onPress={onNextRotation} disabled={disabled}><Text style={{ fontSize: 11, color: colors.text }}>{ROTATIONS[selectedRotation]}</Text></IconButton>
       </> : <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
@@ -132,11 +139,34 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
         <Text style={{ width: 20, textAlign: "center", fontSize: 11, color: colors.text }}>{ROTATIONS[selectedRotation]}</Text>
         <IconButton transport label={`Próxima rotação: ${ROTATIONS[(selectedRotation + 1) % 6]}`} icon="chevronForward" onPress={onNextRotation} disabled={disabled} />
       </View> : null}
-      <View style={{ flex: 1, minWidth: 24 }}><Range transport label="Avançar ou voltar na jogada" value={progress} min={0} max={1} step={0.001} onChange={onSeek} disabled={disabled} text={`${Math.round(clamp(progress, 0, 1) * 100)}%`} /></View>
+</>;
+  const seekControl = <>      <View style={{ flex: 1, minWidth: 24 }}><Range transport label="Avançar ou voltar na jogada" value={progress} min={0} max={1} step={0.001} onChange={onSeek} disabled={disabled} text={`${Math.round(clamp(progress, 0, 1) * 100)}%`} /></View>
+</>;
+  const speedControl = <>      <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Velocidade da reprodução" accessibilityValue={{ text: rate }} accessibilityHint={`Alterar para ${String(nextSpeed).replace(".", ",")}×`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) onSpeed(nextSpeed); }} style={({ hovered, pressed }) => [styles.iconButton, { minWidth: 40, minHeight: touch ? 40 : 28, flexShrink: 0, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}><Text numberOfLines={1} style={{ fontSize: touch ? 11 : 10, color: colors.muted, fontVariant: ["tabular-nums"] }}>{rate}</Text></Pressable>
+</>;
+  return <View accessibilityLabel="Reprodução da jogada" style={[styles.transport, { bottom, width: Math.min(440, width - (twoRows ? 36 : 24)), paddingHorizontal: compact ? 4 : 8, paddingVertical: twoRows ? 6 : touch ? 0 : 5, borderRadius: twoRows ? 20 : radius.full, transform: [{ scale: uiScale }], transformOrigin: "bottom center", borderColor: colors.border, backgroundColor: colors.surface }, shadow.elevated]}>
+    {twoRows ? <>
+      <View accessibilityLabel="Reprodução e progresso" style={[styles.transportRow, { gap: 8, paddingHorizontal: 4 }]}>
+      <IconButton transport label={playing ? "Pausar jogada" : "Reproduzir jogada"} icon={playing ? "pause" : "play"} onPress={onPlay} primary disabled={disabled} />
+      <IconButton transport label="Voltar ao início da jogada" icon="refresh" onPress={onRestart} disabled={disabled} />
+        {seekControl}
+      </View>
+      <View accessibilityLabel="Rodízio e opções de reprodução" style={[styles.transportRow, { justifyContent: "space-between", gap: 8, marginTop: 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: colors.border }]}>
+        {rotationControls}
+        {speedControl}
+        <IconButton transport label="Mostrar etapas" icon="list" onPress={onOpenSteps} />
+      </View>
+    </> : <>
+    <View style={[styles.transportRow, { gap: compact ? 2 : touch ? 4 : 8 }]}>
+      <IconButton transport label={playing ? "Pausar jogada" : "Reproduzir jogada"} icon={playing ? "pause" : "play"} onPress={onPlay} primary disabled={disabled} />
+      <IconButton transport label="Voltar ao início da jogada" icon="refresh" onPress={onRestart} disabled={disabled} />
+      {rotationControls}
+      {seekControl}
       <View style={[styles.separator, { height: 14, marginHorizontal: compact ? 1 : 2, backgroundColor: colors.border }]} />
-      <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Velocidade da reprodução" accessibilityValue={{ text: rate }} accessibilityHint={`Alterar para ${String(nextSpeed).replace(".", ",")}×`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => { if (!disabled) onSpeed(nextSpeed); }} style={({ hovered, pressed }) => [styles.iconButton, { minWidth: 40, minHeight: touch ? 40 : 28, flexShrink: 0, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}><Text numberOfLines={1} style={{ fontSize: touch ? 11 : 10, color: colors.muted, fontVariant: ["tabular-nums"] }}>{rate}</Text></Pressable>
+      {speedControl}
       <IconButton transport label="Mostrar etapas" icon="list" onPress={onOpenSteps} />
     </View>
+    </>}
   </View>;
 }
 
@@ -146,11 +176,12 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   return <View style={[styles.row, !touch ? { gap: 16 } : null]}><Text style={{ flex: touch ? 0.39 : 1, color: colors.muted, fontSize: touch ? 10 : 11, letterSpacing: touch ? 0.5 : 0.6 }}>{label}</Text><View style={touch ? { flex: 0.61, minWidth: 0 } : { width: "60%", minWidth: 0 }}>{children}</View></View>;
 }
 
-export function CourtSimulationSettings({ config, mode, onChange, onRestore, onShare, cameraView, onCameraView, labelsVisible = true, onLabelsVisible, disabled = false, attackArcValue = .03, showRotation = mode === "receive" }: {
+export function CourtSimulationSettings({ config, mode, onChange, onRestore, onShare, cameraView, onCameraView, labelsVisible = true, onLabelsVisible, disabled = false, exportDisabled = false, attackArcValue = .03, showRotation = mode === "receive" }: {
   config: CourtSimulation | null; mode: SimulationMode; onChange: (patch: Partial<CourtSimulation>) => void;
   onRestore: () => void; onShare: () => void;
   cameraView: CameraView; onCameraView: (view: CameraView) => void; labelsVisible?: boolean; onLabelsVisible?: (value: boolean) => void;
   disabled?: boolean;
+  exportDisabled?: boolean;
   attackArcValue?: number;
   showRotation?: boolean;
 }) {
@@ -193,7 +224,7 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
         <Row label="VISÃO"><Segments label="Visão" value={cameraView} options={[{ value: "front", label: "Frente" }, { value: "side", label: "Lateral" }, { value: "orbit", label: "Livre" }]} onChange={onCameraView} /></Row>
         {onLabelsVisible ? <Row label={mode === "receive" ? "POSIÇÕES" : "TRAJETÓRIAS"}><Segments label={mode === "receive" ? "Posições" : "Trajetórias"} value={labelsVisible ? "show" : "hide"} options={[{ value: "show", label: "Mostrar" }, { value: "hide", label: "Ocultar" }]} onChange={value => onLabelsVisible(value === "show")} /></Row> : null}
         <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, marginTop: 2, flexDirection: "row", gap: 6 }}>
-          {([["Restaurar", onRestore], ["Exportar", onShare]] as const).map(([label, onPress]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={label} accessibilityRole="button" accessibilityLabel={label === "Restaurar" ? "Restaurar simulação" : "Exportar jogada"} disabled={disabled} onPress={onPress} style={({ hovered, pressed }) => [styles.panelAction, { borderColor: colors.border, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}><Text numberOfLines={1} style={{ color: colors.text, fontSize: touch ? 11 : 12 }}>{label}</Text></Pressable>)}
+          {([["Restaurar", onRestore], ["Exportar", onShare]] as const).map(([label, onPress]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={label} accessibilityRole="button" accessibilityLabel={label === "Restaurar" ? "Restaurar simulação" : "Exportar jogada"} disabled={disabled || (label === "Exportar" && exportDisabled)} onPress={() => { if (!disabled && !(label === "Exportar" && exportDisabled)) onPress(); }} style={({ hovered, pressed }) => [styles.panelAction, { borderColor: colors.border, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || (label === "Exportar" && exportDisabled) ? 0.55 : 1 }]}><Text numberOfLines={1} style={{ color: colors.text, fontSize: touch ? 11 : 12 }}>{label}</Text></Pressable>)}
         </View>
   </ScrollView>;
 }

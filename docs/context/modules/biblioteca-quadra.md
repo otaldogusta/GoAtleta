@@ -29,7 +29,9 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 | [activity-catalog-plan-actions.ts](../../../src/screens/library/activity-catalog-plan-actions.ts) | Escolha de aula de destino e criação de versão do plano. |
 | [planning-library-bridge.ts](../../../src/screens/training/application/planning-library-bridge.ts) | Conversão de atividade para bloco planejado. |
 | [visual-tech.tsx](../../../app/class/[id]/visual-tech.tsx) | Entrada autorizada da quadra por turma. |
-| [CourtEditorWorkspace](../../../src/components/visual-court/CourtEditorWorkspace.tsx) | Composição do editor e ferramentas. |
+| [CourtEditorWorkspace](../../../src/components/visual-court/CourtEditorWorkspace.tsx) | Controlador do editor e compartilhamento. |
+| [CourtWorkspaceView](../../../src/components/visual-court/CourtWorkspaceView.tsx) | Mesma composição visual para edição e leitura. |
+| [useCourtReadOnlyController](../../../src/components/visual-court/useCourtReadOnlyController.ts) | Leitura imutável, sem persistência ou elenco privado. |
 | [useCourtEditor](../../../src/components/visual-court/useCourtEditor.ts) | Estado, histórico, rascunhos e salvamento. |
 | [visual-court.ts](../../../src/core/visual-court.ts) | Documento, atores, etapas e presets. |
 | [visual-court-editor.ts](../../../src/core/visual-court-editor.ts) | Comandos, conversão e importação validada. |
@@ -40,11 +42,17 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- `court-reception-middle-identity.ts` repara referências de centrais trocadas
+  somente na sequência canônica de seis recepções 5×1. Editor e leitura usam a
+  mesma função pura; nomes, bases e trajetórias são preservados, sem escrita remota.
+
 - Compartilhamento web da quadra implementado localmente em 27/10: cópia por
   link de leitura, prévia 3D/2D e revogação, com a composição do Studio Scouting.
   O link copiado usa sempre o domínio público `https://goatleta.com`, inclusive
   no localhost; copiar um link local já gerado preserva seu ID/código.
-  Sem hook de edição no player; vínculos aluno/aula removidos. RLS/RPCs e testes
+  Prévia e link usam o mesmo estúdio em leitura, com câmera, zoom e reprodução;
+  ajustes de simulação temporários em memória e restauração da cópia original;
+  ações autorais e persistência desabilitadas. Sem hook de edição no player; vínculos aluno/aula removidos. RLS/RPCs e testes
   SQL isolados aprovados; migration aplicada com autorização em 27/10 e grants
   remotos conferidos. Smoke com conta real em localhost validou publicar, ler,
   reproduzir, prévia e revogar. Publicação do cliente permanece separada.

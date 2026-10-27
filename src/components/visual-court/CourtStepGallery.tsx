@@ -14,6 +14,7 @@ type Props = {
   onAdd: () => void;
   onMove: (from: number, to: number) => void;
   disabled?: boolean;
+  readOnly?: boolean;
   compact?: boolean;
   headerActions?: ReactNode;
 };
@@ -60,7 +61,7 @@ function DraggableStepFrame({ index, active, over, disabled, onDragState, onMove
 }
 
 /** A single vertical inspector gallery, independent from the playback controls. */
-export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, disabled = false, compact = false, headerActions }: Props) {
+export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, disabled = false, readOnly = false, compact = false, headerActions }: Props) {
   const { colors } = useAppTheme();
   const steps = payload.timeline.steps, current = Math.max(0, Math.min(steps.length - 1, Number.isFinite(stepIndex) ? Math.floor(stepIndex) : 0));
   const [gridWidth, setGridWidth] = useState(0), [dragged, setDragged] = useState<number | null>(null), [dragOver, setDragOver] = useState<number | null>(null);
@@ -80,8 +81,8 @@ export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, 
   const choose = (index: number) => { if (!disabled && index >= 0 && index < steps.length) onSelect(index); };
   const updateDrag = useCallback((from: number | null | undefined, to?: number | null) => { if (from !== undefined) setDragged(from); if (to !== undefined) setDragOver(to); }, []);
   const move = useCallback((from: number, to: number) => {
-    if (!disabled && Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= 0 && from < steps.length && to < steps.length && from !== to) onMove(from, to);
-  }, [disabled, onMove, steps.length]);
+    if (!disabled && !readOnly && Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= 0 && from < steps.length && to < steps.length && from !== to) onMove(from, to);
+  }, [disabled, readOnly, onMove, steps.length]);
   return <View style={styles.gallery}>
     <View style={styles.header}>
       <Text accessibilityLiveRegion="polite" style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 12, fontWeight: "600" }}>{`Etapa ${steps.length ? current + 1 : 0} de ${steps.length}`}</Text>
@@ -93,13 +94,13 @@ export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, 
     </View>
     <ScrollView ref={scroll} accessibilityLabel="Etapas da jogada" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator style={styles.scroll} contentContainerStyle={{ paddingBottom: gap }} scrollEventThrottle={16} onLayout={event => { viewport.current = event.nativeEvent.layout.height; revealSelection(false); }} onScroll={event => { offset.current = event.nativeEvent.contentOffset.y; }} onContentSizeChange={() => revealSelection(false)}>
       <View style={[styles.grid, { gap }]} onLayout={event => { const width = event.nativeEvent.layout.width; setGridWidth(previous => Math.abs(previous - width) > .5 ? width : previous); }}>
-        {steps.map((step, index) => <DraggableStepFrame key={step.id} index={index} active={dragged === index} over={dragOver === index} disabled={disabled} width={cardWidth} onDragState={updateDrag} onMove={move} onLayout={event => { const { y, height } = event.nativeEvent.layout; layouts.current.set(step.id, { y, height }); revealSelection(false); }}>
-          <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={`Etapa ${index + 1}: ${step.label}. Arraste para reordenar.`} accessibilityState={{ selected: index === current }} disabled={disabled} onPress={() => choose(index)} style={({ hovered, pressed }) => [styles.card, { borderColor: index === current ? colors.primaryBg : colors.border, backgroundColor: index === current ? colors.secondaryBg : hovered || pressed ? colors.inputBg : "transparent", opacity: disabled ? .55 : 1 }]}>
+        {steps.map((step, index) => <DraggableStepFrame key={step.id} index={index} active={dragged === index} over={dragOver === index} disabled={disabled || readOnly} width={cardWidth} onDragState={updateDrag} onMove={move} onLayout={event => { const { y, height } = event.nativeEvent.layout; layouts.current.set(step.id, { y, height }); revealSelection(false); }}>
+          <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={`Etapa ${index + 1}: ${step.label}.${readOnly ? "" : " Arraste para reordenar."}`} accessibilityState={{ selected: index === current }} disabled={disabled} onPress={() => choose(index)} style={({ hovered, pressed }) => [styles.card, { borderColor: index === current ? colors.primaryBg : colors.border, backgroundColor: index === current ? colors.secondaryBg : hovered || pressed ? colors.inputBg : "transparent", opacity: disabled ? .55 : 1 }]}>
             <Preview payload={payload} index={index} />
             <View style={styles.caption}><Text numberOfLines={2} style={[styles.label, { color: colors.text }]}>{`${index + 1}. ${step.label}`}</Text><Text style={{ color: colors.muted, fontSize: 11 }}>{`${(Math.max(0, step.durationMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s`}</Text></View>
           </Pressable>
         </DraggableStepFrame>)}
-        <View style={[styles.stepFrame, { width: cardWidth }]}><Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Adicionar etapa vazia ao final" disabled={disabled} onPress={() => { if (!disabled) onAdd(); }} style={({ hovered, pressed }) => [styles.card, { borderColor: colors.border, backgroundColor: hovered || pressed ? colors.secondaryBg : colors.inputBg, opacity: disabled ? .55 : 1 }]}>
+        <View style={[styles.stepFrame, { width: cardWidth }]}><Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Adicionar etapa vazia ao final" disabled={disabled || readOnly} onPress={() => { if (!disabled && !readOnly) onAdd(); }} style={({ hovered, pressed }) => [styles.card, { borderColor: colors.border, backgroundColor: hovered || pressed ? colors.secondaryBg : colors.inputBg, opacity: disabled ? .55 : 1 }]}>
           <View style={[styles.preview, { alignItems: "center", justifyContent: "center" }]}><GoAtletaIcon name="add" size={26} color={colors.primaryBg} /></View><View style={styles.caption}><Text numberOfLines={2} style={[styles.label, { color: colors.text }]}>Adicionar etapa</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Ao final da jogada</Text></View>
         </Pressable></View>
       </View>

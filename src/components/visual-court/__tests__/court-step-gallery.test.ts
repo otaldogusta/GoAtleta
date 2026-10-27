@@ -33,6 +33,20 @@ describe("court step inspector gallery", () => {
   beforeEach(() => { jest.clearAllMocks(); });
   afterEach(() => { if (tree) act(() => tree.unmount()); });
 
+  it("keeps navigation available in readonly mode without adding or reordering stages", () => {
+    const value = props(), before = JSON.stringify(value.payload);
+    act(() => { tree = TestRenderer.create(React.createElement(CourtStepGallery, { ...value, readOnly: true })); });
+    press("Próxima etapa");
+    expect(select).toHaveBeenCalledWith(1);
+    expect(button("Adicionar etapa vazia ao final").props.disabled).toBe(true);
+    press("Adicionar etapa vazia ao final");
+    const frames = tree.root.findAll(node => typeof node.type === 'function' && node.type.name === 'DraggableStepFrame');
+    expect(frames.every(node => node.props.disabled)).toBe(true);
+    act(() => frames[0].props.onMove(0, 1));
+    expect(add).not.toHaveBeenCalled(); expect(move).not.toHaveBeenCalled();
+    expect(JSON.stringify(value.payload)).toBe(before);
+  });
+
   it("selects an existing stage and adds through parent callbacks without mutating the document", () => {
     const value = props(), before = JSON.stringify(value.payload);
     act(() => { tree = TestRenderer.create(React.createElement(CourtStepGallery, { ...value, headerActions: React.createElement("InjectedHeaderAction") })); });

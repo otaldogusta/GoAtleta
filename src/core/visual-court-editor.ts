@@ -1,3 +1,4 @@
+import { repairReceptionMiddleIdentity } from './court-reception-middle-identity';
 import { buildRotation5x1Preset, normalizeReceive5x1Timeline, type CourtPoint, type CourtVisualPayload, type CourtVisualStep } from "./visual-court";
 import { normalizeCourtSimulation } from "./court-simulation-model";
 import { configureCourtSimulation, sampleCourtSimulation } from "./court-simulation";
@@ -32,7 +33,7 @@ export const snapCourtPoint = (p: CourtPoint): CourtPoint => ({ x: Math.round(p.
 
 /** Convert legacy didactic/official positions once. View rotation never changes the document. */
 export function upgradeCourtEditor(payload: CourtVisualPayload, title: string): CourtVisualPayload {
-  payload = normalizeReceive5x1Timeline(payload);
+  payload = repairReceptionMiddleIdentity(normalizeReceive5x1Timeline(payload));
   const repairedSteps = payload.timeline.steps.map(s => {
     if (s.formationKind !== "5x1_receive_3" || !s.legalPositions || s.legalPositions.lib || !s.visibleActorIds?.includes("lib")) return s;
     const replaced = ["c1", "c2"].find(id => !s.visibleActorIds!.includes(id) && s.legalPositions![id]);

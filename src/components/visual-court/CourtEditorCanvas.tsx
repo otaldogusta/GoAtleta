@@ -11,6 +11,7 @@ import { boundCourtFloorHandle, getCourtFloorHandles, type CourtFloorHandle } fr
 
 export type CourtTool = "select" | "pan" | "player" | "animate" | DrawingKind;
 export type CourtEditorCanvasProps = {
+  readOnly?: boolean;
   payload: CourtVisualPayload; stepIndex: number; landscape: boolean; tool: CourtTool; motionMode?: "free" | "straight"; selected: string[]; multiple?: boolean;
   onSelect: (ids: string[]) => void; onMove: (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicate?: boolean) => void; onDraw: (d: CourtDrawing) => void;
   onEditText: (id: string, value: string) => void;
@@ -21,6 +22,7 @@ export type CourtEditorCanvasProps = {
   selectionBottomInset?: number;
   playerPreviewColor?: string;
   /** One completed floor-handle gesture is one canonical history edit. */
+  allowServeHandle?: boolean;
   onSimulationHandle?: (edit: Parameters<typeof updateCourtSimulationHandle>[2]) => void;
 };
 type Props = CourtEditorCanvasProps;
@@ -57,7 +59,7 @@ export function CourtEditorCanvas(props: Props) {
   };
   const visibleDrawings = (p: Props) => displayCourtDrawings(p.payload, p.stepIndex, p.progress);
   const begin = (pixel: CourtPoint, multiple = false, duplicate = false) => {
-    const p = live.current; if (p.disabled) return;
+    const p = live.current; if (p.disabled && !(p.readOnly && p.tool === "pan")) return;
     multiple = multiple || !!p.multiple;
     let { point } = getPoint(pixel);
     const { raw, scale, scene } = getPoint(pixel);
@@ -235,7 +237,7 @@ export function CourtEditorCanvas(props: Props) {
     const down = (e: PointerEvent) => {
       if (editable(e.target)) return;
       if ((e.target as Element)?.closest?.("#court-selection-actions")) return;
-      if (e.button !== 0 || active !== null || live.current.disabled) return;
+      if (e.button !== 0 || active !== null || (live.current.disabled && !(live.current.readOnly && live.current.tool === "pan"))) return;
       (e.target as HTMLElement)?.closest?.<HTMLElement>("[id^=court-floor-handle-]")?.focus();
       active = e.pointerId; node.setPointerCapture(e.pointerId); e.preventDefault();
       if (space) {
@@ -285,7 +287,7 @@ export function CourtEditorCanvas(props: Props) {
     const wheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      if (live.current.disabled || active !== null) return;
+      if ((live.current.disabled && !live.current.readOnly) || active !== null) return;
       const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? node.clientHeight : 1);
       const zoom = Math.max(0.75, Math.min(3, live.current.zoom * Math.exp(-delta * 0.002)));
       live.current.onZoom(zoom);

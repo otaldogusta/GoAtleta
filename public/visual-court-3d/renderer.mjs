@@ -169,7 +169,7 @@ function updateSimulation(){
  for(const [kind,name] of Object.entries(handleNames)){
   let button=handleButtons.get(kind);if(!button){button=makeGuideHandle(kind,name);handleButtons.set(kind,button);handleLayer.append(button);}
   const handle=handles.get(kind),at=handleDrag?.kind===kind&&kind!=='attack'?handleDrag.last:handle?.point,position=at?project(vector(at)):null;
-  button.hidden=!handle||!data.guidesVisible||!packet.simulationHandles||!position?.visible;button.disabled=packet.disabled;
+  button.hidden=!handle||!data.guidesVisible||!packet.simulationHandles||!position?.visible;button.disabled=packet.disabled&&!(packet.allowServeHandle&&kind==='serve');
   if(position){button.style.left=`${position.x}px`;button.style.top=`${position.y}px`;}
  }
 }
@@ -185,20 +185,20 @@ function finishHandle(event,cancelled=false){
  const drag=handleDrag;if(!drag||drag.pointerId!==event.pointerId)return;
  if(!cancelled)updateHandlePoint(event);
  handleDrag=null;
- if(!cancelled&&drag.moved&&drag.revision===revision&&!packet.disabled){const edit=simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y);if(edit&&(edit.value===undefined||Math.abs(edit.value-drag.handle.value)>1e-8))emit('simulation-handle',edit,drag.revision);}
+ if(!cancelled&&drag.moved&&drag.revision===revision&&(!packet.disabled||packet.allowServeHandle&&drag.kind==='serve')){const edit=simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y);if(edit&&(edit.value===undefined||Math.abs(edit.value-drag.handle.value)>1e-8))emit('simulation-handle',edit,drag.revision);}
  invalidate();
 }
 function makeGuideHandle(kind,name){
  const button=document.createElement('button');button.type='button';button.className=`guide-handle ${isHeightHandle(kind)?'apex':kind==='target'||kind==='serve'?'target':''} ${kind==='serve'?'serve':''}`;button.id=`handle-${kind}`;button.setAttribute('aria-label',name);button.title=`Arraste para ajustar: ${name.toLowerCase()}. Use as setas para ajustar.`;
  button.addEventListener('pointerdown',event=>{
-  if(packet?.disabled||!active||event.button!==0)return;const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;event.preventDefault();event.stopPropagation();cancelGesture();
+  if(packet?.disabled&&!(packet.allowServeHandle&&kind==='serve')||!active||event.button!==0)return;const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;event.preventDefault();event.stopPropagation();cancelGesture();
   const plane=new THREE.Plane(),at=vector(handle.point);plane.setFromNormalAndCoplanarPoint(isHeightHandle(kind)?camera.getWorldDirection(new THREE.Vector3()):new THREE.Vector3(0,1,0),at);cast(event);const start=ray.ray.intersectPlane(plane,new THREE.Vector3());if(!start)return;
   handleDrag={kind,handle,revision,pointerId:event.pointerId,plane,start,last:{...handle.point},moved:false};button.setPointerCapture(event.pointerId);button.focus();invalidate();
  });
  button.addEventListener('pointermove',event=>{if(!updateHandlePoint(event))return;event.preventDefault();event.stopPropagation();invalidate();});
  button.addEventListener('pointerup',event=>finishHandle(event));button.addEventListener('pointercancel',event=>finishHandle(event,true));button.addEventListener('lostpointercapture',event=>finishHandle(event,true));
  button.addEventListener('keydown',event=>{
-  if(!event.key.startsWith('Arrow')||packet?.disabled||!active)return;event.preventDefault();event.stopPropagation();const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;const at={...handle.point},direction=event.key==='ArrowUp'||event.key==='ArrowRight'?1:-1,height=isHeightHandle(kind);if(height)at.y+=direction*.12;else{at.x+=event.key==='ArrowLeft'?-.25:event.key==='ArrowRight'?.25:0;at.z+=event.key==='ArrowUp'?-.25:event.key==='ArrowDown'?.25:0;}const edit=simulationHandleEdit(handle,at,height?direction*.12:0);if(edit&&(edit.value===undefined||Math.abs(edit.value-handle.value)>1e-8))emit('simulation-handle',edit);
+  if(!event.key.startsWith('Arrow')||packet?.disabled&&!(packet.allowServeHandle&&kind==='serve')||!active)return;event.preventDefault();event.stopPropagation();const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;const at={...handle.point},direction=event.key==='ArrowUp'||event.key==='ArrowRight'?1:-1,height=isHeightHandle(kind);if(height)at.y+=direction*.12;else{at.x+=event.key==='ArrowLeft'?-.25:event.key==='ArrowRight'?.25:0;at.z+=event.key==='ArrowUp'?-.25:event.key==='ArrowDown'?.25:0;}const edit=simulationHandleEdit(handle,at,height?direction*.12:0);if(edit&&(edit.value===undefined||Math.abs(edit.value-handle.value)>1e-8))emit('simulation-handle',edit);
  });
  return button;
 }
@@ -309,7 +309,7 @@ window.addEventListener('message',event=>{
  if(token&&data.token!==token){cancelGesture();lastAnchor=undefined;}
  const next=data.frame;if(!next||!Array.isArray(next.actors)||!Array.isArray(next.drawings)||!Array.isArray(next.selected)||!Array.isArray(next.hide)||typeof next.stepId!=='string'||!next.actors.every(actor=>typeof actor.id==='string'&&isWorldPoint(actor.position))||!next.drawings.every(drawing=>typeof drawing.id==='string'&&Array.isArray(drawing.points)&&drawing.points.every(isWorldPoint)))return;
  if(frame&&next.stepId!==frame.stepId||packet&&packet.tool!==data.tool)stopCameraMotion();
- if(gesture&&(gesture.revision!==data.revision||gesture.tool!==data.tool||data.disabled||data.active===false)||handleDrag&&(handleDrag.revision!==data.revision||data.disabled||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
+ if(gesture&&(gesture.revision!==data.revision||gesture.tool!==data.tool||data.disabled||data.active===false)||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
  if(!active){cancelGesture();if(pending){cancelAnimationFrame(pending);pending=0;}return;}
  const zoom=clamp(Number(data.zoom)||1,.3,4);if(zoom!==lastZoom){stopCameraMotion();distance=clamp(distance*lastZoom/zoom,12,65);lastZoom=zoom;updateCamera();}
  const simulationMode=frame.simulation?.mode||null,simulationChanged=simulationMode!==lastSimulationMode;lastSimulationMode=simulationMode;
