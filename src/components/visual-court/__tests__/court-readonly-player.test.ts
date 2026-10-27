@@ -2,7 +2,9 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { CourtReadOnlyPlayer } from '../CourtReadOnlyPlayer';
 import { CourtWorkspaceView } from '../CourtWorkspaceView';
-import { newCourtBoard, duplicateStep } from '../../../core/visual-court-editor';
+import { newCourtBoard, duplicateStep, upgradeCourtEditor } from '../../../core/visual-court-editor';
+import { buildEditable5x1ReceptionPreset } from '../../../core/visual-court';
+import { publishableCourt } from '../../../core/court-sharing';
 
 jest.mock('../CourtPerspectiveCanvas', () => ({ CourtPerspectiveCanvas: 'Perspective' }));
 jest.mock('../CourtEditorCanvas', () => ({ CourtEditorCanvas: 'Canvas' }));
@@ -19,6 +21,26 @@ jest.mock('../court-export', () => ({ exportCourt: jest.fn() }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('../useCourtEditor', () => ({ useCourtEditor: () => { throw new Error('Readonly player must not load the private editor'); } }));
+
+it('opens legacy shared reception with the current six animated rotations before any mode switch', async () => {
+  const payload = publishableCourt(upgradeCourtEditor(buildEditable5x1ReceptionPreset(), 'Recepção publicada'));
+  const original = JSON.stringify(payload);
+  expect(payload.timeline.steps).toHaveLength(12);
+  let tree!: TestRenderer.ReactTestRenderer;
+  await act(async () => { tree = TestRenderer.create(React.createElement(CourtReadOnlyPlayer, { payload, onClose: () => {} })); });
+  const surface = () => tree.root.findByType('Perspective' as never);
+  const opened = surface().props.payload;
+  expect(opened.timeline.steps).toHaveLength(6);
+  expect(opened.timeline.steps.map((step: { durationMs: number }) => step.durationMs)).toEqual(Array(6).fill(4100));
+  const initialBases = opened.timeline.steps[0].simulation.actorIds.map((id: string) => opened.timeline.steps[0].actorPositions[id]);
+  act(() => tree.root.findByType('Modes' as never).props.onChange('attack'));
+  act(() => tree.root.findByType('Modes' as never).props.onChange('receive'));
+  const returned = surface().props.payload;
+  expect(returned.timeline.steps).toHaveLength(6);
+  expect(returned.timeline.steps[0].simulation.actorIds.map((id: string) => returned.timeline.steps[0].actorPositions[id])).toEqual(initialBases);
+  expect(JSON.stringify(payload)).toBe(original);
+  act(() => tree.unmount());
+});
 
 it('offers playback, camera, views and steps without enabling editor mutations', async () => {
   const payload = duplicateStep(newCourtBoard(), 0).payload;

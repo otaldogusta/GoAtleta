@@ -162,3 +162,11 @@ sobreposição. Testes de leitura/painel/controles/layout aprovados; tipos aprov
 Título de prévia corrigido localmente em 27/10: remover o title duplicado do
 documento base e manter a definição do layout. Export web confirmou exatamente
 um title em index.html e court/shared.html. Publicação desta correção pendente.
+
+Abertura de links legados corrigida localmente em 27/10: o controlador de
+leitura converte em memória somente os 12 pares canônicos antigos de recepção
+para seis rotações animadas usando replaceReceptionRotationSequence, antes da
+primeira renderização. Preserva a cópia publicada e não escreve no backend.
+Jogadas fora desse formato permanecem intactas. Regressão usa payload legado
+serializado para compartilhamento e verifica seis etapas desde a abertura,
+mesmas bases após Ataque/Recepção e origem imutável. Publicação pendente.

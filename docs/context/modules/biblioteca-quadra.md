@@ -52,6 +52,8 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   no localhost; copiar um link local já gerado preserva seu ID/código.
   Prévia e link usam o mesmo estúdio em leitura, com câmera, zoom e reprodução;
   ajustes de simulação temporários em memória e restauração da cópia original;
+  links com 12 pares legados canônicos abrem convertidos em memória para as seis
+  rotações animadas atuais, sem esperar uma troca de modo ou gravar na origem;
   ações autorais e persistência desabilitadas. Sem hook de edição no player; vínculos aluno/aula removidos. RLS/RPCs e testes
   SQL isolados aprovados; migration aplicada com autorização em 27/10 e grants
   remotos conferidos. Smoke com conta real em localhost validou publicar, ler,
