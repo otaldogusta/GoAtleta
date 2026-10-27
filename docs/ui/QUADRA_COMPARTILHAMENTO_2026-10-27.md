@@ -158,3 +158,7 @@ aberto. A listinha do transporte abre Etapas e permite alternar para Ajustes.
 Controles de vista usam a mesma base inferior do transporte, em coluna quando
 necessário; transporte até 400 px reserva margem lateral adicional para evitar
 sobreposição. Testes de leitura/painel/controles/layout aprovados; tipos aprovados.
+
+Título de prévia corrigido localmente em 27/10: remover o title duplicado do
+documento base e manter a definição do layout. Export web confirmou exatamente
+um title em index.html e court/shared.html. Publicação desta correção pendente.

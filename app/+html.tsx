@@ -93,7 +93,6 @@ export default function RootHtml({ children }: PropsWithChildren) {
     <html lang="pt-BR" translate="no" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <title>Go Atleta</title>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"

@@ -25,6 +25,9 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Contratos a preservar
 
+- O título web pertence ao `Head` de `app/_layout.tsx`; `app/+html.tsx` não
+  duplica `<title>`, para evitar nome concatenado nas prévias de links.
+
 - `/court/shared` é uma rota pública explícita, como `/scouting/shared`.
   Somente a projeção autorizada por ID/código é lida; o editor/turma continua
   protegido. [Contrato, ativação e validação](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md).
