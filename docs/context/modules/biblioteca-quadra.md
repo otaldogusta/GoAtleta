@@ -42,6 +42,8 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 - Compartilhamento web da quadra implementado localmente em 27/10: cópia por
   link de leitura, prévia 3D/2D e revogação, com a composição do Studio Scouting.
+  O link copiado usa sempre o domínio público `https://goatleta.com`, inclusive
+  no localhost; copiar um link local já gerado preserva seu ID/código.
   Sem hook de edição no player; vínculos aluno/aula removidos. RLS/RPCs e testes
   SQL isolados aprovados; migration aplicada com autorização em 27/10 e grants
   remotos conferidos. Smoke com conta real em localhost validou publicar, ler,

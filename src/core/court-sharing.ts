@@ -9,8 +9,8 @@ export function publishableCourt(payload: CourtVisualPayload): CourtVisualPayloa
       team: meta.team, locked: meta.locked, simulationSupport: meta.simulationSupport,
     }])) } };
 }
-export function courtShareLink(id: string, code: string, origin: string) {
-  return `${origin}/court/shared#${new URLSearchParams({ id, code })}`;
+export function courtShareLink(id: string, code: string) {
+  return `https://goatleta.com/court/shared#${new URLSearchParams({ id, code })}`;
 }
 export function parseCourtShareHash(hash: string) {
   const params = new URLSearchParams(hash.replace(/^#/, ''));

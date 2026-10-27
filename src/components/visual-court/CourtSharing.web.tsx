@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../auth/auth';
 import { assertSessionIdentity, getSessionIdentity, subscribeSession } from '../../auth/session';
 import { courtShareError, getCourtShare, publishCourtShare, revokeCourtShare, type CourtShare } from '../../api/court-sharing';
-import { courtShareLink } from '../../core/court-sharing';
+import { courtShareLink, parseCourtShareHash } from '../../core/court-sharing';
 import { useAppTheme } from '../../ui/app-theme';
 import { GoAtletaIcon } from '../../ui/icon-registry';
 import { typography } from '../../theme/tokens';
@@ -31,7 +31,13 @@ export function CourtSharing({ payload, scope, onClose }: CourtSharingProps) {
     return () => { alive.current = false; unsubscribe(); };
   }, [org, classId, key, onClose]);
   const copy = async (url: string) => {
-    try { await navigator.clipboard.writeText(url); if (alive.current) setMessage('Link copiado.'); }
+    try {
+      const access = parseCourtShareHash(new URL(url).hash);
+      if (!access) throw new Error('Link inválido.');
+      const publicUrl = courtShareLink(access.id, access.code);
+      if (alive.current) setLink(publicUrl);
+      await navigator.clipboard.writeText(publicUrl); if (alive.current) setMessage('Link copiado.');
+    }
     catch { if (alive.current) setError('Selecione e copie o link abaixo.'); }
   };
   const run = async (revoke: boolean) => {
@@ -45,7 +51,7 @@ export function CourtSharing({ payload, scope, onClose }: CourtSharingProps) {
       } else {
         const code = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
         const result = await publishCourtShare(scope, payload, code); assertSessionIdentity(identity);
-        if (alive.current) { const url = courtShareLink(result.id, code, window.location.origin); setShare(result); setLink(url); await copy(url); }
+        if (alive.current) { const url = courtShareLink(result.id, code); setShare(result); setLink(url); await copy(url); }
       }
     } catch (failure) { if (alive.current) setError(courtShareError(failure)); }
     finally { pending.current = false; if (alive.current) setBusy(false); }

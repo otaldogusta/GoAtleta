@@ -5,7 +5,9 @@ do documento abrem um diálogo com a composição e primitives do Studio Scoutin
 pessoas com acesso, acesso geral, permissão Leitor, copiar link, prévia e revogar.
 Exportar permanece uma ação independente. O nativo conserva a exportação existente.
 
-O link abre `/court/shared` com ID e código aleatório de 256 bits no fragmento,
+O link copiado sempre usa `https://goatleta.com/court/shared`, inclusive quando
+o editor está em localhost. Links locais já gerados conservam o mesmo ID/código
+ao copiar novamente, sem republicar a jogada. O visualizador abre `/court/shared` com ID e código aleatório de 256 bits no fragmento,
 sem colocar o código na query de navegação. Qualquer pessoa com o link pode ler
 a cópia publicada. O servidor guarda somente o hash do código. Gerar outro link
 substitui o código anterior; revogar impede novas leituras. O visualizador aberto

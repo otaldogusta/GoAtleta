@@ -19,7 +19,9 @@ describe('court sharing', () => {
   });
   it('keeps the access code in the fragment and rejects malformed access', () => {
     const id = '11111111-1111-4111-8111-111111111111', code = 'a'.repeat(64);
-    const url = new URL(courtShareLink(id, code, 'https://example.test'));
+    const url = new URL(courtShareLink(id, code));
+    expect(url.origin).toBe('https://goatleta.com');
+    expect(url.pathname).toBe('/court/shared');
     expect(url.search).toBe('');
     expect(parseCourtShareHash(url.hash)).toEqual({ id, code });
     expect(parseCourtShareHash('#id=bad&code=bad')).toBeNull();
