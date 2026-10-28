@@ -18,4 +18,6 @@ Resolver caminhos a partir da raiz. Esta skill organiza o trabalho; regras de do
 
 Em microajustes, aplicar diretamente o ciclo rápido de `AGENTS.md` e a skill específica necessária. Não criar um plano longo, executar gates amplos ou acionar toda uma linha da matriz por palavra-chave.
 
-Em release, usar o executor de `docs/operations/release-validation.md`: `npm run build:verified` (checks e export) ou `npm run validate:app` (checks). Não repetir manualmente checks já aprovados pelo executor para os mesmos inputs. O cache é local, tem invalidação por conteúdo e não substitui smoke autenticado ou autorização. Falhas exigem ler o log do check e corrigir a causa; nunca fabricar recibos.
+Em release pequeno de apresentação, preferir `npm run build:small -- --base=<commit-validado> --test=<suíte-focada>` quando elegível na escada; revisão do diff e smoke continuam obrigatórios. Se o guardrail recusar, usar o perfil completo. No release direto de produção autorizado, push só para `main`, sem duplicar preview da mesma revisão.
+
+Em release completo, usar o executor de `docs/operations/release-validation.md`: `npm run build:verified` (checks e export) ou `npm run validate:app` (checks). Não repetir manualmente checks já aprovados pelo executor para os mesmos inputs. O cache é local, tem invalidação por conteúdo e não substitui smoke autenticado ou autorização. Falhas exigem ler o log do check e corrigir a causa; nunca fabricar recibos.

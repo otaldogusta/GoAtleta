@@ -15,6 +15,7 @@ let mockUser = "user_1";
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: mockUser ? { user: { id: mockUser } } : null }) }));
 jest.mock("../../../observability/perf", () => ({ measureAsync: (_name: string, run: () => unknown) => run() }));
 jest.mock("../../../db/seed", () => ({
+  buildTechnicalVisualId: ({ organizationId, classId, title }: { organizationId: string; classId: string; title: string }) => `tv_${organizationId}_${classId}_${title}`,
   getClassById: (...args: unknown[]) => mockClass(...args),
   getStudentsByClass: (...args: unknown[]) => mockStudents(...args),
   listTechnicalVisualsByClass: (...args: unknown[]) => mockList(...args),

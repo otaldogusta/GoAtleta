@@ -41,7 +41,7 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
   const motion = useDisclosureMotion(open, { axis: mobile ? "y" : "x", distance: 24, duration: 200 });
   const panelWidth = mobile ? Math.min(440, width - 24) : 360;
   const panelBottom = mobile ? compactWeb ? bottom : Math.max(bottom, width < 460 ? 120 : bottom) : undefined;
-  const panelHeight = Math.max(160, Math.min(compactWeb ? Math.min(480, height * .62) : 600, mobile ? height - top - (panelBottom ?? bottom) : (height - top - bottom) / scale));
+  const panelHeight = Math.max(160, Math.min(compactWeb ? Math.min(380, height * .62) : 600, mobile ? height - top - (panelBottom ?? bottom) : (height - top - bottom) / scale));
   const gripWidth = compactWeb ? mobileCourtChrome.gripWidth : 80;
   const gripHeight = compactWeb ? mobileCourtChrome.gripHeight : 40;
   const panelHeader = compactWeb ? 32 : 44;
@@ -50,10 +50,10 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
 
   return <>
     {open ? <Pressable accessibilityRole="button" accessibilityLabel="Fechar controles da jogada" suppressWebHoverFeedback disableWebPressScale onPress={onRequestClose} style={styles.backdrop} /> : null}
-    {motion.mounted ? <Animated.View accessibilityLabel="Painel da jogada" pointerEvents={open ? "auto" : "none"} accessibilityElementsHidden={!open} importantForAccessibility={open ? "auto" : "no-hide-descendants"} aria-hidden={!open} {...(Platform.OS === "web" ? { inert: !open } : {})} style={[styles.panel, { width: panelWidth, height: panelHeight, right, top: mobile ? undefined : top, bottom: panelBottom, paddingTop: mobile ? panelHeader : 14, opacity: motion.style.opacity, transform: [...motion.style.transform, { scale }], transformOrigin: "top right", borderColor: colors.border, backgroundColor: colors.surface }, shadow.elevated]}>
+    {motion.mounted ? <Animated.View accessibilityLabel="Painel da jogada" pointerEvents={open ? "auto" : "none"} accessibilityElementsHidden={!open} importantForAccessibility={open ? "auto" : "no-hide-descendants"} aria-hidden={!open} {...(Platform.OS === "web" ? { inert: !open } : {})} style={[styles.panel, { width: panelWidth, height: panelHeight, right, top: mobile ? undefined : top, bottom: panelBottom, paddingTop: mobile ? panelHeader : 14, paddingHorizontal: compactWeb ? 12 : 16, opacity: motion.style.opacity, transform: [...motion.style.transform, { scale }], transformOrigin: "top right", borderColor: colors.border, backgroundColor: colors.surface }, shadow.elevated]}>
       <View accessibilityRole="tablist" accessibilityLabel="Áreas da jogada" style={[styles.tabs, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
         {TABS.map(([value, label]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={value} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: tab === value, disabled: disabled || (readOnly && value === "library") }} aria-selected={tab === value} disabled={disabled || (readOnly && value === "library")} onPress={() => { if (!disabled && !(readOnly && value === "library")) onTabChange(value); }} style={({ hovered, pressed }) => [styles.tab, mobile ? { minHeight: compactWeb ? 28 : 36 } : null, { backgroundColor: tab === value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
-          <Text numberOfLines={1} style={{ color: tab === value ? colors.primaryText : colors.muted, fontSize: 12, fontWeight: mobile && tab === value ? "600" : "400" }}>{label}</Text>
+          <Text numberOfLines={1} style={{ color: tab === value ? colors.primaryText : colors.muted, fontSize: compactWeb ? 11 : 12, fontWeight: mobile && tab === value ? "600" : "400" }}>{label}</Text>
         </Pressable>)}
       </View>
       {TABS.map(([value, label]) => {

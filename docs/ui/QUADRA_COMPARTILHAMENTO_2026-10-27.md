@@ -198,3 +198,21 @@ preservada e 8081 sincronizada. Validação completa para publicação aprovada:
 erros/avisos, escopo, arquitetura e export web. Entrega autorizada via main;
 confirmação remota do CI/deploy permanece separada. Sem aparelho físico conectado
 para confirmar bloqueio de tela no hardware nesta revisão.
+
+Ajuste local de 28/10: painel web compacto até 700 px, com opções de saque e
+seis rodízios sem larguras fixas conflitantes. A listinha abre Ajustes a cada
+abertura; Etapas continua disponível pela aba. 39 testes focados aprovados;
+8081 sincronizada e agenda preservada. Sem nova publicação nem conferência de
+navegador neste microajuste, conforme preferência do usuário.
+
+Complemento local de 28/10: Etapas também usa título, legenda, duração e controles
+compactos no web estreito. Modal de compartilhamento com CSS exclusivo da quadra,
+limite de largura/altura, fontes menores e permissão abaixo do nome para evitar
+quebra do e-mail. Seis testes da galeria e lint focado aprovados. A recarga da
+aba antiga estava sendo cancelada pelo beforeunload do rascunho; a atualização
+foi aplicada pelo fluxo Sair com rascunho local, com recuperação confirmada.
+Sem salvar remotamente, gerar link ou revogar acesso.
+
+Conferência autenticada em 319×704: modal 291×371 px, título 14 px/corpo 11 px,
+sem overflow horizontal e e-mail inteiro. Prévia recarregada com Ajustes aberto
+pela listinha, seis rodízios e opções de saque visíveis; painel com 380 px.

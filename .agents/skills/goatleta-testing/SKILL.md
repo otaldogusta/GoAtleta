@@ -31,4 +31,4 @@ Guardar sessões, traces, screenshots autenticados e dados pessoais em diretóri
 
 ## Fechamento
 
-Reportar comandos, resultado e limites (mock, SQL isolado, navegador, dispositivo). Instalar uma skill não cria nem executa uma suíte E2E. Publicação usa o nível de release; `build:verified` agrega validação e exportação conforme `package.json`. Não executar scripts `update:*` como se fossem apenas testes: podem publicar no EAS.
+Reportar comandos, resultado e limites (mock, SQL isolado, navegador, dispositivo). Instalar uma skill não cria nem executa uma suíte E2E. Publicação pequena de apresentação usa `build:small` quando elegível, com testes focados e smoke; dados/autorização/comportamento e o CI preservam o perfil completo. Não executar Jest completo novamente por hábito em microcorreções elegíveis. Publicação usa o nível de release; `build:verified` agrega validação e exportação conforme `package.json`. Não executar scripts `update:*` como se fossem apenas testes: podem publicar no EAS.

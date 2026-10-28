@@ -1,16 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, Platform } from "react-native";
 import { useAuth } from "../../auth/auth";
 import { measureAsync } from "../../observability/perf";
-import { getClassById, getStudentsByClass, listTechnicalVisualsByClass, saveTechnicalVisual } from "../../db/seed";
+import { isAuthError, isNetworkError, isPermissionError } from "../../db/client";
+import { buildTechnicalVisualId, getClassById, getStudentsByClass, listTechnicalVisualsByClass, saveTechnicalVisual } from "../../db/seed";
 import type { ClassGroup, Student } from "../../core/models";
 import { type CourtVisualDocument, type CourtVisualPayload } from "../../core/visual-court";
 import { buildSimulatedReceptionRotationPreset } from "../../core/court-simulation-sequence";
 import { editorId, newCourtBoard, upgradeCourtEditor, type EditorSnapshot } from "../../core/visual-court-editor";
 
+export type CourtAutosaveStatus = "idle" | "pending" | "saving" | "saved" | "local" | "error";
+
 type History = { present: EditorSnapshot; past: EditorSnapshot[]; future: EditorSnapshot[] };
+const canRetryAutosave = (failure: unknown) => {
+  if (isAuthError(failure) || isPermissionError(failure)) return false;
+  const status = typeof failure === "object" && failure !== null && "status" in failure ? failure.status : undefined;
+  if (typeof status === "number" && status >= 400 && status < 500) return false;
+  const message = failure instanceof Error ? failure.message : String(failure);
+  if (/\b(?:400|401|403|404|409|422)\b/.test(message)) return false;
+  return isNetworkError(failure);
+};
 const initial = (): History => ({ present: { payload: newCourtBoard(), stepIndex: 0 }, past: [], future: [] });
-export function useCourtEditor(classId: string) {
+const newLocalDocumentId = () => `local_draft_${editorId()}`;
+export function useCourtEditor(classId: string, { autosavePaused = false }: { autosavePaused?: boolean } = {}) {
   const { session } = useAuth();
   const userId = session?.user?.id;
   const [cls, setClass] = useState<ClassGroup | null>(null);
@@ -38,6 +51,16 @@ export function useCourtEditor(classId: string) {
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const generation = useRef(0);
   const savingRef = useRef(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<CourtAutosaveStatus>("idle");
+  const [autosaveError, setAutosaveError] = useState("");
+  const [autosaveRevision, setAutosaveRevision] = useState(0);
+  const [foreground, setForeground] = useState(() => typeof document === "undefined" || !document.hidden);
+  const foregroundRef = useRef(foreground);
+  const autosaveArmed = useRef(false), autosaveBlocked = useRef(false), autosaveForce = useRef(false);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveRound = useRef(0), autosaveAttempts = useRef(0), autosaveBackoff = useRef(false);
+  const autosaveTarget = useRef<{ id: string; sourceId: string } | null>(null);
+  const cancelAutosave = useCallback(() => { if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; } }, []);
   const activeDocumentRef = useRef<string | null>(null);
   const signature = JSON.stringify(history.present.payload);
   const dirty = signature !== savedSignature;
@@ -57,12 +80,24 @@ export function useCourtEditor(classId: string) {
     draftWrite.current = write;
     return write;
   }, []);
+  const armAutosave = useCallback(() => {
+    autosaveArmed.current = true; autosaveBlocked.current = false; autosaveForce.current = false;
+    autosaveRound.current++; autosaveAttempts.current = 0; autosaveBackoff.current = false;
+    const changed = JSON.stringify(current.current.payload) !== savedSignatureRef.current;
+    const documentId = activeDocumentRef.current;
+    const nextStatus = changed ? "pending" : !documentId || documentId.startsWith("template_") ? "idle" : documentId.startsWith("local_") ? "local" : "saved";
+    setAutosaveError(""); setAutosaveStatus(status => status === "saving" ? status : nextStatus);
+    setAutosaveRevision(value => value + 1);
+  }, []);
   useEffect(() => {
     const run = ++generation.current;
+    cancelAutosave(); autosaveArmed.current = false; autosaveBlocked.current = false; autosaveForce.current = false; autosaveTarget.current = null;
+    autosaveRound.current++; autosaveAttempts.current = 0; autosaveBackoff.current = false;
+    savingRef.current = false; openingRef.current = false;
     protectedDepartureRef.current = false;
     departureRef.current = false;
     let active = true;
-    Promise.resolve().then(() => { if (active) { setLoading(true); setDeparting(false); setError(""); setClass(null); setRoster([]); setDocuments([]); } });
+    Promise.resolve().then(() => { if (active) { setLoading(true); setOpening(false); setSaving(false); setAutosaveStatus("idle"); setAutosaveError(""); setDeparting(false); setError(""); setClass(null); setRoster([]); setDocuments([]); } });
     if (!userId || !classId) { Promise.resolve().then(() => { if (active) { setLoading(false); setError("Entre na sua conta para abrir a turma."); } }); return () => { active = false; generation.current = run + 1; }; }
     void (async () => {
       try {
@@ -91,11 +126,22 @@ export function useCourtEditor(classId: string) {
           ?? all.find(d => d.id === "template_0" && !trash.includes(d.id))
           ?? all.find(d => !trash.includes(d.id));
         let snapshot = { payload: preferred?.payload ?? newCourtBoard(), stepIndex: 0 };
-        let openedDocumentId = preferred?.id ?? null;
+        let openedDocumentId = preferred?.id ?? newLocalDocumentId();
         let recovered = false;
         try {
           const raw = await AsyncStorage.getItem(`goatleta:court-draft:v2:${userId}:${classData.organizationId}:${classId}`);
-          if (raw) { const stored = JSON.parse(raw); if (stored.payload?.editor?.version === 1 && stored.payload.timeline?.steps?.length) { snapshot = { payload: upgradeCourtEditor(stored.payload, stored.payload.editor.title || "Jogada"), stepIndex: Math.min(stored.stepIndex || 0, stored.payload.timeline.steps.length - 1) }; openedDocumentId = typeof stored.documentId === "string" ? stored.documentId : openedDocumentId; recovered = stored.unsaved !== false; } }
+          if (raw) {
+            const stored = JSON.parse(raw);
+            if (stored.payload?.editor?.version === 1 && stored.payload.timeline?.steps?.length) {
+              snapshot = { payload: upgradeCourtEditor(stored.payload, stored.payload.editor.title || "Jogada"), stepIndex: Math.min(stored.stepIndex || 0, stored.payload.timeline.steps.length - 1) };
+              openedDocumentId = typeof stored.documentId === "string" && stored.documentId ? stored.documentId : newLocalDocumentId();
+              recovered = stored.unsaved !== false;
+              // Older new/imported drafts had no identity. Reserve one before
+              // any retry so a reload cannot select or overwrite the template.
+              if (!active || run !== generation.current) return;
+              if (openedDocumentId !== stored.documentId) await AsyncStorage.setItem(`goatleta:court-draft:v2:${userId}:${classData.organizationId}:${classId}`, JSON.stringify({ ...snapshot, documentId: openedDocumentId, unsaved: recovered }));
+            }
+          }
         } catch { /* Broken cache never prevents opening an authorized remote document. */ }
         if (!active || run !== generation.current) return;
         setClass(classData); setRoster(students); setDocuments(all);
@@ -104,12 +150,13 @@ export function useCourtEditor(classId: string) {
         setActiveDocumentId(openedDocumentId);
         setSavedSignature(recovered ? "" : JSON.stringify(snapshot.payload));
         setDraftStatus(""); setDraftError("");
+        setAutosaveStatus(recovered || openedDocumentId?.startsWith("local_") ? "local" : "idle");
         setNotice(recovered ? "Rascunho recuperado neste dispositivo." : "");
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "Não foi possível abrir a quadra."); }
       finally { if (active) setLoading(false); }
     })();
-    return () => { active = false; generation.current = run + 1; };
-  }, [classId, userId, setHistory, setSavedSignature]);
+    return () => { active = false; generation.current = run + 1; cancelAutosave(); };
+  }, [classId, userId, setHistory, setSavedSignature, cancelAutosave]);
 
   useEffect(() => {
     if (!draftKey || loading || opening || departing) return;
@@ -136,20 +183,31 @@ export function useCourtEditor(classId: string) {
   }, [dirty]);
 
   const commit = useCallback((update: (p: CourtVisualPayload) => CourtVisualPayload, stepIndex?: number) => {
+    const before = current.current.payload;
     setHistory(h => {
       const payload = update(h.present.payload);
       if (payload === h.present.payload && stepIndex === undefined) return h;
       return { present: { payload, stepIndex: Math.min(stepIndex ?? h.present.stepIndex, payload.timeline.steps.length - 1) }, past: [...h.past.slice(-79), h.present], future: [] };
     });
+    if (current.current.payload !== before) armAutosave();
     setDraftStatus(""); setNotice(""); setError("");
-  }, [setHistory]);
+  }, [setHistory, armAutosave]);
   const selectStep = useCallback((i: number) => setHistory(h => ({ ...h, present: { ...h.present, stepIndex: Math.max(0, Math.min(i, h.present.payload.timeline.steps.length - 1)) } })), [setHistory]);
-  const undo = useCallback(() => { setDraftStatus(""); setHistory(h => h.past.length ? { present: h.past[h.past.length - 1], past: h.past.slice(0, -1), future: [h.present, ...h.future] } : h); }, [setHistory]);
-  const redo = useCallback(() => { setDraftStatus(""); setHistory(h => h.future.length ? { present: h.future[0], past: [...h.past, h.present], future: h.future.slice(1) } : h); }, [setHistory]);
+  const undo = useCallback(() => {
+    const before = current.current.payload; setDraftStatus("");
+    setHistory(h => h.past.length ? { present: h.past[h.past.length - 1], past: h.past.slice(0, -1), future: [h.present, ...h.future] } : h);
+    if (current.current.payload !== before) armAutosave();
+  }, [setHistory, armAutosave]);
+  const redo = useCallback(() => {
+    const before = current.current.payload; setDraftStatus("");
+    setHistory(h => h.future.length ? { present: h.future[0], past: [...h.past, h.present], future: h.future.slice(1) } : h);
+    if (current.current.payload !== before) armAutosave();
+  }, [setHistory, armAutosave]);
   const open = async (payload: CourtVisualPayload, documentId?: string | null) => {
     if (savingRef.current || openingRef.current || departureRef.current) return false;
     if (documentId && documentId === activeDocumentRef.current) return true;
     const run = generation.current;
+    cancelAutosave();
     openingRef.current = true;
     setOpening(true);
     try {
@@ -168,30 +226,47 @@ export function useCourtEditor(classId: string) {
           ? list.map(document => document.id === id ? backup : document)
           : [...list, backup]);
       }
-      // Only selection is persisted when opening an untouched file.
-      if (draftKey) await AsyncStorage.setItem(draftKey, JSON.stringify({ payload, stepIndex: 0, documentId: documentId ?? null, unsaved: false }));
+      const openedDocumentId = documentId || newLocalDocumentId();
+      // New/imported boards reserve a durable identity before their first edit.
+      if (draftKey) await AsyncStorage.setItem(draftKey, JSON.stringify({ payload, stepIndex: 0, documentId: openedDocumentId, unsaved: false }));
       if (run !== generation.current) return false;
       setHistory({ present: { payload, stepIndex: 0 }, past: [], future: [] });
-      activeDocumentRef.current = documentId ?? null;
-      setActiveDocumentId(documentId ?? null);
+      activeDocumentRef.current = openedDocumentId;
+      setActiveDocumentId(openedDocumentId);
+      autosaveArmed.current = false; autosaveBlocked.current = false; autosaveForce.current = false; autosaveTarget.current = null;
+      autosaveRound.current++; autosaveAttempts.current = 0; autosaveBackoff.current = false;
+      setAutosaveStatus(openedDocumentId.startsWith("local_") ? "local" : "idle"); setAutosaveError("");
       setSavedSignature(JSON.stringify(payload)); setDraftStatus(""); setDraftError(""); setError(""); setNotice("");
       return true;
-    } finally { openingRef.current = false; setOpening(false); }
+    } finally { if (run === generation.current) { openingRef.current = false; setOpening(false); } }
   };
-  const save = async (title?: string) => {
+  const save = async (title?: string, automatic = false) => {
     if (!cls?.organizationId || savingRef.current || openingRef.current || departureRef.current) return false;
     const currentSnapshot = current.current;
     const snapshot = title ? { ...currentSnapshot, payload: { ...currentSnapshot.payload, editor: { ...currentSnapshot.payload.editor!, title: title.trim() } } } : currentSnapshot;
     if (JSON.stringify(snapshot.payload) === savedSignature && activeDocumentRef.current && !activeDocumentRef.current.startsWith("local_") && !activeDocumentRef.current.startsWith("template_")) return true;
-    const run = generation.current;
-    savingRef.current = true;
-    setSaving(true); setError("");
+    const run = generation.current, round = autosaveRound.current;
+    const attempt = automatic ? ++autosaveAttempts.current : 0;
+    autosaveBackoff.current = false;
+    cancelAutosave(); savingRef.current = true;
+    setSaving(true); setError(""); setAutosaveError(""); setAutosaveStatus(automatic ? "saving" : "pending");
     try {
       const currentDocumentId = activeDocumentRef.current;
       const existing = documents.find(document => document.id === currentDocumentId);
       const updateId = currentDocumentId && !currentDocumentId.startsWith("template_") && !currentDocumentId.startsWith("local_") ? currentDocumentId : undefined;
-      const sourceId = existing?.sourceId ?? (currentDocumentId === "template_0" ? "goatleta:5x1-reception" : editorId());
-      const saved = await saveTechnicalVisual({ id: updateId, classId, organizationId: cls.organizationId, sourceKind: "free", sourceId, title: snapshot.payload.editor!.title.trim() || "Jogada", payload: snapshot.payload });
+      const sourceId = existing?.sourceId ?? (currentDocumentId === "template_0" ? "goatleta:5x1-reception" : autosaveTarget.current?.sourceId ?? currentDocumentId ?? editorId());
+      const name = snapshot.payload.editor!.title.trim() || "Jogada";
+      const localDocument = currentDocumentId?.startsWith("local_");
+      if ((automatic || localDocument) && !autosaveTarget.current) autosaveTarget.current = {
+        id: updateId ?? buildTechnicalVisualId({ organizationId: cls.organizationId, classId, sourceKind: "free", title: localDocument ? `document:${currentDocumentId}` : existing?.title ?? name }), sourceId,
+      };
+      if (localDocument && draftKey) {
+        // The destination derives from this persisted ID, never from its title
+        // or a hook ref that would disappear after an uncertain write/reload.
+        await writeDraft(draftKey, JSON.stringify({ ...snapshot, documentId: currentDocumentId, unsaved: true }), () => run === generation.current && currentDocumentId === activeDocumentRef.current);
+        if (run !== generation.current || currentDocumentId !== activeDocumentRef.current) return false;
+      }
+      const saved = await saveTechnicalVisual({ id: automatic ? autosaveTarget.current!.id : updateId ?? autosaveTarget.current?.id, classId, organizationId: cls.organizationId, sourceKind: "free", sourceId: automatic ? autosaveTarget.current!.sourceId : sourceId, title: name, payload: snapshot.payload }, automatic || autosaveTarget.current ? { requireRemote: true } : undefined);
       if (run !== generation.current) return;
       if (!saved) throw new Error("Não foi possível salvar. Seu rascunho permanece no dispositivo.");
       if (title) setHistory(h => h.present.payload === currentSnapshot.payload ? { ...h, present: snapshot } : h);
@@ -202,21 +277,94 @@ export function useCourtEditor(classId: string) {
       setActiveDocumentId(saved.id);
       setSavedSignature(JSON.stringify(snapshot.payload));
       setDraftStatus("");
-      setNotice(saved.id.startsWith("local_") ? "Jogada salva neste dispositivo; sincronização pendente." : updateId ? "Jogada atualizada na turma." : "Jogada salva na turma.");
+      autosaveTarget.current = saved.id.startsWith("local_") ? autosaveTarget.current : { id: saved.id, sourceId };
+      autosaveBlocked.current = saved.id.startsWith("local_"); autosaveForce.current = false;
+      if (round === autosaveRound.current) { autosaveAttempts.current = 0; autosaveBackoff.current = false; }
+      setAutosaveStatus(saved.id.startsWith("local_") ? "local" : JSON.stringify(current.current.payload) === JSON.stringify(snapshot.payload) ? "saved" : "pending");
+      if (!automatic) setNotice(saved.id.startsWith("local_") ? "Jogada salva neste dispositivo; sincronização pendente." : updateId ? "Jogada atualizada na turma." : "Jogada salva na turma.");
       if (draftKey && JSON.stringify(current.current.payload) === JSON.stringify(snapshot.payload)) {
         try {
-          if (saved.id.startsWith("local_")) await AsyncStorage.setItem(draftKey, JSON.stringify({ ...snapshot, documentId: saved.id, unsaved: false }));
-          else {
-            await AsyncStorage.removeItem(draftKey);
-            if (currentDocumentId?.startsWith("local_")) await AsyncStorage.removeItem(`${draftKey}:backup:${currentDocumentId}`);
-          }
-          setDraftError("");
-        } catch { setDraftError("Falha no rascunho. Exporte uma cópia."); }
+          // The next debounced draft must run after this cleanup, including
+          // edits made while AsyncStorage is still removing the saved snapshot.
+          const cleanup = draftWrite.current.catch(() => undefined).then(async () => {
+            if (run !== generation.current || activeDocumentRef.current !== saved.id || JSON.stringify(current.current.payload) !== JSON.stringify(snapshot.payload)) return;
+            if (saved.id.startsWith("local_")) await AsyncStorage.setItem(draftKey, JSON.stringify({ ...snapshot, documentId: saved.id, unsaved: false }));
+            else {
+              await AsyncStorage.removeItem(draftKey);
+              if (currentDocumentId?.startsWith("local_")) await AsyncStorage.removeItem(`${draftKey}:backup:${currentDocumentId}`);
+            }
+          });
+          draftWrite.current = cleanup;
+          await cleanup;
+          if (run === generation.current) setDraftError("");
+        } catch { if (run === generation.current) setDraftError("Falha no rascunho. Exporte uma cópia."); }
       }
       return true;
-    } catch (e) { setError(e instanceof Error ? e.message : "Falha ao salvar."); }
-    finally { savingRef.current = false; setSaving(false); }
+    } catch (e) {
+      if (run === generation.current) {
+        const message = e instanceof Error ? e.message : "Falha ao salvar.";
+        const retry = automatic && canRetryAutosave(e) && (round !== autosaveRound.current || attempt < 2);
+        autosaveBlocked.current = !retry;
+        autosaveBackoff.current = retry && round === autosaveRound.current;
+        setAutosaveError(retry ? "" : message); setAutosaveStatus(retry ? "pending" : "error");
+        if (retry) setAutosaveRevision(value => value + 1);
+        // A timed-out write may have reached the server. Keep even an undo to
+        // the former baseline dirty until the current snapshot is confirmed.
+        if (automatic) setSavedSignature("");
+        else setError(message);
+      }
+      return false;
+    } finally { if (run === generation.current) { savingRef.current = false; setSaving(false); } }
   };
+  const saveLatest = useRef<typeof save | null>(null);
+  useEffect(() => { saveLatest.current = save; });
+  const retryAutosave = useCallback(() => {
+    autosaveArmed.current = true; autosaveBlocked.current = false; autosaveForce.current = true;
+    autosaveRound.current++; autosaveAttempts.current = 0; autosaveBackoff.current = false;
+    setAutosaveError(""); setAutosaveStatus("pending"); setAutosaveRevision(value => value + 1);
+  }, []);
+  useEffect(() => {
+    if (!autosaveArmed.current || autosaveBlocked.current || loading || opening || saving || departing || autosavePaused || !foreground || !cls?.organizationId || !(dirty || (needsSync && autosaveForce.current))) return;
+    const run = generation.current;
+    const timer = setTimeout(() => {
+      if (autosaveTimer.current === timer) autosaveTimer.current = null;
+      if (run !== generation.current || !foregroundRef.current || autosaveBlocked.current || !autosaveArmed.current) return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) { autosaveBlocked.current = true; setAutosaveStatus("local"); return; }
+      void saveLatest.current?.(undefined, true);
+    }, autosaveBackoff.current ? 1500 : 800);
+    autosaveTimer.current = timer;
+    return cancelAutosave;
+  }, [signature, autosaveRevision, loading, opening, saving, departing, autosavePaused, foreground, cls?.organizationId, dirty, needsSync, cancelAutosave]);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    const active = () => {
+      const visible = typeof document === "undefined" || !document.hidden;
+      foregroundRef.current = visible; setForeground(visible);
+      if (visible && autosaveArmed.current && !autosaveBlocked.current) setAutosaveRevision(value => value + 1);
+      if (!visible) cancelAutosave();
+    };
+    const online = () => {
+      if (autosaveArmed.current) {
+        autosaveRound.current++; autosaveAttempts.current = 0; autosaveBackoff.current = false;
+        autosaveBlocked.current = false; setAutosaveError(""); setAutosaveStatus("pending");
+      }
+      active();
+    };
+    const hidden = () => { foregroundRef.current = false; setForeground(false); cancelAutosave(); };
+    window.addEventListener("online", online); window.addEventListener("pageshow", active); window.addEventListener("pagehide", hidden);
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", active);
+    return () => { window.removeEventListener("online", online); window.removeEventListener("pageshow", active); window.removeEventListener("pagehide", hidden); if (typeof document !== "undefined") document.removeEventListener("visibilitychange", active); };
+  }, [cancelAutosave]);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = AppState.addEventListener("change", state => {
+      const visible = state === "active";
+      foregroundRef.current = visible; setForeground(visible);
+      if (!visible) cancelAutosave();
+      else if (autosaveArmed.current && !autosaveBlocked.current) setAutosaveRevision(value => value + 1);
+    });
+    return () => subscription.remove();
+  }, [cancelAutosave]);
   const preserveDraft = async () => {
     if (!draftKey) { setError("Não foi possível guardar o rascunho. Aguarde a abertura da turma."); return false; }
     const run = generation.current, snapshot = current.current, documentId = activeDocumentRef.current;
@@ -262,5 +410,5 @@ export function useCourtEditor(classId: string) {
     } catch { setError("Não foi possível atualizar a lixeira. Tente novamente."); }
     finally { trashBusy.current = false; }
   };
-  return { ...history.present, cls, roster, documents, trashedIds, activeDocumentId, setDocumentTrashed, loading, opening, saving, departing, error, notice, dirty, needsSync, canSave, draftStatus, draftError, canUndo: !!history.past.length, canRedo: !!history.future.length, commit, selectStep, undo, redo, open, save, preserveDraft, leaveWithDraft, setError, setNotice };
+  return { ...history.present, cls, roster, documents, trashedIds, activeDocumentId, setDocumentTrashed, loading, opening, saving, departing, error, notice, dirty, needsSync, canSave, draftStatus, draftError, autosaveStatus, autosaveError, retryAutosave, canUndo: !!history.past.length, canRedo: !!history.future.length, commit, selectStep, undo, redo, open, save, preserveDraft, leaveWithDraft, setError, setNotice };
 }

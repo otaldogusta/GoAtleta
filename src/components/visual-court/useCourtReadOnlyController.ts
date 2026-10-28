@@ -14,7 +14,7 @@ export function useCourtReadOnlyController(source: CourtVisualPayload): ReturnTy
   return useMemo(() => ({
     payload, stepIndex, cls: null, roster: [], documents: [], trashedIds: [], activeDocumentId: null,
     loading: false, opening: false, saving: false, departing: false, error: '', notice: '', dirty: false,
-    needsSync: false, canSave: false, draftStatus: '', draftError: '', canUndo: false, canRedo: false,
+    autosaveStatus: 'idle' as const, autosaveError: '', retryAutosave: noop, needsSync: false, canSave: false, draftStatus: '', draftError: '', canUndo: false, canRedo: false,
     commit: noop, selectStep, undo: noop, redo: noop, setError: noop, setNotice: noop,
     open: async () => false, save: async () => false, preserveDraft: async () => false,
     leaveWithDraft: async () => false, setDocumentTrashed: async () => {},

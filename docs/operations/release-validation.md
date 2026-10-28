@@ -80,3 +80,51 @@ do Metro e não são uma promessa para código alterado ou outro computador.
 O CI ainda precisa de execução remota após publicar este pacote. A revisão final
 adicionou uma regressão de exclusão de arquivo ao teste de fingerprint, validada
 na suíte focada; nenhuma aprovação local é transferida para o CI.
+## Release pequeno de apresentação
+
+Para correção revisada de texto, ícone, estilo ou título, usar:
+
+```sh
+npm run build:small -- --base=<commit-ja-validado> --test=src/caminho/__tests__/fluxo.test.ts
+```
+
+Repetir `--test=` quando houver mais de uma suíte afetada. A base é o último
+commit validado antes da correção; usar uma base anterior ao patch também quando
+a correção já estiver commitada. O comando considera todo o diff até a árvore de
+trabalho, incluindo staged/unstaged e arquivos novos. Não esconder mudanças
+concorrentes escolhendo apenas os arquivos que serão staged: preparar um checkout
+de release isolado quando a árvore contiver outro pacote.
+
+O perfil mantém ESLint nos arquivos visuais alterados, tipos, encoding, marca,
+JWT, escopo, assets, arquitetura, performance e export web. Executa somente as
+suítes Jest explicitamente indicadas; não executa SQL nem runtime da quadra.
+Recibos `small-lint` e `focused-tests` não equivalem aos recibos do perfil completo.
+Build e caches continuam exigindo inputs/ambiente idênticos; mudança durante a
+execução invalida o resultado. Falha impede o build. O perfil é recusado no CI;
+Core CI permanece executando toda a suíte, sem confiar em recibos locais.
+
+Elegibilidade conservadora: até cinco arquivos de apresentação existentes em
+`src/components`, `src/screens` ou `src/ui`, até 80 linhas alteradas por arquivo;
+CSS ou TSX sem mudanças de handlers, hooks, imports ou fluxo de controle.
+`app/+html.tsx` admite somente alteração de `<title>`. Documentação e testes
+podem acompanhar. Exclusões, novas telas/componentes, dependências, configuração,
+rotas, auth, permissões, API/DB/core, migrations, scripts e workflows exigem o
+perfil completo. O detector textual é um guardrail conservador, não uma prova
+semântica: o responsável ainda deve revisar o diff e escolher suítes relevantes.
+Mudança de comportamento, dado ou autorização não se torna pequena pela contagem
+de linhas. Se o plano for recusado, usar `build:verified`, sem enfraquecer o filtro.
+
+A conferência do fluxo afetado na 8081 continua obrigatória; título/metadados
+exigem também conferir o HTML exportado. Não alegar smoke autenticado quando
+somente o HTML foi inspecionado. Meta de tempo é 1–3 minutos em ambiente saudável,
+sem garantia; reportar duração real e quais gates foram executados/reutilizados.
+
+## Uma publicação, um destino
+
+No release direto de produção autorizado, fazer push do commit apenas para
+`main`. Enviar simultaneamente o mesmo commit a `codex/...` cria também um preview
+na integração Git da Vercel, consumindo outra posição na fila. Publicar a branch
+somente quando houver pedido de sincronização/PR/preview; nesse caso, não criar
+produção junto por hábito. Não alterar configurações remotas nem cancelar deploys
+existentes apenas para corrigir esse fluxo. Informar destino, commit, URL e estado
+real, e encerrar após o deploy autorizado ser acionado, salvo pedido para aguardar.

@@ -1,7 +1,9 @@
+/* global __dirname */
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
 const { snapshot, fingerprint, outputDigest, reusable, readRecord, writeRecord } = require('./validation-cache.cjs');
+const { smallReleasePlan } = require('./small-release.cjs');
 
 // Keep the complete release contract explicit. CI never trusts local pass receipts.
 const gates = [
@@ -49,7 +51,15 @@ function runProcess(root, gate, logFile, children, env) {
 }
 
 async function validate({ root, jobs = 2, fresh = false, build = false, env = process.env,
-  execute = runProcess, report = console.log } = {}) {
+  small = false, base, tests = [], execute = runProcess, report = console.log } = {}) {
+  const plan = small ? smallReleasePlan(root, { base, tests, env }) : null;
+  if (!small && (base || tests.length)) throw new Error('--base and --test require --small.');
+  const selectedGates = plan ? gates.filter(gate => !['sql', 'court-runtime'].includes(gate.id)).map(gate => {
+    if (gate.id === 'lint') return { id: 'small-lint', args: ['node_modules/eslint/bin/eslint.js', ...plan.code] };
+    if (gate.id === 'tests') return { id: 'focused-tests', args: ['node_modules/jest/bin/jest.js', '--runInBand', '--runTestsByPath', ...plan.tests] };
+    return gate;
+  }) : gates;
+  if (plan) report(`[validation] SMALL profile; base ${plan.base}; ${plan.code.length} presentation files; focused tests: ${plan.tests.join(', ')}. SQL, court runtime and full Jest are not included. Local smoke remains required.`);
   const directory = path.join(root, '.tmp/validation');
   fs.mkdirSync(directory, { recursive: true });
   const lock = path.join(directory, 'running.lock');
@@ -92,7 +102,7 @@ async function validate({ root, jobs = 2, fresh = false, build = false, env = pr
       return { id: gate.id, status: passed && !interrupted ? 'passed' : 'failed', key, seconds,
         output: passed && gate.id === 'build' ? outputDigest(root) : undefined };
     };
-    const results = await pool(gates, jobs, run);
+    const results = await pool(selectedGates, jobs, run);
     if (build && results.every(result => result.status !== 'failed')) results.push(await run(buildGate));
     const final = snapshot(root, env);
     const changed = fingerprint(initial, { id: 'snapshot' }) !== fingerprint(final, { id: 'snapshot' });
@@ -118,9 +128,12 @@ function parseArgs(args) {
   const options = {};
   for (const arg of args) {
     if (arg === '--build') options.build = true;
+    else if (arg === '--small') options.small = true;
+    else if (arg.startsWith('--base=')) options.base = arg.slice(7);
+    else if (arg.startsWith('--test=')) (options.tests ??= []).push(arg.slice(7));
     else if (arg === '--fresh') options.fresh = true;
     else if (/^--jobs=[12]$/.test(arg)) options.jobs = Number(arg.split('=')[1]);
-    else throw new Error(`Unknown option: ${arg}. Use --build, --fresh or --jobs=1|2.`);
+    else throw new Error(`Unknown option: ${arg}. Use --build, --fresh, --jobs=1|2 or --small --base=<commit> --test=<path>.`);
   }
   return options;
 }

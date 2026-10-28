@@ -11,6 +11,7 @@ import { StudioAction, StudioDialog } from '../../screens/scouting/video/StudioU
 import { VideoShareRoleMenu } from '../../screens/scouting/video/VideoShareRoleMenu.web';
 import { studioStyles } from '../../screens/scouting/video/studio-styles';
 import { CourtReadOnlyPlayer } from './CourtReadOnlyPlayer';
+import { courtSharingStyles } from './court-sharing-styles';
 import type { CourtSharingProps } from './CourtSharing.types';
 
 export function CourtSharing({ payload, scope, onClose }: CourtSharingProps) {
@@ -59,9 +60,9 @@ export function CourtSharing({ payload, scope, onClose }: CourtSharingProps) {
   if (typeof document === 'undefined') return null;
   const existing = share && !share.revoked && !link;
   return createPortal(<div style={{ fontFamily: typography.body.fontFamily, fontSize: 14, '--sv-bg': colors.background, '--sv-panel': colors.card, '--sv-input': colors.inputBg, '--sv-text': colors.text, '--sv-muted': colors.muted, '--sv-line': colors.border, '--sv-green': colors.primaryBg } as CSSProperties}>
-    <style>{studioStyles}</style>
+    <style>{studioStyles}{courtSharingStyles}</style>
     {preview ? <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex' }}><CourtReadOnlyPlayer payload={payload} onClose={() => setPreview(false)} /></div> :
-      <StudioDialog title={`Compartilhar “${payload.editor?.title || 'Jogada'}”`} onClose={onClose} className="sv-share"
+      <StudioDialog title={`Compartilhar “${payload.editor?.title || 'Jogada'}”`} onClose={onClose} className="sv-share sv-court-share"
         headerActions={<details className="sv-share-settings"><summary aria-label="Configurações de compartilhamento"><GoAtletaIcon name="management" size={21} color="currentColor" /></summary>
           <div className="sv-share-settings-menu"><StudioAction icon="view" label="Prévia de leitura" disabled={busy} onPress={() => setPreview(true)}>Prévia de leitura</StudioAction>
             {share && !share.revoked ? <StudioAction label="Revogar acesso" disabled={busy} onPress={() => void run(true)}>Revogar acesso</StudioAction> : null}</div></details>}>

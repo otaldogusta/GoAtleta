@@ -209,7 +209,7 @@ describe("shared court simulation controls", () => {
   it("keeps all playback controls bound to the host and advertises both adjacent rotations", () => {
     const props = { playing: false, progress: 0.5, speed: 1, rotation: 5, onPlay: jest.fn(), onRestart: jest.fn(), onPreviousRotation: jest.fn(), onNextRotation: jest.fn(), onSeek: jest.fn(), onSpeed: jest.fn(), onOpenSteps: jest.fn() };
     act(() => { tree = TestRenderer.create(React.createElement(CourtSimulationTransport, props)); });
-    press("Reproduzir jogada"); press("Voltar ao início da jogada"); press("Rotação anterior: P3"); press("Próxima rotação: P1"); press("Mostrar etapas");
+    press("Reproduzir jogada"); press("Voltar ao início da jogada"); press("Rotação anterior: P3"); press("Próxima rotação: P1"); press("Mostrar ajustes");
     expect(props.onPlay).toHaveBeenCalledTimes(1);
     expect(props.onRestart).toHaveBeenCalledTimes(1);
     expect(props.onPreviousRotation).toHaveBeenCalledTimes(1);
@@ -264,7 +264,7 @@ describe("shared court simulation controls", () => {
     act(() => tree!.root.findByType("Dropdown" as never).props.onRequestClose());
     expect(trigger().props.accessibilityState.expanded).toBe(false);
     expect(props.onSpeed).toHaveBeenCalledTimes(callsBeforeDismiss);
-    press("Reproduzir jogada"); press("Voltar ao início da jogada"); press("Rotação anterior: P2"); press("Próxima rotação: P6"); press("Mostrar etapas");
+    press("Reproduzir jogada"); press("Voltar ao início da jogada"); press("Rotação anterior: P2"); press("Próxima rotação: P6"); press("Mostrar ajustes");
     for (const callback of [props.onPlay, props.onRestart, props.onPreviousRotation, props.onNextRotation, props.onOpenSteps]) expect(callback).toHaveBeenCalledTimes(1);
     press("Velocidade da reprodução");
     expect(trigger().props.accessibilityState.expanded).toBe(true);

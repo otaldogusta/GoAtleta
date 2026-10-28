@@ -42,6 +42,15 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- Edições autorais da quadra armam autosave após 800 ms, com uma solicitação
+  por vez e confirmação pela linha retornada de um upsert atômico. Timeout/rede
+  permite uma tentativa extra após 1,5 s; sem loop em falha persistente.
+  Falhas mantêm rascunho local e permitem retry;
+  Novas/importadas têm identidade própria persistida, independente do título;
+  desfazer um rascunho local não exibe confirmação remota.
+  bootstrap, câmera, seleção e leitura não gravam. O cabeçalho usa indicador
+  discreto, sem botão verde. [Contrato e validação](../../ui/QUADRA_AUTOSAVE_2026-10-28.md).
+
 - Transporte separa progresso dos botões e mantém rodízio/etapas. Velocidade
   abre quatro opções por toque (0,5×, 1×, 1,5× e 2×), com seleção atual visível,
   em uma cápsula sem título, caixa externa ou padding extra, usando o seletor
@@ -51,6 +60,12 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   ícones e leitura compactos. Play/reiniciar, rodízio, velocidade e etapas
   compartilham uma linha abaixo do progresso.
 
+- A listinha da reprodução abre Ajustes, inclusive após visitar Etapas.
+  No web até 700 px, o painel usa tipografia/espaçamento compactos e distribui
+  as seis rotações na largura disponível.
+- O compartilhamento da quadra usa a composição do Studio com densidade própria
+  em `court-sharing-styles.ts`: largura máxima 440 px, altura limitada à tela e
+  fontes/botões compactos até 700 px. As regras são isoladas em `sv-court-share`.
 - O painel Ajustes/Etapas/Biblioteca fecha ao tocar fora, inclusive sobre o
   iframe 3D, com camada transparente abaixo do painel. Cliques internos e
   Escape preservados; sem brilho no fundo ao passar o mouse.
@@ -501,3 +516,7 @@ produção somente para main; CI/deploy remoto precisam de confirmação própri
 Retomada web: pacote validado para publicação com 698 suítes/4772 testes
 Jest e build verificado. Eventos de suspensão/rede/GPU simulados; confirmação
 em celular físico pendente por falta de aparelho conectado. Entrega via main.
+
+Autosave e interface compacta: release completo aprovado com 702 suítes/
+4840 testes e export web. Gravação real da 8081 documentada no contrato;
+agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.

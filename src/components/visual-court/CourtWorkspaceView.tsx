@@ -1,6 +1,7 @@
 import { CourtLibraryBrowser } from "./CourtLibraryBrowser";
 import { CourtEditableTitle } from "./CourtEditableTitle";
 import { CourtWorkspacePanel, type CourtWorkspaceTab } from "./CourtWorkspacePanel";
+import { CourtSaveStatus } from "./CourtSaveStatus";
 import { mobileCourtOverlayLayout } from "./court-overlay-layout";
 import { CourtStepGallery } from "./CourtStepGallery";
 import { courtRoster } from "../../core/court-roster";
@@ -443,8 +444,8 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
 
 
   const narrowHeader = width < (compactWeb ? 360 : 440);
-  const headerWidth = Math.min(compactWeb ? 332 : 354, Math.max(0, width - 24 - insets.left - insets.right));
-  const changingCourt = busy || editor.saving || editor.opening;
+  const headerWidth = Math.min((compactWeb ? 332 : 354) - (readOnly ? 34 : 10), Math.max(0, width - 24 - insets.left - insets.right));
+  const changingCourt = busy || editor.opening || (editor.saving && editor.autosaveStatus !== "saving");
   const changeCourtView = (next: "2d" | "3d") => {
     if (changingCourt) return;
     if (next === "3d") setPerspectiveMounted(true);
@@ -486,7 +487,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   };
   const headerActions = <>
     {!narrowHeader ? headerAction("Biblioteca", "exercises", () => { setLibraryDetails(false); setLibraryNewOpen(false); setLibraryMenuId(null); openWorkspaceTab("library"); }, readOnly) : null}
-    <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={editor.saving ? "Salvando jogada" : "Salvar jogada"} hitSlop={2} disabled={readOnly || !editor.canSave} onPress={() => { if (!readOnly && !suspended) void editor.save(); }} style={({ hovered, pressed }) => ({ width: denseControls ? 34 : narrowHeader ? 44 : 34, height: denseControls ? 34 : narrowHeader ? 44 : 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: !editor.canSave ? 0.55 : hovered || pressed ? 0.9 : 1 })}>{editor.saving ? <ActivityIndicator size="small" color={colors.primaryText} /> : <GoAtletaIcon name="save" size={18} color={colors.primaryText} />}</Pressable>
+    {!readOnly ? <CourtSaveStatus status={editor.draftError && editor.autosaveStatus !== "saved" ? "error" : editor.autosaveStatus} error={editor.autosaveError || editor.draftError} onRetry={editor.retryAutosave} disabled={suspended || busy || editor.opening} /> : null}
     <View ref={documentMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls || !narrowHeader} label={readOnly ? "Somente leitura" : "Opções da jogada"} icon={readOnly ? "lock" : "ellipsisHorizontal"} disabled={readOnly} onPress={() => toggleActionMenu("document")} active={actionMenu === "document"} /></View>
   </>;
   const runMenuCommand = (command: "library" | "undo" | "redo" | "new" | "export" | "share" | "settings" | "refresh-rotations" | "edit-step" | "duplicate-step" | "continue-step" | "delete-step" | "rotate-selection" | "delete-selection") => {
@@ -594,7 +595,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={simulationMode === "receive" || rotationSequence} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
-      <CourtSimulationTransport uiScale={uiScale} showRotation={simulationMode === "receive" || rotationSequence} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("steps")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
+      <CourtSimulationTransport uiScale={uiScale} showRotation={simulationMode === "receive" || rotationSequence} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
 
       {!readOnly ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, overlayScale("top left"), { width: denseControls ? 40 : 52, top: compactWeb ? Math.max(toolsTop, (height - toolsHeight) / 2) : toolsTop + (toolsSpace - toolsHeight) * uiScale / 2, left: insets.left + 10 * uiScale, maxHeight: toolsHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
         <ScrollView showsVerticalScrollIndicator={false} onScroll={() => setAnimationToolsOpen(false)} contentContainerStyle={{ gap: 2, padding: 3 }}>

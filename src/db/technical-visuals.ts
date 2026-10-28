@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { assertSessionIdentity, getSessionIdentity, SessionIdentityChangedError } from "../auth/session";
 
 import {
   build5x1ServingPreset,
@@ -13,6 +14,7 @@ import {
 } from "../core/visual-court";
 import {
   getActiveOrganizationId,
+  getReadCacheGeneration,
   isAuthError,
   isMissingRelation,
   isNetworkError,
@@ -233,11 +235,13 @@ const writeLocalTechnicalVisuals = async (
 
 const saveLocalTechnicalVisual = async (
   input: SaveTechnicalVisualInput,
-  organizationId?: string | null
+  organizationId?: string | null,
+  assertContext: () => void = () => undefined,
 ): Promise<CourtVisualDocument> => {
   const sourceKind = normalizeSourceKind(input.sourceKind);
   const title = normalizeText(input.title) || "Quadra visual";
   const current = await readLocalTechnicalVisuals(input.classId, organizationId);
+  assertContext();
   const existing = current.find(
     (item) =>
       (input.id && item.id === input.id) ||
@@ -277,6 +281,7 @@ const saveLocalTechnicalVisual = async (
     ),
   ];
   await writeLocalTechnicalVisuals(input.classId, organizationId, next);
+  assertContext();
   return document;
 };
 
@@ -354,17 +359,54 @@ export async function getTechnicalVisualById(
 }
 
 export async function saveTechnicalVisual(
-  input: SaveTechnicalVisualInput
+  input: SaveTechnicalVisualInput,
+  options: { requireRemote?: boolean } = {},
 ): Promise<CourtVisualDocument | null> {
+  const identity = getSessionIdentity();
+  const cacheGeneration = getReadCacheGeneration();
+  const assertContext = () => {
+    assertSessionIdentity(identity);
+    if (cacheGeneration !== getReadCacheGeneration()) throw new SessionIdentityChangedError();
+  };
   const organizationId = input.organizationId ?? (await getActiveOrganizationId());
+  assertContext();
   if (!organizationId) {
-    return saveLocalTechnicalVisual(input, null);
+    if (options.requireRemote) throw new Error("Selecione uma organização para salvar a jogada.");
+    return saveLocalTechnicalVisual(input, null, assertContext);
+  }
+  if (!identity.userId) {
+    if (options.requireRemote) throw new Error("Entre novamente para salvar a jogada.");
+    return saveLocalTechnicalVisual(input, organizationId, assertContext);
   }
   const payload = buildPayload(input, organizationId);
   try {
+    if (options.requireRemote) {
+      // Omit created_at: INSERT uses the table default and a conflict updates
+      // only supplied columns, preserving the original document creation date.
+      const remotePayload = {
+        id: payload.id,
+        organization_id: payload.organization_id,
+        class_id: payload.class_id,
+        source_kind: payload.source_kind,
+        source_id: payload.source_id,
+        title: payload.title,
+        payload_json: payload.payload_json,
+        updated_at: payload.updated_at,
+      };
+      const rows = await supabasePost<TechnicalVisualRow[]>("/technical_visuals?on_conflict=id", [remotePayload], {
+        Prefer: "resolution=merge-duplicates,return=representation",
+      }, identity);
+      assertContext();
+      const confirmed = Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+      if (!confirmed || confirmed.id !== payload.id || confirmed.organization_id !== organizationId || confirmed.class_id !== input.classId) {
+        throw new Error("Não foi possível confirmar o salvamento da jogada.");
+      }
+      return technicalVisualRowToModel(confirmed);
+    }
     const existing = input.id
       ? await getTechnicalVisualById(input.id, { organizationId })
       : null;
+    assertContext();
     if (existing) {
       await supabasePatch(
         `/technical_visuals?id=eq.${encodeURIComponent(input.id ?? payload.id)}` +
@@ -375,8 +417,11 @@ export async function saveTechnicalVisual(
           title: payload.title,
           payload_json: payload.payload_json,
           updated_at: payload.updated_at,
-        }
+        },
+        undefined,
+        identity,
       );
+      assertContext();
       return {
         ...existing,
         sourceKind: payload.source_kind,
@@ -388,15 +433,19 @@ export async function saveTechnicalVisual(
     }
     await supabasePost("/technical_visuals?on_conflict=id", [payload], {
       Prefer: "resolution=merge-duplicates",
-    });
+    }, identity);
+    assertContext();
     return technicalVisualRowToModel(payload);
   } catch (error) {
+    assertContext();
     if (
-      isMissingRelation(error, "technical_visuals") ||
-      isAuthError(error) ||
-      isNetworkError(error)
+      !options.requireRemote && (
+        isMissingRelation(error, "technical_visuals") ||
+        isAuthError(error) ||
+        isNetworkError(error)
+      )
     ) {
-      return saveLocalTechnicalVisual(input, organizationId);
+      return saveLocalTechnicalVisual(input, organizationId, assertContext);
     }
     throw error;
   }

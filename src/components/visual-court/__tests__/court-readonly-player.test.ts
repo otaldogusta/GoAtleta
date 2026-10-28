@@ -15,9 +15,9 @@ jest.mock('../CourtSimulationControls', () => ({ CourtSimulationTransport: 'Tran
 jest.mock('../CourtStepGallery', () => ({ CourtStepGallery: 'Gallery' }));
 jest.mock('../CourtLibraryBrowser', () => ({ CourtLibraryBrowser: 'Library' }));
 jest.mock('../CourtEditableTitle', () => ({ CourtEditableTitle: 'Title' }));
-jest.mock('../CourtWorkspacePanel', () => ({ CourtWorkspacePanel: ({ adjustments, steps }: { adjustments: React.ReactNode; steps: React.ReactNode }) => {
+jest.mock('../CourtWorkspacePanel', () => ({ CourtWorkspacePanel: ({ adjustments, steps, ...props }: { adjustments: React.ReactNode; steps: React.ReactNode }) => {
   const R = jest.requireActual<typeof import('react')>('react');
-  return R.createElement(R.Fragment, null, adjustments, steps);
+  return R.createElement('Panel', props, adjustments, steps);
 } }));
 jest.mock('../court-export', () => ({ exportCourt: jest.fn() }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
@@ -172,7 +172,8 @@ it('offers playback, camera, views and steps without enabling editor mutations',
   expect(surface().props.allowServeHandle).toBe(true);
   act(() => { surface().props.onMove(['player'], { x: 1, y: 1 }); surface().props.onDraw({}); surface().props.onShortcut('save'); });
   expect(JSON.stringify(payload)).toBe(original);
-  expect(tree.root.findByProps({ accessibilityLabel: 'Salvar jogada' }).props.disabled).toBe(true);
+  expect(tree.root.findAllByProps({ accessibilityLabel: 'Salvar jogada' })).toHaveLength(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: 'Salvando jogada automaticamente' })).toHaveLength(0);
   expect(tree.root.findAllByProps({ label: 'Adicionar jogador' })).toHaveLength(0);
   expect(tree.root.findByType('Gallery' as never).props.readOnly).toBe(true);
   act(() => tree.root.findByType('Gallery' as never).props.onSelect(1));
@@ -201,5 +202,22 @@ it('offers playback, camera, views and steps without enabling editor mutations',
   expect(JSON.stringify(payload)).toBe(original);
   expect(tree.root.findByProps({ label: 'Ampliar' }).props.disabled).toBe(false);
   expect(JSON.stringify(payload)).toBe(original);
+  act(() => tree.unmount());
+});
+
+
+it('opens adjustments from the transport list even after viewing steps', async () => {
+  let tree!: TestRenderer.ReactTestRenderer;
+  await act(async () => { tree = TestRenderer.create(React.createElement(CourtReadOnlyPlayer, { payload: newCourtBoard(), onClose: () => {} })); });
+  const panel = () => tree.root.findByType('Panel' as never);
+  const openList = () => act(() => tree.root.findByType('Transport' as never).props.onOpenSteps());
+  openList();
+  expect(panel().props).toMatchObject({ open: true, tab: 'adjustments' });
+  act(() => panel().props.onTabChange('steps'));
+  expect(panel().props.tab).toBe('steps');
+  act(() => panel().props.onRequestClose());
+  expect(panel().props.open).toBe(false);
+  openList();
+  expect(panel().props).toMatchObject({ open: true, tab: 'adjustments' });
   act(() => tree.unmount());
 });
