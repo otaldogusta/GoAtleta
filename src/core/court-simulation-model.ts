@@ -119,6 +119,12 @@ export type CourtSimulationSample = {
   receiver?: number;
   contact?: [number, number];
   ballContact?: CourtSimulationPoint;
+  tossStart?: number;
+  serveContact?: number;
+  receiveContact?: number;
+  serveGuide?: CourtSimulationPoint[];
+  serveTarget?: [number, number];
+  ballSpin?: number;
 };
 
 const presets = ["4", "go", "31", "1", "2", "5", "red", "pipe", "bic"];

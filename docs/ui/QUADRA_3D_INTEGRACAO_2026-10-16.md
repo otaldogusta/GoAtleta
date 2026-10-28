@@ -416,3 +416,157 @@ Os oito módulos originais necessários à comparação do motor são fixtures
 em `src/core/__tests__/fixtures/court-reference/`; testes não dependem do
 protótipo em `public/mockups/`. O gate `court-runtime` executa os testes Node
 do motor e do renderizador junto aos demais checks de release e CI.
+
+
+## Folga do saque sobre a rede — tentativas locais de 27/10/2026
+
+As tentativas `net-clearance-v2/v3` elevaram a curva existente perto da rede;
+a última impunha centro da bola a 3,10 m na faixa z ±0,15 m. O diagnóstico
+`data-serve-net-crossing` leu y=3,139 m na geometria renderizada na 8081.
+Foram registrados 61 testes Node e 72 Jest focados aprovados nessa versão.
+Esses resultados descrevem a tentativa anterior, não validam o modelo abaixo.
+Ela não resolveu a fidelidade visual relatada e foi substituída localmente;
+o levantamento fixo de 3,10 m não é mais o contrato da trajetória.
+
+## Saque animado — reconstrução local de 27/10/2026
+
+A inspeção ao vivo do [SetOptics](https://app.setoptics.com/visualizer), com
+busca por instantes do lançamento, contato e voo nas vistas frontal/lateral,
+orientou uma implementação independente em `court-simulation/serve-flight.js`.
+Duas parábolas unidas no ápice projetam a bola da mão até o alvo no piso;
+a recepção intercepta a descida na altura nominal de 1,05 m antes desse alvo. Bola e guia usam
+esse modelo; a guia mostra a projeção sem a oscilação do flutuante.
+
+O contato parte de 2,28 m, com avanço de 0,38 m e deslocamento lateral de
+0,03 m relativos ao alvo. O flutuante tem pequena oscilação e não gira;
+o saque com rotação antecipa o ápice e gira a 14 rad/s. A folga é calculada
+com rede de 2,43 m, meia fita de 0,0325 m, raio de bola de 0,12 m e margem
+de 0,035 m, incluindo a oscilação. Alvos efetivos ficam ao menos 1 m após
+a rede; entradas salvas e bases autorais não são regravadas.
+
+O ciclo usa preparação de 1,5 s, voo com velocidades nominais de 14/17,5 m/s
+e passe de 1,5 s. Instantes de contato variam com o voo; a coreografia dos
+rodízios é remapeada a esses eventos. Somente o sacador usa escala de pose 1;
+sua vista frontal/lateral e espelhamento acompanham direção e câmera.
+
+Validação registrada nesta etapa: 72 testes Node, 52 Jest focados e tipos
+aprovados. Na 8081 autenticada, editor e prévia exibiram a nova curva;
+lançamento/contato conferidos de lado, reprodução a 0,25×/1×, curvas Float/Topspin
+e busca reversa estável. Geometria renderizada cruzou z=0 em y=2,830/3,380 m.
+Evidência privada: `.tmp/serve-preview-final.png` na worktree de origem.
+Os 35 arquivos de agenda já alterados conservaram seus hashes. Observação funcional
+da referência não estabelece equivalência exata de todos os movimentos.
+Revisão local, sem publicação nem escrita remota.
+
+## Câmera durante reprodução — correção local de 27/10/2026
+
+O renderer cancelava o arraste da câmera em cada quadro com edição bloqueada.
+O bloqueio agora cancela somente gestos de edição; giro e zoom continuam no
+Play, inclusive na leitura. Revisão/ferramenta/superfície oculta ainda invalidam
+o gesto. O botão Mover a vista em 3D preserva a reprodução; o 2D mantém seu
+comportamento anterior. Bridge, seleção e alças de edição continuam bloqueados.
+
+Nove testes Node, 79 Jest focados e tipos aprovados. Prévia autenticada na 8081 conferiu giro com
+progresso avançando e zoom de 100% para 125% sem pausar; Mover a vista preservou
+o Play. Evidência privada: `.tmp/playback-camera-final.png`.
+Revisão local, sem publicação.
+
+## Transporte de reprodução — revisão local de 27/10/2026
+
+Após comparar a barra do SetOptics na sessão aberta, progresso ocupa a linha
+superior, Play/reiniciar usam botões circulares e velocidade tem slider contínuo
+de 0,1× a 2× (passo 0,05×), com valor ao lado e duplo clique web para 1×.
+Verde do Go Atleta, rodízio, listagem de etapas, callbacks e bloqueios permanecem.
+A composição usa os tokens/primitives existentes e não acrescenta dependência.
+
+`courtPlaybackLayout` compartilha largura/altura com o cálculo de sobreposições;
+espaço útil menor que 460 px lógicos coloca rodízio/etapas em outra linha.
+Zoom conserva a base do transporte. Medida DOM em 319×704: transporte entre
+x=46,4–272,6; zoom x=279–311, ambos com base y=690, sem interseção.
+Conferência visual desktop na 8081, velocidade 0,65×, reset para 1× e teclado
+1→1,05→1 validados. Editor e prévia usam a mesma barra. 45 Jest focados
+e tipos após reparo do import aprovados. Evidência privada: `.tmp/transport-reference-final.png`.
+Mudança local; agenda preservada e publicação separada.
+
+## Saída do levantador no lançamento — ajuste local de 27/10/2026
+
+A saída do levantador agora usa a soltura do lançamento (`tossStart`), aos
+0,4 s do ciclo, em vez do início tardio da coreografia perto da batida.
+O evento deriva do mesmo relógio da bola; bases autorais, destinos e chegada
+permanecem. Na P1, a saída começa no corredor direito antes do corte para a rede.
+Os dois renderizadores e a prévia amostram o mesmo motor, sem gravar posições.
+
+Sete testes Node focados e 52 Jest aprovados. Os testes de saída cobrem
+48 combinações de sistema, rotação, saque e origem/alvo; incluem continuidade,
+busca reversa e checkpoints da bola antes/depois. Tipos aprovados.
+Na prévia autenticada da 8081, antes da soltura Lv ficou em (3,6; 7,6).
+Aos 0,671 s, com o sacador ainda na pose toss, Lv já estava em (3,6; 7,404)
+e na pose approach. Play e busca por instante conferidos; evidência privada:
+`.tmp/setter-toss-final.png`. Revisão local, sem publicação.
+
+## Velocidade na cápsula compacta — ajuste local de 27/10/2026
+
+Em web com transporte empilhado, o slider/valor da velocidade ficam dentro
+da mesma cápsula do rodízio e das etapas. Botões de 28×32, ícones de 12,
+valor de 11 e largura flexível preservam o espaço; Play/reiniciar seguem
+acima. Desktop, nativo e callbacks permanecem com o comportamento anterior.
+
+Conferido na prévia 8081 em 319×704: cápsula x=46,4–272,6, slider de
+velocidade x=110,4–218,2 e zoom em coluna à direita, sem colisão.
+Teste focado verifica que somente velocidade entra nessa cápsula; progresso
+continua fora e os comandos preservam suas ligações. Evidência privada:
+`.tmp/compact-speed-final.png`. Ajuste de layout local, sem publicação.
+
+## Comandos compactos em uma linha — ajuste local de 27/10/2026
+
+Refinamento da composição anterior: no web estreito, a cápsula de rodízio,
+velocidade e etapas agora fica ao lado de Play/reiniciar, dentro de um único
+bloco. O slider de velocidade é limitado a 80 px lógicos. A linha compacta
+reduz sua escala somente quando necessário para caber; progresso fica acima.
+A altura web usa 78 px lógicos, preservando os 116 px da composição nativa.
+
+Prévia 8081 em 319×704: comandos x=46,4–272,6/y=654,8–690 e slider de
+velocidade com 38,4 px físicos; zoom segue em coluna separado à direita.
+Callbacks e duas barras preservados; teste de composição exige Play, restaurar,
+rodízio e velocidade na mesma linha. Evidência privada:
+`.tmp/single-row-controls-final.png`. Ajuste de apresentação local, sem publicação.
+
+## Controles da vista 3D — ajuste local de 27/10/2026
+
+Botão "Mover a vista" removido da 3D no editor e na prévia; giro por arraste,
+zoom e ajuste à tela permanecem. Vista 2D mantém a ferramenta de mover.
+Conferido na prévia 8081 em 319×704; teste focado cobre ausência do botão
+e continuidade da reprodução ao ampliar. Ajuste local, sem publicação.
+
+## Fechamento externo do painel — correção local de 27/10/2026
+
+Ajustes/Etapas/Biblioteca recebe backdrop transparente enquanto aberto, acima
+da quadra/iframe e abaixo do painel/alça. Tocar fora solicita fechamento
+explícito; ações internas e Escape continuam disponíveis. Fundo sem hover
+ou escala de pressão; removido imediatamente no fechamento.
+Validação por teste focado, sem navegador a pedido do usuário. Alteração
+sincronizada na 8081, sem publicação e sem mudança na agenda.
+
+## Velocidade por toque — ajuste local de 27/10/2026
+
+A barrinha de velocidade foi substituída pelo botão do valor atual. Ao tocar,
+abre apenas a cápsula de 0,5×, 1×, 1,5× e 2× com a opção ativa destacada,
+sem título, caixa externa ou padding adicional (208 × 34 no web). Teclado
+foca a opção selecionada ao abrir e retorna ao botão ao escolher/usar Escape. Reutiliza
+Segments e AnchoredDropdown: escolher fecha o seletor; fora/Escape também
+fecham sem mudar a velocidade. O progresso continua independente e arrastável.
+Botão web com fonte de 11 e altura de 32 px lógicos, integrado ao rodízio e
+às etapas também no desktop, sem cápsula isolada. Callbacks e estado de
+reprodução preservados. Teste focado
+sem navegador; sincronizado na 8081, agenda preservada, sem publicação.
+
+## Validação do pacote para publicação — 27/10/2026
+
+Build verificado completo aprovado: 697 suítes/4761 testes Jest, runtime
+3D, SQL isolado, lint sem erros/avisos, tipos, escopo, arquitetura e export web.
+Execução final com um check por vez por limite de memória local. Smoke na
+sessão real da 8081 validou prévia, velocidades, câmera durante Play, fechamento
+externo e foco por teclado; sem gravação remota. Os 35 arquivos da agenda
+permaneceram intactos. Entrega autorizada por push apenas para main; confirmação
+em produção depende do CI/deploy desta revisão. Fluxo de release rápido
+concorrente preservado fora deste pacote.

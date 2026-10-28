@@ -42,6 +42,34 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- Transporte separa progresso dos botões e mantém rodízio/etapas. Velocidade
+  abre quatro opções por toque (0,5×, 1×, 1,5× e 2×), com seleção atual visível,
+  em uma cápsula sem título, caixa externa ou padding extra, usando o seletor
+  segmentado e o dropdown compartilhados; sem slider de velocidade.
+  Largura/empilhamento compartilham o cálculo das sobreposições da quadra.
+  No web, velocidade integra a cápsula de rodízio/etapas em toda largura, com
+  ícones e leitura compactos. Play/reiniciar, rodízio, velocidade e etapas
+  compartilham uma linha abaixo do progresso.
+
+- O painel Ajustes/Etapas/Biblioteca fecha ao tocar fora, inclusive sobre o
+  iframe 3D, com camada transparente abaixo do painel. Cliques internos e
+  Escape preservados; sem brilho no fundo ao passar o mouse.
+- A vista 3D gira por arraste, sem botão "Mover a vista"; zoom e ajuste à tela
+  continuam disponíveis. A ferramenta de mover permanece na vista 2D.
+- Giro, zoom e controles da câmera 3D permanecem ativos durante o Play.
+  Bloqueio de edição não cancela gesto de câmera; mudança de contexto,
+  ferramenta ou superfície oculta ainda cancela o gesto.
+
+- Na recepção, o levantador inicia a saída na soltura do lançamento do
+  sacador (evento `tossStart`), preservando bases, destino e corredor da P1.
+
+- `court-simulation/serve-flight.js` fornece a trajetória de saque da mão até
+  o piso para bola e guia; a recepção intercepta sua descida antes do alvo.
+  Folga considera o volume da bola/fita; flutuante e rotação conservam curvas
+  distintas. Tempos de contato derivam do voo, preservando bases autorais.
+  Reconstrução local após observar o SetOptics; sem publicação nesta revisão.
+  [Modelo, validação e limites](../../ui/QUADRA_3D_INTEGRACAO_2026-10-16.md#saque-animado--reconstrução-local-de-27102026).
+
 - `court-reception-middle-identity.ts` repara referências de centrais trocadas
   somente na sequência canônica de seis recepções 5×1. Editor e leitura usam a
   mesma função pura; nomes, bases e trajetórias são preservados, sem escrita remota.
@@ -462,3 +490,7 @@ independente e evidências privadas não compõem a publicação. Testes de pari
 usam fixtures locais em `src/core/__tests__/fixtures/court-reference/`; o gate
 `court-runtime` inclui os testes Node do motor e do renderizador na validação
 de release e CI. O smoke local desta ampliação não gravou a jogada no backend.
+
+Release da quadra em 27/10: build verificado e 697 suítes/4761 testes
+Jest aprovados, com smoke autenticado na 8081 e agenda preservada. Push de
+produção somente para main; CI/deploy remoto precisam de confirmação própria.

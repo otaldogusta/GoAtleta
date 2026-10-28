@@ -103,6 +103,17 @@ describe("opt-in dropdown visual density", () => {
     expect(outerStyle()).toEqual(original);
   });
 
+  test("allows a compact control to supply its own surface without changing the default panel", () => {
+    const panelStyle = () => StyleSheet.flatten(tree!.root.findAllByType(View).find(node => StyleSheet.flatten(node.props.style)?.borderRadius === 14)!.props.style);
+    act(() => { tree = mount(props()); });
+    const defaultPanelStyle = panelStyle();
+    act(() => tree!.update(React.createElement(AnchoredDropdown, { ...props(), surface: "none", scrollContentStyle: { padding: 0, gap: 0 } })));
+    expect(panelStyle()).toMatchObject({ borderWidth: 0, backgroundColor: "transparent", shadowOpacity: 0, elevation: 0 });
+    expect(StyleSheet.flatten(tree!.root.findByType(ScrollView).props.contentContainerStyle)).toMatchObject({ padding: 0, gap: 0 });
+    act(() => tree!.update(React.createElement(AnchoredDropdown, props())));
+    expect(panelStyle()).toEqual(defaultPanelStyle);
+  });
+
   test("measures a reopened scaled list again instead of reusing its previous height", () => {
     const parameters = { ...props(), visualScale: 0.8 };
     act(() => { tree = mount(parameters); });

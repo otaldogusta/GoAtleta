@@ -12,6 +12,7 @@ export type CourtWorkspaceTab = "adjustments" | "steps" | "library";
 type Props = {
   open: boolean;
   onToggle: () => void;
+  onRequestClose: () => void;
   tab: CourtWorkspaceTab;
   onTabChange: (tab: CourtWorkspaceTab) => void;
   adjustments: ReactNode;
@@ -31,7 +32,7 @@ const TABS = [
 ] as const;
 
 /** Shares one disclosure surface while retaining each tab's local view state. */
-export function CourtWorkspacePanel({ open, onToggle, tab, onTabChange, adjustments, steps, library, disabled = false, readOnly = false, uiScale = 1, top = 144, bottom = 88 }: Props) {
+export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTabChange, adjustments, steps, library, disabled = false, readOnly = false, uiScale = 1, top = 144, bottom = 88 }: Props) {
   const { colors } = useAppTheme();
   const { width, height } = useWindowDimensions();
   const mobile = width <= 700;
@@ -48,6 +49,7 @@ export function CourtWorkspacePanel({ open, onToggle, tab, onTabChange, adjustme
   const contents = { adjustments, steps, library };
 
   return <>
+    {open ? <Pressable accessibilityRole="button" accessibilityLabel="Fechar controles da jogada" suppressWebHoverFeedback disableWebPressScale onPress={onRequestClose} style={styles.backdrop} /> : null}
     {motion.mounted ? <Animated.View accessibilityLabel="Painel da jogada" pointerEvents={open ? "auto" : "none"} accessibilityElementsHidden={!open} importantForAccessibility={open ? "auto" : "no-hide-descendants"} aria-hidden={!open} {...(Platform.OS === "web" ? { inert: !open } : {})} style={[styles.panel, { width: panelWidth, height: panelHeight, right, top: mobile ? undefined : top, bottom: panelBottom, paddingTop: mobile ? panelHeader : 14, opacity: motion.style.opacity, transform: [...motion.style.transform, { scale }], transformOrigin: "top right", borderColor: colors.border, backgroundColor: colors.surface }, shadow.elevated]}>
       <View accessibilityRole="tablist" accessibilityLabel="Áreas da jogada" style={[styles.tabs, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
         {TABS.map(([value, label]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={value} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: tab === value, disabled: disabled || (readOnly && value === "library") }} aria-selected={tab === value} disabled={disabled || (readOnly && value === "library")} onPress={() => { if (!disabled && !(readOnly && value === "library")) onTabChange(value); }} style={({ hovered, pressed }) => [styles.tab, mobile ? { minHeight: compactWeb ? 28 : 36 } : null, { backgroundColor: tab === value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
@@ -70,6 +72,7 @@ export function CourtWorkspacePanel({ open, onToggle, tab, onTabChange, adjustme
 }
 
 const styles = StyleSheet.create({
+  backdrop: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 27, backgroundColor: "transparent" },
   panel: { position: "absolute", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 24, borderWidth: 1, zIndex: 28 },
   tabs: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: radius.full, padding: 3, marginBottom: 12, overflow: "hidden" },
   tab: { flex: 1, minWidth: 0, minHeight: 26, paddingHorizontal: 4, borderRadius: radius.full, overflow: "hidden", alignItems: "center", justifyContent: "center" },

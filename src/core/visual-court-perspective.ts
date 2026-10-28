@@ -150,7 +150,7 @@ export function buildCourtPerspectiveFrame(
           mirror: state.mirror ?? (state.role === "server"), previousPose: state.previousPose,
           previousSide: state.previousSide, poseBlend: state.poseBlend,
           crouch: state.crouch, extension: state.extension, handAngle: state.handAngle,
-          poseScale: simulation!.mode === "receive" ? .9 : state.role === "setter" ? .86 : state.role === "passer" ? .96 : .9,
+          poseScale: state.role === "server" ? 1 : simulation!.mode === "receive" ? .9 : state.role === "setter" ? .86 : state.role === "passer" ? .96 : .9,
           path: [],
         });
       }

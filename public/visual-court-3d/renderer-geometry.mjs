@@ -10,6 +10,10 @@ export function snappedGesture(point,start,anchor,grid,tool,motionMode){
  const destination=snapPoint({x:anchor.x+point.x-start.x,y:anchor.y+point.y-start.y});
  return {x:start.x+destination.x-anchor.x,y:start.y+destination.y-anchor.y};
 }
+/** Playback disables document edits, while the camera remains interactive. */
+export function shouldCancelFrameGesture(gesture,next){
+ return Boolean(gesture&&(gesture.revision!==next.revision||gesture.tool!==next.tool||next.active===false||next.disabled&&!gesture.cameraDrag));
+}
 export function curvePoints(points,landscape=false){
  if(points.length<2)return points;
  const a=points[0],b=points.at(-1),c={x:(a.x+b.x)/2+(landscape?-.65:.65),y:(a.y+b.y)/2,z:(a.z+b.z)/2-.65};

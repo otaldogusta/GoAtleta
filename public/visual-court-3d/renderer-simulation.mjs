@@ -1,6 +1,16 @@
 import * as THREE from './three.module.min.js';
 
 const vector=point=>new THREE.Vector3(point.x,point.y,point.z);
+/** Diagnostics use the same vertex buffer that is actually sent to WebGL. */
+export function serveNetCrossing(group){
+ const positions=group?.getObjectByName('serve')?.geometry?.attributes.position;
+ if(!positions)return null;
+ for(let i=1;i<positions.count;i++){
+  const az=positions.getZ(i-1),bz=positions.getZ(i);
+  if(az<=0&&bz>=0&&bz>az){const u=-az/(bz-az);return {x:positions.getX(i-1)+(positions.getX(i)-positions.getX(i-1))*u,y:positions.getY(i-1)+(positions.getY(i)-positions.getY(i-1))*u,z:0};}
+ }
+ return null;
+}
 /** Only geometry construction. Every curve, contact and wall comes from the host. */
 export function createSimulationGuides(data){
  const group=new THREE.Group();group.name='simulation-guides';

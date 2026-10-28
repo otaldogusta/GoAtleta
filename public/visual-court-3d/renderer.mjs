@@ -1,8 +1,8 @@
 import * as THREE from './three.module.min.js';
 import {createBlocker} from './blocker-rig.mjs';
-import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail} from './renderer-geometry.mjs';
+import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail,shouldCancelFrameGesture} from './renderer-geometry.mjs';
 import {actorPoseView,isHeightHandle,previewAttackCurve,simulationHandleEdit} from './renderer-simulation-geometry.mjs';
-import {createSimulationGuides} from './renderer-simulation.mjs';
+import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
 import {renderPixelRatio,syncRendererResolution} from './renderer-resolution.mjs';
 import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs';
 import {simulationCameraDistance,resizedSimulationCameraDistance} from './renderer-camera-profile.mjs';
@@ -142,7 +142,11 @@ function updateDrawings(){
    object={group,key,selection};drawingMap.set(drawing.id,object);
   }
   const delta=preview?.ids.includes(drawing.id)?preview.delta:null;object.group.position.set((ballPoint?.x||0)+(delta?.x||0)*9,ballPoint?.y||0,(ballPoint?.z||0)+(delta?.y||0)*18);object.group.visible=!frame.hide.includes('drawings');object.selection.visible=frame.selected.includes(drawing.id);
-  if(drawing.simulated&&object.group.children[0]){object.group.children[0].rotation.x=frame.simulation?.elapsedSeconds*5||0;object.group.children[0].rotation.z=frame.simulation?.elapsedSeconds*3||0;}
+  if(drawing.simulated&&object.group.children[0]){
+   const ball=object.group.children[0],simulation=frame.simulation;
+   ball.rotation.x=simulation?.mode==='receive'?(simulation.ballSpin||0):(simulation?.elapsedSeconds||0)*5;
+   ball.rotation.z=simulation?.mode==='receive'?0:(simulation?.elapsedSeconds||0)*3;
+  }
  }
 }
 let pathGroup=new THREE.Group(),pathKey='',draftGroup=null;
@@ -158,9 +162,9 @@ function updateSimulation(){
  const original=frame.simulation,drag=handleDrag?.kind==='attack'?handleDrag:null;
  const curveEdit=drag?simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y):null;
  const data=original&&curveEdit?previewAttackCurve(original,curveEdit.value):original;
- if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';for(const button of handleButtons.values())button.hidden=true;feedback.hidden=true;ballShadow.visible=false;return;}
+ if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';delete canvas.dataset.serveNetCrossing;for(const button of handleButtons.values())button.hidden=true;feedback.hidden=true;ballShadow.visible=false;return;}
  const key=data===original?data.guideKey:JSON.stringify([data.guideKey,'attack-preview',curveEdit.value]);
- if(simulationKey!==key){if(simulationGuides)dispose(simulationGuides);simulationGuides=createSimulationGuides(data);scene.add(simulationGuides);simulationKey=key;}
+ if(simulationKey!==key){if(simulationGuides)dispose(simulationGuides);simulationGuides=createSimulationGuides(data);scene.add(simulationGuides);simulationKey=key;const crossing=serveNetCrossing(simulationGuides);if(crossing)canvas.dataset.serveNetCrossing=JSON.stringify(crossing);else delete canvas.dataset.serveNetCrossing;}
  simulationGuides.visible=data.guidesVisible&&!frame.hide.includes('movements');
  for(const marker of simulationGuides.children)if(marker.userData.contactTime!==undefined){const elapsed=data.elapsedSeconds-marker.userData.contactTime,pulse=elapsed>=0?Math.exp(-elapsed*12):0;marker.scale.setScalar(1+pulse*.7);marker.material.opacity=.65+pulse*.35;}
  const ball=drawingMap.get(data.ballId);ballShadow.visible=Boolean(ball?.group.visible);ballShadow.position.set(data.ball.x,.028,data.ball.z);
@@ -309,7 +313,7 @@ window.addEventListener('message',event=>{
  if(token&&data.token!==token){cancelGesture();lastAnchor=undefined;}
  const next=data.frame;if(!next||!Array.isArray(next.actors)||!Array.isArray(next.drawings)||!Array.isArray(next.selected)||!Array.isArray(next.hide)||typeof next.stepId!=='string'||!next.actors.every(actor=>typeof actor.id==='string'&&isWorldPoint(actor.position))||!next.drawings.every(drawing=>typeof drawing.id==='string'&&Array.isArray(drawing.points)&&drawing.points.every(isWorldPoint)))return;
  if(frame&&next.stepId!==frame.stepId||packet&&packet.tool!==data.tool)stopCameraMotion();
- if(gesture&&(gesture.revision!==data.revision||gesture.tool!==data.tool||data.disabled||data.active===false)||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
+ if(shouldCancelFrameGesture(gesture,data)||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
  if(!active){cancelGesture();if(pending){cancelAnimationFrame(pending);pending=0;}return;}
  const zoom=clamp(Number(data.zoom)||1,.3,4);if(zoom!==lastZoom){stopCameraMotion();distance=clamp(distance*lastZoom/zoom,12,65);lastZoom=zoom;updateCamera();}
  const simulationMode=frame.simulation?.mode||null,simulationChanged=simulationMode!==lastSimulationMode;lastSimulationMode=simulationMode;

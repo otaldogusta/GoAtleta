@@ -1,10 +1,14 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Dimensions, Platform } from "react-native";
+import { Dimensions, Platform, StyleSheet, Text } from "react-native";
 import type { CourtSimulation } from "../../../core/court-simulation-model";
 import { CourtSimulationModes, CourtSimulationSettings, CourtSimulationTransport } from "../CourtSimulationControls";
 
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: "GoAtletaIcon" }));
+jest.mock("../../../ui/AnchoredDropdown", () => ({ AnchoredDropdown: ({ visible, children, ...props }: { visible: boolean; children: React.ReactNode }) => {
+  const R = jest.requireActual<typeof import("react")>("react");
+  return R.createElement("Dropdown", { ...props, visible }, visible ? children : null);
+} }));
 
 const config = (): CourtSimulation => ({
   version: 1, mode: "attack", system: "5-1", rotation: 0, serve: "Float", seam: "Left",
@@ -213,32 +217,68 @@ describe("shared court simulation controls", () => {
     expect(props.onOpenSteps).toHaveBeenCalledTimes(1);
     act(() => tree!.root.findByProps({ accessibilityLabel: "Avançar ou voltar na jogada" }).props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
     press("Velocidade da reprodução");
+    press("Velocidade: 1,5×");
     expect(props.onSeek).toHaveBeenCalledWith(0.501);
-    expect(props.onSpeed).toHaveBeenCalledWith(1.25);
+    expect(props.onSpeed).toHaveBeenCalledWith(1.5);
   });
 
-  it.each([320, 393, 700, 1063])("keeps one seek slider and cycles speed with the number button at %ipx", width => {
+  it.each([319, 393, 700, 978, 1063])("keeps seek independent from four speed choices and playback options at %ipx", width => {
     Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
     jest.spyOn(Dimensions, "get").mockReturnValue({ width, height: 852, scale: 1, fontScale: 1 });
     const props = { playing: false, progress: .5, speed: 1, rotation: 0, onPlay: jest.fn(), onRestart: jest.fn(), onPreviousRotation: jest.fn(), onNextRotation: jest.fn(), onSeek: jest.fn(), onSpeed: jest.fn(), onOpenSteps: jest.fn() };
     act(() => { tree = TestRenderer.create(React.createElement(CourtSimulationTransport, props)); });
     expect(tree!.root.findAllByType("input")).toHaveLength(1);
+    const options = tree!.root.findByProps({ accessibilityLabel: "Rodízio e opções de reprodução" });
+    const commands = tree!.root.findByProps({ accessibilityLabel: "Comandos de reprodução" });
+    expect(commands.findByProps({ accessibilityLabel: "Rodízio e opções de reprodução" })).toBe(options);
+    expect(commands.findByProps({ accessibilityLabel: "Reproduzir jogada" })).toBeDefined();
+    expect(commands.findByProps({ accessibilityLabel: "Voltar ao início da jogada" })).toBeDefined();
+    expect(commands.findByProps({ accessibilityLabel: "Velocidade da reprodução" })).toBeDefined();
+    expect(options.findByProps({ accessibilityLabel: "Velocidade da reprodução" })).toBeDefined();
+    expect(options.findAllByProps({ "aria-label": "Avançar ou voltar na jogada" })).toHaveLength(0);
     expect(tree!.root.findByProps({ "aria-label": "Avançar ou voltar na jogada" }).props.value).toBe(.5);
-    for (const [speed, next] of [[.25, .5], [.5, .75], [.75, 1], [1, 1.25], [1.25, 1.5], [1.5, 1.75], [1.75, 2], [2, .25]]) {
-      act(() => tree!.update(React.createElement(CourtSimulationTransport, { ...props, speed })));
-      const button = tree!.root.findByProps({ accessibilityLabel: "Velocidade da reprodução" });
-      expect(button.props.accessibilityRole).toBe("button");
-      expect(button.props.accessibilityValue.text).toContain("×");
+    const trigger = () => tree!.root.findByProps({ accessibilityLabel: "Velocidade da reprodução" });
+    expect(StyleSheet.flatten(trigger().props.style({ hovered: false, pressed: false }))).toMatchObject({ minWidth: width <= 393 ? 44 : 48, minHeight: 32 });
+    expect(StyleSheet.flatten(trigger().findByType(Text).props.style).fontSize).toBe(11);
+    expect(trigger().props.accessibilityRole).toBe("button");
+    expect(trigger().props.accessibilityState.expanded).toBe(false);
+    for (const [value, label] of [[.5, "0,5×"], [1, "1×"], [1.5, "1,5×"], [2, "2×"]] as const) {
+      act(() => tree!.update(React.createElement(CourtSimulationTransport, { ...props, speed: value })));
       press("Velocidade da reprodução");
-      expect(props.onSpeed).toHaveBeenLastCalledWith(next);
+      expect(trigger().props.accessibilityState.expanded).toBe(true);
+      const popup = tree!.root.findByType("Dropdown" as never);
+      expect(popup.props).toMatchObject({ surface: "none", preferredWidth: 208, maxHeight: 34 });
+      expect(StyleSheet.flatten(popup.props.scrollContentStyle)).toMatchObject({ padding: 0, gap: 0 });
+      expect(popup.findAllByType(Text).map(node => node.props.children)).not.toContain("Velocidade");
+      const group = tree!.root.findByProps({ accessibilityLabel: "Velocidade", accessibilityRole: "radiogroup" });
+      const labels = new Set(group.findAllByProps({ accessibilityRole: "radio" }).map(node => node.props.accessibilityLabel));
+      expect([...labels]).toEqual(["Velocidade: 0,5×", "Velocidade: 1×", "Velocidade: 1,5×", "Velocidade: 2×"]);
+      expect(group.findByProps({ accessibilityLabel: `Velocidade: ${label}` }).props.accessibilityState.checked).toBe(true);
+      press(`Velocidade: ${label}`);
+      expect(props.onSpeed).toHaveBeenLastCalledWith(value);
+      expect(trigger().props.accessibilityState.expanded).toBe(false);
     }
+    expect(props.onSeek).not.toHaveBeenCalled();
+    press("Velocidade da reprodução");
+    const callsBeforeDismiss = props.onSpeed.mock.calls.length;
+    act(() => tree!.root.findByType("Dropdown" as never).props.onRequestClose());
+    expect(trigger().props.accessibilityState.expanded).toBe(false);
+    expect(props.onSpeed).toHaveBeenCalledTimes(callsBeforeDismiss);
+    press("Reproduzir jogada"); press("Voltar ao início da jogada"); press("Rotação anterior: P2"); press("Próxima rotação: P6"); press("Mostrar etapas");
+    for (const callback of [props.onPlay, props.onRestart, props.onPreviousRotation, props.onNextRotation, props.onOpenSteps]) expect(callback).toHaveBeenCalledTimes(1);
+    press("Velocidade da reprodução");
+    expect(trigger().props.accessibilityState.expanded).toBe(true);
+    act(() => tree!.update(React.createElement(CourtSimulationTransport, { ...props, disabled: true })));
+    expect(tree!.root.findByType("Dropdown" as never).props.visible).toBe(false);
+    act(() => tree!.update(React.createElement(CourtSimulationTransport, props)));
+    expect(trigger().props.accessibilityState.expanded).toBe(false);
     act(() => tree!.update(React.createElement(CourtSimulationTransport, { ...props, disabled: true })));
     const calls = props.onSpeed.mock.calls.length;
+    expect(trigger().props.disabled).toBe(true);
     press("Velocidade da reprodução");
+    expect(tree!.root.findByType("Dropdown" as never).props.visible).toBe(false);
     expect(props.onSpeed).toHaveBeenCalledTimes(calls);
     expect(props.onSeek).not.toHaveBeenCalled();
-    expect(props.onPreviousRotation).not.toHaveBeenCalled();
-    expect(props.onNextRotation).not.toHaveBeenCalled();
   });
 
   it("wraps the P1 neighbors correctly and hides both arrows outside rotation mode", () => {
@@ -250,5 +290,60 @@ describe("shared court simulation controls", () => {
     expect(props.onNextRotation).toHaveBeenCalledTimes(1);
     act(() => tree!.update(React.createElement(CourtSimulationTransport, { ...props, showRotation: false })));
     expect(tree!.root.findAll(node => node.props.accessibilityLabel === "Rotação anterior: P2" || node.props.accessibilityLabel === "Próxima rotação: P6")).toHaveLength(0);
+  });
+
+  it.each(["choice", "dismiss", "outside", "close-before-frame", "unmount-before-frame"])("manages speed-menu keyboard focus for %s", closing => {
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+    const names = ["document", "requestAnimationFrame", "cancelAnimationFrame"] as const;
+    const descriptors = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    const selectedRadio = { focus: jest.fn(() => { doc.activeElement = selectedRadio; }) };
+    const triggerButton = { focus: jest.fn(() => { doc.activeElement = triggerButton; }) };
+    const menu = { contains: (node: unknown) => node === selectedRadio, querySelector: jest.fn(() => selectedRadio) };
+    const doc = { activeElement: null as unknown, getElementById: jest.fn(() => menu) };
+    const cancelFrame = jest.fn((id: number) => frames.delete(id));
+    Object.defineProperty(globalThis, "document", { configurable: true, value: doc });
+    Object.defineProperty(globalThis, "requestAnimationFrame", { configurable: true, value: (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame; } });
+    Object.defineProperty(globalThis, "cancelAnimationFrame", { configurable: true, value: cancelFrame });
+    try {
+      const props = { playing: false, progress: 0, speed: 1.5, rotation: 0, onPlay: jest.fn(), onRestart: jest.fn(), onPreviousRotation: jest.fn(), onNextRotation: jest.fn(), onSeek: jest.fn(), onSpeed: jest.fn(), onOpenSteps: jest.fn() };
+      act(() => { tree = TestRenderer.create(React.createElement(CourtSimulationTransport, props)); });
+      const popup = () => tree!.root.findByType("Dropdown" as never);
+      popup().props.interactiveRefs[0].current = {
+        measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(200, 600, 48, 32),
+        querySelector: () => triggerButton,
+      };
+      press("Velocidade da reprodução");
+      expect(popup().props.layout).toEqual({ x: 200, y: 600, width: 48, height: 32 });
+      expect(frames.size).toBe(1);
+      const [frameId, frame] = [...frames][0];
+      if (closing.endsWith("before-frame")) {
+        if (closing === "unmount-before-frame") { act(() => tree!.unmount()); tree = undefined; }
+        else act(() => popup().props.onRequestClose());
+        expect(cancelFrame).toHaveBeenCalledWith(frameId);
+        expect(frames.size).toBe(0);
+        expect(selectedRadio.focus).not.toHaveBeenCalled();
+      } else {
+        const groupId = tree!.root.findByProps({ accessibilityLabel: "Velocidade", accessibilityRole: "radiogroup" }).props.nativeID;
+        act(() => frame(0));
+        expect(doc.getElementById).toHaveBeenCalledWith(groupId);
+        expect(menu.querySelector).toHaveBeenCalledWith('[role="radio"][aria-checked="true"]');
+        expect(selectedRadio.focus).toHaveBeenCalledTimes(1);
+        if (closing === "outside") doc.activeElement = { focus: jest.fn() };
+        if (closing === "choice") { press("Velocidade: 2×"); expect(props.onSpeed).toHaveBeenCalledWith(2); }
+        else act(() => popup().props.onRequestClose());
+        expect(triggerButton.focus).toHaveBeenCalledTimes(closing === "outside" ? 0 : 1);
+        expect(popup().props.visible).toBe(false);
+      }
+    } finally {
+      if (tree) act(() => tree!.unmount());
+      tree = undefined;
+      names.forEach((name, index) => {
+        const descriptor = descriptors[index];
+        if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+        else Reflect.deleteProperty(globalThis, name);
+      });
+    }
   });
 });

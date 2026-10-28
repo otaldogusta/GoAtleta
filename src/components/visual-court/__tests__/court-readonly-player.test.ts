@@ -5,6 +5,7 @@ import { CourtWorkspaceView } from '../CourtWorkspaceView';
 import { newCourtBoard, duplicateStep, upgradeCourtEditor } from '../../../core/visual-court-editor';
 import { buildEditable5x1ReceptionPreset } from '../../../core/visual-court';
 import { publishableCourt } from '../../../core/court-sharing';
+import { sampleCourtSimulation } from '../../../core/court-simulation';
 
 jest.mock('../CourtPerspectiveCanvas', () => ({ CourtPerspectiveCanvas: 'Perspective' }));
 jest.mock('../CourtEditorCanvas', () => ({ CourtEditorCanvas: 'Canvas' }));
@@ -31,7 +32,9 @@ it('opens legacy shared reception with the current six animated rotations before
   const surface = () => tree.root.findByType('Perspective' as never);
   const opened = surface().props.payload;
   expect(opened.timeline.steps).toHaveLength(6);
-  expect(opened.timeline.steps.map((step: { durationMs: number }) => step.durationMs)).toEqual(Array(6).fill(4100));
+  expect(opened.timeline.steps.map((step: { durationMs: number }) => step.durationMs)).toEqual(
+    Array.from({ length: 6 }, (_, index) => Math.round(sampleCourtSimulation(opened, index, 0)!.duration * 1000)),
+  );
   const initialBases = opened.timeline.steps[0].simulation.actorIds.map((id: string) => opened.timeline.steps[0].actorPositions[id]);
   act(() => tree.root.findByType('Modes' as never).props.onChange('attack'));
   act(() => tree.root.findByType('Modes' as never).props.onChange('receive'));
@@ -40,6 +43,31 @@ it('opens legacy shared reception with the current six animated rotations before
   expect(returned.timeline.steps[0].simulation.actorIds.map((id: string) => returned.timeline.steps[0].actorPositions[id])).toEqual(initialBases);
   expect(JSON.stringify(payload)).toBe(original);
   act(() => tree.unmount());
+});
+
+it('keeps playback advancing when zooming the 3D view without a pan button or shared document changes', async () => {
+  jest.useFakeTimers();
+  const payload = newCourtBoard(), original = JSON.stringify(payload);
+  let tree!: TestRenderer.ReactTestRenderer;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(CourtReadOnlyPlayer, { payload, onClose: () => {} })); });
+    const transport = () => tree.root.findByType('Transport' as never);
+    const surface = () => tree.root.findByType('Perspective' as never);
+    act(() => transport().props.onPlay());
+    act(() => jest.advanceTimersByTime(64));
+    const before = transport().props.progress;
+    expect(tree.root.findAllByProps({ label: 'Mover a vista' })).toHaveLength(0);
+    act(() => tree.root.findByProps({ label: 'Ampliar' }).props.onPress());
+    expect(transport().props.playing).toBe(true);
+    act(() => jest.advanceTimersByTime(96));
+    expect(transport().props.progress).toBeGreaterThan(before);
+    expect(surface().props.disabled).toBe(true);
+    expect(surface().props.allowServeHandle).toBe(false);
+    expect(JSON.stringify(payload)).toBe(original);
+  } finally {
+    if (tree) act(() => tree.unmount());
+    jest.useRealTimers();
+  }
 });
 
 it('offers playback, camera, views and steps without enabling editor mutations', async () => {
