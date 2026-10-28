@@ -14,26 +14,60 @@ export default function SharedCourtScreen() {
   const [payload, setPayload] = useState<CourtVisualPayload | null>(null), [error, setError] = useState('');
   const [epoch, setEpoch] = useState(0);
   useEffect(() => {
-    let stopped = false, controller: AbortController | null = null;
-    const refresh = async () => {
-      if (controller || stopped) return;
-      const access = parseCourtShareHash(window.location.hash);
-      if (!access) { setPayload(null); setError('LINK_UNAVAILABLE'); return; }
-      const task = new AbortController(); controller = task;
-      const timeout = setTimeout(() => task.abort(), 20000);
-      try {
-        const next = await readSharedCourt(access.id, access.code, task.signal);
-        if (!stopped && !task.signal.aborted) { setPayload(old => old ?? next); setError(''); }
-      } catch (failure) {
-        if (!stopped) { setPayload(null); setError(failure instanceof Error ? failure.message : 'SERVICE_UNAVAILABLE'); }
-      } finally { clearTimeout(timeout); controller = null; }
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    let stopped = false, unavailable = false, pageActive = document.visibilityState === 'visible';
+    let poll: ReturnType<typeof setTimeout> | null = null;
+    let request: { controller: AbortController; deadline: ReturnType<typeof setTimeout> | null } | null = null;
+    const visible = () => pageActive && document.visibilityState === 'visible';
+    const clearPoll = () => { if (poll !== null) clearTimeout(poll); poll = null; };
+    const pause = () => {
+      clearPoll();
+      const previous = request; request = null;
+      if (previous) { if (previous.deadline !== null) clearTimeout(previous.deadline); previous.controller.abort(); }
     };
+    const schedule = () => {
+      clearPoll();
+      if (!stopped && !unavailable && visible()) poll = setTimeout(() => { poll = null; void refresh(); }, 60000);
+    };
+    async function refresh() {
+      if (request || stopped || unavailable || !visible()) return;
+      clearPoll();
+      const access = parseCourtShareHash(window.location.hash);
+      if (!access) { unavailable = true; setPayload(null); setError('LINK_UNAVAILABLE'); return; }
+      const task = { controller: new AbortController(), deadline: null as ReturnType<typeof setTimeout> | null }; request = task;
+      task.deadline = setTimeout(() => {
+        if (stopped || request !== task) return;
+        request = null; task.controller.abort();
+        // A slow or suspended request must not discard an already mounted player.
+        setError('SERVICE_UNAVAILABLE'); schedule();
+      }, 20000);
+      try {
+        const next = await readSharedCourt(access.id, access.code, task.controller.signal);
+        if (!stopped && request === task && !task.controller.signal.aborted && visible()) { setPayload(old => old ?? next); setError(''); }
+      } catch (failure) {
+        if (stopped || request !== task || !visible()) return;
+        const message = failure instanceof Error ? failure.message : 'SERVICE_UNAVAILABLE';
+        if (message === 'LINK_UNAVAILABLE') { unavailable = true; setPayload(null); }
+        setError(message);
+      } finally {
+        if (task.deadline !== null) clearTimeout(task.deadline);
+        if (request === task) { request = null; schedule(); }
+      }
+    }
     void refresh();
-    const timer = setInterval(() => void refresh(), 60000);
-    const visible = () => { if (document.visibilityState === 'visible') void refresh(); };
-    const hash = () => { setPayload(null); setError(''); setEpoch(value => value + 1); };
-    document.addEventListener('visibilitychange', visible); window.addEventListener('hashchange', hash);
-    return () => { stopped = true; controller?.abort(); clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('hashchange', hash); };
+    const visibility = () => { pageActive = document.visibilityState === 'visible'; if (pageActive) void refresh(); else pause(); };
+    const show = () => { pageActive = true; void refresh(); };
+    const hide = () => { pageActive = false; pause(); };
+    const online = () => { void refresh(); };
+    const hash = () => { unavailable = true; pause(); setPayload(null); setError(''); setEpoch(value => value + 1); };
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('pageshow', show); window.addEventListener('pagehide', hide);
+    window.addEventListener('online', online); window.addEventListener('hashchange', hash);
+    return () => {
+      stopped = true; pause(); document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('pageshow', show); window.removeEventListener('pagehide', hide);
+      window.removeEventListener('online', online); window.removeEventListener('hashchange', hash);
+    };
   }, [epoch]);
   if (typeof document === 'undefined') return null;
   return createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 6100, display: 'flex' }}>

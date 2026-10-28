@@ -95,11 +95,14 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   independentes. O serializer grava o documento uma vez e mantém o maior sufixo
   contíguo do histórico que caiba nos mesmos 20 passos/1.500.000 caracteres,
   sem truncar o documento atual. [Provas e limites locais](../../operations/performance-lists-memory-local-2026-10-25.md).
-- O estúdio compartilhado web é importado após a autorização do documento.
-  Falha do chunk usa o estado existente de indisponibilidade e permite nova
-  tentativa; respostas após perda de acesso/desmontagem não montam o estúdio.
-  Modo de leitura e renderer nativo permanecem preservados.
-  [Startup e validação local da segunda rodada](../../operations/performance-global-startup-round2-local-2026-10-24.md).
+- Na implementação atual, `visual-tech.tsx` e `SharedCourtScreen.web.tsx` usam
+  importações diretas; no link, a primeira montagem aguarda a leitura autorizada.
+  O relato de importação tardia de 24/10 permanece histórico.
+- Retomada web: uma falha transitória de revalidação preserva o mesmo player,
+  etapa, câmera e ajustes em memória. Hash novo ou link inválido/revogado
+  removem o conteúdo; polling fica suspenso em segundo plano. A reprodução
+  pausa no quadro atual e o renderer redesenha após visibilidade/contexto GPU.
+  [Contrato e limites locais](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md#retomada-após-tela-bloqueada-ou-segundo-plano--correção-local).
 - `TrainingPlan.pedagogy.blocks` é referência semântica; campos legados de
   aquecimento/principal/volta à calma conservam compatibilidade de apresentação.
 - Seleção de catálogo segue contexto de turma, ciclo, semana, aula e restrições;
@@ -494,3 +497,7 @@ de release e CI. O smoke local desta ampliação não gravou a jogada no backend
 Release da quadra em 27/10: build verificado e 697 suítes/4761 testes
 Jest aprovados, com smoke autenticado na 8081 e agenda preservada. Push de
 produção somente para main; CI/deploy remoto precisam de confirmação própria.
+
+Retomada web: pacote validado para publicação com 698 suítes/4772 testes
+Jest e build verificado. Eventos de suspensão/rede/GPU simulados; confirmação
+em celular físico pendente por falta de aparelho conectado. Entrega via main.

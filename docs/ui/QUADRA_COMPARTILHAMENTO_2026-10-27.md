@@ -11,7 +11,9 @@ ao copiar novamente, sem republicar a jogada. O visualizador abre `/court/shared
 sem colocar o código na query de navegação. Qualquer pessoa com o link pode ler
 a cópia publicada. O servidor guarda somente o hash do código. Gerar outro link
 substitui o código anterior; revogar impede novas leituras. O visualizador aberto
-reconfere o acesso a cada 60 segundos e ao retornar à aba. Uma cópia já recebida
+reconfere o acesso a cada 60 segundos em primeiro plano, ao retornar à aba e
+na reconexão. Uma falha temporária preserva apenas a cópia já recebida; resposta
+definitiva de invalidez/revogação remove o conteúdo. Uma cópia já recebida
 por alguém não pode ser recolhida do dispositivo por revogação.
 
 Cada publicação registra uma cópia da jogada atual, sem alterar o documento,
@@ -170,3 +172,29 @@ primeira renderização. Preserva a cópia publicada e não escreve no backend.
 Jogadas fora desse formato permanecem intactas. Regressão usa payload legado
 serializado para compartilhamento e verifica seis etapas desde a abertura,
 mesmas bases após Ataque/Recepção e origem imutável. Publicação pendente.
+
+## Retomada após tela bloqueada ou segundo plano — correção local
+
+Correção local em 27/10/2026: a revalidação deixava o payload nulo em qualquer
+falha de rede/timeout, desmontando o player e descartando a visualização. Agora
+a mesma instância permanece durante falhas transitórias. Visibilidade, pageshow
+e online retomam a leitura sem sobreposição; ocultar/pagehide abortam e destacam
+a solicitação anterior. Respostas obsoletas não alteram uma nova solicitação ou
+outro link. Invalidez/revogação confirmadas ainda removem o conteúdo.
+
+Estúdio e prévia pausam o relógio ao ocultar a página, preservando etapa,
+progresso, velocidade, câmera, zoom e ajustes temporários; o Play manual continua
+do ponto pausado. A vista 3D redesenha a mesma cena após retomada ou restauração
+do contexto WebGL, sem recriar o documento. Sem cache persistente de payload ou
+código do link. Descarte completo/recarregamento da aba pelo sistema continua
+distinto de suspensão; esta revisão conserva o estado da instância viva.
+
+Validação local: 14 testes Jest de revalidação/retomada e 5 testes Node do ciclo
+de renderização, tipos, escopo e ESLint focado aprovados. Eventos de suspensão,
+timeout, rede e perda/restauração gráfica foram simulados nos testes; navegador
+local conferiu montagem e controles. Celular físico não foi exercitado. Agenda
+preservada e 8081 sincronizada. Validação completa para publicação aprovada:
+698 suítes/4772 testes Jest, runtime 3D, SQL isolado, tipos, lint sem
+erros/avisos, escopo, arquitetura e export web. Entrega autorizada via main;
+confirmação remota do CI/deploy permanece separada. Sem aparelho físico conectado
+para confirmar bloqueio de tela no hardware nesta revisão.

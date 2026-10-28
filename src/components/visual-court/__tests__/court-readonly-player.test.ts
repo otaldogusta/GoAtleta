@@ -1,5 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { Platform } from 'react-native';
 import { CourtReadOnlyPlayer } from '../CourtReadOnlyPlayer';
 import { CourtWorkspaceView } from '../CourtWorkspaceView';
 import { newCourtBoard, duplicateStep, upgradeCourtEditor } from '../../../core/visual-court-editor';
@@ -66,6 +67,90 @@ it('keeps playback advancing when zooming the 3D view without a pan button or sh
     expect(JSON.stringify(payload)).toBe(original);
   } finally {
     if (tree) act(() => tree.unmount());
+    jest.useRealTimers();
+  }
+});
+
+it.each(['visibilitychange', 'pagehide', 'hidden-tick'] as const)('pauses at the viewed position on %s and only continues after manual Play', async event => {
+  jest.useFakeTimers();
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS');
+  const names = ['document', 'window'] as const;
+  const descriptors = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+  const eventHost = () => {
+    const handlers = new Map<string, Set<() => void>>();
+    return {
+      handlers,
+      addEventListener: (name: string, handler: () => void) => { if (!handlers.has(name)) handlers.set(name, new Set()); handlers.get(name)!.add(handler); },
+      removeEventListener: (name: string, handler: () => void) => { handlers.get(name)?.delete(handler); },
+      dispatch: (name: string) => { [...(handlers.get(name) ?? [])].forEach(handler => handler()); },
+    };
+  };
+  const doc = { ...eventHost(), visibilityState: 'visible', getElementById: () => null };
+  const win = { ...eventHost(), location: { href: 'http://localhost:8081/court/shared' }, history: { state: null, replaceState: jest.fn() } };
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: doc });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: win });
+  const intervals = jest.spyOn(globalThis, 'setInterval');
+  const clear = jest.spyOn(globalThis, 'clearInterval');
+  const payload = duplicateStep(newCourtBoard(), 0).payload, original = JSON.stringify(payload);
+  let tree!: TestRenderer.ReactTestRenderer;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(CourtReadOnlyPlayer, { payload, onClose: () => {} })); });
+    const transport = () => tree.root.findByType('Transport' as never);
+    const surface = () => tree.root.findByType('Perspective' as never);
+    act(() => tree.root.findByType('Gallery' as never).props.onSelect(1));
+    act(() => tree.root.findByType('Settings' as never).props.onCameraView('side'));
+    act(() => tree.root.findByProps({ label: 'Ampliar' }).props.onPress());
+    act(() => transport().props.onSpeed(1.5));
+    act(() => transport().props.onSeek(.2));
+    act(() => transport().props.onPlay());
+    act(() => jest.advanceTimersByTime(64));
+    const before = transport().props.progress;
+    expect(before).toBeGreaterThan(.2);
+    const call = intervals.mock.calls.findIndex(([, delay]) => delay === 32);
+    const queuedTick = intervals.mock.calls[call][0] as () => void;
+    const timer = intervals.mock.results[call].value;
+    if (event === 'pagehide') act(() => win.dispatch('pagehide'));
+    else {
+      doc.visibilityState = 'hidden';
+      if (event === 'visibilitychange') act(() => doc.dispatch('visibilitychange'));
+      else {
+        jest.setSystemTime(Date.now() + 60000);
+        act(() => queuedTick());
+      }
+    }
+    expect(transport().props.playing).toBe(false);
+    expect(clear).toHaveBeenCalledWith(timer);
+    act(() => { jest.advanceTimersByTime(60000); queuedTick(); });
+    doc.visibilityState = 'visible';
+    act(() => { doc.dispatch('visibilitychange'); win.dispatch('pageshow'); queuedTick(); });
+    expect(transport().props.playing).toBe(false);
+    expect(transport().props.progress).toBe(before);
+    expect(transport().props.speed).toBe(1.5);
+    expect(surface().props).toMatchObject({ stepIndex: 1, cameraView: 'side', zoom: 1.25 });
+    expect(JSON.stringify(payload)).toBe(original);
+    expect(doc.handlers.get('visibilitychange')?.size).toBe(0);
+    expect(win.handlers.get('pagehide')?.size).toBe(0);
+    act(() => transport().props.onPlay());
+    act(() => jest.advanceTimersByTime(64));
+    expect(transport().props.playing).toBe(true);
+    expect(transport().props.progress).toBeGreaterThan(before);
+    expect(transport().props.progress).toBeLessThan(1);
+    const resumedTimer = intervals.mock.results.at(-1)!.value;
+    act(() => tree.unmount());
+    expect(clear).toHaveBeenCalledWith(resumedTimer);
+    expect(doc.handlers.get('visibilitychange')?.size).toBe(0);
+    expect(win.handlers.get('pagehide')?.size).toBe(0);
+    tree = undefined as unknown as TestRenderer.ReactTestRenderer;
+  } finally {
+    if (tree) act(() => tree.unmount());
+    names.forEach((name, index) => {
+      const descriptor = descriptors[index];
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+    if (platform) Object.defineProperty(Platform, 'OS', platform);
+    jest.restoreAllMocks();
     jest.useRealTimers();
   }
 });

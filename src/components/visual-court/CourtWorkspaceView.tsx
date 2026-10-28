@@ -300,10 +300,21 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const setActorMeta = (changes: { team?: "A" | "B"; locked?: boolean; studentId?: string }) => { if (actor) metadata({ actorMeta: { ...payload.editor!.actorMeta, [actor.id]: { ...payload.editor!.actorMeta[actor.id], ...changes } } }); };
   useEffect(() => {
     if (!playing) return;
+    let active = true;
+    const web = Platform.OS === "web" && typeof document !== "undefined" && typeof window !== "undefined";
     const duration = Math.max(450, step.durationMs / speed);
-    let start = Date.now() - (playhead.current >= 1 ? 0 : playhead.current) * duration;
+    const start = Date.now() - (playhead.current >= 1 ? 0 : playhead.current) * duration;
+    const pause = () => {
+      if (!active) return;
+      active = false;
+      clearInterval(timer);
+      setPlaying(false);
+    };
     const timer = setInterval(() => {
+      if (!active) return;
+      if (web && document.visibilityState === "hidden") { pause(); return; }
       const fraction = Math.min(1, (Date.now() - start) / duration);
+      playhead.current = fraction;
       setProgress(fraction);
       if (fraction >= 1) {
         setPlaying(false);
@@ -311,7 +322,19 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         setProgress(1);
       }
     }, 32);
-    return () => clearInterval(timer);
+    const visibility = () => { if (document.visibilityState === "hidden") pause(); };
+    if (web) {
+      document.addEventListener("visibilitychange", visibility);
+      window.addEventListener("pagehide", pause);
+    }
+    return () => {
+      active = false;
+      clearInterval(timer);
+      if (web) {
+        document.removeEventListener("visibilitychange", visibility);
+        window.removeEventListener("pagehide", pause);
+      }
+    };
   }, [playing, step.durationMs, speed]);
   const keyboard = useRef({ remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape });
   useEffect(() => { keyboard.current = { remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape }; });

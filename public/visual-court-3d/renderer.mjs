@@ -6,6 +6,7 @@ import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs
 import {renderPixelRatio,syncRendererResolution} from './renderer-resolution.mjs';
 import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs';
 import {simulationCameraDistance,resizedSimulationCameraDistance} from './renderer-camera-profile.mjs';
+import {bindRendererLifecycle} from './renderer-lifecycle.mjs';
 
 // This surface renders the parent editor's frame. It has no document, timeline,
 // presets, persistence or undo stack. Only camera and uncommitted gestures live here.
@@ -14,7 +15,7 @@ const canvas=document.querySelector('#scene'),labels=document.querySelector('#la
 const handleLayer=document.querySelector('#simulation-handles'),feedback=document.querySelector('#simulation-feedback');
 let token='',revision=0,active=true,packet=null,frame=null,pending=0,gesture=null,preview=null,lastAnchor=undefined;
 const scene=new THREE.Scene();scene.background=new THREE.Color('#09090f');
-let renderer;
+let renderer,lifecycle;
 function emit(type,detail={},gestureRevision=revision){
  parent.postMessage({channel:CHANNEL,version:VERSION,type,token,revision:gestureRevision,...detail},location.origin);
 }
@@ -36,7 +37,6 @@ function stopCameraMotion(){cameraMotion=null;cameraMotionTime=0;}
 document.addEventListener('pointerdown',stopCameraMotion,{capture:true});
 document.addEventListener('keydown',stopCameraMotion,{capture:true});
 reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches)stopCameraMotion();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelGesture();});
 const sphere=new THREE.SphereGeometry(1,16,12),actorMap=new Map(),drawingMap=new Map();
 const pickTargets=[],ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),ground=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 ray.params.Line.threshold=.16;
@@ -49,7 +49,7 @@ function line(points,color='#456397',dashed=false,parent=scene,opacity=1){
  const object=new THREE.Line(geometry,mat);if(dashed)object.computeLineDistances();parent.add(object);return object;
 }
 function dispose(root){const geometries=new Set(),materials=new Set();root.traverse(object=>{if(object.geometry)geometries.add(object.geometry);if(object.material)for(const mat of [].concat(object.material))materials.add(mat);});for(const geometry of geometries)if(geometry!==sphere)geometry.dispose();for(const mat of materials){if(mat.userData.ownTexture)mat.map?.dispose();mat.dispose();}root.removeFromParent();}
-function invalidate(){if(active&&renderer&&!pending)pending=requestAnimationFrame(render);}
+function invalidate(){if(active&&renderer&&!document.hidden&&!lifecycle?.isSuspended()&&!pending)pending=requestAnimationFrame(render);}
 
 const apron=mesh(new THREE.PlaneGeometry(18,28),material('#090c13'));apron.rotation.x=-Math.PI/2;
 const court=mesh(new THREE.PlaneGeometry(9,18),material('#0a1123'));court.rotation.x=-Math.PI/2;court.position.y=.005;
@@ -228,7 +228,7 @@ function applyView(view){
  elevation=view==='side'?.45:.3656;target.set(0,view==='orbit'?2.267:view==='front'?.55:.9,lastHalf?1.4:view==='orbit'?.893:.8);distance=(view==='front'?20.5:view==='orbit'?25.138:25)/lastZoom;fitCamera();
 }
 function resize(){
- if(!renderer)return;stopCameraMotion();const bounds=canvas.getBoundingClientRect(),resolution=syncRendererResolution(renderer,bounds.width||innerWidth,bounds.height||innerHeight,devicePixelRatio);camera.aspect=resolution.width/resolution.height;camera.updateProjectionMatrix();canvas.dataset.pixelRatio=String(resolution.pixelRatio);
+ if(!renderer||document.hidden||lifecycle?.isSuspended())return;stopCameraMotion();const bounds=canvas.getBoundingClientRect(),resolution=syncRendererResolution(renderer,bounds.width||innerWidth,bounds.height||innerHeight,devicePixelRatio);camera.aspect=resolution.width/resolution.height;camera.updateProjectionMatrix();canvas.dataset.pixelRatio=String(resolution.pixelRatio);
  const compact=innerWidth<600;
  if(frame?.simulation){distance=resizedSimulationCameraDistance(distance,frame.simulation.mode,cameraView,lastCompact,compact);updateCamera();}
  else if(Math.abs(camera.aspect-lastAspect)>.001){const oldFit=Math.max(1,1/lastAspect),newFit=Math.max(1,1/camera.aspect);distance*=newFit/oldFit;fitCamera();}else updateCamera();
@@ -242,7 +242,7 @@ function densityChanged(){watchDensity();resize();}
 watchDensity();resize();
 function project(point){const p=point.clone().project(camera);return {x:(p.x*.5+.5)*innerWidth,y:(-.5*p.y+.5)*innerHeight,visible:p.z>=-1&&p.z<=1&&Math.abs(p.x)<1.2&&Math.abs(p.y)<1.2};}
 function selectionAnchor(){const id=frame.selected[0],actor=actorMap.get(id),drawing=frame.drawings.find(d=>d.id===id);let point=null;if(actor?.group.visible)point=actor.group.position.clone().add(new THREE.Vector3(0,actor.height+.36,0));else if(drawing?.points[0]){point=vector(drawing.points[0]).add(new THREE.Vector3(0,.6,0));if(preview?.ids.includes(id)){point.x+=preview.delta.x*9;point.z+=preview.delta.y*18;}}const projected=point?project(point):null,next=projected?.visible?{x:Math.round(projected.x),y:Math.round(projected.y)}:null;if(lastAnchor===undefined||Boolean(next)!==Boolean(lastAnchor)||next&&lastAnchor&&(Math.abs(next.x-lastAnchor.x)>1||Math.abs(next.y-lastAnchor.y)>1)){lastAnchor=next;emit('selection-anchor',{anchor:next});}}
-function render(now){pending=0;if(!frame||!active||!renderer)return;
+function render(now){pending=0;if(!frame||!active||!renderer||document.hidden||lifecycle?.isSuspended())return;
  if(cameraMotion&&(reducedMotion.matches||document.hidden||now-cameraMotionTime>CAMERA_MOTION.maxSampleGapMs))stopCameraMotion();
  if(cameraMotion){
   const next=integrateCameraMotion({azimuth,elevation},cameraMotion,Math.max(0,now-cameraMotionTime));
@@ -322,3 +322,7 @@ window.addEventListener('message',event=>{
 });
 // Retries cover listener installation ordering; no document state is retained.
 let readyTries=0;const readyTimer=setInterval(()=>{if(token||++readyTries>30){clearInterval(readyTimer);return;}emit('ready');},200);emit('ready');
+lifecycle=bindRendererLifecycle({canvas,document,window,
+ onSuspend(){cancelGesture();if(pending){cancelAnimationFrame(pending);pending=0;}},
+ onResume(){if(renderer){if(active){resize();invalidate();}emit('ready');}},
+});
