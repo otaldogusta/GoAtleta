@@ -170,3 +170,13 @@ test("detail reads reuse the bounded link pagination without changing the full e
   expect(result?.classIds).toEqual(links.map(link => link.class_id));
   expect(result?.hasMyClass).toBe(true);
 });
+
+
+test("calendar overlap includes events starting before the visible month without relaxing organization scope", async () => {
+ installTransport([event(0)], []);
+ await listEvents({ ...params, overlap: true });
+ const request = urls.find(url => url.pathname.endsWith("/events"))!;
+ expect(request.searchParams.get("ends_at")).toBe(`gt.${params.fromIso}`);
+ expect(request.searchParams.getAll("starts_at")).toEqual([`lte.${params.toIso}`]);
+ expect(request.searchParams.get("organization_id")).toBe(`eq.${organizationId}`);
+});

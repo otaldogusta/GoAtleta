@@ -82,7 +82,7 @@ export const ROLE_RADIAL_ACTIONS: Record<AppRole, RadialAction[]> = {
   ],
   family: [],
   coord: [
-    { id: "event", label: "Criar evento", icon: "events", href: "/coord/events" },
+    { id: "event", label: "Agenda", icon: "calendar", href: "/coord/calendar" },
     { id: "communications", label: "Avisos", icon: "absenceNotices", href: "/coord/communications" },
     { id: "cycle", label: "Ciclos", icon: "periodization", href: "/coord/periodization" },
     { id: "finance", label: "Financeiro", icon: "payments", href: "/coord/finance" },

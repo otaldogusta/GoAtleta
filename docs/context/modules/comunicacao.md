@@ -50,6 +50,13 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 
 ## Decisões atuais e limites
 
+- A Agenda usa coluna compacta, pontos nos dias e pesquisa no mês/unidade já autorizado.
+  Integra consulta, criação e edição de eventos por data. Gestão conserva
+  o nível administrativo; guarda de rascunho, contexto e regulamentos permanece
+  explícita. Rotas de listagem antigas redirecionam à Agenda. O calendário usa
+  sobreposição de intervalo sem ampliar organização/RLS; outros consumidores
+  conservam o filtro por início. [Contrato e evidência local](../../ui/AGENDA_EVENTOS_INTEGRADOS.md).
+
 - A [leitura composta de eventos](../../../src/api/events.ts) pagina eventos e
   vínculos com ordenação determinística até página vazia. O filtro de vínculos usa
   lotes de 50 IDs, evitando URLs excessivas; falha ou mudança de contexto rejeita

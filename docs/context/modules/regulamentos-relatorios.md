@@ -25,10 +25,16 @@ de torneio, início do professor/coordenação ou relatórios.
 | [HomeProfessor.tsx](../../../src/screens/home/HomeProfessor.tsx), [HomeAdmin.tsx](../../../src/screens/home/HomeAdmin.tsx) | Início, aulas e ações; administrador reutiliza `HomeProfessorScreen` com `adminMode`. |
 | [calendar.tsx](../../../app/calendar.tsx) | Calendário do professor com turmas, planos, eventos e pausas. |
 | [agenda/index.tsx](../../../app/agenda/index.tsx), [student/agenda.tsx](../../../app/student/agenda.tsx) | Agenda por horários de turma, exportação ICS e alias do aluno. |
-| [events/index.tsx](../../../app/events/index.tsx), [api/events.ts](../../../src/api/events.ts) | Eventos institucionais, vínculos de turmas e verificação de regras para torneios. |
+| [CalendarEventEditor.tsx](../../../src/screens/calendar/CalendarEventEditor.tsx), [api/events.ts](../../../src/api/events.ts) | Eventos na Agenda, vínculos de turmas e verificação de regras para torneios; /events permanece como alias. |
 | [holiday-decisions.ts](../../../src/api/holiday-decisions.ts) | Pausas `no_training`, leitura da decisão por data e RPC `decide_organization_holiday`. |
 
 ## Contratos a preservar
+
+- A Agenda é a entrada única de eventos. O editor explícito abre na data selecionada,
+  mantendo mês/unidade/lista ao fechar; detalhe e edição podem ocorrer no calendário.
+  Aliases antigos e links de detalhe são preservados. Regras de torneios, gestão
+  administrativa e leitura restrita de atletas continuam existentes.
+  [Composição e validação local](../../ui/AGENDA_EVENTOS_INTEGRADOS.md).
 
 - Relatórios por intervalo e chamadas globais leem conjuntos completos sob cap
   do servidor. Chamada usa cursor data/ID e índice aditivo, validado só em backend
@@ -59,18 +65,33 @@ de torneio, início do professor/coordenação ou relatórios.
 - Eventos e decisões de feriado conservam organização e recorte de data; o calendário
   do professor exclui aulas com pausa explícita ao compor o dia. O mês compacto
   seleciona uma data e exibe sua agenda completa por horário; filtros afetam
-  tanto os marcadores quanto a lista. A pedido do usuário, este calendário usa
-  duas colunas a partir de 960 px. Dias passados ficam atenuados, mantendo a
+  tanto os marcadores quanto a lista. No ajuste Samsung de 26/10, calendário e
+  lista passaram a uma coluna em todas as larguras, substituindo as duas colunas.
+  A semana começa no domingo; o mês usa suas 4–6 semanas reais e pontos por dia.
+  O topo móvel foi unificado; coluna de até 440px, seletor direto de mês/ano
+  e barra rápida de 48px conservam a densidade sem esticar em telas largas.
+  Dias passados ficam atenuados, mantendo a
   seleção legível. Unidade usa seletor ancorado com Todas como padrão; retorno
   de turma conserva a unidade escolhida. No celular, `CalendarWeekPager` permite
   rolagem horizontal com encaixe entre as semanas da grade, mantendo o dia da
-  semana selecionado; o ícone de calendário alterna mês/semana.
-  Calendário e eventos ficam no fluxo da página, sem modal/portal ou fundo escuro.
+  semana selecionado; o título abre o seletor de mês/ano.
+  Calendário e lista diária ficam no fluxo da página, sem modal/portal ou fundo escuro.
   `useEventSheetGesture` compartilha o progresso entre `CalendarFold` e a lista:
   subir recolhe o mês até a semana selecionada; descer no início da lista expande
   o mês. A altura liberada passa para os eventos durante o próprio arrasto.
   O encaixe usa posição/velocidade; deslocamento excedente rola a lista.
-  A barrinha só clareia no hover/pressionamento; roda/trackpad acumulam distância.
+  A barrinha só clareia no hover/pressionamento; roda/trackpad acumulam distância
+  também no desktop, sobre grid e lista. O topo não duplica um botão de dobra;
+  Enter/Espaço na grade conservam a alternativa de teclado. Na web, mês e
+  paginador semanal permanecem montados por todo o gesto/encaixe; o mês traduzido
+  cobre a semana enquanto o paginador mede/alinha, evitando troca com quadro vazio.
+  O adapter controla um único encaixe de 180ms; novo gesto cancela timer/conclusão
+  anterior. Wheel aguarda 350ms de pausa, e endpoints habilitam a lista imediatamente.
+  Na web, ganho 0,5 na dobra e 1 na lista transferem a sobra nos dois sentidos
+  sem novo gesto; medidas atuais limitam a rolagem, e abertura explícita normaliza
+  a lista. [Referência e validação de gestos em 27/10](../../ui/AGENDA_GESTOS_REFERENCIA_2026-10-27.md).
+  A leitura dos planos
+  mostra indicador ao lado do ano sem acrescentar faixa ou deslocar a agenda.
   Referência observada na Agenda Samsung via ADB em 23/10. Movimento reduzido
   elimina a animação de encaixe, preservando o acompanhamento do gesto.
   Testes cobrem contração intermediária de 30/60 px, retenção dos sete eventos

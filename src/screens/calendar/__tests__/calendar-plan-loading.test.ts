@@ -8,7 +8,7 @@ import { getClasses, getLatestTrainingPlanByClass, getTrainingPlans, saveTrainin
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { RootWebShell } from "../../../ui/RootWebShell";
 
-let mockOrganization = { id: "org-a" };
+let mockOrganization: { id: string; role_level?: number } = { id: "org-a" };
 let mockGeneration = 1;
 let mockParams: Record<string, string> = { targetDate: "2026-10-23", targetClassId: "class-a" };
 let mockPathname = "/prof/calendar";
@@ -27,6 +27,14 @@ jest.mock("../../../db/training", () => ({ getCalendarTrainingPlanApplications: 
 jest.mock("../../../db/seed", () => ({ getClasses: jest.fn(), getTrainingPlans: jest.fn(), getLatestTrainingPlanByClass: jest.fn(), saveTrainingPlan: jest.fn() }));
 jest.mock("../../../api/holiday-decisions", () => ({ listCalendarPauses: async () => [] }));
 jest.mock("../../../api/events", () => ({ listEvents: async () => [] }));
+// Substitute only the async chunk transport; exercise the real calendar action/date flow.
+jest.mock("react", () => {
+ const runtime = jest.requireActual("react");
+ return { ...runtime, lazy: (factory: () => Promise<unknown>) => {
+  if (!String(factory).includes("CalendarEventEditor")) return runtime.lazy(factory);
+  return ({ date }: { date: string }) => runtime.createElement(jest.requireActual("react-native").Text, null, `Editor ${date}`);
+ } };
+});
 jest.mock("../../../observability/perf", () => ({ markRender: () => undefined, measureAsync: (_name: string, load: () => Promise<unknown>) => load() }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: mockColors }) }));
 jest.mock("../../../ui/save-toast", () => ({ useSaveToast: () => ({ showSaveToast: mockToast }) }));
@@ -38,9 +46,10 @@ jest.mock("../../../ui/ModalSheet", () => ({ ModalSheet: ({ visible, children }:
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View, useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }) }));
 jest.mock("../../../components/ui/ScreenPageHeader", () => ({ ScreenPageHeader: ({ children }: { children: React.ReactNode }) => children }));
 jest.mock("../../../components/ui/ScreenLoadingState", () => ({ ScreenLoadingState: () => null }));
-jest.mock("../CalendarFold", () => ({ CalendarFold: () => null }));
+jest.mock("../CalendarFold", () => ({ CalendarFold: ({ rows }: { rows: React.ReactNode[] }) => jest.requireActual("react").createElement(jest.requireActual("react").Fragment, null, rows) }));
 jest.mock("../NativeCalendarFold", () => ({ NativeCalendarFold: () => null }));
-jest.mock("../CalendarWeekPager", () => ({ CalendarWeekPager: () => null }));
+// Pager gestures are exercised by CalendarWeekPager.test; retain cells for route-state tests.
+jest.mock("../CalendarWeekPager", () => ({ CalendarWeekPager: ({ rows }: { rows: React.ReactNode[] }) => jest.requireActual("react").createElement(jest.requireActual("react").Fragment, null, rows) }));
 jest.mock("../CalendarUnitSelect", () => {
   const runtimeReact = jest.requireActual("react");
   const { Pressable, Text } = jest.requireActual("react-native");
@@ -48,9 +57,9 @@ jest.mock("../CalendarUnitSelect", () => {
 });
 jest.mock("../CalendarEventSheet", () => {
   const runtimeReact = jest.requireActual("react");
-  return { CalendarEventSheet: ({ header, children }: { header: React.ReactNode; children: React.ReactNode }) => runtimeReact.createElement(runtimeReact.Fragment, null, header, children) };
+  return { CalendarEventSheet: ({ header, children, footer }: { header: React.ReactNode; children: React.ReactNode; footer: React.ReactNode }) => runtimeReact.createElement(runtimeReact.Fragment, null, header, children, footer) };
 });
-jest.mock("../useEventSheetGesture", () => ({ useEventSheetGesture: () => ({ interacting: false, progress: 0, nativeMotion: null }) }));
+jest.mock("../useEventSheetGesture", () => ({ useCalendarWheel: () => undefined, useEventSheetGesture: () => ({ interacting: false, progress: 0, nativeMotion: null, wheel: jest.fn() }) }));
 
 const classGroup = (id: string, name: string, unit = "Centro", ageBand = "12-14"): ClassGroup => ({
   id, name, unit, ageBand, organizationId: "org-a", startTime: "14:00", daysOfWeek: [5], durationMinutes: 60, createdAt: "2020-01-01", gender: "misto", colorKey: "green",
@@ -85,7 +94,7 @@ test("starts the small grid read independently of classes, and does not load ful
   jest.mocked(getClasses).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
   const view = render(React.createElement(CalendarScreen));
   await flush();
-  expect(getCalendarTrainingPlanApplications).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-a", startDate: "2026-09-28", endDate: "2026-11-08" }));
+  expect(getCalendarTrainingPlanApplications).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-a", startDate: "2026-09-27", endDate: "2026-11-07" }));
   expect(getTrainingPlans).not.toHaveBeenCalled();
   expect(getTrainingPlanSummaries).not.toHaveBeenCalled();
   expect(getTrainingPlanById).not.toHaveBeenCalled();
@@ -93,7 +102,7 @@ test("starts the small grid read independently of classes, and does not load ful
   expect(view.getByText("Turma Alfa")).toBeTruthy();
   fireEvent.press(view.getByLabelText("Próximo mês"));
   await flush();
-  expect(jest.mocked(getCalendarTrainingPlanApplications).mock.calls.at(-1)![0]).toMatchObject({ startDate: "2026-10-26", endDate: "2026-12-06" });
+  expect(jest.mocked(getCalendarTrainingPlanApplications).mock.calls.at(-1)![0]).toMatchObject({ startDate: "2026-11-01", endDate: "2026-12-12" });
 }, 20_000);
 
 test("web agenda carries the public focused calendar leaf key into the class origin context",async()=>{
@@ -269,4 +278,37 @@ test("a late previous-workspace response cannot replace current classes or plans
   await act(async () => release(classes));
   expect(view.queryByText("Turma Alfa")).toBeNull();
   expect(view.getByText("Turma Beta")).toBeTruthy();
+});
+
+
+test("the day action opens the editor in place on the selected date for administrators", async () => {
+ mockOrganization = { id: "org-a", role_level: 50 };
+ const view = render(React.createElement(CalendarScreen)); await flush();
+ fireEvent.press(view.getByLabelText("Adicionar evento rápido")); await flush();
+ expect(view.getByText(`Editor ${mockParams.targetDate}`)).toBeTruthy();
+ expect(mockCalendarPush).not.toHaveBeenCalled();
+});
+
+test("keeps a quick event draft mounted while filtering the month", async () => {
+  mockOrganization = { id: "org-a", role_level: 50 };
+  const view = render(React.createElement(CalendarScreen));
+  await flush();
+  fireEvent.press(view.getByLabelText("Adicionar evento rápido"));
+  expect(view.getByText("Editor 2026-10-23")).toBeTruthy();
+  fireEvent.press(view.getByLabelText("Pesquisar na agenda"));
+  fireEvent.changeText(view.getByLabelText("Pesquisar neste mês"), "Alfa");
+  expect(view.getByText("Editor 2026-10-23")).toBeTruthy();
+});
+
+test("keeps the calendar visible with a compact indicator during the plan read", async () => {
+  let release!: (value: []) => void;
+  jest.mocked(getCalendarTrainingPlanApplications).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+  const view = render(React.createElement(CalendarScreen));
+  await flush();
+  expect(view.getByLabelText("Atualizando agenda")).toBeTruthy();
+  expect(view.getByText("Turma Alfa")).toBeTruthy();
+  expect(view.queryByText("Carregando planejamentos...")).toBeNull();
+  expect(view.queryByLabelText("Mostrar semana")).toBeNull();
+  await act(async () => release([]));
+  expect(view.queryByLabelText("Atualizando agenda")).toBeNull();
 });

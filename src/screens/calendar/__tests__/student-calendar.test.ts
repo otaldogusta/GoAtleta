@@ -15,12 +15,13 @@ jest.mock("../../../api/holiday-decisions", () => ({ listCalendarPauses: jest.fn
 jest.mock("../../../ui/ModalSheet", () => ({ ModalSheet: () => null }));
 jest.mock("../../../ui/save-toast", () => ({ useSaveToast: () => ({ showSaveToast: jest.fn() }) }));
 jest.mock("../../../ui/use-modal-card-style", () => ({ useModalCardStyle: () => ({}) }));
-jest.mock("../useEventSheetGesture", () => ({ useEventSheetGesture: () => ({ interacting: false, progress: { interpolate: () => 0 } }) }));
+jest.mock("../useEventSheetGesture", () => ({ useCalendarWheel: () => undefined, useEventSheetGesture: () => ({ interacting: false, progress: { interpolate: () => 0 } }) }));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: require("react-native").View, useSafeAreaInsets: () => ({ bottom: 0 }) }));
 jest.mock("../../../components/ui/ScreenPageHeader", () => ({ ScreenPageHeader: ({ children }: {children: React.ReactNode}) => children }));
 jest.mock("../NativeCalendarFold", () => ({ NativeCalendarFold: () => null }));
 jest.mock("../NativeCalendarEvents", () => ({ NativeCalendarEvents: () => null }));
+jest.mock("../CalendarWeekPager", () => ({ CalendarWeekPager: ({ rows, selectedRow }: { rows: React.ReactNode[]; selectedRow: number }) => jest.requireActual("react").createElement(jest.requireActual("react").Fragment, null, rows[selectedRow]) }));
 const linked = { id: "linked", name: "Treino vinculado", unit: "Quadra", daysOfWeek: [6], startTime: "13:30", durationMinutes: 60, colorKey: "blue" } as ClassGroup;
 beforeEach(() => jest.clearAllMocks());
 it("renders only supplied athlete classes without staff reads or management actions, even with apply URL params", async () => {
@@ -50,4 +51,16 @@ it("keeps the export month synchronized with calendar navigation", () => {
  const screen = render(React.createElement(CalendarScreen, { studentClasses: [], onMonthChange }));
  fireEvent.press(screen.getByLabelText("Próximo mês"));
  expect(onMonthChange.mock.calls.at(-1)?.[0]).toEqual(new Date(2026, 10, 1));
+});
+
+it("searches the visible month using only linked athlete rows and clears results", () => {
+ const screen = render(React.createElement(CalendarScreen, { studentClasses: [linked] }));
+ fireEvent.press(screen.getByLabelText("Pesquisar na agenda"));
+ fireEvent.changeText(screen.getByLabelText("Pesquisar neste mês"), "VINCULADO");
+ expect(screen.getByLabelText("2026-10-03, 13:30 - 14:30, Treino vinculado")).toBeTruthy();
+ fireEvent.changeText(screen.getByLabelText("Pesquisar neste mês"), "inexistente");
+ expect(screen.getByText("Nenhum resultado neste mês.")).toBeTruthy();
+ fireEvent.press(screen.getByLabelText("Fechar pesquisa"));
+ expect(screen.getByLabelText("13:30 - 14:30, Treino vinculado")).toBeTruthy();
+ expect(listEvents).not.toHaveBeenCalled(); expect(getClasses).not.toHaveBeenCalled();
 });

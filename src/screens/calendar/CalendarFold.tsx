@@ -5,8 +5,9 @@ import { useAppTheme } from "../../ui/app-theme";
 import { foldCalendarAfterDrag } from "./application/calendar-selection";
 import { NativeCalendarFold } from "./NativeCalendarFold";
 import type { NativeCalendarMotion } from "./useNativeCalendarGesture";
+import { CalendarWeekPager } from "./CalendarWeekPager";
 
-export function useCalendarFoldMotion(collapsed: boolean, onChange: (collapsed: boolean) => void, rowCount: number, dragDistance?: number, canDrag?: (dy: number) => boolean) {
+export function useCalendarFoldMotion(collapsed: boolean, onChange: (collapsed: boolean) => void, rowCount: number, dragDistance?: number, canDrag?: (dy: number) => boolean, animateStateChanges = true) {
   const [progress] = useState(() => new Animated.Value(collapsed ? 1 : 0));
   const [reduced, setReduced] = useState(true);
   const rowHeight = 59;
@@ -17,10 +18,11 @@ export function useCalendarFoldMotion(collapsed: boolean, onChange: (collapsed: 
     return () => { active = false; subscription.remove(); };
   }, []);
   useEffect(() => {
+    if (!animateStateChanges) return;
     const animation = Animated.timing(progress, { toValue: collapsed ? 1 : 0, duration: reduced ? 0 : 180, useNativeDriver: false });
     animation.start();
     return () => animation.stop();
-  }, [collapsed, progress, reduced]);
+  }, [collapsed, progress, reduced, animateStateChanges]);
   const responder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (canDrag?.(gesture.dy) ?? true),
     onPanResponderMove: (_, gesture) => {
@@ -63,16 +65,34 @@ export function useCalendarFoldMotion(collapsed: boolean, onChange: (collapsed: 
   return { progress, reduced, panHandlers: responder.panHandlers, mouseHandlers, consumeDragClick: () => { const ignore = ignoreClick.current; ignoreClick.current = false; return ignore; } };
 }
 
-export function CalendarFold({ rows, selectedRow, collapsed, progress, rowHeight = 59, nativeMotion }: {
+type CalendarFoldProps = {
   rows: ReactNode[]; selectedRow: number; collapsed: boolean; progress: Animated.Value; rowHeight?: number; nativeMotion?: NativeCalendarMotion | null;
-}) {
-  if (nativeMotion) return <NativeCalendarFold rows={rows} selectedRow={selectedRow} rowHeight={rowHeight} motion={nativeMotion} />;
-  return (
+  onWeekChange?: (index: number) => void;
+  weekActive?: boolean;
+};
 
-    <Animated.View style={{ height: progress.interpolate({ inputRange: [0, 1], outputRange: [rows.length * rowHeight, rowHeight] }), overflow: "hidden" }}>
-      <Animated.View style={{ transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -Math.max(0, selectedRow) * rowHeight] }) }] }}>
-        {rows.map((row, index) => <View key={index} accessibilityElementsHidden={collapsed && index !== selectedRow} importantForAccessibility={collapsed && index !== selectedRow ? "no-hide-descendants" : "auto"} style={{ height: rowHeight, ...(Platform.OS === "web" && collapsed && index !== selectedRow ? { visibility: "hidden" as const } : {}) }}>{row}</View>)}
+export function CalendarFold(props: CalendarFoldProps) {
+  if (props.nativeMotion) return <NativeCalendarFold rows={props.rows} selectedRow={props.selectedRow} rowHeight={props.rowHeight ?? 59} motion={props.nativeMotion} onWeekChange={props.onWeekChange} weekActive={props.weekActive} />;
+  return <WebCalendarFold {...props} />;
+}
+
+function WebCalendarFold({ rows, selectedRow, collapsed, progress, rowHeight = 59, onWeekChange, weekActive = false }: CalendarFoldProps) {
+  const [pagerReady, setPagerReady] = useState(false);
+  const hasPager = Boolean(onWeekChange);
+  const pagerVisible = hasPager && pagerReady;
+  const pagerInteractive = pagerVisible && weekActive;
+  // Both opacities use the same progress value. Keep the translated month as
+  // the fallback until the pager has a measured width and selected-week offset.
+  const monthOpacity = pagerVisible ? progress.interpolate({ inputRange: [0, 0.999999, 1], outputRange: [1, 1, 0], extrapolate: "clamp" }) : 1;
+  const weekOpacity = pagerVisible ? progress.interpolate({ inputRange: [0, 0.999999, 1], outputRange: [0, 0, 1], extrapolate: "clamp" }) : 0;
+  return (
+    <Animated.View testID="calendar-web-viewport" style={{ height: progress.interpolate({ inputRange: [0, 1], outputRange: [rows.length * rowHeight, rowHeight] }), overflow: "hidden" }}>
+      <Animated.View testID="calendar-web-month" pointerEvents={pagerInteractive ? "none" : "auto"} accessibilityElementsHidden={pagerInteractive} importantForAccessibility={pagerInteractive ? "no-hide-descendants" : "auto"} {...(Platform.OS === "web" ? { inert: pagerInteractive } : {})} style={{ opacity: monthOpacity, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -Math.max(0, selectedRow) * rowHeight] }) }] }}>
+        {rows.map((row, index) => <View key={index} accessibilityElementsHidden={collapsed && !hasPager && index !== selectedRow} importantForAccessibility={collapsed && !hasPager && index !== selectedRow ? "no-hide-descendants" : "auto"} style={{ height: rowHeight }}>{row}</View>)}
       </Animated.View>
+      {onWeekChange ? <Animated.View testID="calendar-web-week" pointerEvents={pagerInteractive ? "auto" : "none"} accessibilityElementsHidden={!pagerInteractive} importantForAccessibility={!pagerInteractive ? "no-hide-descendants" : "auto"} {...(Platform.OS === "web" ? { inert: !pagerInteractive } : {})} style={{ position: "absolute", top: 0, left: 0, right: 0, height: rowHeight, opacity: weekOpacity }}>
+        <CalendarWeekPager rows={rows} selectedRow={selectedRow} rowHeight={rowHeight} onChange={onWeekChange} onReady={setPagerReady} />
+      </Animated.View> : null}
     </Animated.View>
   );
 }

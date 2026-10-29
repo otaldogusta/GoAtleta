@@ -1570,7 +1570,7 @@ export function HomeProfessorScreen({
       [
         { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "management" },
         { id: "planning", label: "Planejamento", route: "/coord/planning", icon: "planning" },
-        { id: "events", label: "Eventos", route: "/coord/events", icon: "events" },
+        { id: "calendar", label: "Agenda", route: "/coord/calendar", icon: "calendar" },
         { id: "nfc", label: "Presença NFC", route: "/coord/nfc-attendance", icon: "nfc" },
       ] as const,
     []

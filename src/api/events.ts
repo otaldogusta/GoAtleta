@@ -201,10 +201,13 @@ export async function listEvents(params: {
   userId?: string;
   sport?: EventSport;
   eventType?: EventType;
+  overlap?: boolean;
 }) {
   const filters = [
     `organization_id=eq.${encodeURIComponent(params.organizationId)}`,
-    makeWindowFilter(params.fromIso, params.toIso),
+    params.overlap
+      ? `ends_at=gt.${encodeURIComponent(params.fromIso)}&starts_at=lte.${encodeURIComponent(params.toIso)}`
+      : makeWindowFilter(params.fromIso, params.toIso),
   ];
 
   if (params.sport) {

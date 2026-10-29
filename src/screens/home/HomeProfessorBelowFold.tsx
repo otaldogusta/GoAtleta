@@ -171,12 +171,6 @@ function HomeProfessorBelowFoldBase({
         route: "/coord/finance",
       },
       {
-        label: "Eventos",
-        description: "Criar e gerenciar eventos",
-        icon: "events",
-        route: "/coord/events",
-      },
-      {
         label: "Presença NFC",
         description: "Registrar por UID",
         icon: "nfc",

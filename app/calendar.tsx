@@ -1,8 +1,11 @@
+import { requestPendingEditsNavigation } from "../src/navigation/pending-edits-navigation";
+import type { EventDraft } from "../src/screens/calendar/application/event-draft";
+import { eventCalendarDates } from "../src/screens/calendar/application/event-draft";
 import type { ReactNode } from "react";
+import { CalendarMonthPicker } from "../src/screens/calendar/CalendarMonthPicker";
 import { CalendarUnitSelect } from "../src/screens/calendar/CalendarUnitSelect";
-import { CalendarWeekPager } from "../src/screens/calendar/CalendarWeekPager";
 import { CalendarEventSheet } from "../src/screens/calendar/CalendarEventSheet";
-import { useEventSheetGesture } from "../src/screens/calendar/useEventSheetGesture";
+import { useCalendarWheel, useEventSheetGesture } from "../src/screens/calendar/useEventSheetGesture";
 import { NativeCalendarFold } from "../src/screens/calendar/NativeCalendarFold";
 import { CalendarFold } from "../src/screens/calendar/CalendarFold";
 import { selectCalendarDay } from "../src/screens/calendar/application/calendar-selection";
@@ -11,6 +14,8 @@ import { isPaused, type CalendarPause } from "../src/core/holidays";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useLocalSearchParams, useNavigationContainerRef, usePathname, useRoute, useRouter } from "expo-router";
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -19,11 +24,12 @@ import {
   useState
 } from "react";
 import {
-  FlatList,
-  Platform,
+  ActivityIndicator,
+  FlatList,  Platform,
   StyleSheet,
   ScrollView,
   Text,
+  TextInput,
   View,
   useWindowDimensions
 } from "react-native";
@@ -57,12 +63,14 @@ import { useSaveToast } from "../src/ui/save-toast";
 import { toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
+const CalendarEventEditor = lazy(() => import("../src/screens/calendar/CalendarEventEditor").then(module => ({ default: module.CalendarEventEditor })));
+
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
 const startOfWeek = (date: Date) => {
   const copy = new Date(date);
   const day = copy.getDay(); // 0=Sun, 1=Mon
-  const diff = day === 0 ? -6 : 1 - day;
+  const diff = -day;
   copy.setDate(copy.getDate() + diff);
   copy.setHours(0, 0, 0, 0);
   return copy;
@@ -73,14 +81,6 @@ const formatDate = (date: Date) =>
 
 const formatIsoDate = (date: Date) =>
   `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-
-const formatMonthTitle = (date: Date) => {
-  const label = date.toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-};
 
 const parseTime = (value: string) => {
   const parts = value.split(":");
@@ -118,7 +118,7 @@ const formatEventTimeLabel = (event: EventListItem) => {
 };
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
-const MONTH_WEEKDAY_HEADERS = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
+const MONTH_WEEKDAY_HEADERS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"] as const;
 const MONTH_GRID_DAY_COUNT = 42;
 
 const eventTypeLabel: Record<EventListItem["eventType"], string> = {
@@ -233,6 +233,13 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
       : "";
   const openApply =
     !studentMode && typeof params.openApply === "string" ? params.openApply === "1" : false;
+  const canManageEvents = !studentMode && (activeOrganization?.role_level ?? 0) >= 50;
+  const [eventEditor, setEventEditor] = useState<{ scope: string; date: string; event?: EventListItem; seed?: EventDraft; resumeId?: string } | null>(null);
+  const [quickAdd, setQuickAdd] = useState<{ scope: string; date: string } | null>(null);
+  const [eventRevision, setEventRevision] = useState(0);
+  const [monthPickerScope, setMonthPickerScope] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [classSnapshot, setClassSnapshot] = useState<ScopedCalendarRead<ClassGroup>>({ scope: "", rows: [], error: null });
   const classes = useMemo(() => studentClasses ?? (classSnapshot.scope === readScope ? classSnapshot.rows : []), [studentClasses, classSnapshot, readScope]);
   const loadingData = Boolean(activeOrganization?.id) && classSnapshot.scope !== readScope;
@@ -259,15 +266,16 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     gap: 12,
     maxHeight: "100%",
   });
-  const isCompactLayout = width < 840;
-  const splitAgenda = width >= 960;
   const mobileAgenda = width < 600;
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
   const [agendaHeight, setAgendaHeight] = useState(0);
   const eventListRef = useRef<ScrollView>(null);
   const eventOffsetRef = useRef(0);
-  const calendarRowHeight = Math.max(44, Math.min(59, Math.floor((agendaHeight - 160) / 6)));
-  const calendarMotion = useEventSheetGesture(calendarCollapsed, setCalendarCollapsed, 5 * calendarRowHeight, eventListRef, eventOffsetRef);
+  const calendarWeekCount = Math.ceil((new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay() + new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate()) / 7);
+  const calendarRowHeight = Math.max(40, Math.min(46, Math.floor((agendaHeight - 300) / calendarWeekCount)));
+  const calendarMotion = useEventSheetGesture(calendarCollapsed, setCalendarCollapsed, (calendarWeekCount - 1) * calendarRowHeight, eventListRef, eventOffsetRef);
+  const calendarGridRef = useRef<View>(null);
+  useCalendarWheel(calendarGridRef, calendarMotion.wheel);
   const baseHour = 14;
   const monthStart = useMemo(
     () => new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1),
@@ -284,7 +292,6 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     end.setHours(0, 0, 0, 0);
     return end;
   }, [calendarStart]);
-  const monthTitle = useMemo(() => formatMonthTitle(visibleMonth), [visibleMonth]);
   const planRangeStart = formatIsoDate(calendarStart);
   const planRangeEnd = formatIsoDate(calendarEnd);
   const planScope = JSON.stringify([readScope, planRangeStart, planRangeEnd]);
@@ -294,10 +301,10 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const plansError = planSnapshot.scope === planScope ? planSnapshot.error : null;
   const loadingPlans = !studentMode && Boolean(activeOrganization?.id) && planSnapshot.scope !== planScope;
   const goToPreviousMonth = useCallback(() => {
-    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
+    requestPendingEditsNavigation(() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1)));
   }, []);
   const goToNextMonth = useCallback(() => {
-    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
+    requestPendingEditsNavigation(() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1)));
   }, []);
 
   useEffect(() => {
@@ -385,6 +392,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
       organizationId: activeOrganization.id,
       fromIso: from.toISOString(),
       toIso: to.toISOString(),
+      overlap: true,
       userId: session?.user?.id,
     }))
       .then((rows) => {
@@ -397,7 +405,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id, readScope, isCurrentRead, studentMode]);
+  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id, readScope, isCurrentRead, studentMode, eventRevision]);
 
   const applyTargetHandled = useRef(false);
   useEffect(() => {
@@ -508,17 +516,16 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const eventsByDate = useMemo(() => {
     const grouped: Record<string, EventListItem[]> = {};
     visibleEvents.forEach((event) => {
-      const startsAt = new Date(event.startsAt);
-      if (Number.isNaN(startsAt.getTime())) return;
-      const dateKey = formatIsoDate(startsAt);
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(event);
+      for (const dateKey of eventCalendarDates(event, calendarStart, calendarEnd)) {
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(event);
+      }
     });
     Object.values(grouped).forEach((items) => {
       items.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     });
     return grouped;
-  }, [visibleEvents]);
+  }, [visibleEvents, calendarStart, calendarEnd]);
 
   const monthlyCalendarDays = useMemo<MonthCalendarDayModel[]>(() => {
     return Array.from({ length: MONTH_GRID_DAY_COUNT }, (_, index) => {
@@ -657,43 +664,57 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     for (let index = 0; index < monthlyCalendarDays.length; index += 7) {
       rows.push(monthlyCalendarDays.slice(index, index + 7));
     }
-    return rows;
+    return rows.filter(row => row.some(day => day.isCurrentMonth));
   }, [monthlyCalendarDays]);
 
   const selectedDay = selectCalendarDay(monthlyCalendarDays, selectedDate);
+  const searchText = searchQuery.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const displayedItems = searchText ? monthlyCalendarDays.filter(day => day.isCurrentMonth).flatMap(day => day.agendaItems).filter(item =>
+    `${item.title} ${item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").includes(searchText)
+  ) : selectedDay?.agendaItems ?? [];
   const agendaStyles = useMemo(() => StyleSheet.create({
     weekday: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 10, fontWeight: "600" },
-    row: { flexDirection: "row", borderTopWidth: 1, borderColor: colors.border },
+    row: { flexDirection: "row", gap: 3 },
     firstRow: { borderTopWidth: 0 },
-    day: { flex: 1, minWidth: 0, minHeight: mobileAgenda ? calendarRowHeight : isCompactLayout ? 58 : 68, alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 10, backgroundColor: "transparent" },
+    day: { flex: 1, minWidth: 0, height: calendarRowHeight, alignItems: "center", justifyContent: "flex-start", paddingTop: 2, gap: 2, borderRadius: 7, borderWidth: 1, borderColor: "transparent", backgroundColor: "transparent" },
+    selectedDay: { borderColor: "transparent" },
     otherMonth: { opacity: 0.3 },
-    pastDay: { opacity: 0.5 },
-    number: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", borderColor: colors.primaryBg },
-    selectedNumber: { backgroundColor: colors.primaryBg },
+    pastDay: { opacity: 0.8 },
+    number: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", borderColor: colors.primaryBg },
+    selectedNumber: { backgroundColor: colors.text },
     todayNumber: { borderWidth: 1 },
     numberText: { color: colors.text, fontSize: 13, fontWeight: "500" },
     emphasizedNumberText: { fontWeight: "700" },
-    selectedNumberText: { color: colors.primaryText, fontWeight: "700" },
-    markers: { flexDirection: "row", gap: 3, minHeight: 6, alignItems: "center" },
+    selectedNumberText: { color: colors.background, fontWeight: "700" },
+    markers: { flexDirection: "row", justifyContent: "center", gap: 3, height: 8 },
+    sunday: { color: colors.dangerText },
     moreMarkers: { color: colors.muted, fontSize: 8 },
     hint: { color: colors.muted, fontSize: 11, marginTop: 14 },
-    events: { width: mobileAgenda ? "100%" : splitAgenda ? 300 : "100%", ...(mobileAgenda ? { flex: 1, minHeight: 0 } : {}) },
+    events: { width: "100%", flex: 1, minHeight: 0 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
     headerText: { gap: 4 },
-    title: { color: colors.text, fontSize: 20, fontWeight: "600" },
+    composerDock: { paddingTop: 8, paddingBottom: Math.max(8, insets.bottom), paddingHorizontal: 8, backgroundColor: colors.background },
+    quickAdd: { width: "100%", maxWidth: 360, alignSelf: "center", minHeight: 48, paddingLeft: 18, paddingRight: 2, borderRadius: 24, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center" },
+    quickTrigger: { flex: 1, minHeight: 48, justifyContent: "center" },
+    quickDetails: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+    quickAddText: { color: colors.muted, fontSize: 14 },
+    title: { color: colors.text, fontSize: 24, fontWeight: "700" },
+    dayHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
+    weekdayHeading: { color: colors.text, fontSize: 12, fontWeight: "700" },
     count: { color: colors.muted, fontSize: 12 },
     toggle: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
-    event: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 14, gap: 16, borderBottomWidth: 1, borderColor: colors.border },
-    time: { width: 64, gap: 4 },
-    timeText: { color: colors.text, fontSize: 14, fontWeight: "600" },
-    eventContent: { flex: 1, minWidth: 0, gap: 6 },
-    eventTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
+    event: { flexDirection: "row", alignItems: "flex-start", minHeight: 56, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 8, gap: 10 },
+    time: { width: 48, gap: 3 },
+    timeText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+    eventContent: { flex: 1, minWidth: 0, gap: 3 },
+    eventTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
     empty: { color: colors.muted, fontSize: 14, paddingVertical: 24 },
-  }), [colors, mobileAgenda, calendarRowHeight, isCompactLayout, splitAgenda]);
+  }), [colors, calendarRowHeight, insets.bottom]);
   const agendaColorStyles = useMemo(() => Object.fromEntries(
     [...new Set(monthlyCalendarDays.flatMap(day => day.agendaItems.map(item => item.dotColor)))].map(color => [color, StyleSheet.create({
-      dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: color },
-      bar: { width: 3, minHeight: 44, alignSelf: "stretch", borderRadius: 2, backgroundColor: color },
+      dot: { height: 4, width: 4, borderRadius: 2, backgroundColor: color },
+      cell: { backgroundColor: toRgba(color, 0.1) },
+      bar: { width: 3, minHeight: 34, alignSelf: "stretch", borderRadius: 2, backgroundColor: color },
     })]),
   ), [monthlyCalendarDays]);
 
@@ -893,40 +914,42 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [classes, unitKey, unitLabel]);
 
+    const quickFooter = canManageEvents ? <View style={agendaStyles.composerDock}>
+      {quickAdd?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${quickAdd.scope}-${quickAdd.date}`} quick date={quickAdd.date} classes={classes} suggestedTimes={(selectedDay?.agendaItems ?? []).map(item => item.timeLabel.split(" - ")[0])} onClose={() => setQuickAdd(null)} onSaved={() => setEventRevision(value => value + 1)} onExpand={(seed, resumeId) => { setEventEditor({ scope: readScope, date: quickAdd.date, seed, resumeId }); setQuickAdd(null); }} /></Suspense> : <View style={agendaStyles.quickAdd}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Adicionar evento rápido" onPress={() => setQuickAdd({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickTrigger}><Text style={agendaStyles.quickAddText}>Adicionar em {new Date((selectedDay?.dateIso ?? selectedDate) + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Criar evento com detalhes" onPress={() => setEventEditor({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickDetails}><GoAtletaIcon name="add" size={26} color={colors.text} /></Pressable>
+      </View>}
+    </View> : null;
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         {(studentMode ? studentLoading : loadingData) ? (
           <ScreenLoadingState />
         ) : (
           <>
-          <ScreenPageHeader
-            title="Calendário mensal"
-            right={headerActions}
-            onBack={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : "/prof/home" })}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Text style={{ color: colors.text, fontSize: mobileAgenda ? 18 : 20, fontWeight: "600" }}>{monthTitle}</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{monthSummaryLabel}</Text></View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" onPress={goToPreviousMonth} style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="chevronBack" size={18} color={colors.text} /></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => { const now = new Date(); setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(formatIsoDate(now)); }} style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: colors.border }}><Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>Hoje</Text></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" onPress={goToNextMonth} style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="chevronForward" size={18} color={colors.text} /></Pressable>
-            </View>
-          </ScreenPageHeader>
+          {!mobileAgenda ? <ScreenPageHeader title="Agenda" horizontalBleed={0} right={headerActions} onBack={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : calendarPath.startsWith("/coord") ? "/coord/dashboard" : "/prof/home" })} /> : null}
+          <View style={{ width: "100%", maxWidth: 440, alignSelf: "center", paddingHorizontal: 12, paddingTop: mobileAgenda ? 6 : 0, paddingBottom: 2, flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel="Voltar de Agenda" onPress={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : calendarPath.startsWith("/coord") ? "/coord/dashboard" : "/prof/home" })} style={agendaStyles.toggle}><GoAtletaIcon name="chevronBack" size={20} color={colors.text} /></Pressable> : null}
+            <Pressable suppressWebHoverFeedback accessibilityRole="button" accessibilityHint={monthSummaryLabel} accessibilityLabel="Escolher mês e ano" onPress={() => setMonthPickerScope(readScope)} style={{ flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}><View style={{ flexShrink: 1 }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: 22, fontWeight: "700" }}>{visibleMonth.toLocaleDateString("pt-BR", { month: "long" })}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: colors.muted, fontSize: 10 }}>{visibleMonth.getFullYear()}</Text><View style={{ width: 14, height: 14 }}>{loadingPlans ? <ActivityIndicator accessibilityLabel="Atualizando agenda" size={12} color={colors.muted} /> : null}</View></View></View><GoAtletaIcon name="chevronDown" size={12} color={colors.muted} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Pesquisar na agenda" onPress={() => { setSearchOpen(value => !value); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="search" size={20} color={colors.text} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Hoje" onPress={() => requestPendingEditsNavigation(() => { setSearchQuery(""); const now = new Date(); setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(formatIsoDate(now)); })} style={agendaStyles.toggle}><View style={{ width: 22, height: 23, borderWidth: 1.5, borderColor: colors.text, borderRadius: 4, alignItems: "center", justifyContent: "flex-end", paddingBottom: 1 }}><View style={{ position: "absolute", top: 5, width: "100%", borderTopWidth: 1.5, borderColor: colors.text }} /><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{new Date().getDate()}</Text></View></Pressable>
+          </View>
 
           {classesError || plansError || eventsError ? (
             <Text accessibilityRole="alert" style={{ color: colors.dangerText, paddingHorizontal: 16, paddingBottom: 8 }}>
               {[classesError, plansError, eventsError].filter(Boolean).join(" ")}
             </Text>
-          ) : loadingPlans ? <Text style={{ color: colors.muted, paddingHorizontal: 16, paddingBottom: 8 }}>Carregando planejamentos...</Text> : null}
+          ) : null}
 
           <ScrollView
-            scrollEnabled={!mobileAgenda}
+            scrollEnabled={false}
             style={{ flex: 1, minHeight: 0, ...(Platform.OS === "web" && !mobileAgenda ? { scrollbarGutter: "stable", scrollbarWidth: "thin" } as object : {}) }}
             contentContainerStyle={{
-              ...(mobileAgenda ? { flex: 1 } : { flexGrow: 1 }),
-              paddingHorizontal: isCompactLayout ? 12 : 16,
+              flex: 1,
+              width: "100%", maxWidth: 440, alignSelf: "center",
+              paddingHorizontal: 12,
               paddingTop: 2,
-              paddingBottom: mobileAgenda ? insets.bottom + 12 : 28,
-              gap: 10,
+              paddingBottom: 8,
+              gap: 4,
             }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
@@ -949,43 +972,49 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
               </View>
             ) : null}
 
-            {!studentMode ? <CalendarUnitSelect value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value, ...(Platform.OS === "web" ? { targetDate: selectedDay?.dateIso ?? selectedDate } : {}) }); }} /> : null}
+            {searchOpen ? <View style={{ minHeight: 50, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.inputBg, flexDirection: "row", alignItems: "center", gap: 8 }}><GoAtletaIcon name="search" size={18} color={colors.muted} /><TextInput autoFocus accessibilityLabel="Pesquisar neste mês" placeholder="Pesquisar neste mês" placeholderTextColor={colors.muted} value={searchQuery} onChangeText={setSearchQuery} style={{ flex: 1, minWidth: 0, color: colors.text, borderRadius: 0, fontSize: 14 }} /><Pressable accessibilityRole="button" accessibilityLabel="Fechar pesquisa" onPress={() => { setSearchOpen(false); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable></View> : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>{!studentMode ? <CalendarUnitSelect compact value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value, ...(Platform.OS === "web" ? { targetDate: selectedDay?.dateIso ?? selectedDate } : {}) }); }} /> : null}</View>
+              {mobileAgenda ? headerActions : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" onPress={goToPreviousMonth} style={agendaStyles.toggle}><GoAtletaIcon name="chevronBack" size={16} color={colors.muted} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" onPress={goToNextMonth} style={agendaStyles.toggle}><GoAtletaIcon name="chevronForward" size={16} color={colors.muted} /></Pressable>
+            </View>
 
-            <View onLayout={event => setAgendaHeight(event.nativeEvent.layout.height)} style={{ position: "relative", width: "100%", flexDirection: splitAgenda ? "row" : "column", gap: mobileAgenda ? 12 : 20, alignItems: "flex-start", ...(mobileAgenda ? { flex: 1, minHeight: 0, overflow: "hidden" } : {}) }}>
-              <View style={{ width: "100%", flex: splitAgenda ? 1 : undefined, minWidth: 0, backgroundColor: colors.card, borderRadius: 16, padding: isCompactLayout ? 12 : 20, borderWidth: 1, borderColor: colors.border, ...(mobileAgenda ? { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, paddingHorizontal: 4, paddingVertical: 0, flexShrink: 0 } : {}) }}>
+            <View onLayout={event => setAgendaHeight(event.nativeEvent.layout.height)} style={{ position: "relative", width: "100%", flexDirection: "column", gap: 4, alignItems: "flex-start", flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <View ref={calendarGridRef} tabIndex={Platform.OS === "web" ? 0 : undefined} accessibilityLabel={calendarCollapsed ? "Calendário semanal. Enter para expandir o mês." : "Calendário mensal. Enter para recolher para a semana."} {...(Platform.OS === "web" ? { onKeyDown: (event: { key: string; target: unknown; currentTarget: unknown; preventDefault: () => void }) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setCalendarCollapsed(value => !value); } } } : {})} style={{ width: "100%", minWidth: 0, paddingHorizontal: 4, flexShrink: 0 }}>
                 <View>
-                <View style={{ flexDirection: "row", marginBottom: 8 }}>
-                  {MONTH_WEEKDAY_HEADERS.map(label => <Text key={label} style={agendaStyles.weekday}>{label}</Text>)}
+                <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                  {MONTH_WEEKDAY_HEADERS.map((label, index) => <Text key={label} style={[agendaStyles.weekday, index === 0 && agendaStyles.sunday]}>{mobileAgenda ? label[0] : label}</Text>)}
                 </View>
                 {(rows => {
                   const selectedRow = monthlyCalendarRows.findIndex(row => row.some(day => day.dateIso === selectedDay?.dateIso));
                   const onWeekChange = (index: number) => {
                     const next = monthlyCalendarRows[index]?.find(day => day.day === selectedDay?.day);
-                    if (next) { setSelectedDate(next.dateIso); if (!next.isCurrentMonth) setVisibleMonth(new Date(next.dateIso + "T00:00:00")); }
+                    if (next) requestPendingEditsNavigation(() => { setSelectedDate(next.dateIso); if (!next.isCurrentMonth) setVisibleMonth(new Date(next.dateIso + "T00:00:00")); });
                   };
-                  if (!mobileAgenda) return rows;
                   if (calendarMotion.nativeMotion) return <NativeCalendarFold rows={rows} selectedRow={selectedRow} rowHeight={calendarRowHeight} motion={calendarMotion.nativeMotion} onWeekChange={onWeekChange} weekActive={calendarCollapsed && !calendarMotion.interacting} />;
-                  return calendarCollapsed && !calendarMotion.interacting
-                    ? <CalendarWeekPager rowHeight={calendarRowHeight} rows={rows} selectedRow={selectedRow} onChange={onWeekChange} />
-                    : <CalendarFold rowHeight={calendarRowHeight} rows={rows} selectedRow={selectedRow} collapsed={false} progress={calendarMotion.progress} />;
+                  return <CalendarFold rowHeight={calendarRowHeight} rows={rows} selectedRow={selectedRow} collapsed={calendarCollapsed} progress={calendarMotion.progress} onWeekChange={onWeekChange} weekActive={calendarCollapsed && !calendarMotion.interacting} />;
                 })(monthlyCalendarRows.map((row, index) => <View key={index} style={[agendaStyles.row, !index && agendaStyles.firstRow]}>
                   {row.map(day => {
                     const selected = day.dateIso === selectedDay?.dateIso;
-                    return <Pressable key={day.dayKey} accessibilityRole="button" accessibilityLabel={`${day.dateIso}, ${day.countLabel}${day.isToday ? ", hoje" : ""}`} accessibilityState={{ selected }} onPress={() => { setSelectedDate(day.dateIso); if (mobileAgenda) setCalendarCollapsed(true); if (!day.isCurrentMonth) setVisibleMonth(new Date(day.dateIso + "T00:00:00")); }} style={[agendaStyles.day, !selected && !day.isToday && (!day.isCurrentMonth ? agendaStyles.otherMonth : day.isPast ? agendaStyles.pastDay : null)]}>
-                      <View style={[agendaStyles.number, selected ? agendaStyles.selectedNumber : day.isToday ? agendaStyles.todayNumber : null]}><Text style={[agendaStyles.numberText, selected ? agendaStyles.selectedNumberText : day.isToday ? agendaStyles.emphasizedNumberText : null]}>{day.dayNumber}</Text></View>
-                      <View style={agendaStyles.markers}>{day.agendaItems.slice(0, 3).map(item => <View key={item.id} style={agendaColorStyles[item.dotColor].dot} />)}{day.agendaItems.length > 3 ? <Text style={agendaStyles.moreMarkers}>+{day.agendaItems.length - 3}</Text> : null}</View>
+                    return <Pressable key={day.dayKey} accessibilityRole="button" accessibilityLabel={`${day.dateIso}, ${day.countLabel}${day.isToday ? ", hoje" : ""}`} accessibilityState={{ selected }} onPress={() => requestPendingEditsNavigation(() => { setSelectedDate(day.dateIso); if (mobileAgenda) setCalendarCollapsed(true); if (!day.isCurrentMonth) setVisibleMonth(new Date(day.dateIso + "T00:00:00")); })} style={[agendaStyles.day, selected && agendaStyles.selectedDay, !selected && !day.isToday && (!day.isCurrentMonth ? agendaStyles.otherMonth : day.isPast ? agendaStyles.pastDay : null)]}>
+                      <View style={[agendaStyles.number, selected ? agendaStyles.selectedNumber : day.isToday ? agendaStyles.todayNumber : null]}><Text style={[agendaStyles.numberText, day.day === 0 && agendaStyles.sunday, selected ? agendaStyles.selectedNumberText : day.isToday ? agendaStyles.emphasizedNumberText : null]}>{day.dayNumber}</Text></View>
+                      <View style={agendaStyles.markers}>{day.agendaItems.slice(0, 4).map(item => <View key={item.id} style={agendaColorStyles[item.dotColor].dot} />)}</View>
                     </Pressable>;
                   })}
                 </View>))}
-                {!mobileAgenda ? <Text style={agendaStyles.hint}>Selecione um dia para ver a agenda.</Text> : null}
                 </View>
               </View>
               <View style={agendaStyles.events}>
-                <CalendarEventSheet mobile={mobileAgenda} collapsed={calendarCollapsed} onCollapsedChange={setCalendarCollapsed} motion={calendarMotion} listRef={eventListRef} offsetRef={eventOffsetRef} header={<View style={agendaStyles.header}>
-                  <View style={agendaStyles.headerText}><Text accessibilityRole="header" style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View>
-                  {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel={calendarCollapsed ? "Mostrar mês completo" : "Mostrar semana"} onPress={() => { setCalendarCollapsed(value => !value); }} style={agendaStyles.toggle}><GoAtletaIcon name="calendar" size={20} color={colors.muted} /></Pressable> : <GoAtletaIcon name="calendar" size={20} color={colors.muted} />}
+                <CalendarEventSheet mobile={mobileAgenda} collapsed={calendarCollapsed} onCollapsedChange={setCalendarCollapsed} motion={calendarMotion} listRef={eventListRef} offsetRef={eventOffsetRef} footer={searchText && quickAdd?.scope !== readScope ? null : quickFooter} header={<View style={agendaStyles.header}>
+                  {searchText ? <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>{displayedItems.length} resultados neste mês</Text> : <View style={agendaStyles.headerText}><View style={agendaStyles.dayHeading}><Text accessibilityRole="header" accessibilityLabel={selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"} style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").getDate() : ""}</Text><Text style={agendaStyles.weekdayHeading}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase() : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View></View>}
                 </View>}>
-                {selectedDay?.agendaItems.length ? selectedDay.agendaItems.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.timeLabel}, ${item.title}`} onPress={() => {
+                {displayedItems.length ? displayedItems.map(item => <View key={`${item.dateIso}-${item.id}`} style={{ borderBottomWidth: 1, borderColor: colors.border }}><Pressable accessibilityRole="button" accessibilityLabel={`${searchText ? item.dateIso + ", " : ""}${item.timeLabel}, ${item.title}`} onPress={() => {
+                  if (!studentMode && item.kind === "event") {
+                    const event = events.find(row => row.id === item.eventId);
+                    if (event) setEventEditor({ scope: readScope, date: item.dateIso, event });
+                    return;
+                  }
                   // The shared web shell may remount this screen without changing its route key.
                   if (studentMode && item.kind === "class") { router.push({ pathname: "/student-plan", params: { classId: item.classId, date: item.dateIso } }); return; }
                   if (Platform.OS === "web") router.setParams({ targetDate: item.dateIso, unit: unitFilter });
@@ -993,15 +1022,18 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
                 }} style={agendaStyles.event}>
                   <View style={agendaStyles.time}><Text style={agendaStyles.timeText}>{item.timeLabel.split(" - ")[0]}</Text>{item.timeLabel.includes(" - ") ? <Text style={agendaStyles.count}>{item.timeLabel.split(" - ")[1]}</Text> : null}</View>
                   <View style={agendaColorStyles[item.dotColor].bar} />
-                  <View style={agendaStyles.eventContent}><Text style={agendaStyles.eventTitle}>{item.title}</Text><Text style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
+                  <View style={agendaStyles.eventContent}>{searchText ? <Text style={agendaStyles.count}>{new Date(item.dateIso + "T00:00:00").toLocaleDateString("pt-BR")}</Text> : null}<Text numberOfLines={1} style={agendaStyles.eventTitle}>{item.title}</Text><Text numberOfLines={1} style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
                   <GoAtletaIcon name="chevronForward" size={14} color={colors.muted} />
-                </Pressable>) : <Text style={agendaStyles.empty}>{studentMode ? studentError ? "Não foi possível carregar seus treinos." : "Nenhum treino neste dia." : "Nenhuma aula ou evento neste dia."}</Text>}
+                </Pressable></View>) : <Text style={agendaStyles.empty}>{searchText ? "Nenhum resultado neste mês." : studentMode ? studentError ? "Não foi possível carregar seus treinos." : "Nenhum treino neste dia." : "Nenhuma aula ou evento neste dia."}</Text>}
+
                 </CalendarEventSheet>
               </View>
             </View>
           </ScrollView>
       </>
         )}
+      <CalendarMonthPicker visible={monthPickerScope === readScope} value={selectedDay?.dateIso ?? selectedDate} onClose={() => setMonthPickerScope(null)} onChange={value => requestPendingEditsNavigation(() => { setSelectedDate(value); setVisibleMonth(new Date(value + "T00:00:00")); })} />
+      {!studentMode && eventEditor?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${eventEditor.scope}-${eventEditor.event?.id ?? eventEditor.date}`} date={eventEditor.date} event={eventEditor.event} seed={eventEditor.seed} resumeId={eventEditor.resumeId} classes={classes} onClose={() => setEventEditor(null)} onSaved={() => setEventRevision(value => value + 1)} /></Suspense> : null}
       <ModalSheet
         visible={!studentMode && showApplyPicker}
         onClose={closeApplyPicker}

@@ -1035,12 +1035,6 @@ export function WebSidebar({
         icon: "payments",
       },
       {
-        key: "events",
-        label: "Eventos",
-        href: "/coord/events",
-        icon: "events",
-      },
-      {
         key: "nfc",
         label: "Presença NFC",
         href: "/coord/nfc-attendance",

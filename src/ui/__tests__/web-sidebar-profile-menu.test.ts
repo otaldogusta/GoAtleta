@@ -223,7 +223,7 @@ describe("WebSidebar profile menu", () => {
     const view = render(React.createElement(WebSidebar, { role: "coord", showCompact: true }));
     fireEvent.press(view.getByLabelText("Agenda"));
     expect(mockPush).toHaveBeenCalledWith("/coord/calendar");
-    expect(view.getByLabelText("Eventos")).toBeTruthy();
+    expect(view.queryByLabelText("Eventos")).toBeNull();
   });
 
   it("does not expand the default invite permissions into unrelated areas", () => {

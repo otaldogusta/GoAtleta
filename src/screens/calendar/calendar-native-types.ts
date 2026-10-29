@@ -26,5 +26,6 @@ export type NativeCalendarEventsProps = {
   motion: NativeCalendarMotion;
   handle: ReactNode;
   header: ReactNode;
+  footer?: ReactNode;
   children?: ReactNode;
 };

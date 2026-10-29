@@ -84,3 +84,23 @@ it("retains web pointer paging while ignoring programmatic scrolls", async () =>
     jest.useRealTimers();
   }
 });
+
+it("reports readiness only after selected-week alignment, without selecting a new date", async () => {
+  mockScrollTo.mockClear();
+  const order: string[] = [];
+  mockScrollTo.mockImplementation(() => { order.push("aligned"); });
+  const ready = jest.fn((value: boolean) => { order.push(value ? "ready" : "waiting"); });
+  const changed = jest.fn();
+  let renderer!: TestRenderer.ReactTestRenderer;
+  try {
+    await act(async () => { renderer = TestRenderer.create(React.createElement(CalendarWeekPager, { rows: [0, 1, 2, 3, 4], selectedRow: 3, onChange: changed, onReady: ready })); });
+    expect(ready).toHaveBeenLastCalledWith(false);
+    act(() => renderer.root.findAllByType(View).find(node => node.props.onLayout)?.props.onLayout({ nativeEvent: { layout: { width: 320 } } }));
+    expect(mockScrollTo).toHaveBeenLastCalledWith({ x: 960, animated: false });
+    expect(order.slice(-2)).toEqual(["aligned", "ready"]);
+    expect(changed).not.toHaveBeenCalled();
+  } finally {
+    if (renderer) act(() => renderer.unmount());
+    mockScrollTo.mockReset();
+  }
+});

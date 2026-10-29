@@ -1,7 +1,6 @@
-// perf-check: ignore-render -- route-only wrapper; shared screen owns render instrumentation.
-// perf-check: ignore-measure -- route-only wrapper; shared screen owns data-loading instrumentation.
-import EventsScreen from "../events";
-
+// perf-check: ignore-render -- compatibility redirect to the unified agenda.
+// perf-check: ignore-measure -- redirect has no data reads.
+import { Redirect } from "expo-router";
 export default function CoordinationEventsRoute() {
-  return <EventsScreen />;
+  return <Redirect href="/coord/calendar" />;
 }

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, ScrollView, View } from "react-native";
 
 /** Native inertia / web scroll snapping keep the compact week horizontally pageable. */
-export function CalendarWeekPager({ rows, selectedRow, onChange, rowHeight = 59 }: { rows: ReactNode[]; selectedRow: number; onChange: (index: number) => void; rowHeight?: number }) {
+export function CalendarWeekPager({ rows, selectedRow, onChange, rowHeight = 59, onReady }: { rows: ReactNode[]; selectedRow: number; onChange: (index: number) => void; rowHeight?: number; onReady?: (ready: boolean) => void }) {
   const scroll = useRef<ScrollView>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userScroll = useRef(false);
@@ -12,8 +12,9 @@ export function CalendarWeekPager({ rows, selectedRow, onChange, rowHeight = 59 
     userScroll.current = false;
     if (timer.current) clearTimeout(timer.current);
     if (width > 0) scroll.current?.scrollTo({ x: Math.max(0, selectedRow) * width, animated: false });
-  }, [selectedRow, width]);
-  useEffect(alignSelectedWeek, [alignSelectedWeek]);
+    onReady?.(width > 0 && Boolean(scroll.current));
+  }, [selectedRow, width, onReady]);
+  useLayoutEffect(alignSelectedWeek, [alignSelectedWeek]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const commitWeek = () => {
     if (!userScroll.current || !width) return;
