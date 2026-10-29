@@ -25,6 +25,7 @@ export type CourtPerspectiveCommandContext = {
   payload: CourtVisualPayload;
   stepIndex: number;
   disabled?: boolean;
+  allowServeHandle?: boolean;
   tool?: CourtTool;
 };
 
@@ -89,7 +90,7 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
     || value.revision !== context.revision || !Number.isInteger(context.stepIndex) || context.stepIndex < 0) return null;
   const step = context.payload.timeline.steps[context.stepIndex];
   if (!step) return null;
-  if (context.disabled && !(value.type === "shortcut" && ["escape", "play"].includes(String(value.key)))) return null;
+  if (context.disabled && !(context.allowServeHandle && value.type === "simulation-handle" && value.kind === "serve") && !(value.type === "shortcut" && ["escape", "play"].includes(String(value.key)))) return null;
   const fields = (extras: string[]) => onlyFields(value, [...ENVELOPE_FIELDS, ...extras]);
   const hidden = context.payload.editor?.hiddenLayers ?? [];
   const currentDrawings = hidden.includes("drawings") ? [] : frameDrawings(context.payload, context.stepIndex);

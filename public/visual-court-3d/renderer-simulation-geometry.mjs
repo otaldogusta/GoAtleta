@@ -45,7 +45,7 @@ export function actorPoseView(actor,azimuth){
  const screen=dx*Math.cos(azimuth)-dz*Math.sin(azimuth);
  const sampled=Number.isFinite(actor.poseScale);
  const side=sampled
-  ? Boolean(actor.side)||(actor.poseRole==='passer'&&Math.abs(Math.sin(azimuth))>.35)||(actor.poseRole==='attacker'&&Math.abs(Math.sin(azimuth))>.65)
+  ? Boolean(actor.side)||(actor.poseRole==='passer'&&Math.abs(Math.sin(azimuth))>.35)||(actor.poseRole==='attacker'&&Math.abs(Math.sin(azimuth))>.65)||(actor.poseRole==='server'&&Math.abs(screen)>Math.abs(dx*Math.sin(azimuth)+dz*Math.cos(azimuth))*.8)
   : actor.side===true||Math.abs(screen)>Math.abs(dx*Math.sin(azimuth)+dz*Math.cos(azimuth))*.8;
  return {side,view:side?'side':'front',flip:side?screen>0:Boolean(actor.mirror)};
 }

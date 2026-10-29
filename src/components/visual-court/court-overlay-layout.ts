@@ -1,13 +1,23 @@
-/** Physical CSS pixels: reserve only the current, single-row playback dock. */
-export const mobileCourtChrome = { transportHeight: 42, zoomWidth: 148, zoomHeight: 40, gripWidth: 48, gripHeight: 28 } as const;
+/** Logical control sizes; placement converts them to physical CSS pixels once. */
+export const mobileCourtChrome = { transportHeight: 78, zoomWidth: 148, zoomHeight: 40, gripWidth: 48, gripHeight: 28 } as const;
 
-export function mobileCourtOverlayLayout(width: number, safeBottom = 0) {
+export function courtPlaybackLayout(width: number, scale = 1, singleControlsRow = true) {
+  // The centered dock reserves the same column on each side, keeping the
+  // right-hand view controls clear without moving them above the timeline.
+  const available = width <= 700 ? width - 2 * (10 + 40 + 8) * scale : width - 24;
+  const logicalWidth = Math.max(0, Math.min(550, available / scale));
+  const stacked = logicalWidth < 460;
+  return { width: logicalWidth, height: stacked && !singleControlsRow ? 116 : mobileCourtChrome.transportHeight, stacked };
+}
+
+export function mobileCourtOverlayLayout(width: number, safeBottom = 0, scale = 1) {
   const transportBottom = safeBottom + 14;
-  const panelBottom = transportBottom + mobileCourtChrome.transportHeight + 8;
-  const zoomLeft = width - 10 - mobileCourtChrome.zoomWidth;
-  const gripRight = (width + mobileCourtChrome.gripWidth) / 2;
-  // At very narrow widths, separate utilities vertically instead of wrapping
-  // the four zoom buttons or letting them cover the centered panel handle.
-  const zoomBottom = panelBottom + (zoomLeft < gripRight + 8 ? mobileCourtChrome.gripHeight + 8 : 0);
-  return { transportBottom, panelBottom, zoomBottom, zoomWidth: mobileCourtChrome.zoomWidth };
+  const playback = courtPlaybackLayout(width, scale);
+  const transportHeight = playback.height * scale;
+  const panelBottom = transportBottom + transportHeight + 8;
+  const playbackRight = (width + playback.width * scale) / 2;
+  const utilitiesLeft = width - (10 + mobileCourtChrome.zoomWidth) * scale;
+  const sameRow = utilitiesLeft - playbackRight >= 6;
+  const zoomBottom = transportBottom;
+  return { transportBottom, transportHeight, panelBottom, zoomBottom, zoomWidth: sameRow ? mobileCourtChrome.zoomWidth : 40, zoomVertical: !sameRow };
 }

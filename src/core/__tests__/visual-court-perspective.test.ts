@@ -3,6 +3,14 @@ import { actorPoint, changeDrawings, moveSelection, newCourtBoard, pointAlong } 
 import { configureCourtSimulation, sampleCourtSimulation } from "../court-simulation";
 
 describe("canonical court perspective projection", () => {
+  it.each([.15, .4, 3, 6.65, 9])("draws the actual serve guide above the rendered net for target depth %s", z => {
+    const board = configureCourtSimulation(newCourtBoard(), 0, { mode: "receive", serve: "Float", landingOverride: { x: -1.45, z } });
+    const guide = buildCourtPerspectiveFrame(board, 0, 0).simulation!.paths.find(path => path.id === "serve")!;
+    const index = guide.points.findIndex(point => point.z >= 0);
+    const before = guide.points[index - 1], after = guide.points[index];
+    const fraction = -before.z / (after.z - before.z);
+    expect(before.y + fraction * (after.y - before.y)).toBeGreaterThan(2.43 + .12 + .0325);
+  });
   it("hides role labels through the shared presentation layer without changing identities", () => {
     const board = newCourtBoard();
     board.actors[0].label = "Levantadora";
@@ -175,7 +183,8 @@ describe("canonical simulation in the perspective frame", () => {
     const start = buildCourtPerspectiveFrame(board, 0, 0).simulation!;
     expect(start.guidesVisible).toBe(true);
     expect(start.handles).toEqual([{ kind: "serve", point: { x: 2, y: .03, z: 4 } }]);
-    expect(buildCourtPerspectiveFrame(board, 0, .64).simulation?.guidesVisible).toBe(false);
+    const contact = sampleCourtSimulation(board, 0, 0)!.receiveContact!;
+    expect(buildCourtPerspectiveFrame(board, 0, contact).simulation?.guidesVisible).toBe(false);
     const hidden = { ...board, editor: { ...board.editor!, hiddenLayers: ["movements"] } };
     expect(buildCourtPerspectiveFrame(hidden, 0, 0).simulation?.guidesVisible).toBe(false);
     expect(buildCourtPerspectiveFrame(board, 0, 0).simulation?.guidesVisible).toBe(true);

@@ -20,6 +20,7 @@ export type CourtPerspectiveSimulation = {
   guidesVisible: boolean;
   outcome: string;
   blocked: boolean;
+  ballSpin?: number;
 };
 
 type Sample = NonNullable<ReturnType<typeof sampleCourtSimulation>>;
@@ -44,8 +45,9 @@ function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample)
   };
   const apex = (points: Point[]) => points.reduce((best, candidate) => candidate.y > best.y ? candidate : best, points[0]);
   if (timing.mode === "receive") {
-    path("serve", sample(.38, .64, 90), true, .8, "#c48d8f");
-    const landing = timing.config.landingOverride ?? { x: timing.config.seam === "Left" ? -1.45 : 1.4, z: 6.65 };
+    path("serve", timing.serveGuide?.map(point) ?? sample(timing.serveContact ?? .38, timing.receiveContact ?? .64, 90), true, .8, "#c48d8f");
+    const target = timing.serveTarget;
+    const landing = target ? { x: target[0], z: target[1] } : timing.config.landingOverride ?? { x: timing.config.seam === "Left" ? -1.45 : 1.4, z: 6.65 };
     handles.push({ kind: "serve", point: { x: landing.x, y: .03, z: landing.z } });
     marker("serve-target", "cross", { x: landing.x, y: .025, z: landing.z }, "#c48d8f");
   } else {
@@ -94,7 +96,7 @@ function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample)
   const contacts = flight?.collisions.map(contact => contact.type === "block" ? `Mão ${(contact.wallIndex ?? 0) + 1}` : labels[contact.type]) ?? [];
   const chain = contacts.slice(0, 4).join(" → ") + (contacts.length > 4 ? ` +${contacts.length - 4}` : "");
   return {
-    guideKey: JSON.stringify([timing.config, timing.bases]), paths, markers, handles,
+    guideKey: JSON.stringify(["serve-flight-v4", timing.config, timing.bases]), paths, markers, handles,
     walls: timing.config.layers.block ? (timing.walls ?? []).map(wall => ({ center: point(wall.center), width: wall.width, height: wall.height, angle: wall.angle })) : [],
     outcome: timing.mode === "attack" && timing.config.layers.attack ? `${chain || "Ataque livre"} · ${flight?.landed ? flight.out ? "fora" : "dentro" : "limite de contatos"}` : "",
     blocked: Boolean(flight?.collisions.some(contact => contact.type !== "floor")),
@@ -109,5 +111,5 @@ export function buildCourtPerspectiveSimulation(payload: CourtVisualPayload, ind
     guides = buildGuides(payload, index, sampleCourtSimulation(payload, index, 0) ?? frame);
     steps.set(index, guides);
   }
-  return { ...guides, mode: frame.mode, elapsedSeconds: frame.elapsedSeconds, duration: frame.duration, ballId: frame.ballId, ball: point(frame.ball), guidesVisible: showGuides && (frame.mode !== "receive" || frame.progress < .64) };
+  return { ...guides, mode: frame.mode, elapsedSeconds: frame.elapsedSeconds, duration: frame.duration, ballId: frame.ballId, ball: point(frame.ball), ballSpin: frame.ballSpin, guidesVisible: showGuides && (frame.mode !== "receive" || frame.progress < (frame.receiveContact ?? .64)) };
 }

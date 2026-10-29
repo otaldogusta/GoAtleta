@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {worldToCourt,courtToWorld,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail} from './renderer-geometry.mjs';
+import {worldToCourt,courtToWorld,snapPoint,snappedGesture,shouldCancelFrameGesture,curvePoints,editableIds,movementTrail} from './renderer-geometry.mjs';
 test('regulation coordinates round-trip without orientation changes',()=>{
  for(const point of [{x:0,y:0},{x:1,y:1},{x:.2,y:.85},{x:-.2,y:1.15}]){
   const result=worldToCourt(courtToWorld(point));assert.ok(Math.abs(result.x-point.x)<1e-12);assert.ok(Math.abs(result.y-point.y)<1e-12);
@@ -31,4 +31,35 @@ test('movement trail uses the shared clock and ends behind the current token',()
  assert.deepEqual(movementTrail(points,0),[]);
  assert.deepEqual(movementTrail(points,.5,.55).at(-1),{x:1.45,y:0,z:0});
  assert.deepEqual(movementTrail(points,.75,.55).at(-1),{x:2,y:0,z:1.45});
+});
+
+test('a camera drag survives successive playback frames and retains its gesture origin',()=>{
+ const drag={revision:7,tool:'select',cameraDrag:true,pixel:{x:100,y:80},azimuth:.4};
+ let gesture=drag;
+ for(let index=0;index<=60;index++){
+  const frame={revision:7,tool:'select',active:true,disabled:index>0,progress:index/60};
+  if(shouldCancelFrameGesture(gesture,frame))gesture=null;
+  assert.equal(gesture,drag);
+ }
+ assert.deepEqual(drag.pixel,{x:100,y:80});
+ assert.equal(shouldCancelFrameGesture(gesture,{revision:7,tool:'select',active:true,disabled:false}),false);
+});
+
+test('playback cancels an edit drag instead of allowing an object mutation',()=>{
+ let gesture={revision:7,tool:'animate',cameraDrag:false};
+ const paused={revision:7,tool:'animate',active:true,disabled:false};
+ assert.equal(shouldCancelFrameGesture(gesture,paused),false);
+ if(shouldCancelFrameGesture(gesture,{...paused,disabled:true}))gesture=null;
+ assert.equal(gesture,null);
+ assert.equal(shouldCancelFrameGesture(gesture,{...paused,disabled:true}),false);
+});
+
+test('camera drags still end when the document, tool or active surface changes',()=>{
+ const gesture={revision:7,tool:'pan',cameraDrag:true};
+ const frame={revision:7,tool:'pan',active:true,disabled:true};
+ for(const change of [{revision:8},{tool:'select'},{active:false}]){
+  let current=gesture;
+  if(shouldCancelFrameGesture(current,{...frame,...change}))current=null;
+  assert.equal(current,null);
+ }
 });

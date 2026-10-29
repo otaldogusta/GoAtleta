@@ -77,7 +77,14 @@ mudança afetar bundling, dependências, rotas estáticas ou configuração do E
 
 Use quando o usuário autorizar commit/push, PR, publicação, migração ou deploy.
 
-Antes de publicar, executar a baseline completa aplicável:
+Para correção pequena de apresentação elegível, preferir `npm run build:small`
+com base validada, suítes focadas e smoke do fluxo, conforme
+[critérios e limites](release-validation.md#release-pequeno-de-apresentação).
+Não rodar novamente Jest completo, SQL e runtime não afetados por hábito.
+Mudanças de dados, autorização, navegação, comportamento ou pacote amplo usam
+o perfil completo.
+
+Fora desse perfil pequeno, executar a baseline completa aplicável:
 
 - testes focados;
 - `npm run typecheck:app`;

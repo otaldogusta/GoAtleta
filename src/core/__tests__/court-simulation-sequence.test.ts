@@ -2,6 +2,7 @@ import { buildEditable5x1ReceptionPreset, type CourtVisualPayload } from "../vis
 import { frameDrawings, newCourtBoard, parseEditorImport, upgradeCourtEditor, type CourtDrawing } from "../visual-court-editor";
 import { configureCourtSimulation, getCourtSimulation, sampleCourtSimulation } from "../court-simulation";
 import { sampleReception } from "../court-simulation/reception-motion.js";
+import { receptionFormation } from "../court-simulation/formations.js";
 import { sampleAttack } from "../court-simulation/attack-motion.js";
 import { displayCourtDrawings, simulationFloorPoint } from "../court-simulation-display";
 import { buildCourtPerspectiveFrame, worldToCourtPoint } from "../visual-court-perspective";
@@ -52,7 +53,7 @@ describe("shared receive/attack mode across the six-rotation sequence", () => {
     }
     const restored = configureCourtRotationSequenceMode(attack, 2, "receive");
     expect(restored.timeline.steps.map(step => step.label)).toEqual(labels.map(label => `${label} · Recepção`));
-    expect(restored.timeline.steps.map(step => step.durationMs)).toEqual(Array(6).fill(4100));
+    expect(restored.timeline.steps.map(step => step.durationMs)).toEqual(source.timeline.steps.map(step => step.durationMs));
     for (let index = 0; index < 6; index++) expect(getCourtSimulation(restored, index)).toEqual(originals[index]);
     expect(JSON.stringify(source)).toBe(before);
   });
@@ -155,7 +156,9 @@ describe("canonical six-rotation reception sequence", () => {
     expect(result.payload.timeline.steps).toHaveLength(6);
     expect(result.payload.timeline.steps.map(step => step.id)).toEqual(source.timeline.steps.filter((_, index) => index % 2 === 0).map(step => step.id));
     expect(result.payload.timeline.steps.map(step => step.label)).toEqual(labels.map(label => `${label} · Recepção`));
-    expect(result.payload.timeline.steps.map(step => step.durationMs)).toEqual(Array(6).fill(4100));
+    expect(result.payload.timeline.steps.map(step => step.durationMs)).toEqual(labels.map((_, rotation) => Math.round(sampleReception(0, {
+      system: "5-1", rotation, bases: [...receptionFormation("5-1", rotation), [1.7, 0, -10.44]],
+    }).duration * 1000)));
     expect(result.payload.timeline.steps.map((_, index) => getCourtSimulation(result.payload, index)?.rotation)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(isLegacyReceptionRotationSequence(result.payload)).toBe(false);
     for (const step of result.payload.timeline.steps) {
@@ -177,8 +180,9 @@ describe("canonical six-rotation reception sequence", () => {
         bases: actual.bases, rotation, system: config.system, serve: config.serve,
         landing: [config.landingOverride?.x ?? (config.seam === "Left" ? -1.45 : 1.4), config.landingOverride?.z ?? 6.65],
       });
-      expect(actual.duration).toBe(4.1);
-      expect(actual.elapsedSeconds).toBe(progress * 4.1);
+      expect(actual.duration).toBe(expected.duration);
+      expect(actual.elapsedSeconds).toBe(progress * expected.duration);
+      expect(payload.timeline.steps[rotation].durationMs).toBe(Math.round(expected.duration * 1000));
       expect(actual.ball).toEqual(expected.ball);
       expect(actual.actors.map(({ id, slot, visible, ...actor }) => actor)).toEqual(expected.actors);
       const perspective = buildCourtPerspectiveFrame(payload, rotation, progress);
@@ -245,7 +249,7 @@ describe("canonical six-rotation reception sequence", () => {
     const payload = replaceReceptionRotationSequence(source, 3).payload;
     expect(getCourtSimulation(payload, 1)).toMatchObject({ mode: "receive", rotation: 1, serve: "Topspin", seam: "Right", landingOverride: { x: 1.2, z: 6.3 }, ballId: previous.ballId });
     expect(getCourtSimulation(payload, 1)!.actorIds).toEqual(previous.actorIds);
-    expect(payload.timeline.steps[1].durationMs).toBe(4100);
+    expect(payload.timeline.steps[1].durationMs).toBe(source.timeline.steps[3].durationMs);
     expect(payload.timeline.steps[1].trajectories ?? []).toEqual([]);
     expect(payload.timeline.steps[1].transitions ?? []).toEqual([]);
   });

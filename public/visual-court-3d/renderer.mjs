@@ -1,11 +1,12 @@
 import * as THREE from './three.module.min.js';
 import {createBlocker} from './blocker-rig.mjs';
-import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail} from './renderer-geometry.mjs';
+import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail,shouldCancelFrameGesture} from './renderer-geometry.mjs';
 import {actorPoseView,isHeightHandle,previewAttackCurve,simulationHandleEdit} from './renderer-simulation-geometry.mjs';
-import {createSimulationGuides} from './renderer-simulation.mjs';
+import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
 import {renderPixelRatio,syncRendererResolution} from './renderer-resolution.mjs';
 import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs';
 import {simulationCameraDistance,resizedSimulationCameraDistance} from './renderer-camera-profile.mjs';
+import {bindRendererLifecycle} from './renderer-lifecycle.mjs';
 
 // This surface renders the parent editor's frame. It has no document, timeline,
 // presets, persistence or undo stack. Only camera and uncommitted gestures live here.
@@ -14,7 +15,7 @@ const canvas=document.querySelector('#scene'),labels=document.querySelector('#la
 const handleLayer=document.querySelector('#simulation-handles'),feedback=document.querySelector('#simulation-feedback');
 let token='',revision=0,active=true,packet=null,frame=null,pending=0,gesture=null,preview=null,lastAnchor=undefined;
 const scene=new THREE.Scene();scene.background=new THREE.Color('#09090f');
-let renderer;
+let renderer,lifecycle;
 function emit(type,detail={},gestureRevision=revision){
  parent.postMessage({channel:CHANNEL,version:VERSION,type,token,revision:gestureRevision,...detail},location.origin);
 }
@@ -36,7 +37,6 @@ function stopCameraMotion(){cameraMotion=null;cameraMotionTime=0;}
 document.addEventListener('pointerdown',stopCameraMotion,{capture:true});
 document.addEventListener('keydown',stopCameraMotion,{capture:true});
 reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches)stopCameraMotion();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelGesture();});
 const sphere=new THREE.SphereGeometry(1,16,12),actorMap=new Map(),drawingMap=new Map();
 const pickTargets=[],ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),ground=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 ray.params.Line.threshold=.16;
@@ -49,7 +49,7 @@ function line(points,color='#456397',dashed=false,parent=scene,opacity=1){
  const object=new THREE.Line(geometry,mat);if(dashed)object.computeLineDistances();parent.add(object);return object;
 }
 function dispose(root){const geometries=new Set(),materials=new Set();root.traverse(object=>{if(object.geometry)geometries.add(object.geometry);if(object.material)for(const mat of [].concat(object.material))materials.add(mat);});for(const geometry of geometries)if(geometry!==sphere)geometry.dispose();for(const mat of materials){if(mat.userData.ownTexture)mat.map?.dispose();mat.dispose();}root.removeFromParent();}
-function invalidate(){if(active&&renderer&&!pending)pending=requestAnimationFrame(render);}
+function invalidate(){if(active&&renderer&&!document.hidden&&!lifecycle?.isSuspended()&&!pending)pending=requestAnimationFrame(render);}
 
 const apron=mesh(new THREE.PlaneGeometry(18,28),material('#090c13'));apron.rotation.x=-Math.PI/2;
 const court=mesh(new THREE.PlaneGeometry(9,18),material('#0a1123'));court.rotation.x=-Math.PI/2;court.position.y=.005;
@@ -142,7 +142,11 @@ function updateDrawings(){
    object={group,key,selection};drawingMap.set(drawing.id,object);
   }
   const delta=preview?.ids.includes(drawing.id)?preview.delta:null;object.group.position.set((ballPoint?.x||0)+(delta?.x||0)*9,ballPoint?.y||0,(ballPoint?.z||0)+(delta?.y||0)*18);object.group.visible=!frame.hide.includes('drawings');object.selection.visible=frame.selected.includes(drawing.id);
-  if(drawing.simulated&&object.group.children[0]){object.group.children[0].rotation.x=frame.simulation?.elapsedSeconds*5||0;object.group.children[0].rotation.z=frame.simulation?.elapsedSeconds*3||0;}
+  if(drawing.simulated&&object.group.children[0]){
+   const ball=object.group.children[0],simulation=frame.simulation;
+   ball.rotation.x=simulation?.mode==='receive'?(simulation.ballSpin||0):(simulation?.elapsedSeconds||0)*5;
+   ball.rotation.z=simulation?.mode==='receive'?0:(simulation?.elapsedSeconds||0)*3;
+  }
  }
 }
 let pathGroup=new THREE.Group(),pathKey='',draftGroup=null;
@@ -158,9 +162,9 @@ function updateSimulation(){
  const original=frame.simulation,drag=handleDrag?.kind==='attack'?handleDrag:null;
  const curveEdit=drag?simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y):null;
  const data=original&&curveEdit?previewAttackCurve(original,curveEdit.value):original;
- if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';for(const button of handleButtons.values())button.hidden=true;feedback.hidden=true;ballShadow.visible=false;return;}
+ if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';delete canvas.dataset.serveNetCrossing;for(const button of handleButtons.values())button.hidden=true;feedback.hidden=true;ballShadow.visible=false;return;}
  const key=data===original?data.guideKey:JSON.stringify([data.guideKey,'attack-preview',curveEdit.value]);
- if(simulationKey!==key){if(simulationGuides)dispose(simulationGuides);simulationGuides=createSimulationGuides(data);scene.add(simulationGuides);simulationKey=key;}
+ if(simulationKey!==key){if(simulationGuides)dispose(simulationGuides);simulationGuides=createSimulationGuides(data);scene.add(simulationGuides);simulationKey=key;const crossing=serveNetCrossing(simulationGuides);if(crossing)canvas.dataset.serveNetCrossing=JSON.stringify(crossing);else delete canvas.dataset.serveNetCrossing;}
  simulationGuides.visible=data.guidesVisible&&!frame.hide.includes('movements');
  for(const marker of simulationGuides.children)if(marker.userData.contactTime!==undefined){const elapsed=data.elapsedSeconds-marker.userData.contactTime,pulse=elapsed>=0?Math.exp(-elapsed*12):0;marker.scale.setScalar(1+pulse*.7);marker.material.opacity=.65+pulse*.35;}
  const ball=drawingMap.get(data.ballId);ballShadow.visible=Boolean(ball?.group.visible);ballShadow.position.set(data.ball.x,.028,data.ball.z);
@@ -169,7 +173,7 @@ function updateSimulation(){
  for(const [kind,name] of Object.entries(handleNames)){
   let button=handleButtons.get(kind);if(!button){button=makeGuideHandle(kind,name);handleButtons.set(kind,button);handleLayer.append(button);}
   const handle=handles.get(kind),at=handleDrag?.kind===kind&&kind!=='attack'?handleDrag.last:handle?.point,position=at?project(vector(at)):null;
-  button.hidden=!handle||!data.guidesVisible||!packet.simulationHandles||!position?.visible;button.disabled=packet.disabled;
+  button.hidden=!handle||!data.guidesVisible||!packet.simulationHandles||!position?.visible;button.disabled=packet.disabled&&!(packet.allowServeHandle&&kind==='serve');
   if(position){button.style.left=`${position.x}px`;button.style.top=`${position.y}px`;}
  }
 }
@@ -185,20 +189,20 @@ function finishHandle(event,cancelled=false){
  const drag=handleDrag;if(!drag||drag.pointerId!==event.pointerId)return;
  if(!cancelled)updateHandlePoint(event);
  handleDrag=null;
- if(!cancelled&&drag.moved&&drag.revision===revision&&!packet.disabled){const edit=simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y);if(edit&&(edit.value===undefined||Math.abs(edit.value-drag.handle.value)>1e-8))emit('simulation-handle',edit,drag.revision);}
+ if(!cancelled&&drag.moved&&drag.revision===revision&&(!packet.disabled||packet.allowServeHandle&&drag.kind==='serve')){const edit=simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y);if(edit&&(edit.value===undefined||Math.abs(edit.value-drag.handle.value)>1e-8))emit('simulation-handle',edit,drag.revision);}
  invalidate();
 }
 function makeGuideHandle(kind,name){
  const button=document.createElement('button');button.type='button';button.className=`guide-handle ${isHeightHandle(kind)?'apex':kind==='target'||kind==='serve'?'target':''} ${kind==='serve'?'serve':''}`;button.id=`handle-${kind}`;button.setAttribute('aria-label',name);button.title=`Arraste para ajustar: ${name.toLowerCase()}. Use as setas para ajustar.`;
  button.addEventListener('pointerdown',event=>{
-  if(packet?.disabled||!active||event.button!==0)return;const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;event.preventDefault();event.stopPropagation();cancelGesture();
+  if(packet?.disabled&&!(packet.allowServeHandle&&kind==='serve')||!active||event.button!==0)return;const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;event.preventDefault();event.stopPropagation();cancelGesture();
   const plane=new THREE.Plane(),at=vector(handle.point);plane.setFromNormalAndCoplanarPoint(isHeightHandle(kind)?camera.getWorldDirection(new THREE.Vector3()):new THREE.Vector3(0,1,0),at);cast(event);const start=ray.ray.intersectPlane(plane,new THREE.Vector3());if(!start)return;
   handleDrag={kind,handle,revision,pointerId:event.pointerId,plane,start,last:{...handle.point},moved:false};button.setPointerCapture(event.pointerId);button.focus();invalidate();
  });
  button.addEventListener('pointermove',event=>{if(!updateHandlePoint(event))return;event.preventDefault();event.stopPropagation();invalidate();});
  button.addEventListener('pointerup',event=>finishHandle(event));button.addEventListener('pointercancel',event=>finishHandle(event,true));button.addEventListener('lostpointercapture',event=>finishHandle(event,true));
  button.addEventListener('keydown',event=>{
-  if(!event.key.startsWith('Arrow')||packet?.disabled||!active)return;event.preventDefault();event.stopPropagation();const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;const at={...handle.point},direction=event.key==='ArrowUp'||event.key==='ArrowRight'?1:-1,height=isHeightHandle(kind);if(height)at.y+=direction*.12;else{at.x+=event.key==='ArrowLeft'?-.25:event.key==='ArrowRight'?.25:0;at.z+=event.key==='ArrowUp'?-.25:event.key==='ArrowDown'?.25:0;}const edit=simulationHandleEdit(handle,at,height?direction*.12:0);if(edit&&(edit.value===undefined||Math.abs(edit.value-handle.value)>1e-8))emit('simulation-handle',edit);
+  if(!event.key.startsWith('Arrow')||packet?.disabled&&!(packet.allowServeHandle&&kind==='serve')||!active)return;event.preventDefault();event.stopPropagation();const handle=frame?.simulation?.handles.find(item=>item.kind===kind);if(!handle)return;const at={...handle.point},direction=event.key==='ArrowUp'||event.key==='ArrowRight'?1:-1,height=isHeightHandle(kind);if(height)at.y+=direction*.12;else{at.x+=event.key==='ArrowLeft'?-.25:event.key==='ArrowRight'?.25:0;at.z+=event.key==='ArrowUp'?-.25:event.key==='ArrowDown'?.25:0;}const edit=simulationHandleEdit(handle,at,height?direction*.12:0);if(edit&&(edit.value===undefined||Math.abs(edit.value-handle.value)>1e-8))emit('simulation-handle',edit);
  });
  return button;
 }
@@ -224,7 +228,7 @@ function applyView(view){
  elevation=view==='side'?.45:.3656;target.set(0,view==='orbit'?2.267:view==='front'?.55:.9,lastHalf?1.4:view==='orbit'?.893:.8);distance=(view==='front'?20.5:view==='orbit'?25.138:25)/lastZoom;fitCamera();
 }
 function resize(){
- if(!renderer)return;stopCameraMotion();const bounds=canvas.getBoundingClientRect(),resolution=syncRendererResolution(renderer,bounds.width||innerWidth,bounds.height||innerHeight,devicePixelRatio);camera.aspect=resolution.width/resolution.height;camera.updateProjectionMatrix();canvas.dataset.pixelRatio=String(resolution.pixelRatio);
+ if(!renderer||document.hidden||lifecycle?.isSuspended())return;stopCameraMotion();const bounds=canvas.getBoundingClientRect(),resolution=syncRendererResolution(renderer,bounds.width||innerWidth,bounds.height||innerHeight,devicePixelRatio);camera.aspect=resolution.width/resolution.height;camera.updateProjectionMatrix();canvas.dataset.pixelRatio=String(resolution.pixelRatio);
  const compact=innerWidth<600;
  if(frame?.simulation){distance=resizedSimulationCameraDistance(distance,frame.simulation.mode,cameraView,lastCompact,compact);updateCamera();}
  else if(Math.abs(camera.aspect-lastAspect)>.001){const oldFit=Math.max(1,1/lastAspect),newFit=Math.max(1,1/camera.aspect);distance*=newFit/oldFit;fitCamera();}else updateCamera();
@@ -238,7 +242,7 @@ function densityChanged(){watchDensity();resize();}
 watchDensity();resize();
 function project(point){const p=point.clone().project(camera);return {x:(p.x*.5+.5)*innerWidth,y:(-.5*p.y+.5)*innerHeight,visible:p.z>=-1&&p.z<=1&&Math.abs(p.x)<1.2&&Math.abs(p.y)<1.2};}
 function selectionAnchor(){const id=frame.selected[0],actor=actorMap.get(id),drawing=frame.drawings.find(d=>d.id===id);let point=null;if(actor?.group.visible)point=actor.group.position.clone().add(new THREE.Vector3(0,actor.height+.36,0));else if(drawing?.points[0]){point=vector(drawing.points[0]).add(new THREE.Vector3(0,.6,0));if(preview?.ids.includes(id)){point.x+=preview.delta.x*9;point.z+=preview.delta.y*18;}}const projected=point?project(point):null,next=projected?.visible?{x:Math.round(projected.x),y:Math.round(projected.y)}:null;if(lastAnchor===undefined||Boolean(next)!==Boolean(lastAnchor)||next&&lastAnchor&&(Math.abs(next.x-lastAnchor.x)>1||Math.abs(next.y-lastAnchor.y)>1)){lastAnchor=next;emit('selection-anchor',{anchor:next});}}
-function render(now){pending=0;if(!frame||!active||!renderer)return;
+function render(now){pending=0;if(!frame||!active||!renderer||document.hidden||lifecycle?.isSuspended())return;
  if(cameraMotion&&(reducedMotion.matches||document.hidden||now-cameraMotionTime>CAMERA_MOTION.maxSampleGapMs))stopCameraMotion();
  if(cameraMotion){
   const next=integrateCameraMotion({azimuth,elevation},cameraMotion,Math.max(0,now-cameraMotionTime));
@@ -309,7 +313,7 @@ window.addEventListener('message',event=>{
  if(token&&data.token!==token){cancelGesture();lastAnchor=undefined;}
  const next=data.frame;if(!next||!Array.isArray(next.actors)||!Array.isArray(next.drawings)||!Array.isArray(next.selected)||!Array.isArray(next.hide)||typeof next.stepId!=='string'||!next.actors.every(actor=>typeof actor.id==='string'&&isWorldPoint(actor.position))||!next.drawings.every(drawing=>typeof drawing.id==='string'&&Array.isArray(drawing.points)&&drawing.points.every(isWorldPoint)))return;
  if(frame&&next.stepId!==frame.stepId||packet&&packet.tool!==data.tool)stopCameraMotion();
- if(gesture&&(gesture.revision!==data.revision||gesture.tool!==data.tool||data.disabled||data.active===false)||handleDrag&&(handleDrag.revision!==data.revision||data.disabled||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
+ if(shouldCancelFrameGesture(gesture,data)||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
  if(!active){cancelGesture();if(pending){cancelAnimationFrame(pending);pending=0;}return;}
  const zoom=clamp(Number(data.zoom)||1,.3,4);if(zoom!==lastZoom){stopCameraMotion();distance=clamp(distance*lastZoom/zoom,12,65);lastZoom=zoom;updateCamera();}
  const simulationMode=frame.simulation?.mode||null,simulationChanged=simulationMode!==lastSimulationMode;lastSimulationMode=simulationMode;
@@ -318,3 +322,7 @@ window.addEventListener('message',event=>{
 });
 // Retries cover listener installation ordering; no document state is retained.
 let readyTries=0;const readyTimer=setInterval(()=>{if(token||++readyTries>30){clearInterval(readyTimer);return;}emit('ready');},200);emit('ready');
+lifecycle=bindRendererLifecycle({canvas,document,window,
+ onSuspend(){cancelGesture();if(pending){cancelAnimationFrame(pending);pending=0;}},
+ onResume(){if(renderer){if(active){resize();invalidate();}emit('ready');}},
+});

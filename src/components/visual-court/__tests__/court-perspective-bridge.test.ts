@@ -223,3 +223,14 @@ describe("court perspective command boundary", () => {
     expect(parse(command, { payload, stepIndex: 1 })).toBeNull();
   });
 });
+it('allows only the serve handle through an explicitly enabled disabled viewer', () => {
+  const payload = configureCourtSimulation(fixture(), 0, { mode: 'receive' });
+  const command = { type: 'simulation-handle', kind: 'serve', point: { x: 1, y: .03, z: 6 } };
+  expect(parse(command, { payload, disabled: true })).toBeNull();
+  const context = { payload, disabled: true, allowServeHandle: true };
+  expect(parse(command, context)?.type).toBe('simulation-handle');
+  expect(parse({ ...command, kind: 'hit' }, context)).toBeNull();
+  expect(parse({ type: 'select', ids: ['setter'] }, context)).toBeNull();
+  expect(parse({ type: 'shortcut', key: 'delete' }, context)).toBeNull();
+  expect(parse({ ...command, revision: -1 }, context)).toBeNull();
+});

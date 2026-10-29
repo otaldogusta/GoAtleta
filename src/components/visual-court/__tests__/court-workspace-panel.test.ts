@@ -13,7 +13,7 @@ describe("shared court workspace panel", () => {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   let pending: Pending[];
   let reducedMotion: boolean;
-  const props = (): Props => ({ open: true, onToggle: jest.fn(), tab: "adjustments", onTabChange: jest.fn(), adjustments: React.createElement(Text, null, "Ajustes persistentes"), steps: React.createElement(Text, null, "Etapas persistentes"), library: React.createElement(Text, null, "Busca persistente"), uiScale: 0.8, top: 115.2, bottom: 70.4 });
+  const props = (): Props => ({ open: true, onToggle: jest.fn(), onRequestClose: jest.fn(), tab: "adjustments", onTabChange: jest.fn(), adjustments: React.createElement(Text, null, "Ajustes persistentes"), steps: React.createElement(Text, null, "Etapas persistentes"), library: React.createElement(Text, null, "Busca persistente"), uiScale: 0.8, top: 115.2, bottom: 70.4 });
   const mount = async (value: Props) => { await act(async () => { tree = TestRenderer.create(React.createElement(CourtWorkspacePanel, value)); }); };
   const update = (value: Props) => act(() => tree!.update(React.createElement(CourtWorkspacePanel, value)));
   const content = (label: string) => tree!.root.findByProps({ accessibilityLabel: `Conteúdo: ${label}` });
@@ -36,6 +36,34 @@ describe("shared court workspace panel", () => {
     tree = undefined;
     jest.restoreAllMocks();
     if (platformDescriptor) Object.defineProperty(Platform, "OS", platformDescriptor);
+  });
+
+  it.each([
+    ["web", 353, true],
+    ["web", 1063, false],
+    ["ios", 353, false],
+  ])("dismisses only outside the panel on %s at %ipx (readOnly=%s)", async (platform, width, readOnly) => {
+    Object.defineProperty(Platform, "OS", { configurable: true, value: platform });
+    jest.mocked(Dimensions.get).mockReturnValue({ width, height: 704, scale: 1, fontScale: 1 });
+    const value = { ...props(), readOnly };
+    await mount(value);
+    act(() => pending.at(-1)!.complete());
+    const backdrop = tree!.root.findByProps({ accessibilityLabel: "Fechar controles da jogada" });
+    const panel = tree!.root.findByProps({ accessibilityLabel: "Painel da jogada" });
+    const backdropStyle = StyleSheet.flatten(backdrop.props.style);
+    expect(backdropStyle).toMatchObject({ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "transparent" });
+    expect(backdropStyle.zIndex).toBeLessThan(StyleSheet.flatten(panel.props.style).zIndex);
+    expect(backdrop.props.suppressWebHoverFeedback).toBe(true);
+    expect(backdrop.findAllByProps({ accessibilityLabel: "Painel da jogada" })).toHaveLength(0);
+    act(() => tree!.root.findByProps({ accessibilityLabel: "Etapas" }).props.onPress());
+    expect(value.onTabChange).toHaveBeenCalledWith("steps");
+    expect(value.onRequestClose).not.toHaveBeenCalled();
+    act(() => backdrop.props.onPress());
+    expect(value.onRequestClose).toHaveBeenCalledTimes(1);
+    expect(value.onToggle).not.toHaveBeenCalled();
+    update({ ...value, open: false });
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Fechar controles da jogada" })).toHaveLength(0);
+    expect(tree!.root.findByProps({ accessibilityLabel: "Painel da jogada" }).props.pointerEvents).toBe("none");
   });
 
   it("requests tab changes from the host and retains every tab's mounted content", async () => {

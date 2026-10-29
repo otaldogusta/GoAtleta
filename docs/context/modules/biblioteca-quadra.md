@@ -29,7 +29,9 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 | [activity-catalog-plan-actions.ts](../../../src/screens/library/activity-catalog-plan-actions.ts) | Escolha de aula de destino e criação de versão do plano. |
 | [planning-library-bridge.ts](../../../src/screens/training/application/planning-library-bridge.ts) | Conversão de atividade para bloco planejado. |
 | [visual-tech.tsx](../../../app/class/[id]/visual-tech.tsx) | Entrada autorizada da quadra por turma. |
-| [CourtEditorWorkspace](../../../src/components/visual-court/CourtEditorWorkspace.tsx) | Composição do editor e ferramentas. |
+| [CourtEditorWorkspace](../../../src/components/visual-court/CourtEditorWorkspace.tsx) | Controlador do editor e compartilhamento. |
+| [CourtWorkspaceView](../../../src/components/visual-court/CourtWorkspaceView.tsx) | Mesma composição visual para edição e leitura. |
+| [useCourtReadOnlyController](../../../src/components/visual-court/useCourtReadOnlyController.ts) | Leitura imutável, sem persistência ou elenco privado. |
 | [useCourtEditor](../../../src/components/visual-court/useCourtEditor.ts) | Estado, histórico, rascunhos e salvamento. |
 | [visual-court.ts](../../../src/core/visual-court.ts) | Documento, atores, etapas e presets. |
 | [visual-court-editor.ts](../../../src/core/visual-court-editor.ts) | Comandos, conversão e importação validada. |
@@ -40,6 +42,67 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- Edições autorais da quadra armam autosave após 800 ms, com uma solicitação
+  por vez e confirmação pela linha retornada de um upsert atômico. Timeout/rede
+  permite uma tentativa extra após 1,5 s; sem loop em falha persistente.
+  Falhas mantêm rascunho local e permitem retry;
+  Novas/importadas têm identidade própria persistida, independente do título;
+  desfazer um rascunho local não exibe confirmação remota.
+  bootstrap, câmera, seleção e leitura não gravam. O cabeçalho usa indicador
+  discreto, sem botão verde. [Contrato e validação](../../ui/QUADRA_AUTOSAVE_2026-10-28.md).
+
+- Transporte separa progresso dos botões e mantém rodízio/etapas. Velocidade
+  abre quatro opções por toque (0,5×, 1×, 1,5× e 2×), com seleção atual visível,
+  em uma cápsula sem título, caixa externa ou padding extra, usando o seletor
+  segmentado e o dropdown compartilhados; sem slider de velocidade.
+  Largura/empilhamento compartilham o cálculo das sobreposições da quadra.
+  No web, velocidade integra a cápsula de rodízio/etapas em toda largura, com
+  ícones e leitura compactos. Play/reiniciar, rodízio, velocidade e etapas
+  compartilham uma linha abaixo do progresso.
+
+- A listinha da reprodução abre Ajustes, inclusive após visitar Etapas.
+  No web até 700 px, o painel usa tipografia/espaçamento compactos e distribui
+  as seis rotações na largura disponível.
+- O compartilhamento da quadra usa a composição do Studio com densidade própria
+  em `court-sharing-styles.ts`: largura máxima 440 px, altura limitada à tela e
+  fontes/botões compactos até 700 px. As regras são isoladas em `sv-court-share`.
+- O painel Ajustes/Etapas/Biblioteca fecha ao tocar fora, inclusive sobre o
+  iframe 3D, com camada transparente abaixo do painel. Cliques internos e
+  Escape preservados; sem brilho no fundo ao passar o mouse.
+- A vista 3D gira por arraste, sem botão "Mover a vista"; zoom e ajuste à tela
+  continuam disponíveis. A ferramenta de mover permanece na vista 2D.
+- Giro, zoom e controles da câmera 3D permanecem ativos durante o Play.
+  Bloqueio de edição não cancela gesto de câmera; mudança de contexto,
+  ferramenta ou superfície oculta ainda cancela o gesto.
+
+- Na recepção, o levantador inicia a saída na soltura do lançamento do
+  sacador (evento `tossStart`), preservando bases, destino e corredor da P1.
+
+- `court-simulation/serve-flight.js` fornece a trajetória de saque da mão até
+  o piso para bola e guia; a recepção intercepta sua descida antes do alvo.
+  Folga considera o volume da bola/fita; flutuante e rotação conservam curvas
+  distintas. Tempos de contato derivam do voo, preservando bases autorais.
+  Reconstrução local após observar o SetOptics; sem publicação nesta revisão.
+  [Modelo, validação e limites](../../ui/QUADRA_3D_INTEGRACAO_2026-10-16.md#saque-animado--reconstrução-local-de-27102026).
+
+- `court-reception-middle-identity.ts` repara referências de centrais trocadas
+  somente na sequência canônica de seis recepções 5×1. Editor e leitura usam a
+  mesma função pura; nomes, bases e trajetórias são preservados, sem escrita remota.
+
+- Compartilhamento web da quadra implementado localmente em 27/10: cópia por
+  link de leitura, prévia 3D/2D e revogação, com a composição do Studio Scouting.
+  O link copiado usa sempre o domínio público `https://goatleta.com`, inclusive
+  no localhost; copiar um link local já gerado preserva seu ID/código.
+  Prévia e link usam o mesmo estúdio em leitura, com câmera, zoom e reprodução;
+  ajustes de simulação temporários em memória e restauração da cópia original;
+  links com 12 pares legados canônicos abrem convertidos em memória para as seis
+  rotações animadas atuais, sem esperar uma troca de modo ou gravar na origem;
+  ações autorais e persistência desabilitadas. Sem hook de edição no player; vínculos aluno/aula removidos. RLS/RPCs e testes
+  SQL isolados aprovados; migration aplicada com autorização em 27/10 e grants
+  remotos conferidos. Smoke com conta real em localhost validou publicar, ler,
+  reproduzir, prévia e revogar. Publicação do cliente permanece separada.
+  [Contrato e evidência](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md).
+
 - Em 25/10, o hook de rascunho suspende bootstrap, retries e autosave ao ocultar
   o estúdio, preservando RAM/histórico e recibos de escritas já enviadas.
   Posições normalizadas idênticas são compartilhadas como array/pontos imutáveis
@@ -47,11 +110,14 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   independentes. O serializer grava o documento uma vez e mantém o maior sufixo
   contíguo do histórico que caiba nos mesmos 20 passos/1.500.000 caracteres,
   sem truncar o documento atual. [Provas e limites locais](../../operations/performance-lists-memory-local-2026-10-25.md).
-- O estúdio compartilhado web é importado após a autorização do documento.
-  Falha do chunk usa o estado existente de indisponibilidade e permite nova
-  tentativa; respostas após perda de acesso/desmontagem não montam o estúdio.
-  Modo de leitura e renderer nativo permanecem preservados.
-  [Startup e validação local da segunda rodada](../../operations/performance-global-startup-round2-local-2026-10-24.md).
+- Na implementação atual, `visual-tech.tsx` e `SharedCourtScreen.web.tsx` usam
+  importações diretas; no link, a primeira montagem aguarda a leitura autorizada.
+  O relato de importação tardia de 24/10 permanece histórico.
+- Retomada web: uma falha transitória de revalidação preserva o mesmo player,
+  etapa, câmera e ajustes em memória. Hash novo ou link inválido/revogado
+  removem o conteúdo; polling fica suspenso em segundo plano. A reprodução
+  pausa no quadro atual e o renderer redesenha após visibilidade/contexto GPU.
+  [Contrato e limites locais](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md#retomada-após-tela-bloqueada-ou-segundo-plano--correção-local).
 - `TrainingPlan.pedagogy.blocks` é referência semântica; campos legados de
   aquecimento/principal/volta à calma conservam compatibilidade de apresentação.
 - Seleção de catálogo segue contexto de turma, ciclo, semana, aula e restrições;
@@ -442,3 +508,15 @@ independente e evidências privadas não compõem a publicação. Testes de pari
 usam fixtures locais em `src/core/__tests__/fixtures/court-reference/`; o gate
 `court-runtime` inclui os testes Node do motor e do renderizador na validação
 de release e CI. O smoke local desta ampliação não gravou a jogada no backend.
+
+Release da quadra em 27/10: build verificado e 697 suítes/4761 testes
+Jest aprovados, com smoke autenticado na 8081 e agenda preservada. Push de
+produção somente para main; CI/deploy remoto precisam de confirmação própria.
+
+Retomada web: pacote validado para publicação com 698 suítes/4772 testes
+Jest e build verificado. Eventos de suspensão/rede/GPU simulados; confirmação
+em celular físico pendente por falta de aparelho conectado. Entrega via main.
+
+Autosave e interface compacta: release completo aprovado com 702 suítes/
+4840 testes e export web. Gravação real da 8081 documentada no contrato;
+agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.

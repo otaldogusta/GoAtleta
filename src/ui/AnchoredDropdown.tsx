@@ -38,7 +38,7 @@ type AnchoredDropdownProps = {
   fitContent?: boolean;
   preferredWidth?: number;
   align?: "start" | "end";
-  surface?: "glass" | "solid";
+  surface?: "glass" | "solid" | "none";
   activeItemId?: string;
   /** Opt-in visual density. Trigger coordinates remain physical viewport pixels. */
   visualScale?: number;
@@ -373,6 +373,7 @@ export function AnchoredDropdown({
             elevation: 14,
           },
           webGlassPanelStyle,
+          surface === "none" ? { borderWidth: 0, backgroundColor: "transparent", shadowOpacity: 0, elevation: 0 } : null,
           scaled ? {
             position: "absolute", left: 0, top: 0, width: logicalWidth,
             transform: [{ scale }], transformOrigin: "top left",

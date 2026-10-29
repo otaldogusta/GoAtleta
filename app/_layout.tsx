@@ -362,6 +362,7 @@ function RootLayoutContent() {
     "/terms",
     "/data-deletion",
     "/scouting/shared",
+    "/court/shared",
     ...(__DEV__ ? ["/admin", "/family-access-preview"] : []),
   ];
   const publicPrefixes = ["/invite", "/family-invite", "/staff-invite"];

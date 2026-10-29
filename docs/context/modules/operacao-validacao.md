@@ -25,6 +25,11 @@ atualizar dependências apenas para organizar documentação.
 - A [escada de validação](../../operations/validation-ladder.md) decide o nível:
   documental = referências/formato/diff; micro UI = ciclo rápido; funcional =
   testes/tipos/smoke; dados/autorização = integração e escopo; publicação = release.
+- `npm run build:small -- --base=<commit> --test=<arquivo>` valida correções
+  visuais limitadas com Jest focado e build, sem substituir o CI completo.
+  Paths sensíveis e mudanças comportamentais são recusados. Em release direto
+  autorizado, push somente para `main` evita o preview duplicado da mesma revisão.
+  Critérios em [validação de release](../../operations/release-validation.md).
 - `npm run build:verified` executa checks e export; `validate:app` executa checks.
   O executor invalida recibos por inputs e não confia neles no CI. Reaproveitar
   somente o que o executor aceitar; não fabricar registros de aprovação.

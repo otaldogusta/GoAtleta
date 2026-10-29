@@ -18,6 +18,7 @@
     "web:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File ./script/start_clean_local.ps1 web",
     "build": "expo export -p web",
     "build:verified": "node scripts/release/validate.cjs --build",
+    "build:small": "node scripts/release/validate.cjs --small --build",
     "test": "jest --passWithNoTests",
     "test:court-runtime": "node --test \"public/visual-court-3d/*.test.mjs\" \"src/core/court-simulation/*.test.mjs\"",
     "test:e2e": "node scripts/test-e2e.js",

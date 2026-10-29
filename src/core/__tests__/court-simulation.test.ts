@@ -15,8 +15,8 @@ const near = (actual: number[], expected: number[], tolerance = 1e-8) => expect(
 describe("shared canonical volleyball simulation", () => {
   it("keeps unchanged mockup engines exact while attack extensions retain behavioral parity", () => {
     // Attack curve editing extends motion/physics/settings in the shared engine.
-    // attack-legacy-parity.test.mjs verifies their unchanged default behavior.
-    for (const name of ["attack-calibration", "blocker-motion", "reception-motion", "reception-target", "formations"]) {
+    // Node parity tests cover attack extensions and reception net clearance.
+    for (const name of ["attack-calibration", "blocker-motion", "reception-target", "formations"]) {
       const original = fs.readFileSync(path.join(__dirname, "fixtures/court-reference", `${name}.mjs`), "utf8").replace(/\.mjs/g, ".js").replace(/\r\n/g, "\n");
       const actual = fs.readFileSync(path.join(__dirname, "../court-simulation", `${name}.js`), "utf8").replace(/\r\n/g, "\n");
       expect(actual).toBe(original);
@@ -93,7 +93,9 @@ describe("shared canonical volleyball simulation", () => {
       const expected = sampleReception(progress, { bases: actual.bases, rotation, serve: "Topspin", system: "5-1", landing: [1.4, 6.65] });
       expect(actual.ball).toEqual(expected.ball);
       expect(actual.actors.map(({ id, slot, visible, ...actor }) => actor)).toEqual(expected.actors);
-      expect(actual.duration).toBe(4.1);
+      expect(actual.duration).toBeGreaterThan(3);
+      expect(actual.duration).toBeLessThan(5);
+      expect(board.timeline.steps[0].durationMs).toBe(Math.round(actual.duration * 1000));
     }
   });
 

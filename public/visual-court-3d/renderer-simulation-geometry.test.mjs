@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {simulationHandleEdit,isHeightHandle,previewAttackCurve,actorPoseView} from './renderer-simulation-geometry.mjs';
-import {createSimulationGuides} from './renderer-simulation.mjs';
+import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
 
 test('handle preview uses world coordinates and bounds height without owning settings',()=>{
  const handle={kind:'set',point:{x:0,y:4,z:1},value:1.8},before=JSON.stringify(handle);
@@ -75,6 +75,13 @@ test('sampled front attack and setter side poses retain exact facing and mirrori
  assert.equal(actorPoseView({...actor,poseRole:'setter',side:true,facing:[-1,0]},0).flip,false);
  assert.equal(actorPoseView({...actor,poseRole:'passer'},Math.PI/2).view,'side');
 });
+test('server hand uses the lateral sprite and matching mirror on either side of the court',()=>{
+ const actor={poseRole:'server',poseScale:1,position:{z:-10},facing:[0,1],side:false,mirror:true};
+ assert.deepEqual(actorPoseView(actor,0),{side:false,view:'front',flip:true});
+ assert.deepEqual(actorPoseView(actor,Math.PI/2),{side:true,view:'side',flip:false});
+ assert.deepEqual(actorPoseView(actor,-Math.PI/2),{side:true,view:'side',flip:true});
+});
+
 test('guide geometry consumes host paths, contact clocks and wall poses without a motion engine',()=>{
  const data={paths:[{id:'set',points:[{x:1,y:2,z:1},{x:0,y:4,z:1},{x:-3,y:3,z:.5}],color:'#72b6ef',opacity:.85},{id:'attack',points:[{x:-3,y:3,z:.5},{x:-2,y:2,z:-1},{x:0,y:.1,z:-5}],dashed:true,color:'#e89095',opacity:.8,arrow:1}],markers:[{id:'contact',kind:'ring',point:{x:-2,y:2,z:-1},color:'#ef858c',contactTime:2.7}],walls:[{center:{x:-3,y:2.9,z:0},width:.7,height:.6,angle:30}]};
  const before=JSON.stringify(data),group=createSimulationGuides(data);
@@ -85,4 +92,10 @@ test('guide geometry consumes host paths, contact clocks and wall poses without 
  const wall=group.children.find(child=>child.geometry?.type==='PlaneGeometry');
  assert.equal(wall.position.x,-3);assert.equal(wall.rotation.y,Math.PI/6);
  assert.equal(JSON.stringify(data),before);
+});
+
+test('serve crossing diagnostics read the rendered vertex buffer and disappear without a serve',()=>{
+ const group=createSimulationGuides({paths:[{id:'serve',points:[{x:0,y:3,z:-1},{x:2,y:3,z:1}],dashed:true}],markers:[],walls:[]});
+ assert.deepEqual(serveNetCrossing(group),{x:1,y:3,z:0});
+ assert.equal(serveNetCrossing(createSimulationGuides({paths:[],markers:[],walls:[]})),null);
 });
