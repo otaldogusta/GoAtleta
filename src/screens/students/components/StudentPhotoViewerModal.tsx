@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import { useState } from "react";
-import { ActivityIndicator, Modal, Text, View } from "react-native";
+import { ActivityIndicator, Modal, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Pressable } from "../../../ui/Pressable";

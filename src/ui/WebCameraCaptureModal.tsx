@@ -4,7 +4,8 @@ import {
   type CameraType,
 } from "expo-camera";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";

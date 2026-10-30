@@ -1,7 +1,8 @@
 import { pageHeaderMetrics } from "../../theme/tokens";
 import type { ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { BackTitleHeader } from "./BackTitleHeader";

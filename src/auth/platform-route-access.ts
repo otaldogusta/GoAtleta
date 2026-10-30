@@ -1,3 +1,5 @@
+import { buildLoginRedirectHref } from "./post-login-redirect";
+
 export type PlatformRouteAccessDecision = {
   blockRender: boolean;
   redirectTo: string | null;
@@ -5,7 +7,9 @@ export type PlatformRouteAccessDecision = {
 
 type PlatformRouteAccessInput = {
   pathname: string;
+  currentRoute?: unknown;
   hasSession: boolean;
+  authLoading?: boolean;
   accessLoading: boolean;
   hasPlatformAccess: boolean;
   authenticatedFallback: string;
@@ -14,7 +18,9 @@ type PlatformRouteAccessInput = {
 
 export function resolvePlatformRouteAccess({
   pathname,
+  currentRoute = pathname,
   hasSession,
+  authLoading = false,
   accessLoading,
   hasPlatformAccess,
   authenticatedFallback,
@@ -26,6 +32,10 @@ export function resolvePlatformRouteAccess({
 
   if (!isPlatformRoute || isDesignPreview) {
     return { blockRender: false, redirectTo: null };
+  }
+
+  if (authLoading) {
+    return { blockRender: true, redirectTo: null };
   }
 
   if (isLegacyLoginRoute) {
@@ -44,7 +54,7 @@ export function resolvePlatformRouteAccess({
   if (!hasSession) {
     return {
       blockRender: true,
-      redirectTo: `/login?next=${encodeURIComponent(pathname)}`,
+      redirectTo: buildLoginRedirectHref(currentRoute),
     };
   }
 

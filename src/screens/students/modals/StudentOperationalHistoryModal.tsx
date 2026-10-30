@@ -1,4 +1,6 @@
-import { ScrollView, Text, View } from "react-native";
+import { compactUiMetrics } from "../../../theme/tokens";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { StudentOperationalEvent } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
@@ -59,7 +61,7 @@ export function StudentOperationalHistoryModal({
       >
         <Text
           accessibilityRole="header"
-          style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}
+          style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}
         >
           Histórico do aluno
         </Text>

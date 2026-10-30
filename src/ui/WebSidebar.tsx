@@ -1,6 +1,7 @@
 import { useNavigationContainerRef, usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 
 import { useAuth } from "../auth/auth";
 import { usePlatformAdminAccess } from "../auth/use-platform-admin-access";
@@ -23,7 +24,7 @@ import {
 } from "../core/profile-name";
 import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
 import { useOptionalOrganization } from "../providers/organization-context";
-import { brandPalette, radius } from "../theme/tokens";
+import { brandPalette, compactUiMetrics, radius, shadow } from "../theme/tokens";
 import { Pressable } from "./Pressable";
 import { GoAtletaBrandMark, GoAtletaBrandWordmark } from "./GoAtletaBrand";
 import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
@@ -56,6 +57,10 @@ const SIDEBAR_FINANCE_WIDTH = 220;
 const SIDEBAR_EXPANSION_DISTANCE =
   SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
 const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded-v2";
+const PROFILE_MENU_WIDTH = 248;
+const PROFILE_SWITCHER_WIDTH = 208;
+const profileFeedback = (state: { pressed: boolean }) =>
+  state.pressed || Boolean((state as { hovered?: boolean }).hovered);
 
 const roleSubtitle: Record<AppRole, string> = {
   prof: "Painel do professor",
@@ -279,6 +284,7 @@ export function WebSidebar({
   const navigationRef = useNavigationContainerRef();
   const currentNavigationState = useCallback(() => navigationRef.current?.getRootState() ?? rootNavigationState, [navigationRef, rootNavigationState]);
   const pathname = usePathname();
+  const { width: viewportWidth } = useWindowDimensions();
   const isPlatformWorkspace =
     role === "coord" && pathname.startsWith("/platform");
   const { mode, colors } = useAppTheme();
@@ -367,6 +373,16 @@ export function WebSidebar({
   const activeExpandedWidth = isFinanceWorkspace
     ? SIDEBAR_FINANCE_WIDTH
     : SIDEBAR_EXPANDED_WIDTH;
+  const profileSwitcherWidth = Math.max(0, Math.min(PROFILE_SWITCHER_WIDTH, viewportWidth - 24));
+  const profileSwitcherLeft = (placement: "compact" | "expanded") => {
+    // The expanded panel starts at viewport 0; the compact profile popup starts at 14.
+    const containerLeft = placement === "expanded" ? 0 : 14;
+    const preferredLeft = placement === "expanded" ? activeExpandedWidth - 12 : PROFILE_MENU_WIDTH - 2;
+    return Math.max(
+      12 - containerLeft,
+      Math.min(preferredLeft, viewportWidth - containerLeft - profileSwitcherWidth - 12),
+    );
+  };
   const revealSidebarToggle = !supportsHoverPointer || sidebarHovered;
   const sidebarRevealEvents = {
     onMouseEnter: () => setSidebarHovered(true),
@@ -577,7 +593,7 @@ export function WebSidebar({
       profileSwitcherTriggerRef.current as unknown as HTMLElement | null;
     const triggerRect = triggerElement?.getBoundingClientRect?.();
     if (triggerRect && typeof window !== "undefined") {
-      const estimatedHeight = 56 + visibleProfileSwitchOptions.length * 54;
+      const estimatedHeight = 14 + visibleProfileSwitchOptions.length * compactUiMetrics.touchTarget;
       setProfileSwitcherTop(
         Math.max(
           12,
@@ -616,35 +632,18 @@ export function WebSidebar({
         {
           position: "absolute",
           zIndex: 3201,
-          width: 236,
-          left:
-            placement === "expanded"
-              ? activeExpandedWidth - 12
-              : "calc(100% - 2px)",
+          width: profileSwitcherWidth,
+          left: profileSwitcherLeft(placement),
           top: placement === "expanded" ? profileSwitcherTop : 10,
-          borderRadius: radius.xl,
+          borderRadius: radius.internal,
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.14)",
-          backgroundColor: "#1F2937",
-          padding: 10,
-          gap: 4,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.42)",
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          padding: 6,
+          ...shadow.elevated,
         } as any
       }
     >
-      <Text
-        style={{
-          color: "rgba(255,255,255,0.48)",
-          fontSize: 10,
-          fontWeight: "900",
-          paddingHorizontal: 10,
-          paddingTop: 4,
-          paddingBottom: 6,
-        }}
-      >
-        ALTERNAR WORKSPACE
-      </Text>
-
       {visibleProfileSwitchOptions.map((option) => {
         const active = selectedPreview === option.id;
         return (
@@ -653,46 +652,41 @@ export function WebSidebar({
             accessibilityLabel={`Abrir workspace ${option.label}`}
             accessibilityState={{ selected: active }}
             onPress={() => void applyProfilePreview(option.id)}
-            style={{
-              minHeight: 54,
-              borderRadius: radius.card,
-              paddingHorizontal: 10,
+            suppressWebHoverFeedback
+            disableWebPressScale
+            style={state => ({
+              minHeight: compactUiMetrics.touchTarget,
+              borderRadius: radius.internal,
+              paddingHorizontal: compactUiMetrics.gap,
               flexDirection: "row",
               alignItems: "center",
-              gap: 11,
-              backgroundColor: active
-                ? "rgba(255,255,255,0.10)"
-                : "transparent",
-            }}
+              gap: compactUiMetrics.gap,
+              backgroundColor: active || profileFeedback(state) ? colors.secondaryBg : "transparent",
+            })}
           >
             <GoAtletaIcon
               name={option.icon}
-              size={19}
-              color={active ? brandPalette.quadra : "rgba(255,255,255,0.70)"}
+              size={compactUiMetrics.iconSize}
+              color={active ? colors.text : colors.muted}
             />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
                 style={{
-                  color: active ? brandPalette.white : "rgba(255,255,255,0.86)",
-                  fontSize: 13,
-                  fontWeight: "800",
+                  color: colors.text,
+                  fontSize: compactUiMetrics.bodyFontSize,
+                  lineHeight: compactUiMetrics.bodyLineHeight,
+                  fontWeight: active ? "600" : "400",
                 }}
                 numberOfLines={1}
               >
                 {option.label}
               </Text>
-              <Text
-                style={{ color: "rgba(255,255,255,0.46)", fontSize: 10 }}
-                numberOfLines={1}
-              >
-                {option.subtitle}
-              </Text>
             </View>
             {active ? (
               <GoAtletaIcon
-                name="checkmarkCircle"
-                size={17}
-                color={brandPalette.quadra}
+                name="checkmark"
+                size={compactUiMetrics.secondaryIconSize}
+                color={colors.successText}
               />
             ) : null}
           </Pressable>
@@ -712,17 +706,16 @@ export function WebSidebar({
         {
           position: placement === "compact" ? "fixed" : "absolute",
           zIndex: 3200,
-          width: placement === "compact" ? 304 : undefined,
+          width: Math.min(PROFILE_MENU_WIDTH, viewportWidth - 24),
           left: placement === "compact" ? 14 : 0,
-          right: placement === "compact" ? undefined : 0,
-          bottom: placement === "compact" ? 88 : 68,
-          borderRadius: radius.xl,
+          bottom: placement === "compact" ? 88 : 54,
+          borderRadius: radius.internal,
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.14)",
-          backgroundColor: "#1F2937",
-          padding: 10,
-          gap: 4,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.42)",
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          padding: 6,
+          gap: 2,
+          ...shadow.elevated,
         } as any,
       ]}
     >
@@ -744,35 +737,38 @@ export function WebSidebar({
             onFocus={openProfileSwitcher}
             onHoverIn={openProfileSwitcher}
             onPress={openProfileSwitcher}
-            style={{
-              minHeight: 48,
-              borderRadius: radius.card,
-              paddingHorizontal: 10,
+            suppressWebHoverFeedback
+            disableWebPressScale
+            style={state => ({
+              minHeight: compactUiMetrics.touchTarget,
+              borderRadius: radius.internal,
+              paddingHorizontal: compactUiMetrics.gap,
               flexDirection: "row",
               alignItems: "center",
-              gap: 11,
+              gap: compactUiMetrics.gap,
               backgroundColor: isProfileSwitcherOpen
-                ? "rgba(255,255,255,0.08)"
-                : "transparent",
-            }}
+                ? colors.secondaryBg
+                : profileFeedback(state) ? colors.inputBg : "transparent",
+            })}
           >
             <GoAtletaIcon
               name="swap"
-              size={18}
-              color="rgba(255,255,255,0.72)"
+              size={compactUiMetrics.iconSize}
+              color={colors.muted}
             />
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text
                 style={{
-                  color: brandPalette.white,
-                  fontSize: 13,
-                  fontWeight: "800",
+                  color: colors.text,
+                  fontSize: compactUiMetrics.bodyFontSize,
+                  lineHeight: compactUiMetrics.bodyLineHeight,
+                  fontWeight: "600",
                 }}
               >
                 Alternar perfil
               </Text>
               <Text
-                style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
+                style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}
                 numberOfLines={1}
               >
                 Atual:{" "}
@@ -783,15 +779,15 @@ export function WebSidebar({
             </View>
             <GoAtletaIcon
               name="chevronForward"
-              size={17}
-              color="rgba(255,255,255,0.62)"
+              size={compactUiMetrics.secondaryIconSize}
+              color={colors.muted}
             />
           </Pressable>
 
           <View
             style={{
               height: 1,
-              backgroundColor: "rgba(255,255,255,0.10)",
+              backgroundColor: colors.border,
               marginHorizontal: 8,
               marginVertical: 4,
             }}
@@ -812,26 +808,30 @@ export function WebSidebar({
           onPress={() =>
             navigateTo(isPlatformWorkspace ? "/coord/dashboard" : "/platform")
           }
-          style={{
-            minHeight: 44,
-            borderRadius: radius.card,
-            paddingHorizontal: 10,
+          suppressWebHoverFeedback
+          disableWebPressScale
+          style={state => ({
+            minHeight: compactUiMetrics.touchTarget,
+            borderRadius: radius.internal,
+            paddingHorizontal: compactUiMetrics.gap,
             flexDirection: "row",
             alignItems: "center",
-            gap: 11,
-          }}
+            gap: compactUiMetrics.gap,
+            backgroundColor: profileFeedback(state) ? colors.inputBg : "transparent",
+          })}
         >
           <GoAtletaIcon
             name={isPlatformWorkspace ? "coordination" : "lock"}
-            size={19}
-            color={brandPalette.quadra}
+            size={compactUiMetrics.iconSize}
+            color={colors.muted}
           />
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
             <Text
               style={{
-                color: brandPalette.white,
-                fontSize: 13,
-                fontWeight: "800",
+                color: colors.text,
+                fontSize: compactUiMetrics.bodyFontSize,
+                lineHeight: compactUiMetrics.bodyLineHeight,
+                fontWeight: "600",
               }}
             >
               {isPlatformWorkspace
@@ -839,7 +839,7 @@ export function WebSidebar({
                 : "Administração SaaS"}
             </Text>
             <Text
-              style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
+              style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}
               numberOfLines={1}
             >
               {isPlatformWorkspace
@@ -849,8 +849,8 @@ export function WebSidebar({
           </View>
           <GoAtletaIcon
             name="chevronForward"
-            size={17}
-            color="rgba(255,255,255,0.62)"
+            size={compactUiMetrics.secondaryIconSize}
+            color={colors.muted}
           />
         </Pressable>
       ) : null}
@@ -861,7 +861,7 @@ export function WebSidebar({
         <View
           style={{
             height: 1,
-            backgroundColor: "rgba(255,255,255,0.10)",
+            backgroundColor: colors.border,
             marginHorizontal: 8,
             marginVertical: 4,
           }}
@@ -872,26 +872,30 @@ export function WebSidebar({
         <Pressable
           onHoverIn={() => setProfileSwitcherOpen(false)}
           onPress={openProfile}
-          style={{
-            minHeight: 44,
-            borderRadius: radius.card,
-            paddingHorizontal: 10,
+          suppressWebHoverFeedback
+          disableWebPressScale
+          style={state => ({
+            minHeight: compactUiMetrics.touchTarget,
+            borderRadius: radius.internal,
+            paddingHorizontal: compactUiMetrics.gap,
             flexDirection: "row",
             alignItems: "center",
-            gap: 11,
-          }}
+            gap: compactUiMetrics.gap,
+            backgroundColor: profileFeedback(state) ? colors.inputBg : "transparent",
+          })}
         >
           <GoAtletaIcon
             name="management"
-            size={19}
-            color="rgba(255,255,255,0.78)"
+            size={compactUiMetrics.iconSize}
+            color={colors.muted}
           />
           <Text
             style={{
               flex: 1,
-              color: brandPalette.white,
-              fontSize: 13,
-              fontWeight: "700",
+              color: colors.text,
+              fontSize: compactUiMetrics.bodyFontSize,
+              lineHeight: compactUiMetrics.bodyLineHeight,
+              fontWeight: "500",
             }}
           >
             Perfil e configurações
@@ -903,7 +907,7 @@ export function WebSidebar({
         <View
           style={{
             height: 1,
-            backgroundColor: "rgba(255,255,255,0.10)",
+            backgroundColor: colors.border,
             marginHorizontal: 8,
             marginVertical: 4,
           }}
@@ -914,18 +918,21 @@ export function WebSidebar({
         accessibilityLabel="Sair da conta"
         onHoverIn={() => setProfileSwitcherOpen(false)}
         onPress={() => void handleSignOut()}
-        style={{
-          minHeight: 44,
-          borderRadius: radius.card,
-          paddingHorizontal: 10,
+        suppressWebHoverFeedback
+        disableWebPressScale
+        style={state => ({
+          minHeight: compactUiMetrics.touchTarget,
+          borderRadius: radius.internal,
+          paddingHorizontal: compactUiMetrics.gap,
           flexDirection: "row",
           alignItems: "center",
-          gap: 11,
-        }}
+          gap: compactUiMetrics.gap,
+          backgroundColor: profileFeedback(state) ? colors.inputBg : "transparent",
+        })}
       >
-        <GoAtletaIcon name="logout" size={19} color="#FCA5A5" />
+        <GoAtletaIcon name="logout" size={compactUiMetrics.iconSize} color={colors.dangerText} />
         <Text
-          style={{ flex: 1, color: "#FCA5A5", fontSize: 13, fontWeight: "700" }}
+          style={{ flex: 1, color: colors.dangerText, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "500" }}
         >
           Sair
         </Text>
@@ -1556,9 +1563,10 @@ export function WebSidebar({
                 }
                 accessibilityState={{ expanded: isProfileMenuOpen }}
                 onPress={toggleProfileMenu}
+                disableWebPressScale
                 style={{
-                  minHeight: 58,
-                  borderRadius: 18,
+                  minHeight: compactUiMetrics.touchTarget,
+                  borderRadius: radius.internal,
                   borderWidth: 1,
                   borderColor: isProfileMenuOpen
                     ? "rgba(255,255,255,0.18)"
@@ -1566,31 +1574,30 @@ export function WebSidebar({
                   backgroundColor: isProfileMenuOpen
                     ? "rgba(255,255,255,0.13)"
                     : "rgba(255,255,255,0.08)",
-                  paddingLeft: 14,
-                  paddingRight: 12,
+                  paddingHorizontal: compactUiMetrics.gap,
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 10,
+                  gap: compactUiMetrics.gap,
                   overflow: "hidden",
                 }}
               >
                 <View
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 19,
-                    backgroundColor: "rgba(65, 217, 132, 0.18)",
+                    width: compactUiMetrics.controlHeight,
+                    height: compactUiMetrics.controlHeight,
+                    borderRadius: compactUiMetrics.controlHeight / 2,
+                    backgroundColor: "rgba(255,255,255,0.08)",
                     borderWidth: 1,
-                    borderColor: "rgba(65, 217, 132, 0.35)",
+                    borderColor: "rgba(255,255,255,0.10)",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
                   <Text
                     style={{
-                      color: webShellTokens.primary,
-                      fontSize: 12,
-                      fontWeight: "900",
+                      color: brandPalette.white,
+                      fontSize: compactUiMetrics.metadataFontSize,
+                      fontWeight: "600",
                     }}
                   >
                     {professorInitials}
@@ -1602,15 +1609,16 @@ export function WebSidebar({
                   <Text
                     style={{
                       color: brandPalette.white,
-                      fontSize: 13,
-                      fontWeight: "800",
+                      fontSize: compactUiMetrics.bodyFontSize,
+                      lineHeight: compactUiMetrics.bodyLineHeight,
+                      fontWeight: "600",
                     }}
                     numberOfLines={1}
                   >
                     {professorName}
                   </Text>
                   <Text
-                    style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
+                    style={{ color: "rgba(255,255,255,0.56)", fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}
                     numberOfLines={1}
                   >
                     {isPlatformWorkspace
@@ -1620,7 +1628,7 @@ export function WebSidebar({
                 </View>
                 <GoAtletaIcon
                   name={isProfileMenuOpen ? "chevronDown" : "chevronUp"}
-                  size={17}
+                  size={compactUiMetrics.secondaryIconSize}
                   color="rgba(255,255,255,0.68)"
                 />
               </Pressable>

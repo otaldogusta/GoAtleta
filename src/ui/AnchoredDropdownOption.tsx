@@ -3,6 +3,7 @@ import { View, type StyleProp, type ViewStyle } from "react-native";
 
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 type Props = {
   active: boolean;
@@ -38,10 +39,12 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
       accessibilityLabel={accessibilityLabel}
       style={[
         {
-          paddingVertical: isCompact ? 7 : 12,
+          minHeight: compactUiMetrics.touchTarget,
+          justifyContent: "center",
+          paddingVertical: isCompact ? 6 : 8,
           paddingHorizontal: isCompact ? 8 : 12,
           borderRadius: isCompact ? 12 : 14,
-          marginVertical: isCompact ? 0 : 3,
+          marginVertical: isCompact ? 0 : 2,
           backgroundColor,
           borderWidth: 1,
           borderColor,
@@ -51,7 +54,7 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
       ]}
     >
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <View style={{ flex: 1 }}>{children}</View>
+        <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
         {rightAccessory ? <View>{rightAccessory}</View> : null}
       </View>
     </Pressable>

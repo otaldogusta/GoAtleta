@@ -4,19 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Network from "expo-network";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-    Animated,
-    Easing,
-    FlatList,
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    Vibration,
-    View,
-} from "react-native";
+import { Animated, Easing, FlatList, Image, Modal, Platform, ScrollView, TextInput, Vibration, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
@@ -56,6 +45,7 @@ import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { getFriendlyErrorMessage } from "../src/ui/error-messages";
 import { useSaveToast } from "../src/ui/save-toast";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { compactUiMetrics } from "../src/theme/tokens";
 
 type LiveCheckin = {
   id: string;
@@ -1284,7 +1274,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "800" }}>Assistente NFC</Text>
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
+          <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>
             Indicadores atuais: scans {metrics.totalScans} • duplicados {metrics.duplicateScans} • pendentes {metrics.checkinsPending}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1356,7 +1346,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
             padding: 12,
           }}
         >
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
             Tags vinculadas
           </Text>
           {classBindings.length ? (
@@ -1414,7 +1404,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
             padding: 12,
           }}
         >
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
             Presenças desta sessão
           </Text>
           {liveCheckins.length ? (
@@ -1482,7 +1472,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
               maxHeight: "85%",
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>Vincular tag NFC</Text>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>Vincular tag NFC</Text>
             <Text style={{ color: colors.muted }}>UID: {pendingUid}</Text>
 
             <TextInput

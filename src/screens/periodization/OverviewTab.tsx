@@ -1,4 +1,5 @@
-import { Animated, Text, View } from "react-native";
+import { Animated, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { type ThemeColors } from "../../ui/app-theme";
 import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
@@ -11,6 +12,7 @@ import type { ClassGroup, ClassPlan, PlanningCycle, RecentSessionSummary } from 
 import { isAnnualCycle } from "../../core/periodization-basics";
 import { isRedeEsperancaEightToElevenClass } from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
 import { PeriodizationIntelligenceOverview } from "./PeriodizationIntelligenceOverview";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type OverviewTabProps = {
   colors: ThemeColors;
@@ -141,7 +143,7 @@ export function OverviewTab({
             gap: 8,
           }}
         >
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
 
             {normalizeText("Visão geral")}
 
@@ -251,7 +253,7 @@ export function OverviewTab({
 
           >
 
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.titleFontSize }}>
 
               {formatShortDate(nextSessionDate)}
 
@@ -372,7 +374,7 @@ export function OverviewTab({
 
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}>
 
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.titleFontSize }}>
 
                         {normalizeText(selectedClass?.name ?? "Selecione")}
 
@@ -466,7 +468,7 @@ export function OverviewTab({
 
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
 
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.titleFontSize }}>
 
                     {selectedUnit
                       ? normalizeText(selectedClass?.unit ?? selectedUnit)
@@ -570,7 +572,7 @@ export function OverviewTab({
 
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
 
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.titleFontSize }}>
 
                     {sessionsPerWeek === 1 ? "1 dia" : `${sessionsPerWeek} dias`}
 
@@ -614,7 +616,7 @@ export function OverviewTab({
 
           >
 
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
 
               Alerta de dor
 
@@ -683,7 +685,7 @@ export function OverviewTab({
 
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
               Planejamento da turma
             </Text>
             <Text style={{ marginTop: 5, color: colors.muted, fontSize: 12, lineHeight: 17 }}>
@@ -821,7 +823,7 @@ export function OverviewTab({
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <GoAtletaIcon name="warningCircle" size={16} color={colors.warningText} />
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700", flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", flex: 1 }}>
               Cobertura anual incompleta
             </Text>
           </View>

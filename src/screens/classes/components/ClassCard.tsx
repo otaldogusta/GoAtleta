@@ -1,10 +1,11 @@
-import { Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, Platform, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
 import type { ClassCardViewModel } from "../application/class-card-view-model";
-import { radius, } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
@@ -622,6 +623,7 @@ export const ClassCard = memo(function ClassCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Opções de ${item.name}`}
+            hitSlop={8}
             onPress={(event) => {
               event.stopPropagation?.();
               if (!actionMenuOpen) measureActionMenu();
@@ -733,6 +735,7 @@ export const ClassCard = memo(function ClassCard({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Opções de ${item.name}`}
+              hitSlop={8}
               onPress={(event) => {
                 event.stopPropagation?.();
                 if (!actionMenuOpen) measureActionMenu();
@@ -844,7 +847,7 @@ export const ClassCard = memo(function ClassCard({
 
 const styles = StyleSheet.create({
   tableRow: {
-    minHeight: 68,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -889,15 +892,15 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   tableClassAvatar: {
-    width: 38,
-    height: 38,
+    width: 32,
+    height: 32,
     borderRadius: radius.internal,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
   tableClassAvatarText: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "900",
   },
   tableIdentityText: {
@@ -906,7 +909,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   tableTitle: {
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "900",
     minWidth: 0,
     flexShrink: 1,
@@ -1014,8 +1017,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   classAvatar: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: radius.internal,
     alignItems: "center",
     justifyContent: "center",
@@ -1027,7 +1030,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   classAvatarText: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "900",
   },
   classAvatarTextNarrow: {
@@ -1144,13 +1147,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   title: {
-    fontSize: 14,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "900",
     minWidth: 0,
     flexShrink: 1,
   },
   titleNarrow: {
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
   },
   subtitle: {
     fontSize: 11,

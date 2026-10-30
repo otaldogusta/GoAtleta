@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ResponsivePage } from "../ui/ResponsivePage";

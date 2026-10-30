@@ -13,7 +13,8 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 | --- | --- |
 | [app/_layout.tsx](../../../app/_layout.tsx), [AppShell.tsx](../../../src/ui/AppShell.tsx) | Composição raiz e shell |
 | [RootWebShell.tsx](../../../src/ui/RootWebShell.tsx), [NativeSidebar.tsx](../../../src/ui/NativeSidebar.tsx) | Navegação/layout por plataforma |
-| [tokens.ts](../../../src/theme/tokens.ts), [app-theme.tsx](../../../src/ui/app-theme.tsx) | Tokens e tema |
+| [tokens.ts](../../../src/theme/tokens.ts), [compact-ui-metrics.ts](../../../src/theme/compact-ui-metrics.ts), [app-theme.tsx](../../../src/ui/app-theme.tsx) | Tokens, escala operacional e tema |
+| [OperationalText.tsx](../../../src/ui/OperationalText.tsx) | Corpo operacional, com estilo explícito e herança nativa preservados |
 | [Pressable.tsx](../../../src/ui/Pressable.tsx), [Button.tsx](../../../src/ui/Button.tsx), [ScreenHeader.tsx](../../../src/ui/ScreenHeader.tsx) | Interação e hierarquia comuns |
 | [AnchoredDropdown.tsx](../../../src/ui/AnchoredDropdown.tsx), [overlay-layers.ts](../../../src/ui/overlay-layers.ts) | Portal, ancoragem e sobreposição |
 | [auth-layout.ts](../../../src/ui/auth-layout.ts), [form-validation-feedback.tsx](../../../src/ui/form-validation-feedback.tsx) | Métricas e feedback de formulário |
@@ -21,6 +22,9 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 | [lazy-screen.tsx](../../../src/ui/lazy-screen.tsx), [perf.ts](../../../src/observability/perf.ts) | Carregamento e medição |
 
 ## Contratos a preservar
+
+- As abas de professor/coordenação definem o fundo da cena com o tema atual,
+  incluindo o intervalo em que a rota ainda aguarda permissões ou importação.
 
 - Na web, `RootWebShell` conserva os ancestrais do Stack entre rotas;
   `AppShell.chromeVisible` altera apenas o chrome. Não alternar Fragment/shell
@@ -40,6 +44,24 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
   ver [paridade entre campos](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
 - Marca pública **Go Atleta**, tema e primitives existentes. Selecionar tokens
   antes de criar medidas/cores independentes ou trocar bibliotecas.
+- Densidade compacta é o padrão operacional: `responsiveLayout.density` define
+  página 18/20, seção 16, corpo/card 12 e metadado 11; `compactUiMetrics` reúne
+  controles e navegação. `OperationalText` aplica corpo implícito de 12 sem
+  substituir estilos explícitos, herança aninhada ou escala de texto. Ajustar
+  fonte, ícone, padding, gaps e reflow em conjunto, preservando alvos de toque.
+  Ficha curta acompanha o conteúdo; navegação reserva apenas seu espaço real.
+  Não simular compactação com zoom/escala global. Ver [proporções](../../ui/RESPONSIVE_RULES.md#proporção-dos-elementos)
+  e [cobertura local de 29/10](../../ui/DENSITY_ROLLOUT_2026-10-29.md).
+  A [continuação por papel de 30/10](../../ui/DENSITY_ROLES_2026-10-30.md)
+  separa sessão do Aluno, preview de acessos e UI com Supabase real local e dados fictícios;
+  registra os pares de antes/depois e os limites de cada recorte.
+  A composição dessa rodada foi rejeitada pelo usuário; o
+  [refinamento seguinte](../../ui/CONSISTENCIA_PLATAFORMA_2026-10-30.md) separa
+  ajuste de indicadores/controles e correção da entrada da Plataforma. Os recortes
+  visuais foram conferidos localmente; os limites do smoke de Auth permanecem explícitos.
+  A [continuação em Aluno/Família](../../ui/CONSISTENCIA_ALUNO_FAMILIA_2026-10-30.md)
+  trata composição de cards, espaçamentos e ações por papel; a nova conferência
+  local conferiu 390/1440 e recortes adicionais, sem estender o aceite às demais telas.
 - Bandeiras web carregam o conjunto de SVGs apenas ao montar o ícone, com a mesma
   área e composição finais. Falha decorativa preserva país/DDI e pode tentar de
   novo numa montagem posterior; o renderer nativo permanece intacto.
@@ -52,10 +74,21 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 - Reutilizar `Pressable`; links secundários têm feedback textual sem caixa de
   hover (`suppressWebHoverFeedback`). Preservar foco, teclado, acessibilidade e
   saída com alterações não salvas.
+- `ModalSheet` aceita `reduceMotion` e `onExited` opcionais: o primeiro elimina
+  a transição; o segundo avisa só após uma saída concluída e atual, ignorando
+  reabertura, blur e callback antigo. `transition="calendar"` é opt-in da Agenda:
+  card opaco, entrada lateral 260ms/saída 240ms e progresso contínuo na interrupção;
+  a barreira permanece durante a saída. Padrões dos demais consumidores preservados.
+  [Aplicação na Agenda](../../ui/AGENDA_SAMSUNG_REFERENCIA_2026-10-29.md).
 - `ModalSheet` web respeita o foco da rota, liberando portal, rolagem e Escape
   ao ocultar uma tela retida, sem disparar fechamento/descarte nos chamadores.
   Contexto global fora de telas conserva a visibilidade; o nativo não observa
   esse foco. [Correção e validação local de 24/10](../../operations/performance-boot-soak-local-2026-10-24.md).
+- O editor da Agenda usa scrollbar web opt-in de 4px com gutter estável,
+  sem herdar o alargamento global de dropdowns. Hovers de Categoria/Esporte/
+  Turmas iluminam valor/seta sem caixa pesada ou escala; fonte preservada.
+  Anotações cresce inline; anexos usam Adicionar azul, remoção vermelha e prévia
+  privada de imagens. [Contrato](../../ui/AGENDA_ANOTACOES_ANEXOS_2026-10-29.md).
 - Respeitar variantes web/nativo e reduced motion. Alterações em representação
   visual não devem excluir dados do usuário; ver [quadra](biblioteca-quadra.md).
 - Copy curta, sem repetir alertas ou atribuir cada resultado à IA.
@@ -106,11 +139,13 @@ revisões datadas descrevem estados e recomendações daquele momento; mockups e
 
 ## Validação relevante
 
-Testes existentes, não executados nesta rodada:
+Testes de contrato disponíveis:
 [overlay-layers](../../../src/ui/__tests__/overlay-layers.test.ts),
 [anchored-dropdown-viewport](../../../src/ui/__tests__/anchored-dropdown-viewport.test.ts),
 [responsive-layout](../../../src/ui/__tests__/responsive-layout.test.ts),
+[OperationalText](../../../src/ui/__tests__/OperationalText.test.ts),
 [form-validation-feedback](../../../src/ui/__tests__/form-validation-feedback.test.ts).
+Resultados e limites desta rodada estão no [registro de densidade](../../ui/DENSITY_ROLLOUT_2026-10-29.md).
 Microcopy/estilo: diff e uma interação/viewport no `localhost:8081`, sem build
 amplo. Mudança de foco, estado ou primitive: testes focados, tipos e smoke do
 comportamento. Medir performance antes/depois quando esse for o objetivo.

@@ -21,7 +21,7 @@ export function FloatingSaveBar({
   disabled = false,
   loading = false,
   loadingLabel,
-  maxWidth = 728,
+  maxWidth = 440,
   bottom = 18,
 }: FloatingSaveBarProps) {
   if (!visible) return null;

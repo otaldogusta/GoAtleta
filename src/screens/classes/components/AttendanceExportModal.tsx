@@ -1,6 +1,8 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import { buildAttendanceExportDetailSheets } from "../application/attendance-export-groups";
 import { useEffect, useMemo, useState } from "react";
-import { Platform, ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { getMyMemberPermissions } from "../../../api/members";
 import type { ClassStaffAssignment } from "../../../api/class-responsibles";
@@ -465,16 +467,16 @@ export function AttendanceExportModal({
       position="center"
       cardStyle={{ width: "100%", maxWidth: 560, maxHeight: "88%", padding: 0, overflow: "hidden" }}
     >
-      <View style={{ paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flex: 1, gap: 3 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>Exportar chamadas</Text>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>Exportar chamadas</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Escolha o período e os filtros necessários.</Text>
         </View>
         <Pressable accessibilityLabel="Fechar" onPress={onClose} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border }}>
           <GoAtletaIcon name="close" size={17} color={colors.text} />
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 18, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           <View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>De</Text><DateInput value={startDate} onChange={setStartDate} placeholder="Data inicial" /></View>
           <View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Até</Text><DateInput value={endDate} onChange={setEndDate} placeholder="Data final" /></View>
@@ -490,10 +492,10 @@ export function AttendanceExportModal({
           <InlineSelector label="Vínculo atual" value={membershipStatus} options={membershipOptions} open={openSelector === "membership"} onToggle={() => setOpenSelector((current) => current === "membership" ? null : "membership")} onSelect={(value) => { setMembershipStatus(value as AttendanceExportMembershipFilter); setOpenSelector(null); }} />
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          <Pressable disabled={workingFormat !== null} onPress={() => void runExport("pdf")} style={{ flex: 1, minWidth: 180, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, opacity: workingFormat ? 0.55 : 1 }}>
+          <Pressable disabled={workingFormat !== null} onPress={() => void runExport("pdf")} style={{ flex: 1, minWidth: 180, minHeight: compactUiMetrics.touchTarget, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, opacity: workingFormat ? 0.55 : 1 }}>
             <GoAtletaIcon name="document" size={17} color={colors.text} /><Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>{workingFormat === "pdf" ? "Gerando PDF..." : "PDF detalhado"}</Text>
           </Pressable>
-          <Pressable disabled={workingFormat !== null} onPress={() => void runExport("xlsx")} style={{ flex: 1, minWidth: 180, minHeight: 48, borderRadius: 12, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, opacity: workingFormat ? 0.55 : 1 }}>
+          <Pressable disabled={workingFormat !== null} onPress={() => void runExport("xlsx")} style={{ flex: 1, minWidth: 180, minHeight: compactUiMetrics.touchTarget, borderRadius: 12, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, opacity: workingFormat ? 0.55 : 1 }}>
             <GoAtletaIcon name="download" size={17} color={colors.primaryText} /><Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "800" }}>{workingFormat === "xlsx" ? "Gerando XLSX..." : "XLSX detalhado"}</Text>
           </Pressable>
         </View>

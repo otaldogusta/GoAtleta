@@ -9,7 +9,8 @@ import { buildAssistantReportIdentity, collapseLatestStructuredProposalReply, re
 import { ScientificEvidencePanel, type ScientificReference } from "../../src/assistant/components/ScientificEvidencePanel";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Keyboard, Linking, Platform, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Keyboard, Linking, Platform, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
@@ -172,7 +173,7 @@ const quickPromptGridStyles = StyleSheet.create({
     borderWidth: 1,
   },
   copy: { flex: 1, minWidth: 0, gap: 2 },
-  title: { fontWeight: "700", fontSize: 13 },
+  title: { fontWeight: "700", fontSize: 12, lineHeight: 18 },
   description: { fontSize: 11, lineHeight: 14 },
 });
 

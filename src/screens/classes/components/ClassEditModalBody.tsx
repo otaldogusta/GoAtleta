@@ -1,6 +1,8 @@
-import { memo, type ReactNode, type RefObject, useId, useRef, useState } from "react";
+import { compactUiMetrics } from "../../../theme/tokens";
+import { memo, type ReactNode, type RefObject, useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { ActivityIndicator, Image, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassStaffAssignment } from "../../../api/class-responsibles";
 import type { OrgMember } from "../../../api/members";
@@ -12,6 +14,7 @@ import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { ClassUnitAutocomplete } from "./ClassUnitAutocomplete";
+import type { ClassSettingsSection } from "../class-workspace-route";
 
 type PickerLayout = { x: number; y: number; width: number; height: number };
 type WindowPosition = { x: number; y: number };
@@ -39,6 +42,8 @@ const formatModalityLabel = (value: string | undefined) => {
 };
 
 type ClassEditModalBodyProps = {
+  initialSection?: ClassSettingsSection;
+  onInitialSectionLayout?: (y: number) => void;
   compact?: boolean;
   renderPickers?: boolean;
   leftColumnFooter?: ReactNode;
@@ -826,6 +831,21 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const stacked = width < 820;
+  const sectionRoot = useRef<View>(null), basicsSection = useRef<View>(null), profileSection = useRef<View>(null), agendaSection = useRef<View>(null);
+  const initialPositioned = useRef<ClassSettingsSection | null>(null);
+  const initialRequest = useRef({ section: props.initialSection ?? "basics", callback: props.onInitialSectionLayout });
+  useLayoutEffect(() => { initialRequest.current = { section: props.initialSection ?? "basics", callback: props.onInitialSectionLayout }; }, [props.initialSection, props.onInitialSectionLayout]);
+  const positionInitialSection = useCallback(() => {
+    const section = props.initialSection ?? "basics";
+    if (initialPositioned.current === section || !initialRequest.current.callback || !sectionRoot.current) return;
+    const target = section === "agenda" ? agendaSection.current : section === "profile" ? profileSection.current : basicsSection.current;
+    target?.measureLayout(sectionRoot.current, (_x, y) => {
+      if (initialRequest.current.section !== section || initialPositioned.current === section) return;
+      initialPositioned.current = section;
+      initialRequest.current.callback?.(y);
+    }, () => undefined);
+  }, [props.initialSection]);
+  useLayoutEffect(positionInitialSection, [positionInitialSection]);
   const { fields, options, actions, pickers } = props;
   const staffSearchListId = useId();
   const [staffSearch, setStaffSearch] = useState("");
@@ -918,7 +938,7 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
     });
   };
   const fieldStyle = {
-    minHeight: 48,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
@@ -934,8 +954,8 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
     justifyContent: "space-between" as const,
     gap: 8,
   };
-  const sectionTitleStyle = { color: colors.text, fontSize: 18, fontWeight: "800" as const };
-  const labelStyle = { color: colors.muted, fontSize: 12, fontWeight: "500" as const };
+  const sectionTitleStyle = { color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" as const };
+  const labelStyle = { color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, fontWeight: "500" as const };
   const resolveGenderLabel = () => {
     if (fields.editGender === "feminino") return "Feminino";
     if (fields.editGender === "masculino") return "Masculino";
@@ -965,7 +985,7 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
       <Text style={labelStyle}>{label}</Text>
       <View ref={triggerRef}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} onPress={() => actions.toggleEditPicker(target)} style={selectStyle}>
-          <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 14, fontWeight: "600" }}>{value}</Text>
+          <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>{value}</Text>
           <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
         </Pressable>
       </View>
@@ -974,10 +994,10 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
 
   return (
     <>
-      <View style={{ gap: stacked ? 22 : 28 }}>
-        <View style={{ flexDirection: stacked ? "column" : "row", gap: stacked ? 22 : 28 }}>
+      <View ref={sectionRoot} collapsable={false} onLayout={positionInitialSection} style={{ gap: stacked ? 12 : 16 }}>
+        <View style={{ flexDirection: stacked ? "column" : "row", gap: stacked ? 12 : 16 }}>
           <View style={{ flex: stacked ? undefined : 1, minWidth: 0, gap: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+            <View ref={basicsSection} collapsable={false} onLayout={positionInitialSection} style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
               <Text style={sectionTitleStyle}>Identificação</Text>
               {fields.isEditDirty ? <View accessibilityLabel="Seção alterada" style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.successText }} /> : null}
             </View>
@@ -1030,7 +1050,7 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
               fill: false,
             }) : null}
             <View style={{ height: 1, marginVertical: 2, backgroundColor: colors.border }} />
-            <View style={{ gap: 12 }}>
+            <View ref={profileSection} collapsable={false} onLayout={positionInitialSection} style={{ gap: 12 }}>
               <Text style={sectionTitleStyle}>Perfil esportivo</Text>
               <View style={{ flexDirection: stacked ? "column" : "row", flexWrap: "wrap", gap: 10 }}>
                 {renderSelect({ label: "Faixa etária", value: resolveAgeBandLabel(), triggerRef: props.editAgeBandTriggerRef, target: "age", open: pickers.showEditAgeBandPicker })}
@@ -1233,7 +1253,7 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
               </AnchoredDropdown>
             </View>
 
-            <View style={{ gap: 10 }}>
+            <View ref={agendaSection} collapsable={false} onLayout={positionInitialSection} style={{ gap: 10 }}>
               <View style={{ gap: 2 }}>
                 <Text style={labelStyle}>Agenda</Text>
                 <Text style={{ color: colors.muted, fontSize: 10 }}>Mesmo intervalo para todos os dias ativos.</Text>

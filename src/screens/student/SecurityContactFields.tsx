@@ -1,5 +1,6 @@
 import { useState, type ComponentType } from "react";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";

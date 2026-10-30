@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";

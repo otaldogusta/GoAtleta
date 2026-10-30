@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Platform, Text, TextInput, View } from "react-native";
+import { Platform, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { LessonActivity } from "../../../core/models";
 import { buildActivityPlanText } from "../../../pdf/activity-plan-text";
 import { radius } from "../../../theme/tokens";

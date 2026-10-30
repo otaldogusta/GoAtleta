@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type {
   ClassStaffSubstitution,
@@ -7,7 +8,7 @@ import type {
   ClassTransitionSummary,
 } from "../../../api/class-staff-history";
 import type { OrgMember } from "../../../api/members";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { useAppTheme } from "../../../ui/app-theme";
 import { DateInput } from "../../../ui/DateInput";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -122,7 +123,7 @@ export function ClassStaffHistoryPanel({
         })}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Histórico da equipe</Text>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>Histórico da equipe</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             {activeSubstitutions.length ? `${activeSubstitutions.length} substituição(ões) em andamento ou agendada(s)` : "Vínculos, substituições e transições auditáveis"}
           </Text>

@@ -1,10 +1,8 @@
-import {
-    ActivityIndicator,
-    Text,
-    View,
-} from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 export function Button({
   label,
@@ -98,13 +96,16 @@ export function Button({
       disabled={isDisabled}
       style={({ pressed }) => [
         {
-          paddingVertical: 12,
+          minHeight: compactUiMetrics.touchTarget,
+          minWidth: compactUiMetrics.touchTarget,
+          paddingVertical: 8,
           paddingHorizontal: 14,
           borderRadius: 14,
           backgroundColor: isDisabled ? disabledBg : selected.bg,
           borderWidth,
           borderColor: isDisabled ? disabledBorder : selected.border,
           alignItems: "center",
+          justifyContent: "center",
           opacity: isDisabled ? disabledOpacity : 1,
           ...(isDisabled ? ({ pointerEvents: "none" } as any) : {}),
         },
@@ -113,7 +114,7 @@ export function Button({
           : null,
       ]}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", maxWidth: "100%", minWidth: 0, gap: compactUiMetrics.gap }}>
         {loading ? (
           <ActivityIndicator size="small" color={indicatorColor} />
         ) : null}
@@ -121,6 +122,10 @@ export function Button({
           style={{
             color: isDisabled ? disabledText : selected.text,
             fontWeight: "700",
+            fontSize: compactUiMetrics.bodyFontSize,
+            lineHeight: compactUiMetrics.bodyLineHeight,
+            flexShrink: 1,
+            textAlign: "center",
           }}
         >
           {loading ? loadingLabel ?? label : label}

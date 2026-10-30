@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { radius, spacing } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";

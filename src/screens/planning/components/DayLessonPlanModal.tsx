@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { KeyboardAvoidingView, Platform, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { DailyLessonPlan, LessonBlock } from "../../../core/models";
 import { useAppTheme } from "../../../ui/app-theme";
@@ -11,6 +12,7 @@ import { resolveLessonBlocksFromDailyPlan } from "../application/daily-lesson-bl
 import type { ProfessorCoachGuidance } from "../application/professor-agenda-events";
 import { PlanningSyncStatusChip } from "./PlanningSyncStatusChip";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type Props = {
   visible: boolean;
@@ -245,7 +247,7 @@ export function DayLessonPlanModal({
             <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
               <View style={{ flex: 1, gap: 3 }}>
                 <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Aula sugerida</Text>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>{previewTitle}</Text>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>{previewTitle}</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -274,7 +276,7 @@ export function DayLessonPlanModal({
           </View>
 
           <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Plano de quadra</Text>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Plano de quadra</Text>
             {blocks.map((block) => (
               <LessonBlockPreview key={block.key} block={block} colors={colors} />
             ))}

@@ -1,6 +1,7 @@
 import { memo } from "react";
 
-import { Platform, Text, View } from "react-native";
+import { Platform, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useRouter } from "expo-router";
 
@@ -8,6 +9,7 @@ import { navigateToPrimaryRoute } from "../../navigation/primary-route-navigatio
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
+import { compactUiMetrics as metrics } from "../../theme/tokens";
 
 type HomeProfessorBelowFoldProps = {
   variant?: "professor" | "coordination";
@@ -33,7 +35,6 @@ type ShortcutCardProps = {
 function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCardProps) {
   const { colors, mode } = useAppTheme();
   const isAndroidLight = Platform.OS === "android" && mode === "light";
-  const isWeb = Platform.OS === "web";
 
   const shortcutCardSurfaceStyle = isAndroidLight
     ? ({
@@ -65,7 +66,7 @@ function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCar
         flexBasis: mobile ? 150 : 200,
         flexGrow: 1,
         minWidth: 0,
-        minHeight: 56,
+        minHeight: 52,
         padding: mobile ? 8 : 10,
         borderRadius: 12,
         ...shortcutCardSurfaceStyle,
@@ -74,8 +75,8 @@ function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCar
       <View style={{ flexDirection: "row", alignItems: "center", gap: mobile ? 8 : 10 }}>
         <View
           style={{
-            width: mobile ? 28 : isWeb ? 30 : 34,
-            height: mobile ? 28 : isWeb ? 30 : 34,
+            width: 28,
+            height: 28,
             borderRadius: 999,
             backgroundColor: colors.secondaryBg,
             alignItems: "center",
@@ -84,13 +85,13 @@ function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCar
             borderColor: colors.border,
           }}
         >
-          <GoAtletaIcon name={icon} size={mobile ? 14 : isWeb ? 15 : 17} color={colors.text} />
+          <GoAtletaIcon name={icon} size={metrics.iconSize} color={colors.text} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text
             style={{
-              fontSize: mobile ? 13 : isWeb ? 14 : 16,
-              lineHeight: mobile ? 16 : undefined,
+              fontSize: metrics.bodyFontSize,
+              lineHeight: metrics.bodyLineHeight,
               fontWeight: "700",
               color: colors.text,
             }}
@@ -102,8 +103,8 @@ function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCar
             style={{
               color: colors.muted,
               marginTop: 2,
-              fontSize: mobile ? 11 : isWeb ? 12 : 14,
-              lineHeight: mobile ? 14 : undefined,
+              fontSize: metrics.metadataFontSize,
+              lineHeight: metrics.metadataLineHeight,
             }}
             numberOfLines={mobile ? 2 : 1}
           >

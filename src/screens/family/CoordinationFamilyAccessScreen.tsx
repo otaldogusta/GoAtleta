@@ -1,15 +1,8 @@
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Platform,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Platform, ScrollView, Share, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,

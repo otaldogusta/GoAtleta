@@ -1,14 +1,6 @@
 import { useState, type RefObject } from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  type TextInputProps,
-  type TextStyle,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { StyleSheet, TextInput, type TextInputProps, type TextStyle, View, type StyleProp, type ViewStyle } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { ptBR } from "../../../constants/copy/pt-br";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";

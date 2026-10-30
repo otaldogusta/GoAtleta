@@ -2,7 +2,8 @@ import { markRender } from "../src/observability/perf";
 // perf-check: ignore-measure -- form initialized from the role provider; submission is an explicit user action.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";

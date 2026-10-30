@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ClassGroup } from "../../core/models";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { useAppTheme } from "../../ui/app-theme";
-import { radius, shadow, spacing } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius, shadow, spacing } from "../../theme/tokens";
 
 export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], saving, error, onSave, bottomOffset = spacing.lg }: {
   holiday: string; date: string; classes: ClassGroup[]; pausedIds?: string[];
@@ -89,14 +90,14 @@ const styles = StyleSheet.create({
   floating: { position: "absolute", right: spacing.md, left: spacing.md, maxWidth: 440, borderWidth: 1, borderRadius: radius.container, padding: spacing.md, gap: spacing.md, ...shadow.elevated },
   heading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   copy: { flex: 1, minWidth: 0, gap: 4 }, close: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "700" }, panelTitle: { fontSize: 20, fontWeight: "700" }, caption: { fontSize: 13, lineHeight: 19 },
-  question: { fontSize: 14, fontWeight: "500", flexShrink: 1 },
+  title: { fontSize: 16, fontWeight: "700" }, panelTitle: { fontSize: metrics.titleFontSize, fontWeight: "700" }, caption: { fontSize: metrics.bodyFontSize, lineHeight: 19 },
+  question: { fontSize: metrics.bodyFontSize, fontWeight: "500", flexShrink: 1 },
   footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing.sm },
   dialog: { width: "100%", maxWidth: 520, borderWidth: 1, borderRadius: radius.container, padding: spacing.lg, gap: spacing.sm },
   toolbar: { alignItems: "flex-end" }, bulk: { minHeight: 36, justifyContent: "center" },
   list: { flexShrink: 1 }, item: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: 1 },
-  itemCompact: { flexDirection: "column", alignItems: "stretch" }, className: { fontSize: 15, fontWeight: "600" },
+  itemCompact: { flexDirection: "column", alignItems: "stretch" }, className: { fontSize: metrics.bodyFontSize, fontWeight: "600" },
   segmented: { flexDirection: "row", borderWidth: 1, borderRadius: radius.internal, overflow: "hidden" },
   segment: { minHeight: 40, minWidth: 86, flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
-  segmentLabel: { fontSize: 13, fontWeight: "500" }, panelFooter: { borderTopWidth: 1, paddingTop: spacing.md },
+  segmentLabel: { fontSize: metrics.bodyFontSize, fontWeight: "500" }, panelFooter: { borderTopWidth: 1, paddingTop: spacing.md },
 });

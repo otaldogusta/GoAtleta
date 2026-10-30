@@ -1,6 +1,8 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ClassGroup, Student } from "../../core/models";
 import { useAppTheme } from "../../ui/app-theme";
+import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { PersonProfilePage } from "../profiles/PersonProfilePage";
 import { StudentFinanceTab } from "./StudentFinanceTab";
 import { studentProfileAge } from "./application/student-profile";
@@ -50,10 +52,10 @@ export function StudentProfilePage({ student, classGroup, organizationName, orga
     onMessage={onMessage}
     aboutItems={fields}
     financeContent={canViewFinance ? <StudentFinanceTab organizationId={organizationId} studentId={student.id} onOpenFinance={onOpenFinance} /> : undefined}
-    summary={<View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 20, marginTop: 20 }}>
-      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>{status}</Text>
-      {age !== null ? <Text style={{ color: colors.muted, fontSize: 12 }}><Text style={{ color: colors.text, fontWeight: "700", fontSize: 18 }}>{age}</Text> anos</Text> : null}
-      {classGroup ? <Text style={{ color: colors.muted, fontSize: 12 }}>{classGroup.name}</Text> : null}
+    summary={<View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 12 }}>
+      <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "600" }}>{status}</Text>
+      {age !== null ? <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize }}><Text style={{ color: colors.text, fontWeight: "700", fontSize: metrics.titleFontSize }}>{age}</Text> anos</Text> : null}
+      {classGroup ? <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize }}>{classGroup.name}</Text> : null}
     </View>}
     onManageClasses={onManageClass}
   />;

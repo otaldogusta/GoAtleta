@@ -1,4 +1,5 @@
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
 import type { LessonActivity } from "../../../core/models";

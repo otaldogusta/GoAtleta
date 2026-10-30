@@ -1,4 +1,5 @@
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { FamilyAccessIntent } from "../../api/family-access-request";
 import { Button } from "../../ui/Button";
 import { AnimatedFieldDetails } from "../../ui/AnimatedFieldDetails";

@@ -2,7 +2,8 @@ import { useCurrentTime } from "../../../hooks/use-current-time";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import {
     type ClassResponsible,

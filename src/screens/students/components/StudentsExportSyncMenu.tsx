@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";

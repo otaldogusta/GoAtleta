@@ -1,16 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getInviteErrorCode } from "../src/api/invite-errors";
@@ -51,7 +42,7 @@ import { resolvePendingInviteEntry } from "../src/auth/pending-invite-entry";
 import { useRole } from "../src/auth/role";
 import { getStudentAccessPendingCopy } from "../src/auth/student-access-reconciliation";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { radius, spacing } from "../src/theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../src/theme/tokens";
 import { AnchoredDropdown } from "../src/ui/AnchoredDropdown";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -959,7 +950,7 @@ export default function PendingScreen() {
                 <Text
                   style={{
                     color: colors.text,
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: "800",
                     textAlign: "center",
                   }}
@@ -969,8 +960,8 @@ export default function PendingScreen() {
                 <Text
                   style={{
                     color: colors.muted,
-                    fontSize: 14,
-                    lineHeight: 21,
+                    fontSize: compactUiMetrics.bodyFontSize,
+                    lineHeight: compactUiMetrics.bodyLineHeight,
                     textAlign: "center",
                   }}
                 >
@@ -1014,7 +1005,7 @@ export default function PendingScreen() {
                   <Text
                     style={{
                       color: colors.muted,
-                      fontSize: 13,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "600",
                     }}
                   >
@@ -1100,13 +1091,13 @@ export default function PendingScreen() {
                         <Text
                           style={{
                             color: colors.text,
-                            fontSize: 15,
+                            fontSize: compactUiMetrics.bodyFontSize,
                             fontWeight: "800",
                           }}
                         >
                           {accessRequest.organizationName}
                         </Text>
-                        <Text style={{ color: colors.muted, fontSize: 13 }}>
+                        <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>
                           {accessRequest.requestKind === "athlete"
                             ? "Atleta"
                             : accessRequest.requestKind === "guardian"
@@ -1119,8 +1110,8 @@ export default function PendingScreen() {
                     <Text
                       style={{
                         color: colors.muted,
-                        fontSize: 13,
-                        lineHeight: 19,
+                        fontSize: compactUiMetrics.bodyFontSize,
+                        lineHeight: compactUiMetrics.bodyLineHeight,
                       }}
                     >
                       {accessRequest.requestKind === "staff"
@@ -1178,7 +1169,7 @@ export default function PendingScreen() {
                       <Text
                         style={{
                           color: colors.primaryBg,
-                          fontSize: 13,
+                          fontSize: compactUiMetrics.bodyFontSize,
                           fontWeight: "700",
                         }}
                       >
@@ -1248,7 +1239,7 @@ export default function PendingScreen() {
                       />
                     ) : (
                       <View style={{ gap: spacing.xs }}>
-                        <Text style={{ color: colors.muted, fontSize: 13 }}>
+                        <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>
                           Plano de interesse
                         </Text>
                         <View style={{ flexDirection: "row", gap: spacing.xs }}>
@@ -1377,7 +1368,7 @@ export default function PendingScreen() {
                         <Text
                           style={{
                             color: colors.muted,
-                            fontSize: 13,
+                            fontSize: compactUiMetrics.bodyFontSize,
                             padding: spacing.sm,
                           }}
                         >
@@ -1389,8 +1380,8 @@ export default function PendingScreen() {
                         <Text
                           style={{
                             color: colors.muted,
-                            fontSize: 13,
-                            lineHeight: 19,
+                            fontSize: compactUiMetrics.bodyFontSize,
+                            lineHeight: compactUiMetrics.bodyLineHeight,
                             padding: spacing.sm,
                           }}
                         >
@@ -1427,7 +1418,7 @@ export default function PendingScreen() {
                                   <Text
                                     style={{
                                       color: colors.text,
-                                      fontSize: 14,
+                                      fontSize: compactUiMetrics.bodyFontSize,
                                       fontWeight: "700",
                                     }}
                                   >
@@ -1465,7 +1456,7 @@ export default function PendingScreen() {
                     {message ? (
                       <Text
                         accessibilityRole="alert"
-                        style={{ color: colors.dangerText, fontSize: 13 }}
+                        style={{ color: colors.dangerText, fontSize: compactUiMetrics.bodyFontSize }}
                       >
                         {message}
                       </Text>
@@ -1496,7 +1487,7 @@ export default function PendingScreen() {
                         <Text
                           style={{
                             color: colors.text,
-                            fontSize: 14,
+                            fontSize: compactUiMetrics.bodyFontSize,
                             fontWeight: "800",
                           }}
                         >
@@ -1505,8 +1496,8 @@ export default function PendingScreen() {
                         <Text
                           style={{
                             color: colors.muted,
-                            fontSize: 13,
-                            lineHeight: 19,
+                            fontSize: compactUiMetrics.bodyFontSize,
+                            lineHeight: compactUiMetrics.bodyLineHeight,
                           }}
                         >
                           Toque para colar o link ou informar o código recebido.
@@ -1551,7 +1542,7 @@ export default function PendingScreen() {
                           style={{
                             flex: 1,
                             color: colors.text,
-                            fontSize: 14,
+                            fontSize: compactUiMetrics.bodyFontSize,
                             fontWeight: "800",
                           }}
                         >
@@ -1607,7 +1598,7 @@ export default function PendingScreen() {
                             <Text
                               style={{
                                 color: colors.dangerSolidText,
-                                fontSize: 13,
+                                fontSize: compactUiMetrics.bodyFontSize,
                                 fontWeight: "700",
                               }}
                             >
@@ -1698,7 +1689,7 @@ export default function PendingScreen() {
                 <Text
                   style={{
                     color: colors.muted,
-                    fontSize: 14,
+                    fontSize: compactUiMetrics.bodyFontSize,
                     fontWeight: "600",
                   }}
                 >

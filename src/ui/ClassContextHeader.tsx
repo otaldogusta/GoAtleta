@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
 import { getClassPalette } from "./class-colors";

@@ -1,6 +1,8 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { useAuth } from "../../../auth/auth";
 import { canCreateClasses } from "../../../auth/class-creation-access";
@@ -1162,7 +1164,7 @@ export function StudentsFormsSyncModal({
         }}
       >
         <View style={{ gap: 2, flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
             Sincronizar Forms
           </Text>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
@@ -2101,7 +2103,7 @@ export function StudentsFormsSyncModal({
           }}
         >
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
               {applyConfirmState.title}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 14 }}>

@@ -1,7 +1,9 @@
+import { compactUiMetrics } from "../../theme/tokens";
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { ClassGroup } from "../../core/models";
 import { markRender } from "../../observability/perf";
@@ -465,7 +467,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       }}
     >
       <View style={{ gap: 4 }}>
-        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>Importar alunos</Text>
+        <Text style={{ color: colors.text, fontWeight: "800", fontSize: compactUiMetrics.titleFontSize }}>Importar alunos</Text>
         <Text style={{ color: colors.muted }}>
           Prévia obrigatória antes da aplicação. O merge é auditável por execução.
         </Text>
@@ -575,7 +577,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
                 }}
               >
                 <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{value}</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: compactUiMetrics.titleFontSize }}>{value}</Text>
               </View>
             ))}
           </View>

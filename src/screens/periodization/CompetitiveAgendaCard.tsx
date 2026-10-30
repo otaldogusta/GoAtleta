@@ -1,7 +1,8 @@
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { Pressable } from "../../../src/ui/Pressable";
-import { radius } from "../../../src/theme/tokens";
+import { compactUiMetrics, radius } from "../../../src/theme/tokens";
 import type { ThemeColors } from "../../../src/ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../src/ui/confirm-dialog";
 
@@ -68,7 +69,7 @@ export function CompetitiveAgendaCard({
     <View style={{ gap: 12 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
             {normalizeText("Modo competitivo da turma")}
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
@@ -113,7 +114,7 @@ export function CompetitiveAgendaCard({
           backgroundColor: "transparent",
         }}
       >
-        <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
+        <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: compactUiMetrics.bodyFontSize }}>
           {normalizeText("Dados da competição")}
         </Text>
 
@@ -319,7 +320,7 @@ export function CompetitiveAgendaCard({
           backgroundColor: "transparent",
         }}
       >
-        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+        <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
           {normalizeText("Calendário da turma")}
         </Text>
 
@@ -394,7 +395,7 @@ export function CompetitiveAgendaCard({
           backgroundColor: "transparent",
         }}
       >
-        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+        <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
           {normalizeText(`Exceções cadastradas (${calendarExceptions.length})`)}
         </Text>
 

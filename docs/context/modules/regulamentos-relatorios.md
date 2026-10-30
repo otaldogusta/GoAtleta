@@ -35,6 +35,21 @@ de torneio, início do professor/coordenação ou relatórios.
   Aliases antigos e links de detalhe são preservados. Regras de torneios, gestão
   administrativa e leitura restrita de atletas continuam existentes.
   [Composição e validação local](../../ui/AGENDA_EVENTOS_INTEGRADOS.md).
+  A leitura de eventos e aulas usa `CalendarEntryDetails`; `CalendarClassDetails`
+  abre a ocorrência de turma já carregada, sem criar evento. Ir para a turma
+  preserva origem/data/unidade após a saída; seleção de outra instituição é
+  invalidada. Campos autorizados focam o editor real; a barra oferece ações
+  reais conforme o papel. Duplicar abre rascunho independente sem IDs/anexos,
+  com confirmação sobre os arquivos quando aplicável. Editar aula confirma
+  o alcance à série; Excluir cancela somente a ocorrência por `no_training`.
+  Compartilhar/copiar/ICS usam um compromisso, sem RRULE ou links privados.
+  Guardas de instituição/sessão/foco e anexos privados permanecem. Estudante
+  mantém o plano. Smoke local conferiu reentrada, menu, rascunho descartado e
+  ICS de uma ocorrência; conteúdo do clipboard e gravações reais não atestados.
+  No refino responsivo de 29/10, Agenda/ficha/navegação optam por
+  `compactUiMetrics`, com controle visual separado do alvo de toque e breakpoint
+  mobile compartilhado. Proporções conferidas em 633/390/834/1440 px, sem salvar;
+  [evidência e limites](../../ui/AGENDA_EVENTOS_INTEGRADOS.md#densidade-responsiva-dos-elementos--29102026).
 
 - Relatórios por intervalo e chamadas globais leem conjuntos completos sob cap
   do servidor. Chamada usa cursor data/ID e índice aditivo, validado só em backend
@@ -70,6 +85,33 @@ de torneio, início do professor/coordenação ou relatórios.
   A semana começa no domingo; o mês usa suas 4–6 semanas reais e pontos por dia.
   O topo móvel foi unificado; coluna de até 440px, seletor direto de mês/ano
   e barra rápida de 48px conservam a densidade sem esticar em telas largas.
+  A criação rápida anima abertura/fechamento, mantém 360px máximos, raio e fundo
+  da barra fechada; texto sem retângulo de hover/escala e + com feedback circular.
+  Enquanto importa o editor, a barra continua visível sem aceitar ações.
+  O horário rápido abre CalendarTimePicker compacto de 320px: rodas circulares
+  com três linhas visíveis, 00–23/00–59 e precisão de um minuto. Cancelar/Escape
+  preservam o horário; Concluído aplica ao rascunho, sem salvar o evento.
+  Sugestões, remoção do sufixo anterior e duração rápida de uma hora continuam.
+  O editor completo agrupa linhas/ícones e conserva categoria, esporte, descrição
+  e turmas; Anotações é uma linha sem caixa que cresce/recolhe com o conteúdo.
+  Anexos privados aceitam imagens/PDF/documentos (10 por evento, 20MiB cada),
+  com rascunho até Salvar, retry por ID e leitura conforme o evento/instituição.
+  Schema/Storage ativados e smoke real local de salvar/baixar/remover registrado
+  em [anotações e anexos](../../ui/AGENDA_ANOTACOES_ANEXOS_2026-10-29.md).
+  Datas e horas expandem inline. DatePickerModal opta por inline sem
+  alterar seu padrão modal. Mover início preserva duração e término, inclusive
+  os dias abrangidos em Dia todo. O modal limita a largura a 440px; datas/horas usam a mesma pílula e fonte de
+  16px, e o rodapé compacto oferece Cancelar/Salvar.
+  Dia todo usa trilho 38×22px/círculo interno 18px em alvo 44px, com estado
+  acessível e teclado; desligar preserva os horários do rascunho.
+  O editor usa `ModalSheet transition="calendar"`: entrada lateral opaca 260ms,
+  saída 240ms e onExited único; interrupções continuam do progresso atual.
+  Movimento reduzido fecha imediatamente. Ao editar, altura estável de até 704px,
+  limitada por height - 64, conserva cabeçalho/rodapé durante a expansão.
+  Data/hora compartilham uma área de altura animada; fechar preserva o mês
+  explorado e retira os controles da interação/foco. Dia todo anima o recolhimento
+  das horas. O padrão geral de ModalSheet e as guardas de acesso/rascunho permanecem.
+  [Referência física e adaptações de 29/10](../../ui/AGENDA_SAMSUNG_REFERENCIA_2026-10-29.md).
   Dias passados ficam atenuados, mantendo a
   seleção legível. Unidade usa seletor ancorado com Todas como padrão; retorno
   de turma conserva a unidade escolhida. No celular, `CalendarWeekPager` permite

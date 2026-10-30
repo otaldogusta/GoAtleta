@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, Platform, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Platform, ScrollView, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CopilotFab, resolveCopilotFabBottom } from "../../copilot/components/CopilotFab";
 import { useAuth } from "../../auth/auth";
@@ -16,6 +17,7 @@ import { Pressable } from "../../ui/Pressable";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { createWebPortal } from "../../ui/web-portal";
 import { buildPlanningAssistantContext, planningConversationKey, planningResponseDetailsText, type PlanningAssistantContext, type PlanningResponseDetails, type PlanningSelection } from "./application/planning-assistant-context";
+import { compactUiMetrics } from "../../theme/tokens";
 
 const openings = new Map<string, boolean>();
 function rememberedOpening(scope: string) {
@@ -102,7 +104,7 @@ export function PlanningAssistantPanel({ colors }: { colors: ThemeColors }) {
   };
   return <View style={{ flex: 1, minHeight: 260, minWidth: 0, padding: 12, gap: 8, backgroundColor: colors.card }}>
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-      <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>Assistente</Text>
+      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Assistente</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Recolher assistente" onPress={controller.toggle} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 8 }}><Text style={{ color: colors.muted }}>Fechar</Text></Pressable>
     </View>
     <Pressable accessibilityRole="button" disabled={chat.busy} onPress={() => void chat.send("Analise o contexto selecionado e oriente minhas próximas escolhas, distinguindo fatos confirmados, rascunho e recomendações.")} style={{ minHeight: 40, justifyContent: "center", opacity: chat.busy ? 0.55 : 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>Analisar</Text></Pressable>
@@ -113,7 +115,7 @@ export function PlanningAssistantPanel({ colors }: { colors: ThemeColors }) {
       if (previousLength.current !== chat.messages.length || chat.busy) { scroll.current?.scrollToEnd({ animated: false }); controller.saveScrollOffset(null); previousLength.current = chat.messages.length; }
       else restoreScroll();
     }} contentContainerStyle={{ gap: 10 }} style={{ flex: 1, minHeight: 0 }}>
-      {!chat.messages.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Pergunte sobre o planejamento da turma.</Text> : null}
+      {!chat.messages.length ? <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>Pergunte sobre o planejamento da turma.</Text> : null}
       {chat.messages.map((message, index) => <View key={index} style={{ gap: 5 }}>
         <AssistantMessages messages={[message]} />
         {message.role === "assistant" && message.planningContext ? <><Pressable accessibilityRole="button" onPress={() => setDetails(details === index ? null : index)} style={{ minHeight: 40, justifyContent: "center" }}><Text style={{ color: colors.muted, fontSize: 12 }}>Contexto e fontes {details === index ? "−" : "+"}</Text></Pressable>

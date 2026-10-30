@@ -1,6 +1,7 @@
 import { memo, type Dispatch, type RefObject, type SetStateAction } from "react";
 
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
@@ -10,6 +11,7 @@ import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useAppTheme } from "../../../ui/app-theme";
 import type { ClassGroup } from "../../../core/models";
 import { TrainingAnchoredDropdownOption } from "./TrainingAnchoredDropdownOption";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type PickerLayout = { x: number; y: number; width: number; height: number };
 type WindowPosition = { x: number; y: number };
@@ -110,7 +112,7 @@ function TrainingApplyModalContentBase({
                     justifyContent: "space-between",
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
                     {state.applyUnit === data.allUnitsValue
                       ? "Todas as unidades"
                       : state.applyUnit || "Selecione uma unidade"}
@@ -147,7 +149,7 @@ function TrainingApplyModalContentBase({
                   }}
                 >
                   <View style={{ flex: 1, flexDirection: "row", gap: 8, alignItems: "center" }}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
                       {state.selectedApplyClass?.name ?? "Selecione uma turma"}
                     </Text>
                     {state.selectedApplyClass ? (
@@ -240,7 +242,7 @@ function TrainingApplyModalContentBase({
                   <Text
                     style={{
                       color: active ? colors.primaryText : colors.text,
-                      fontSize: 14,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: active ? "700" : "500",
                     }}
                   >
@@ -279,7 +281,7 @@ function TrainingApplyModalContentBase({
                       <Text
                         style={{
                           color: active ? colors.primaryText : colors.text,
-                          fontSize: 14,
+                          fontSize: compactUiMetrics.bodyFontSize,
                           fontWeight: active ? "700" : "500",
                         }}
                       >

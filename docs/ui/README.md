@@ -10,6 +10,7 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Estrutura de páginas desktop | [WEB_LAYOUT_GUIDELINES.md](WEB_LAYOUT_GUIDELINES.md) |
 | Breakpoints e reflow | [RESPONSIVE_RULES.md](RESPONSIVE_RULES.md) |
 | Primitives e componentes | [COMPONENT_LIBRARY.md](COMPONENT_LIBRARY.md) |
+| Agenda — anotações e anexos | [Contrato e ativação](AGENDA_ANOTACOES_ANEXOS_2026-10-29.md) |
 | Formulários e configurações (referência: perfil) | [FORM_SETTINGS_PATTERNS.md](FORM_SETTINGS_PATTERNS.md) |
 | Decisões assistidas | [AI_DECISION_EXPLAINABILITY.md](AI_DECISION_EXPLAINABILITY.md) |
 | Validação proporcional e ciclo rápido | [validation-ladder.md](../operations/validation-ladder.md) |

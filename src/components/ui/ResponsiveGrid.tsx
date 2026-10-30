@@ -31,7 +31,7 @@ const splitFlexFor = (
 export function ResponsiveGrid({
   children,
   columns,
-  gap = 16,
+  gap = 12,
   splitEnabled = true,
   style,
 }: ResponsiveGridProps) {

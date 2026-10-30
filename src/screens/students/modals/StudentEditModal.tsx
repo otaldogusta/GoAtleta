@@ -1,3 +1,4 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import {
     type NamedExoticComponent,
     type RefObject,
@@ -6,17 +7,8 @@ import {
     useRef,
     useState,
 } from "react";
-import {
-    Animated,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    StyleProp,
-    Text,
-    TextInput,
-    View,
-    ViewStyle,
-} from "react-native";
+import { Animated, Platform, ScrollView, StyleSheet, StyleProp, TextInput, View, ViewStyle } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type {
     ClassGroup,
     Student,
@@ -81,7 +73,7 @@ const operationalStyles = StyleSheet.create({
     tile: {
         flex: 1,
         minWidth: 0,
-        minHeight: 62,
+        minHeight: 52,
         paddingVertical: 12,
         paddingHorizontal: 10,
         justifyContent: "center",
@@ -886,7 +878,7 @@ export function StudentEditModal({
                 />
                 <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
+                        <Text style={{ fontSize: compactUiMetrics.titleFontSize, fontWeight: "800", color: colors.text }}>
                             Editar aluno
                         </Text>
                         <View style={operationalStyles.modalHeaderActions}>

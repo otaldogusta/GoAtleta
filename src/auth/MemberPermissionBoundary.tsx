@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, type ReactNode } from "react";
 
 import type { MemberPermissionKey } from "../api/members";
+import { FullscreenLoadingState } from "../components/ui/FullscreenLoadingState";
 import { useOrganization } from "../providers/organization-context";
 
 type MemberPermissionBoundaryProps = {
@@ -31,6 +32,6 @@ export function MemberPermissionBoundary({
     }
   }, [blocked, organizationLoading, permissionsLoading, redirectTo, router]);
 
-  if (organizationLoading || permissionsLoading || blocked) return null;
+  if (organizationLoading || permissionsLoading || blocked) return <FullscreenLoadingState />;
   return children;
 }

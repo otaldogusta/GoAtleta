@@ -7,14 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import {
   listStudentFamilyAccessSummaries,
@@ -36,7 +30,7 @@ import {
 } from "./application/student-list-filters";
 import { STUDENT_FINANCIAL_STATUS_OPTIONS } from "./application/student-operational-status";
 import { resolveStudentDirectoryStatus, resolveStudentListPrimaryStatus } from "./application/student-list-status";
-import { radius } from "../../theme/tokens";
+import { compactUiMetrics, radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
@@ -174,7 +168,7 @@ function StudentFilterGroup({
       <Text
         style={{
           color: colors.textPrimary ?? colors.text,
-          fontSize: 13,
+          fontSize: compactUiMetrics.bodyFontSize,
           fontWeight: "900",
         }}
       >
@@ -218,7 +212,7 @@ function StudentSingleChoiceGroup({
       <Text
         style={{
           color: colors.textPrimary ?? colors.text,
-          fontSize: 13,
+          fontSize: compactUiMetrics.bodyFontSize,
           fontWeight: "900",
         }}
       >
@@ -669,7 +663,7 @@ export const StudentsListTab = memo(function StudentsListTab({
       style={{
         flex: showTable ? 1 : undefined,
         flexDirection: "row",
-        minHeight: showTable ? 0 : 540,
+        minHeight: 0,
         overflow: showTable ? "hidden" : "visible",
         backgroundColor: colors.background,
         position: "relative",
@@ -761,7 +755,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                     flex: 1,
                     minWidth: 0,
                     color: colors.textPrimary ?? colors.text,
-                    fontSize: 13,
+                    fontSize: compactUiMetrics.bodyFontSize,
                     fontWeight: "800",
                   }}
                 >
@@ -902,7 +896,7 @@ export const StudentsListTab = memo(function StudentsListTab({
         {loading && students.length === 0 ? (
           <View style={{ paddingVertical: 28, alignItems: "center", gap: 6 }}>
             <Text
-              style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}
+              style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}
             >
               {canManageFamilyAccess ? "Carregando atletas…" : "Carregando alunos…"}
             </Text>
@@ -1029,7 +1023,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                       key={student.id}
                       onPress={() => onStudentPress?.(student)}
                       style={(state) => ({
-                        minHeight: showTable ? (canManageFamilyAccess ? 68 : 60) : canManageFamilyAccess ? 76 : 56,
+                        minHeight: showTable ? 56 : canManageFamilyAccess ? 60 : 52,
                         borderBottomWidth: StyleSheet.hairlineWidth,
                         borderBottomColor: colors.borderSubtle ?? colors.border,
                         borderLeftWidth:
@@ -1058,6 +1052,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={`Ver foto de ${student.name}`}
+                          hitSlop={6}
                           onPress={(event) => {
                             event.stopPropagation();
                             onPhotoPress?.(student);
@@ -1071,7 +1066,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                             colors={colors}
                             photoUrl={resolveStudentPhotoUrl?.(student) ?? undefined}
                             isBirthdayToday={birthdayStudentIds?.has(student.id)}
-                            size={canManageFamilyAccess ? 38 : 34}
+                            size={32}
                           />
                         </Pressable>
                         <View style={{ flex: 1, minWidth: 0 }}>
@@ -1079,7 +1074,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                             numberOfLines={1}
                             style={{
                               color: colors.text,
-                              fontSize: 13,
+                              fontSize: compactUiMetrics.bodyFontSize,
                               fontWeight: "900",
                             }}
                           >
@@ -1463,7 +1458,7 @@ export const StudentsListTab = memo(function StudentsListTab({
       >
         <View
           style={{
-            minHeight: compactFilters ? 54 : 60,
+            minHeight: 52,
             paddingLeft: compactFilters ? 14 : 18,
             paddingRight: 10,
             borderBottomWidth: StyleSheet.hairlineWidth,
@@ -1477,7 +1472,7 @@ export const StudentsListTab = memo(function StudentsListTab({
           <Text
             style={{
               color: colors.textPrimary ?? colors.text,
-              fontSize: compactFilters ? 16 : 17,
+              fontSize: compactUiMetrics.titleFontSize,
               fontWeight: "900",
             }}
           >
@@ -1605,9 +1600,9 @@ export const StudentsListTab = memo(function StudentsListTab({
 
         <View
           style={{
-            minHeight: compactFilters ? 64 : 68,
+            minHeight: 56,
             paddingHorizontal: compactFilters ? 14 : 18,
-            paddingVertical: compactFilters ? 10 : 12,
+            paddingVertical: 6,
             borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: colors.borderSubtle ?? colors.border,
             flexDirection: "row",
@@ -1675,7 +1670,7 @@ export const StudentsListTab = memo(function StudentsListTab({
             <Text
               style={{
                 color: colors.primaryText,
-                fontSize: 13,
+                fontSize: compactUiMetrics.bodyFontSize,
                 fontWeight: "900",
               }}
             >

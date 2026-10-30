@@ -15,14 +15,14 @@ type ModalCardOptions = {
 
 export function useModalCardStyle(options: ModalCardOptions = {}) {
   const { colors, mode } = useAppTheme();
-  const padding = options.padding ?? 16;
-  const gap = options.gap ?? 10;
+  const padding = options.padding ?? 12;
+  const gap = options.gap ?? 8;
   const radius = options.radius ?? 20;
   const fullWidth = options.fullWidth ?? false;
   const flushBottom = options.flushBottom ?? false;
   const maxHeight =
     options.maxHeight ?? (Platform.OS === "web" ? "90%" : "100%");
-  const webBottomSpacing = Platform.OS === "web" ? 16 : 0;
+  const webBottomSpacing = Platform.OS === "web" ? 8 : 0;
   const resolvedMaxWidth =
     options.maxWidth ?? (Platform.OS === "web" ? 720 : undefined);
 

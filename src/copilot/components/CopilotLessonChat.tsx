@@ -4,7 +4,8 @@ import { AssistantConversationScroll } from "../../assistant/components/Assistan
 import { useEffect, useRef, useState } from "react";
 import type { AssistantModelChoice } from "../../assistant/model-choice";
 import { AssistantPending } from "../../assistant/components/AssistantPending";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { Button } from "../../ui/Button";
 import { useAppTheme } from "../../ui/app-theme";
 import { useAuth } from "../../auth/auth";

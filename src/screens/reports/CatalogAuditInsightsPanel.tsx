@@ -1,6 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type {
   ActivityCatalogAuditReport,
@@ -23,6 +24,7 @@ import {
   getCatalogAuditCategoryLabel,
   getCatalogInsightScopeLabel,
 } from "./catalogAuditFormatters";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type CatalogAuditInsightsPanelProps = {
   report: ActivityCatalogInsightReport;
@@ -230,7 +232,7 @@ function InsightCard({
             {badge.label}
           </Text>
         </View>
-        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900", flexShrink: 1 }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900", flexShrink: 1 }}>
           {insight.title}
         </Text>
       </View>
@@ -309,7 +311,7 @@ function DetailModal({
       {insight ? (
         <ScrollView style={{ maxHeight: 620 }} contentContainerStyle={{ gap: 14 }}>
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
               {insight.title}
             </Text>
             <Text style={{ color: colors.muted, fontWeight: "800" }}>
@@ -373,7 +375,7 @@ function FallbackCopyModal({
     >
       {content ? (
         <ScrollView style={{ maxHeight: 620 }} contentContainerStyle={{ gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
             {content.title}
           </Text>
           <Text style={{ color: colors.muted }}>
@@ -458,7 +460,7 @@ export function CatalogAuditInsightsPanel({ report, auditReport }: CatalogAuditI
         }}
       >
         <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>
+          <Text style={{ color: colors.text, fontWeight: "900", fontSize: compactUiMetrics.titleFontSize }}>
             Centro de ação do Catálogo
           </Text>
           <Text style={{ color: colors.muted }}>
@@ -475,7 +477,7 @@ export function CatalogAuditInsightsPanel({ report, auditReport }: CatalogAuditI
           <Text style={{ color: colors.successText, fontWeight: "800" }}>{feedback}</Text>
         ) : null}
 
-        <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>
+        <Text style={{ color: colors.text, fontWeight: "900", fontSize: compactUiMetrics.titleFontSize }}>
           Insights do Catálogo
         </Text>
 

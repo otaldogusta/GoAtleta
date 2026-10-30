@@ -13,14 +13,16 @@ visit(source);
 if (!effect) throw new Error("Class initial load effect not found");
 const code = ts.transpileModule(`const effect = ${effect.getText(source)}; return effect;`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const flush = async () => { for (let index = 0; index < 15; index++) await Promise.resolve(); };
-function setup() {
-  let resolveClass!: (value: object) => void;
-  const response = new Promise<object>(done => { resolveClass = done; });
+function setup(readiness: { authLoading?: boolean; organizationLoading?: boolean } = {}) {
+  let resolveClass!: (value: object | null) => void;
+  let rejectClass!: (error: Error) => void;
+  const response = new Promise<object | null>((done, reject) => { resolveClass = done; rejectClass = reject; });
   const current = { userId: "user-a", generation: 1, cacheGeneration: 1 };
   const setters = Object.fromEntries([...effect!.getText(source).matchAll(/\b(set[A-Z]\w*)\(/g)].map(match => [match[1], jest.fn()]));
   const getClassById = jest.fn(() => response);
   const scope = {
     ...setters, session: { user: { id: "user-a" } }, activeOrganization: { id: "org-a" }, id: "class-a", detailDataScope: "scope-a",
+    authLoading: readiness.authLoading ?? false, organizationLoading: readiness.organizationLoading ?? false,
     getSessionIdentity: () => ({ userId: current.userId, generation: current.generation }),
     isSessionIdentityCurrent: (identity: { userId: string; generation: number }) => identity.userId === current.userId && identity.generation === current.generation,
     getReadCacheGeneration: () => current.cacheGeneration,
@@ -31,7 +33,7 @@ function setup() {
     isAuthSessionError: () => false, isRequestCancellationError: () => false, Alert: { alert: jest.fn() },
   };
   const load = new Function(...Object.keys(scope), code)(...Object.values(scope)) as () => () => void;
-  return { load, setters, resolveClass, current, getClassById, scope };
+  return { load, setters, resolveClass, rejectClass, current, getClassById, scope };
 }
 const group = { id: "class-a", organizationId: "org-a", name: "Turma A" };
 
@@ -53,4 +55,36 @@ test.each(["session", "organization", "unmount"])("old class response is discard
   expect(h.setters.setLoadedDetailDataScope).not.toHaveBeenCalled();
   expect(h.scope.getStudentsByClass).not.toHaveBeenCalled();
   cleanup();
+});
+
+test.each(["authLoading", "organizationLoading"] as const)("waits for %s before deciding class availability", async (state) => {
+  const h = setup({ [state]: true }); const cleanup = h.load(); await flush();
+  expect(h.getClassById).not.toHaveBeenCalled();
+  expect(h.setters.setCls).not.toHaveBeenCalled();
+  expect(h.setters.setLoadedDetailDataScope).not.toHaveBeenCalled();
+  expect(h.setters.setLoading).toHaveBeenCalledWith(true);
+  cleanup();
+});
+
+test("an empty authorized response stays distinct from a failed query and does not fetch students", async () => {
+  const h = setup(); const cleanup = h.load(); h.resolveClass(null); await flush();
+  expect(h.setters.setCls).toHaveBeenCalledWith(null);
+  expect(h.setters.setClassLoadError).toHaveBeenCalledWith(false);
+  expect(h.setters.setClassLoadError).not.toHaveBeenCalledWith(true);
+  expect(h.scope.getStudentsByClass).not.toHaveBeenCalled();
+  expect(h.setters.setLoadedDetailDataScope).toHaveBeenCalledWith("scope-a");
+  cleanup();
+});
+
+test("a failed query offers recovery and a subsequent load clears its error", async () => {
+  const h = setup(); const cleanup = h.load(); h.rejectClass(new Error("Network request failed")); await flush();
+  expect(h.setters.setClassLoadError).toHaveBeenLastCalledWith(true);
+  expect(h.setters.setCls).toHaveBeenCalledWith(null);
+  expect(h.scope.Alert.alert).not.toHaveBeenCalled();
+  cleanup();
+  h.getClassById.mockResolvedValue(group);
+  const cleanupRetry = h.load(); await flush();
+  expect(h.setters.setClassLoadError).toHaveBeenLastCalledWith(false);
+  expect(h.setters.setCls).toHaveBeenLastCalledWith(group);
+  cleanupRetry();
 });

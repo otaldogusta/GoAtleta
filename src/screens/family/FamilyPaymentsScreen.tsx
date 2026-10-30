@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Text, View } from "react-native";
+import { Linking, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import {
   getMyFamilyFinance,
@@ -7,14 +8,13 @@ import {
   type FamilyInvoiceStatus,
 } from "../../api/family-access";
 import { useRole } from "../../auth/role";
-import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
 import { markRender, measureAsync } from "../../observability/perf";
-import { spacing } from "../../theme/tokens";
-import { Button } from "../../ui/Button";
+import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { FamilyScreenShell } from "./FamilyScreenShell";
 import { FamilyStudentSwitcher } from "./FamilyStudentSwitcher";
-import { FamilyEmptyState, FamilySurface } from "./FamilyUi";
+import { FamilyButton, FamilyEmptyState, FamilySurface } from "./FamilyUi";
 
 const formatMoney = (amountMinor: number, currency: string) =>
   new Intl.NumberFormat("pt-BR", {
@@ -149,6 +149,8 @@ export function useFamilyFinanceData({
 export function FamilyPaymentsScreen() {
   markRender("screen.familyPayments.render.root");
   const { colors } = useAppTheme();
+  const layout = useResponsiveLayout("dashboard");
+  const padding = layout.density.cardPadding;
   const { selectedFamilyStudent } = useRole();
   const selectedStudentId = selectedFamilyStudent?.studentId ?? null;
   const selectedRelationshipId = selectedFamilyStudent?.relationshipId ?? null;
@@ -177,77 +179,89 @@ export function FamilyPaymentsScreen() {
       <FamilyStudentSwitcher />
       {!selectedFamilyStudent ? (
         <FamilyEmptyState
+          padding={padding}
           icon="payments"
           title="Sem atleta selecionado"
           description="Selecione um vínculo familiar para consultar pagamentos."
         />
       ) : !selectedFamilyStudent.canViewFinance ? (
         <FamilyEmptyState
+          padding={padding}
           icon="lock"
           title="Financeiro restrito"
           description="Este vínculo não possui acesso às mensalidades."
         />
       ) : failed ? (
         <FamilyEmptyState
+          padding={padding}
           icon="warningCircle"
           title="Financeiro indisponível"
           description="Não foi possível carregar as mensalidades agora."
-          action={<Button label="Tentar novamente" variant="outline" onPress={() => void load()} />}
+          action={<FamilyButton label="Tentar novamente" onPress={() => void load()} />}
         />
       ) : loading && !data ? (
         <FamilyEmptyState
+          padding={padding}
           icon="payments"
           title="Carregando mensalidades"
           description="Aguarde um instante."
         />
       ) : (
         <>
-          <ResponsiveGrid columns={{ compact: "1", split: "6/6" }} gap={spacing.md}>
-            <FamilySurface title="Em aberto">
-              <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900" }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: metrics.gap }}>
+            <View style={{ flexGrow: 1, flexBasis: 160, minWidth: 160 }}>
+            <FamilySurface title="Em aberto" padding={padding} accessory={
+              <Text style={{ color: colors.text, fontSize: metrics.titleFontSize, lineHeight: metrics.titleLineHeight, fontWeight: "700" }}>
                 {formatMoney(
                   data?.summary.openAmountMinor ?? 0,
                   data?.summary.currency ?? "BRL",
                 )}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
+            }>
+              <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>
                 {data?.summary.openCount ?? 0} cobrança(s)
               </Text>
             </FamilySurface>
-            <FamilySurface title="Vencido">
-              <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900" }}>
+            </View>
+            <View style={{ flexGrow: 1, flexBasis: 160, minWidth: 160 }}>
+            <FamilySurface title="Vencido" padding={padding} accessory={
+              <Text style={{ color: colors.text, fontSize: metrics.titleFontSize, lineHeight: metrics.titleLineHeight, fontWeight: "700" }}>
                 {formatMoney(
                   data?.summary.overdueAmountMinor ?? 0,
                   data?.summary.currency ?? "BRL",
                 )}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
+            }>
+              <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>
                 {data?.summary.overdueCount ?? 0} cobrança(s)
               </Text>
             </FamilySurface>
-          </ResponsiveGrid>
+            </View>
+          </View>
           {(data?.summary.openCount ?? 0) > 0 &&
           selectedFamilyStudent.canPay &&
           !hasPaymentLink ? (
-            <FamilySurface title="Pagamento online">
-              <Text style={{ color: colors.muted, fontSize: 13 }}>
+            <FamilySurface title="Pagamento online" padding={padding}>
+              <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>
                 Ainda não disponível. Consulte a instituição para pagar esta cobrança.
               </Text>
             </FamilySurface>
           ) : null}
           {!hasInvoices ? (
             <FamilyEmptyState
+              padding={padding}
               icon="receipt"
               title="Nenhuma mensalidade disponível"
               description="As cobranças publicadas pela instituição aparecerão aqui."
             />
           ) : (
-            <View style={{ gap: spacing.sm }}>
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+            <View style={{ gap: metrics.gap }}>
+              <Text style={{ color: colors.text, fontSize: metrics.titleFontSize, lineHeight: metrics.titleLineHeight, fontWeight: "700" }}>
                 Mensalidades
               </Text>
               {data?.invoices.map((invoice) => (
                 <FamilySurface
+                  padding={padding}
                   key={invoice.id}
                   eyebrow={invoiceStatusLabel[invoice.status]}
                   title={invoice.title}
@@ -258,11 +272,11 @@ export function FamilyPaymentsScreen() {
                       alignItems: "flex-end",
                       justifyContent: "space-between",
                       flexWrap: "wrap",
-                      gap: spacing.sm,
+                      gap: metrics.gap,
                     }}
                   >
-                    <View style={{ gap: 3 }}>
-                      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+                    <View style={{ flex: 1, minWidth: 0, gap: metrics.smallGap }}>
+                      <Text style={{ color: colors.text, fontSize: metrics.titleFontSize, lineHeight: metrics.titleLineHeight, fontWeight: "700" }}>
                         {formatMoney(
                           ["open", "overdue"].includes(invoice.status)
                             ? invoice.outstandingAmountMinor
@@ -287,8 +301,9 @@ export function FamilyPaymentsScreen() {
                     {selectedFamilyStudent.canPay &&
                     invoice.paymentUrl &&
                     ["open", "overdue"].includes(invoice.status) ? (
-                      <Button
+                      <FamilyButton
                         label="Pagar"
+                        variant="primary"
                         onPress={() => {
                           void Linking.openURL(invoice.paymentUrl as string);
                         }}

@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { MEMBER_PERMISSION_OPTIONS, type MemberPermissionKey } from "../../api/members";
 import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";

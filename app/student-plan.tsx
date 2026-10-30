@@ -1,8 +1,10 @@
+import { compactUiMetrics, radius } from "../src/theme/tokens";
 import { resolveTrainingPlanForDate } from "../src/core/resolve-training-plan-for-date";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -10,7 +12,7 @@ import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import type { TrainingPlan } from "../src/core/models";
 import { getLatestTrainingPlanByClass, getTrainingPlans } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
-import { Pressable } from "../src/ui/Pressable";
+import { StudentAction } from "../src/screens/student/StudentUi";
 import { AppShell } from "../src/ui/AppShell";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
@@ -31,6 +33,14 @@ function StudentPlanScreenContent() {
   markRender("screen.studentPlan.render.root");
   const { colors } = useAppTheme();
   const responsiveLayout = useResponsiveLayout("dashboard");
+  const sectionStyles = useMemo(() => StyleSheet.create({
+    surface: { padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: compactUiMetrics.gap },
+    section: { gap: compactUiMetrics.smallGap, paddingTop: 0, borderTopWidth: 0, borderTopColor: colors.border },
+    followingSection: { paddingTop: compactUiMetrics.gap, borderTopWidth: 1 },
+    title: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700" },
+    item: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight },
+    empty: { color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight },
+  }), [colors.border, colors.card, colors.muted, colors.text, responsiveLayout.density.cardPadding]);
   const { student } = useRole();
   const router = useRouter();
   const params = useLocalSearchParams<{ classId?: string; date?: string }>();
@@ -84,7 +94,7 @@ function StudentPlanScreenContent() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         style={{ backgroundColor: colors.background }}
-        contentContainerStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingVertical: 16, gap: 12 }}
+        contentContainerStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingVertical: responsiveLayout.density.pageGap, gap: responsiveLayout.density.pageGap }}
         stickyHeaderIndices={[0]}
       >
         <ScreenPageHeader
@@ -94,126 +104,63 @@ function StudentPlanScreenContent() {
         />
 
         {loading ? (
-          <Text style={{ color: colors.muted }}>Carregando...</Text>
+          <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>Carregando...</Text>
         ) : !plan ? (
           <View
             style={{
-              padding: 16,
-              borderRadius: 16,
+              padding: responsiveLayout.density.cardPadding,
+              borderRadius: radius.card,
               backgroundColor: colors.card,
               borderWidth: 1,
               borderColor: colors.border,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700" }}>
               {isDayMode ? "Ainda não tem planejamento para este dia" : "Nenhum plano encontrado"}
             </Text>
-            <Text style={{ color: colors.muted, marginTop: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, marginTop: compactUiMetrics.smallGap }}>
               {isDayMode
                 ? "Quando o treinador publicar, ele aparece aqui."
                 : "O treinador ainda não publicou o plano mais recente."}
             </Text>
           </View>
         ) : (
-          <View style={{ gap: 12 }}>
+          <View style={{ gap: responsiveLayout.density.pageGap }}>
             <View
               style={{
-                padding: 16,
-                borderRadius: 16,
+                padding: responsiveLayout.density.cardPadding,
+                borderRadius: radius.card,
                 backgroundColor: colors.card,
                 borderWidth: 1,
                 borderColor: colors.border,
               }}
             >
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
                 {plan.title}
               </Text>
-              <Text style={{ color: colors.muted, marginTop: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight, marginTop: 4 }}>
                 {plan.warmupTime} aquecimento | {plan.mainTime} principal | {plan.cooldownTime} volta a calma
               </Text>
             </View>
 
-            <View
-              style={{
-                padding: 16,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Aquecimento</Text>
-              {plan.warmup.length ? (
-                plan.warmup.map((item, index) => (
-                  <Text key={index} style={{ color: colors.text }}>
-                    - {item}
-                  </Text>
-                ))
-              ) : (
-                <Text style={{ color: colors.muted }}>Sem detalhes.</Text>
-              )}
-            </View>
-
-            <View
-              style={{
-                padding: 16,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Parte principal</Text>
-              {plan.main.length ? (
-                plan.main.map((item, index) => (
-                  <Text key={index} style={{ color: colors.text }}>
-                    - {item}
-                  </Text>
-                ))
-              ) : (
-                <Text style={{ color: colors.muted }}>Sem detalhes.</Text>
-              )}
-            </View>
-
-            <View
-              style={{
-                padding: 16,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Volta a calma</Text>
-              {plan.cooldown.length ? (
-                plan.cooldown.map((item, index) => (
-                  <Text key={index} style={{ color: colors.text }}>
-                    - {item}
-                  </Text>
-                ))
-              ) : (
-                <Text style={{ color: colors.muted }}>Sem detalhes.</Text>
-              )}
+            <View style={sectionStyles.surface}>
+              {[
+                { title: "Aquecimento", items: plan.warmup },
+                { title: "Parte principal", items: plan.main },
+                { title: "Volta a calma", items: plan.cooldown },
+              ].map((section, sectionIndex) => (
+                <View key={section.title} style={sectionIndex ? [sectionStyles.section, sectionStyles.followingSection] : sectionStyles.section}>
+                  <Text style={sectionStyles.title}>{section.title}</Text>
+                  {section.items.length ? section.items.map((item, index) => (
+                    <Text key={index} style={sectionStyles.item}>- {item}</Text>
+                  )) : <Text style={sectionStyles.empty}>Sem detalhes.</Text>}
+                </View>
+              ))}
             </View>
           </View>
         )}
 
-        <Pressable
-          onPress={() => router.push({ pathname: "/absence-report" })}
-          style={{
-            paddingVertical: 12,
-            borderRadius: 12,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Avisar ausência</Text>
-        </Pressable>
+        <StudentAction label="Avisar ausência" onPress={() => router.push({ pathname: "/absence-report" })} />
       </ScrollView>
     </SafeAreaView>
   );

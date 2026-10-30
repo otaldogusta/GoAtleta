@@ -8,14 +8,8 @@ import {
     useMemo,
     useState
 } from "react";
-import {
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    Text,
-    TextInput,
-    View
-} from "react-native";
+import { FlatList, KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 

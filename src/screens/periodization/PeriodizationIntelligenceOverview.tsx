@@ -1,4 +1,5 @@
-import { Modal, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Modal, Platform, ScrollView, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { useEffect, useState } from "react";
 
 import type { RecentSessionSummary } from "../../core/models";
@@ -10,6 +11,7 @@ import type { ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type Props = {
   colors: ThemeColors;
@@ -71,7 +73,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
     <View style={{ gap: 14 }}>
       <View style={getSectionCardStyle(colors, "neutral", { padding: 14, radius: 18 })}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
             {alignment.monthLabel}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
@@ -158,7 +160,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
 
                   {typeof session.participantsCount === "number" ? (
                     <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 8 }}>
-                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                         {session.participantsCount} participantes
                       </Text>
                       {typeof session.completedSequenceCount === "number" ? (
@@ -223,7 +225,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
         <View style={[getSectionCardStyle(colors, "info", { padding: 16, radius: 18 }), { flex: 0.9, gap: 12 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <GoAtletaIcon name="sparkles" size={19} color={colors.successText} />
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
               Evolução recente
             </Text>
           </View>
@@ -267,7 +269,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
             }}
           >
             <GoAtletaIcon name="sparkles" size={17} color={colors.primaryText} />
-            <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 14 }}>
+            <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: compactUiMetrics.bodyFontSize }}>
               Revisar evolução da turma
             </Text>
             <GoAtletaIcon name="chevronForward" size={16} color={colors.primaryText} />
@@ -275,7 +277,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
         </View>
 
         <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 18 }), { flex: 1.15, gap: 14 }]}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Mapa de progressão pedagógica</Text>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>Mapa de progressão pedagógica</Text>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: compact ? "wrap" : "nowrap" }}>
             {[
               { icon: "personSolid" as const, label: "1x1", detail: "Recepção direta sem segurar a bola", color: colors.successText },
@@ -358,7 +360,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                     <Text style={{ color: colors.infoText, fontSize: 12, fontWeight: "800" }}>
                       {stateLabel[selectedSession.state]}
                     </Text>
-                    <Text style={{ color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "800", marginTop: 5 }}>
+                    <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "800", marginTop: 5 }}>
                       {selectedSession.plannedTitle}
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 12, marginTop: 5 }}>
@@ -383,7 +385,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                        backgroundColor: isCloseHovered || isCloseFocused ? colors.border : colors.secondaryBg,
                      }}
                    >
-                    <GoAtletaIcon name="close" size={20} color={colors.text} />
+                    <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
                   </Pressable>
                 </View>
                 <ScrollView
@@ -392,17 +394,17 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                 >
                   <View>
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Foco planejado</Text>
-                    <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, marginTop: 4 }}>
+                    <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, marginTop: 4 }}>
                       {selectedSession.plannedFocus}
                     </Text>
                   </View>
                   {typeof selectedSession.participantsCount === "number" ? (
                     <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
-                      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
                         {selectedSession.participantsCount} participantes
                       </Text>
                       {typeof selectedSession.completedSequenceCount === "number" ? (
-                        <Text style={{ color: colors.text, fontSize: 13, marginTop: 5 }}>
+                        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, marginTop: 5 }}>
                           {selectedSession.completedSequenceCount} concluíram a sequência esperada.
                         </Text>
                       ) : null}
@@ -411,7 +413,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   {selectedSession.observation ? (
                     <View>
                       <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Observação do relatório</Text>
-                      <Text style={{ color: colors.text, fontSize: 13, lineHeight: 19, marginTop: 4 }}>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 19, marginTop: 4 }}>
                         {selectedSession.observation}
                       </Text>
                     </View>
@@ -422,7 +424,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                       {selectedSession.adjustments.map((adjustment) => (
                         <View key={adjustment} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7, marginTop: 7 }}>
                           <GoAtletaIcon name="checkmarkCircle" size={15} color={colors.successText} />
-                          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 }}>{adjustment}</Text>
+                          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 18, flex: 1 }}>{adjustment}</Text>
                         </View>
                       ))}
                     </View>
@@ -437,7 +439,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                             size={15}
                             color={criterion.isMet ? colors.successText : colors.secondaryText}
                           />
-                          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 }}>
+                          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 18, flex: 1 }}>
                             {criterion.label}
                           </Text>
                         </View>

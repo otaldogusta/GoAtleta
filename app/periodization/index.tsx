@@ -4,16 +4,8 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  Alert,
-  Animated,
-  Dimensions,
-  FlatList,
-  Platform,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Animated, Dimensions, FlatList, Platform, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 
 import {
   SafeAreaView,
@@ -94,7 +86,7 @@ import {
 } from "../../src/screens/periodization/month-segments";
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
 import { isRedeEsperancaEightToElevenClass } from "../../src/core/pedagogy/rede-esperanca-july-2026-alignment";
-import { shadow } from "../../src/theme/tokens";
+import { compactUiMetrics, shadow } from "../../src/theme/tokens";
 
 import type {
   ClassCalendarException,
@@ -551,7 +543,7 @@ function PlanningRegenerateDropdown({
           }}
         >
           <GoAtletaIcon name="refresh" size={16} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
             {isSaving ? "Gerando..." : isMobile ? "Recalcular" : "Recalcular / Regerar"}
           </Text>
           <GoAtletaIcon name="chevronDown" size={13} color={colors.muted} />
@@ -3235,7 +3227,7 @@ export default function PeriodizationScreen() {
                 style={{
                   color: active ? colors.primaryText : colors.text,
 
-                  fontSize: 14,
+                  fontSize: compactUiMetrics.bodyFontSize,
 
                   fontWeight: active ? "700" : "500",
                 }}
@@ -3280,7 +3272,7 @@ export default function PeriodizationScreen() {
               style={{
                 color: active ? colors.primaryText : colors.text,
 
-                fontSize: 14,
+                fontSize: compactUiMetrics.bodyFontSize,
 
                 fontWeight: active ? "700" : "500",
               }}
@@ -3322,7 +3314,7 @@ export default function PeriodizationScreen() {
               style={{
                 color: active ? colors.primaryText : colors.text,
 
-                fontSize: 14,
+                fontSize: compactUiMetrics.bodyFontSize,
 
                 fontWeight: active ? "700" : "500",
               }}
@@ -4388,7 +4380,7 @@ export default function PeriodizationScreen() {
         })}
       >
         <GoAtletaIcon name="options" size={16} color={colors.text} />
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
           {isPeriodizationConfigured ? "Editar periodização" : "Configurar periodização"}
         </Text>
       </Pressable>
@@ -4572,7 +4564,7 @@ export default function PeriodizationScreen() {
           ) : (
             <View style={[getSectionCardStyle(colors, "neutral"), { gap: 8 }]}>
               <Text
-                style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}
               >
                 Selecione uma turma
               </Text>
@@ -4673,7 +4665,7 @@ export default function PeriodizationScreen() {
                 />
                 <Text
                   style={{
-                    fontSize: 14,
+                    fontSize: compactUiMetrics.bodyFontSize,
                     fontWeight: "700",
                     color: colors.text,
                   }}
@@ -4762,7 +4754,7 @@ export default function PeriodizationScreen() {
                   />
                   <Text
                     style={{
-                      fontSize: 14,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "700",
                       color: colors.text,
                     }}
@@ -5059,7 +5051,7 @@ export default function PeriodizationScreen() {
             >
               <GoAtletaIcon name="document" size={16} color={colors.text} />
               <Text
-                style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}
               >
                 Exportar semana
               </Text>
@@ -5086,7 +5078,7 @@ export default function PeriodizationScreen() {
             >
               <GoAtletaIcon name="download" size={16} color={colors.text} />
               <Text
-                style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}
               >
                 Exportar ciclo
               </Text>
@@ -5113,7 +5105,7 @@ export default function PeriodizationScreen() {
             >
               <GoAtletaIcon name="upload" size={16} color={colors.text} />
               <Text
-                style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}
               >
                 {isImportingPlansFile
                   ? "Importando..."
@@ -5162,7 +5154,7 @@ export default function PeriodizationScreen() {
               ],
             }}
           >
-            <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
+            <GoAtletaIcon name="add" size={18} color={colors.primaryText} />
           </Animated.View>
         </Pressable>
 
@@ -5206,7 +5198,7 @@ export default function PeriodizationScreen() {
                   style={{
                     color: !selectedClassId ? colors.primaryText : colors.text,
 
-                    fontSize: 14,
+                    fontSize: compactUiMetrics.bodyFontSize,
 
                     fontWeight: !selectedClassId ? "700" : "500",
                   }}

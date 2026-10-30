@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ActivityReviewDetails, ActivityReviewReason } from "../../api/activity-review";
 import type { MissingClassActivity } from "../../core/activity-review";
 import { ModalSheet } from "../../ui/ModalSheet";
@@ -11,7 +12,7 @@ import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useAppTheme } from "../../ui/app-theme";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius, spacing } from "../../theme/tokens";
 
 const reasons = [
   ["recess", "Férias / recesso"], ["holiday", "Feriado"],
@@ -91,17 +92,17 @@ const s = StyleSheet.create({
   panel: { width: "100%", maxWidth: 600, maxHeight: "90%", padding: spacing.lg, borderWidth: 1, borderRadius: radius.container, gap: spacing.md },
   compact: { padding: spacing.md }, header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   icon: { width: 48, height: 48, borderRadius: radius.internal, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 20, fontWeight: "700" }, subtitle: { fontSize: 13, marginTop: 6, lineHeight: 19 },
+  title: { fontSize: metrics.titleFontSize, fontWeight: "700" }, subtitle: { fontSize: metrics.bodyFontSize, marginTop: 6, lineHeight: 19 },
   grow: { flex: 1, minWidth: 0 }, close: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   scroll: { flexShrink: 1 }, content: { gap: spacing.sm }, row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { fontSize: 14, fontWeight: "600" }, section: { marginTop: spacing.sm }, classes: { borderWidth: 1, borderRadius: radius.internal, overflow: "hidden" },
+  label: { fontSize: metrics.bodyFontSize, fontWeight: "600" }, section: { marginTop: spacing.sm }, classes: { borderWidth: 1, borderRadius: radius.internal, overflow: "hidden" },
   classRow: { padding: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.sm }, divider: { borderTopWidth: 1 },
-  className: { fontSize: 14, fontWeight: "600" }, unit: { fontSize: 12, marginTop: 4 },
+  className: { fontSize: metrics.bodyFontSize, fontWeight: "600" }, unit: { fontSize: 12, marginTop: 4 },
   check: { width: 21, height: 21, borderWidth: 1, borderRadius: 5, alignItems: "center", justifyContent: "center" }, badge: { fontSize: 11, padding: 6, borderRadius: 6 },
   choices: { flexDirection: "row", gap: spacing.sm }, vertical: { flexDirection: "column" },
   choice: { flex: 1, minHeight: 46, flexDirection: "row", alignItems: "center", padding: spacing.sm, gap: spacing.sm, borderRadius: radius.internal, borderWidth: 1 },
-  choiceText: { flex: 1, fontSize: 13 }, radio: { width: 17, height: 17, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" }, dot: { width: 7, height: 7, borderRadius: 4 },
+  choiceText: { flex: 1, fontSize: metrics.bodyFontSize }, radio: { width: 17, height: 17, borderRadius: 9, borderWidth: 1.5, alignItems: "center", justifyContent: "center" }, dot: { width: 7, height: 7, borderRadius: 4 },
   select: { minHeight: 46, borderWidth: 1, borderRadius: radius.internal, paddingHorizontal: 14, flexDirection: "row", alignItems: "center" },
-  optionLabel: { fontSize: 12, fontWeight: "700" }, note: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, justifyContent: "center" }, textInput: { borderRadius: 0, minHeight: 46, fontSize: 14 },
+  optionLabel: { fontSize: 12, fontWeight: "700" }, note: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, justifyContent: "center" }, textInput: { borderRadius: 0, minHeight: 46, fontSize: metrics.bodyFontSize },
   dateLabel: { fontSize: 12, marginBottom: 6 }, hint: { fontSize: 12, lineHeight: 18 }, footer: { borderTopWidth: 1, paddingTop: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
 });

@@ -1,7 +1,8 @@
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ScrollView, StyleSheet, View, type PressableStateCallbackType } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRole } from "../src/auth/role";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
@@ -15,9 +16,11 @@ import {
 import { getClasses, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
+import { StudentAction, studentHighlighted } from "../src/screens/student/StudentUi";
 import { AppShell } from "../src/ui/AppShell";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
+import { compactUiMetrics as uiMetrics, radius } from "../src/theme/tokens";
 
 const formatIsoDate = (value: Date) => {
   const y = value.getFullYear();
@@ -37,6 +40,26 @@ function StudentScoutingContent() {
   markRender("screen.studentScouting.render.root");
   const { colors } = useAppTheme();
   const responsiveLayout = useResponsiveLayout("dashboard");
+  const skillStyles = useMemo(() => StyleSheet.create({
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: uiMetrics.gap },
+    card: { flexBasis: responsiveLayout.supportsSplitView ? "48%" : "100%", flexGrow: 1, minWidth: 0, padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: uiMetrics.gap },
+    heading: { flexDirection: "row", justifyContent: "space-between" },
+    title: { color: colors.text, fontWeight: "700" },
+    muted: { color: colors.muted },
+    text: { color: colors.text },
+    score: { flexBasis: 100, flexGrow: 1, minWidth: 100, gap: uiMetrics.smallGap },
+    scoreLabel: { color: colors.muted, fontSize: uiMetrics.metadataFontSize, textAlign: "center" },
+    controls: { minHeight: uiMetrics.touchTarget, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: uiMetrics.smallGap, paddingHorizontal: 6 },
+    count: { color: colors.text, fontWeight: "700", minWidth: 16, textAlign: "center" },
+    step: { width: uiMetrics.controlHeight, height: uiMetrics.controlHeight, flexShrink: 0, borderRadius: 16, backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", opacity: 1 },
+    highlightedStep: { backgroundColor: colors.secondaryBg, borderColor: colors.borderStrong },
+    pressedStep: { opacity: 0.9 },
+  }), [colors.border, colors.borderStrong, colors.card, colors.muted, colors.secondaryBg, colors.text, responsiveLayout.density.cardPadding, responsiveLayout.supportsSplitView]);
+  const stepStyle = useCallback((state: PressableStateCallbackType) => [
+    skillStyles.step,
+    studentHighlighted(state) ? skillStyles.highlightedStep : null,
+    state.pressed ? skillStyles.pressedStep : null,
+  ], [skillStyles]);
   const router = useRouter();
   const { student } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -152,14 +175,16 @@ function StudentScoutingContent() {
       <ScreenPageHeader
         title="Meu scouting"
         onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
-        contentStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter }}
+        contentStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter }}
       />
-      <ScrollView contentContainerStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingTop: 2, paddingBottom: 16, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingTop: 2, paddingBottom: 12, gap: responsiveLayout.density.pageGap }}>
 
-        <View style={{ padding: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6 }}>
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>
-          <Text style={{ color: colors.text }}>{currentClass?.name ?? "-"}</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+        <View style={{ padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: uiMetrics.smallGap }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: uiMetrics.gap }}>
+            <Text style={{ color: colors.muted, fontSize: uiMetrics.metadataFontSize }}>Turma</Text>
+            <Text style={{ color: colors.text, fontWeight: "700", flexShrink: 1 }}>{currentClass?.name ?? "-"}</Text>
+          </View>
+          <Text style={{ color: colors.muted, fontSize: uiMetrics.metadataFontSize, lineHeight: uiMetrics.metadataLineHeight }}>
             {sessionWindow
               ? `Disponível até ${sessionWindow.end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
               : "Scouting liberado apenas no dia do treino"}
@@ -169,61 +194,49 @@ function StudentScoutingContent() {
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : (
-          scoutingSkills.map((skill) => {
+          <View style={skillStyles.grid}>
+          {scoutingSkills.map((skill) => {
             const metrics = getSkillMetrics(counts[skill.id]);
             const total = metrics.total;
             const limit = studentScoutingLimits[skill.id];
             return (
               <View
                 key={skill.id}
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 10,
-                }}
+                style={skillStyles.card}
               >
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>{skill.label}</Text>
-                  <Text style={{ color: colors.muted }}>{total}/{limit}</Text>
+                <View style={skillStyles.heading}>
+                  <Text style={skillStyles.title}>{skill.label}</Text>
+                  <Text style={skillStyles.muted}>{total}/{limit}</Text>
                 </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={skillStyles.grid}>
                   {[0, 1, 2].map((score) => (
-                    <View key={score} style={{ flex: 1, gap: 6 }}>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    <View key={score} style={skillStyles.score}>
+                      <Text style={skillStyles.scoreLabel}>
                         {score}
                       </Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={skillStyles.controls}>
                         <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Diminuir ${skill.label}, nota ${score}`}
+                          hitSlop={6}
                           onPress={() => updateCount(skill.id, score as 0 | 1 | 2, -1)}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: colors.secondaryBg,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
+                          suppressWebHoverFeedback disableWebPressScale
+                          style={stepStyle}
                         >
-                          <Text style={{ color: colors.text }}>-</Text>
+                          <Text style={skillStyles.text}>-</Text>
                         </Pressable>
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        <Text style={skillStyles.count}>
                           {counts[skill.id][score as 0 | 1 | 2]}
                         </Text>
                         <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Aumentar ${skill.label}, nota ${score}`}
+                          hitSlop={6}
                           onPress={() => updateCount(skill.id, score as 0 | 1 | 2, 1)}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: colors.secondaryBg,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
+                          suppressWebHoverFeedback disableWebPressScale
+                          style={stepStyle}
                         >
-                          <Text style={{ color: colors.text }}>+</Text>
+                          <Text style={skillStyles.text}>+</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -231,23 +244,11 @@ function StudentScoutingContent() {
                 </View>
               </View>
             );
-          })
+          })}
+          </View>
         )}
 
-        <Pressable
-          onPress={handleSave}
-          disabled={!canEdit || saving}
-          style={{
-            paddingVertical: 12,
-            borderRadius: 999,
-            backgroundColor: !canEdit || saving ? colors.secondaryBg : colors.primaryBg,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            {saving ? "Salvando..." : "Salvar scouting"}
-          </Text>
-        </Pressable>
+        <StudentAction label={saving ? "Salvando..." : "Salvar scouting"} primary onPress={handleSave} disabled={!canEdit || saving} />
       </ScrollView>
     </SafeAreaView>
   );

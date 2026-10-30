@@ -1,11 +1,12 @@
 import { Image } from "expo-image";
 import type { RefObject } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Text, TextInput, View } from "react-native";
+import { Animated, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { Student } from "../../core/models";
 import type { ExistingStudentMatch } from "../../core/students/find-possible-existing-students";
 import { deriveStudentHealthAssessment } from "../../core/student-health";
-import { radius } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius } from "../../theme/tokens";
 import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
@@ -371,7 +372,7 @@ export function StudentRegistrationTab({
             ) : (
               <GoAtletaIcon
                 name="personSolid"
-                size={22}
+                size={metrics.iconSize}
                 color={colors.textPrimary}
               />
             )}
@@ -405,7 +406,7 @@ export function StudentRegistrationTab({
               style={selectFieldStyle}
             >
               <Text
-                style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}
+                style={{ color: colors.text, fontWeight: "700", fontSize: metrics.bodyFontSize }}
               >
                 {isExperimental ? "Experimental" : "Aluno regular"}
               </Text>
@@ -565,7 +566,7 @@ export function StudentRegistrationTab({
                           style={{
                             color: colors.text,
                             fontWeight: "700",
-                            fontSize: 13,
+                            fontSize: metrics.bodyFontSize,
                           }}
                         >
                           {unit || "Selecione a unidade"}
@@ -605,7 +606,7 @@ export function StudentRegistrationTab({
                           style={{
                             color: colors.text,
                             fontWeight: "700",
-                            fontSize: 13,
+                            fontSize: metrics.bodyFontSize,
                           }}
                         >
                           {selectedClassName || "Selecione a turma"}
@@ -1539,7 +1540,7 @@ export function StudentRegistrationTab({
                         style={{
                           color: colors.text,
                           fontWeight: "700",
-                          fontSize: 13,
+                          fontSize: metrics.bodyFontSize,
                         }}
                       >
                         {guardianRelation || "Selecione"}

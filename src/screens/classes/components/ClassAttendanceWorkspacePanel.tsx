@@ -1,5 +1,7 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Image, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import Svg, { Path } from "react-native-svg";
 
 import type { Student } from "../../../core/models";
@@ -505,7 +507,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 8,
   },
-  toolbarDense: { minHeight: 62, padding: 10, gap: 8 },
+  toolbarDense: { minHeight: 56, padding: 10, gap: 8 },
   toolbarActions: {
     minWidth: 0,
     width: "100%",
@@ -611,16 +613,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   studentRow: {
-    minHeight: 78,
+    minHeight: 56,
     borderBottomWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: compactUiMetrics.gap,
   },
   studentRowDense: {
-    minHeight: 64,
+    minHeight: 52,
     paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 10,
@@ -661,9 +663,9 @@ const styles = StyleSheet.create({
   },
   studentNameButtonLabel: { flex: 0 },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -672,9 +674,9 @@ const styles = StyleSheet.create({
   avatarDense: { width: 34, height: 34, borderRadius: 17 },
   avatarImage: { width: "100%", height: "100%" },
   avatarLabel: { fontSize: 14, fontWeight: "900" },
-  studentName: { minWidth: 0, flex: 1, fontSize: 15, fontWeight: "800" },
-  studentNameMobile: { fontSize: 13, lineHeight: 17 },
-  studentNameDense: { fontSize: 14 },
+  studentName: { minWidth: 0, flex: 1, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" },
+  studentNameMobile: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight },
+  studentNameDense: { fontSize: compactUiMetrics.bodyFontSize },
   rowActions: {
     width: 250,
     flexDirection: "row",
@@ -735,7 +737,7 @@ const styles = StyleSheet.create({
   },
   detailsHeaderCopy: { minWidth: 0, flex: 1, gap: 2 },
   detailsHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  detailsTitle: { fontSize: 17, fontWeight: "900" },
+  detailsTitle: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
   detailsStudentName: { fontSize: 12, fontWeight: "700" },
   detailsNfcButton: {
     width: 44,

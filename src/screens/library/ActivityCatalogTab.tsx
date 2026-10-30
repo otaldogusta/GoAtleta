@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { ActivityCatalogAddToLessonModal } from "./ActivityCatalogAddToLessonModal";
@@ -16,6 +17,7 @@ import {
   type ActivityCatalogListItem,
   type CatalogFilterState,
 } from "./activity-catalog-view-model";
+import { compactUiMetrics } from "../../theme/tokens";
 
 export function ActivityCatalogTab() {
   const { colors } = useAppTheme();
@@ -54,7 +56,7 @@ export function ActivityCatalogTab() {
             borderColor: colors.border,
           }}
         >
-          <Text style={{ color: colors.infoText, fontSize: 13, fontWeight: "800" }}>
+          <Text style={{ color: colors.infoText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
             {addedMessage}
           </Text>
         </View>

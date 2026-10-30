@@ -1,17 +1,8 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import { useUndoHistory } from "../../../hooks/use-undo-history";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { ActivityIndicator, Alert, Animated, Platform, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { ptBR } from "../../../constants/copy/pt-br";
 import type { ClassGroup, TrainingPlan, TrainingPlanActivity } from "../../../core/models";
@@ -2066,7 +2057,7 @@ const styles = StyleSheet.create({
   retryActionLabel: { fontSize: 13, fontWeight: "700" },
   outlinePane: { width: 420, minHeight: 0, borderLeftWidth: 1, padding: 14, gap: 12 },
   outlinePaneCompact: { width: "100%", flex: 1, alignSelf: "stretch", borderLeftWidth: 0 },
-  outlineTitle: { fontSize: 16, fontWeight: "800" },
+  outlineTitle: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" },
   outlineScroll: { flex: 1 },
   outlineContent: { gap: 8, paddingBottom: 8 },
   periodizationSource: { width: "100%", borderWidth: 1, borderRadius: 12, padding: 12, gap: 11 },
@@ -2082,7 +2073,7 @@ const styles = StyleSheet.create({
   periodizationTimeDistribution: { borderTopWidth: 1, paddingTop: 11, gap: 9 },
   periodizationTimeDistributionTitle: { fontSize: 11, fontWeight: "800" },
   outlineAccordionItem: { width: "100%", gap: 8 },
-  outlineBlock: { minHeight: 82, borderWidth: 1, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  outlineBlock: { minHeight: 64, borderWidth: 1, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 },
   outlineBlockCopy: { flex: 1, minWidth: 0, gap: 3 },
   outlineBlockHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   outlineBlockLabel: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "800" },
@@ -2095,13 +2086,13 @@ const styles = StyleSheet.create({
   editorPane: { flex: 1, minHeight: 0 },
   editorPaneDesktop: { width: 420, height: "100%", borderLeftWidth: 1, borderTopWidth: 0 },
   editorPaneCompact: { height: 380, minHeight: 280, borderTopWidth: 1 },
-  editorPaneCollapsed: { height: 62, minHeight: 62 },
-  editorHeader: { minHeight: 62, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  editorHeaderDesktop: { minHeight: 88, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "column", alignItems: "stretch", gap: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  editorPaneCollapsed: { height: 52, minHeight: 52 },
+  editorHeader: { minHeight: 52, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  editorHeaderDesktop: { minHeight: 76, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "column", alignItems: "stretch", gap: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   backToOutlineButton: { minHeight: 32, alignSelf: "flex-start", borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 6 },
   backToOutlineLabel: { fontSize: 12, fontWeight: "700" },
   editorTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" },
-  editorTitle: { minWidth: 0, fontSize: 17, fontWeight: "800" },
+  editorTitle: { minWidth: 0, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" },
   editorHeaderActions: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   headerDurationField: { flexDirection: "row", alignItems: "center", gap: 8 },
   durationLabelPrefix: { fontSize: 11, fontWeight: "700" },
@@ -2154,7 +2145,7 @@ const styles = StyleSheet.create({
   saveButton: { flex: 1, minHeight: 38, borderRadius: 8, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   saveButtonCompact: { flex: 1 },
   saveButtonLabel: { fontSize: 12, fontWeight: "800" },
-  previewFooter: { minHeight: 66, borderTopWidth: StyleSheet.hairlineWidth, padding: 10, flexDirection: "row", gap: 8 },
+  previewFooter: { minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth, padding: 10, flexDirection: "row", gap: 8 },
   footerDownloadButton: {
     flex: 1,
     minHeight: 46,

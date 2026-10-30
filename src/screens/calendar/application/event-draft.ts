@@ -1,6 +1,6 @@
 import type { EventListItem, EventSport, EventType } from "../../../api/events";
 
-export type EventDraft = { title: string; description: string; startDate: string; endDate: string; startTime: string; endTime: string; allDay: boolean; locationLabel: string; eventType: EventType; sport: EventSport; classIds: string[] };
+export type EventDraft = { title: string; description: string; startDate: string; endDate: string; startTime: string; endTime: string; allDay: boolean; locationLabel: string; eventType: EventType; sport: EventSport; classIds: string[]; unitId?: string | null };
 const pad = (value: number) => String(value).padStart(2, "0");
 const dateKey = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const timeKey = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -9,7 +9,11 @@ export function initialEventDraft(date: string, event?: EventListItem): EventDra
   const end = event ? new Date(event.endsAt) : null;
   // All-day ends are exclusive in the event/calendar interval contract.
   const last = end && event?.allDay ? new Date(end.getTime() - 1) : end;
-  return { title: event?.title ?? "", description: event?.description ?? "", startDate: start ? dateKey(start) : date, endDate: last ? dateKey(last) : date, startTime: start ? timeKey(start) : "09:00", endTime: end ? timeKey(end) : "10:00", allDay: event?.allDay ?? false, locationLabel: event?.locationLabel ?? "", eventType: event?.eventType ?? "treino", sport: event?.sport ?? "geral", classIds: event?.classIds ?? [] };
+  return { title: event?.title ?? "", description: event?.description ?? "", startDate: start ? dateKey(start) : date, endDate: last ? dateKey(last) : date, startTime: start ? timeKey(start) : "09:00", endTime: end ? timeKey(end) : "10:00", allDay: event?.allDay ?? false, locationLabel: event?.locationLabel ?? "", eventType: event?.eventType ?? "treino", sport: event?.sport ?? "geral", classIds: [...(event?.classIds ?? [])], unitId: event?.unitId ?? null };
+}
+/** A new draft contains configuration only, never original IDs, file intents or retry state. */
+export function duplicateEventDraft(date: string, event: EventListItem): EventDraft {
+  return initialEventDraft(date, event);
 }
 export function eventDraftInterval(draft: EventDraft) {
   const parse = (date: string, time: string) => {
@@ -22,6 +26,26 @@ export function eventDraftInterval(draft: EventDraft) {
   if (!start || !end) return null;
   if (draft.allDay) end.setDate(end.getDate() + 1);
   return end > start ? { startsAt: start, endsAt: end } : null;
+}
+
+/** Moving either start selector keeps the event's existing duration. */
+export function moveEventDraftStart(draft: EventDraft, startTime: string, startDate = draft.startDate): EventDraft {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) return draft;
+  const start = new Date(`${startDate}T${startTime}:00`);
+  if (Number.isNaN(start.getTime()) || dateKey(start) !== startDate) return draft;
+  const previous = eventDraftInterval(draft);
+  if (draft.allDay) {
+    if (!previous || startDate === draft.startDate) return draft;
+    // Count calendar days rather than milliseconds across daylight-saving changes.
+    const utcDay = (value: string) => Date.UTC(...value.split("-").map(Number).map((part, index) => index === 1 ? part - 1 : part) as [number, number, number]);
+    const days = Math.round((utcDay(draft.endDate) - utcDay(draft.startDate)) / 86400000);
+    const end = new Date(`${startDate}T12:00:00`);
+    end.setDate(end.getDate() + days);
+    return { ...draft, startDate, endDate: dateKey(end) };
+  }
+  const duration = previous ? previous.endsAt.getTime() - previous.startsAt.getTime() : 60 * 60000;
+  const end = new Date(start.getTime() + duration);
+  return { ...draft, startDate, startTime, endDate: dateKey(end), endTime: timeKey(end) };
 }
 
 export function eventCalendarDates(event: EventListItem, from: Date, to: Date) {

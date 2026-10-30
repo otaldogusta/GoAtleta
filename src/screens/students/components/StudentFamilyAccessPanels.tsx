@@ -2,7 +2,8 @@ import { scheduleEffectTask } from "../../../hooks/schedule-effect-task";
 import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { ActivityIndicator, Platform, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, ScrollView, Share, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import {
     createStudentRelationshipInvite,
@@ -18,7 +19,7 @@ import {
 } from "../../../api/student-relationship-invite";
 import type { Student } from "../../../core/models";
 import { normalizeRelationshipPermissions, permissionsForRelationshipKind, relationshipKindLabel } from "../../../family/application/relationship-presets";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
@@ -972,11 +973,11 @@ function FamilyAccessPanelContent({
 }
 
 const styles = StyleSheet.create({
-    quickCard: { padding: 16, gap: 14 },
+    quickCard: { padding: 12, gap: 8 },
     quickHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
     quickTitleGroup: { flex: 1, minWidth: 0, gap: 3 },
-    quickTitle: { fontSize: 16, fontWeight: "900" },
-    quickMeta: { fontSize: 12 },
+    quickTitle: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
+    quickMeta: { fontSize: compactUiMetrics.metadataFontSize },
     composer: { gap: 12 },
     composerCompact: { gap: 10 },
     fieldGroup: { gap: 6 },
@@ -1006,7 +1007,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     relationshipTrigger: { width: "100%" },
-    selectText: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: "700" },
+    selectText: { flex: 1, minWidth: 0, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" },
     choice: {
         minHeight: 40,
         borderRadius: 9,
@@ -1075,21 +1076,21 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     drawerHeader: {
-        minHeight: 86,
-        paddingHorizontal: 20,
-        paddingVertical: 16,
+        minHeight: 64,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
         borderBottomWidth: StyleSheet.hairlineWidth,
         flexDirection: "row",
         alignItems: "flex-start",
         gap: 12,
     },
     drawerTitleGroup: { flex: 1, minWidth: 0, gap: 4 },
-    drawerTitle: { fontSize: 21, fontWeight: "900" },
+    drawerTitle: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
     drawerMeta: { fontSize: 12 },
     drawerScroll: { flex: 1, minHeight: 0 },
-    drawerContent: { padding: 20, paddingBottom: 40, gap: 12 },
+    drawerContent: { padding: 12, paddingBottom: 24, gap: 8 },
     sectionHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-    sectionTitle: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: "900" },
+    sectionTitle: { flex: 1, minWidth: 0, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
     addLink: {
         minHeight: 40,
         flexDirection: "row",
@@ -1129,7 +1130,7 @@ const styles = StyleSheet.create({
     emptyTitle: { fontSize: 14, fontWeight: "900" },
     emptyText: { fontSize: 12, textAlign: "center" },
     accessCard: {
-        minHeight: 86,
+        minHeight: 64,
         borderWidth: 1,
         borderRadius: 14,
         padding: 12,

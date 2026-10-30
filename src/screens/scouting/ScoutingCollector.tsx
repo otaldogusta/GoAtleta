@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, View, Text, useWindowDimensions } from "react-native";
+import { ActivityIndicator, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ScoutingActionFundamental, ScoutingActionPhase, ScoutingContact, ScoutingSide, Student } from "../../core/models";
 import { captureCriterion, captureResult, contactOutcome, getCaptureResultOptions, nextCaptureFundamental, validateRallyContacts } from "../../core/scouting-rallies";
 import { scoutingActionPhases } from "../../core/scouting";
@@ -101,7 +102,7 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
     {detail && !detail.captureReady ? <Copy muted>A atualização de coleta ainda não está disponível. O histórico continua acessível.</Copy> : null}
     {flow.conflict ? <View style={{ gap: 10 }}><Copy>Placar atual: {state?.scoreUs ?? "—"} × {state?.scoreThem ?? "—"}. Confira se estes contatos ainda pertencem à jogada.</Copy>
       <Button label="Manter contatos e continuar" onPress={() => { void flow.reconcile(true); }} /><Link label="Usar somente o registro salvo" onPress={() => { void flow.reconcile(false); }} /></View> : null}
-    {configuring ? <View style={{ gap: 24 }}>
+    {configuring ? <View style={{ gap: 12 }}>
       <View style={{ gap: 12 }}>
         <Copy title>{state ? "Próximo set" : "Placar atual"}</Copy>
         {!state && !detail?.actions.length ? <Copy muted>Informe o placar de agora. Se o jogo ainda não começou, mantenha 0 a 0.</Copy> : null}

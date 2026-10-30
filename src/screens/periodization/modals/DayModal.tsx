@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { SessionCoachGuidance } from "../../../core/models";
 import type { VolumeLevel } from "../../../core/periodization-basics";
@@ -8,6 +9,7 @@ import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 import { getSectionCardStyle } from "../../../ui/section-styles";
 import type { PeriodizationAutoPlanForCycleDayResult } from "../application/build-auto-plan-for-cycle-day";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type WeekPlan = {
   title: string;
@@ -121,7 +123,7 @@ function CoachGuidancePanel({
     <View style={{ gap: 12 }}>
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{normalizeText("Aula sugerida")}</Text>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
           {normalizeText(cleanText(resolvedGuidance.title, fallbackTitle, 80))}
         </Text>
         {resolvedGuidance.subtitle ? (

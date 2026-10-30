@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { OrgClass, OrgMember } from "../../api/members";
 import { radius } from "../../theme/tokens";

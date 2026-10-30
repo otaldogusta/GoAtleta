@@ -1,5 +1,6 @@
 import React from "react";
-import { Animated, Text, View } from "react-native";
+import { Animated, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type {
     SessionEnvironment,
     WeeklyObservabilitySummary,
@@ -15,7 +16,7 @@ import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
-import { radius } from "../../theme/tokens";
+import { compactUiMetrics, radius } from "../../theme/tokens";
 import type { WeeklyOperationalTeacherIntent } from "./application/format-weekly-operational-intent-for-teacher";
 
 type WeekScheduleItem = {
@@ -138,7 +139,7 @@ export function WeekTab({
             { gap: 8 },
           ]}
         >
-          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "900" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
             {weeklyTeacherIntent.title}
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 18 }}>

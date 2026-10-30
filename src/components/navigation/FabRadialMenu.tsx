@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import {  Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import Animated, {
   Easing,
   interpolate,
@@ -12,11 +13,12 @@ import Animated, {
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
-import { radius, shadow } from "../../theme/tokens";
+import { compactUiMetrics, radius, shadow } from "../../theme/tokens";
 import type { RadialAction } from "./tab-config";
 
 type FabRadialMenuProps = {
   visible: boolean;
+  compact?: boolean;
   actions: RadialAction[];
   anchorBottom: number;
   onActionPress: (action: RadialAction) => void;
@@ -28,6 +30,7 @@ type RadialActionButtonProps = {
   index: number;
   total: number;
   progress: SharedValue<number>;
+  compact: boolean;
   onPress: (action: RadialAction) => void;
 };
 
@@ -38,12 +41,14 @@ function RadialActionButton({
   index,
   total,
   progress,
+  compact,
   onPress,
 }: RadialActionButtonProps) {
   const { colors } = useAppTheme();
   const arcStart = -160;
   const arcEnd = -20;
-  const arcRadius = 120;
+  const arcRadius = compact ? 104 : 120;
+  const wrapWidth = compact ? 80 : BUTTON_WRAP_WIDTH;
   const normalized = total <= 1 ? 0.5 : index / (total - 1);
   const angleDeg = arcStart + (arcEnd - arcStart) * normalized;
   const angle = (angleDeg * Math.PI) / 180;
@@ -68,8 +73,8 @@ function RadialActionButton({
           position: "absolute",
           left: "50%",
           bottom: 0,
-          marginLeft: -BUTTON_WRAP_WIDTH / 2,
-          width: BUTTON_WRAP_WIDTH,
+          marginLeft: -wrapWidth / 2,
+          width: wrapWidth,
           alignItems: "center",
           zIndex: 4210,
         },
@@ -80,12 +85,14 @@ function RadialActionButton({
         accessibilityRole="button"
         accessibilityLabel={action.label}
         onPress={() => onPress(action)}
+        suppressWebHoverFeedback={compact}
+        disableWebPressScale={compact}
         style={(state) => {
           const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);
           return [
             {
-              width: 52,
-              height: 52,
+              width: compact ? compactUiMetrics.touchTarget : 52,
+              height: compact ? compactUiMetrics.touchTarget : 52,
               borderRadius: radius.full,
               alignItems: "center",
               justifyContent: "center",
@@ -96,11 +103,11 @@ function RadialActionButton({
               borderColor: isHovered
                 ? (colors.primaryBg ?? colors.border)
                 : (colors.borderSubtle ?? colors.border),
-              transform: [{ scale: state.pressed ? 0.94 : isHovered ? 1.05 : 1 }],
+              transform: [{ scale: state.pressed ? 0.94 : !compact && isHovered ? 1.05 : 1 }],
               ...(Platform.OS === "web"
                 ? {
                     cursor: "pointer",
-                    boxShadow: isHovered
+                    boxShadow: compact ? "none" : isHovered
                       ? "0px 10px 24px rgba(0, 0, 0, 0.45), 0px 0px 0px 1px rgba(255, 255, 255, 0.15)"
                       : "0px 8px 22px rgba(0, 0, 0, 0.38), 0px 0px 0px 1px rgba(255, 255, 255, 0.08)",
                   }
@@ -109,23 +116,23 @@ function RadialActionButton({
           ];
         }}
       >
-        <GoAtletaIcon name={action.icon} size={20} color={colors.textPrimary ?? colors.text} />
+        <GoAtletaIcon name={action.icon} size={compact ? compactUiMetrics.iconSize : 20} color={colors.textPrimary ?? colors.text} />
       </Pressable>
       <View
         style={{
-          marginTop: 6,
+          marginTop: compact ? compactUiMetrics.smallGap : 6,
           paddingHorizontal: 8,
           paddingVertical: 3,
           borderRadius: radius.full,
           backgroundColor: colors.surfaceElevated ?? colors.card,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.borderSubtle ?? colors.border,
-          maxWidth: BUTTON_WRAP_WIDTH,
+          maxWidth: wrapWidth,
           alignItems: "center",
           justifyContent: "center",
           ...(Platform.OS === "web"
             ? {
-                boxShadow: "0px 4px 14px rgba(0, 0, 0, 0.35)",
+                boxShadow: compact ? "none" : "0px 4px 14px rgba(0, 0, 0, 0.35)",
               }
             : shadow.card),
         }}
@@ -149,6 +156,7 @@ function RadialActionButton({
 
 export function FabRadialMenu({
   visible,
+  compact = false,
   actions,
   anchorBottom,
   onActionPress,
@@ -182,6 +190,7 @@ export function FabRadialMenu({
             index={index}
             total={actions.length}
             progress={progress}
+            compact={compact}
             onPress={onActionPress}
           />
         ))}

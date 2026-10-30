@@ -1,6 +1,7 @@
 import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, ScrollView, Switch, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // perf-check: ignore-inline-row-style - tela operacional com composição responsiva local; refatoração de tokens fica para etapa própria.
@@ -36,6 +37,7 @@ import { Pressable } from "../src/ui/Pressable";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
+import { compactUiMetrics } from "../src/theme/tokens";
 
 type FormState = {
   label: string;
@@ -479,7 +481,7 @@ export default function RegulationHistoryScreen() {
         gap: 3,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 22, fontWeight: "900" }}>{value}</Text>
+      <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>{value}</Text>
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>{label}</Text>
       <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>{detail}</Text>
     </View>
@@ -507,12 +509,12 @@ export default function RegulationHistoryScreen() {
           onPress={() => void openSource(source.sourceUrl)}
           style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: source.enabled ? colors.successBg : colors.secondaryBg, alignItems: "center", justifyContent: "center" }}
         >
-          <Text style={{ color: source.enabled ? colors.successText : colors.text, fontSize: 20, fontWeight: "900" }}>
+          <Text style={{ color: source.enabled ? colors.successText : colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
             {source.authority.slice(0, 1)}
           </Text>
         </Pressable>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }} numberOfLines={1}>{source.label}</Text>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }} numberOfLines={1}>{source.label}</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
             {source.authority} • {source.checkIntervalHours}h • {shortUrl(source.sourceUrl)}
           </Text>
@@ -629,7 +631,7 @@ export default function RegulationHistoryScreen() {
       >
         <ResponsivePage variant="content">
         <View style={{ borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 16, gap: 4 }}>
-          <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>{activeOrganization?.name ?? "Organização"}</Text>
+          <Text style={{ color: colors.text, fontWeight: "900", fontSize: compactUiMetrics.titleFontSize }}>{activeOrganization?.name ?? "Organização"}</Text>
           <Text style={{ color: colors.muted }}>Painel operacional de regulamentos, fontes monitoradas e mudanças oficiais.</Text>
         </View>
 
@@ -653,13 +655,13 @@ export default function RegulationHistoryScreen() {
               <RegulationPanel colors={colors} style={{ gap: 16 }}>
                 <View style={{ flexDirection: isMedium ? "row" : "column", alignItems: isMedium ? "center" : "stretch", gap: 14 }}>
                   <View style={{ width: 62, height: 62, borderRadius: 18, backgroundColor: selectedSource?.enabled ? colors.successBg : colors.secondaryBg, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: selectedSource?.enabled ? colors.successText : colors.text, fontSize: 26, fontWeight: "900" }}>
+                    <Text style={{ color: selectedSource?.enabled ? colors.successText : colors.text, fontSize: 20, fontWeight: "900" }}>
                       {(selectedSource?.authority ?? "R").slice(0, 1)}
                     </Text>
                   </View>
                   <View style={{ flex: 1, gap: 4 }}>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                      <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900" }} numberOfLines={2}>
+                      <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }} numberOfLines={2}>
                         {selectedSource?.label ?? "Nenhuma fonte cadastrada"}
                       </Text>
                       {selectedSource ? renderPill(selectedSource.enabled ? "Ativa" : "Pausada", selectedSource.enabled ? "success" : "neutral") : null}
@@ -714,7 +716,7 @@ export default function RegulationHistoryScreen() {
                 <View style={{ gap: 10 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>Fontes monitoradas</Text>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>Fontes monitoradas</Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
                         Sincronização, edição e status das fontes oficiais.
                       </Text>
@@ -824,7 +826,7 @@ export default function RegulationHistoryScreen() {
           gap: 10,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
           {editingSource ? "Editar fonte" : "Nova fonte"}
         </Text>
 
@@ -956,7 +958,7 @@ export default function RegulationHistoryScreen() {
           gap: 12,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
           {selectedClause?.clauseLabel}
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{selectedClause?.clauseKey}</Text>

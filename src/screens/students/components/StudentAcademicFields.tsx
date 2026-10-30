@@ -1,5 +1,6 @@
 import { memo, type RefObject } from "react";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { useAppTheme } from "../../../ui/app-theme";
 import { FormFieldValidationFeedback } from "../../../ui/form-validation-feedback";

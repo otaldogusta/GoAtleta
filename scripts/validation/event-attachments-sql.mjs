@@ -1,0 +1,166 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+
+// Synthetic PostgreSQL fixture. This validates SQL/RLS, not hosted Storage/Auth/PostgREST.
+const db = new PGlite();
+const org = '10000000-0000-4000-8000-000000000001';
+const other = '10000000-0000-4000-8000-000000000002';
+const admin = '20000000-0000-4000-8000-000000000001';
+const member = '20000000-0000-4000-8000-000000000002';
+const outsider = '20000000-0000-4000-8000-000000000003';
+const event = '30000000-0000-4000-8000-000000000001';
+const otherEvent = '30000000-0000-4000-8000-000000000002';
+const id = n => `40000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const asUser = async (user, role = 'authenticated') => {
+  await db.exec('reset role');
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [user || '']);
+  await db.exec(`set role ${role}`);
+};
+const rpc = async (name, args) => (await db.query(`select public.${name}(${args.map((_, i) => `$${i + 1}`).join(',')}) as result`, args)).rows[0].result;
+const prepare = (n, scope = org, target = event, name = 'Documento.pdf', type = 'application/pdf', size = 123) =>
+  rpc('prepare_event_attachment', [scope, target, id(n), name, type, size]);
+const finalize = (n, scope = org, target = event) => rpc('finalize_event_attachment', [scope, target, id(n)]);
+const remove = n => rpc('remove_event_attachment', [org, event, id(n)]);
+const objects = () => db.query("select name from storage.objects where bucket_id='event-attachments'");
+const records = () => db.query('select id from public.event_attachments');
+try {
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role;
+    create schema auth; create schema storage;
+    create function auth.uid() returns uuid language sql stable as $$
+      select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
+    $$;
+    create table auth.users(id uuid primary key);
+    create table public.organizations(id uuid primary key);
+    create table public.organization_members(organization_id uuid,user_id uuid,role_level int);
+    create function public.is_org_member(org uuid) returns boolean language sql stable security definer set search_path='' as $$
+      select exists(select 1 from public.organization_members where organization_id=org and user_id=auth.uid())
+    $$;
+    create function public.is_org_admin(org uuid) returns boolean language sql stable security definer set search_path='' as $$
+      select exists(select 1 from public.organization_members where organization_id=org and user_id=auth.uid() and role_level>=50)
+    $$;
+    create table public.events(id uuid primary key, organization_id uuid not null references organizations(id));
+    alter table public.events enable row level security;
+    create policy event_read on public.events for select to authenticated using(public.is_org_member(organization_id));
+    create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,unique(bucket_id,name));
+    alter table storage.objects enable row level security;
+    grant usage on schema public,auth,storage to anon,authenticated;
+    grant select on public.events to authenticated;
+    grant select,insert,update,delete on storage.objects to authenticated;
+    insert into auth.users values('${admin}'),('${member}'),('${outsider}');
+    insert into public.organizations values('${org}'),('${other}');
+    insert into public.organization_members values('${org}','${admin}',50),('${org}','${member}',10),('${other}','${outsider}',50);
+    insert into public.events values('${event}','${org}'),('${otherEvent}','${other}');
+  `);
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261029144812_event_attachments.sql', import.meta.url), 'utf8'));
+  await asUser('', 'anon');
+  await assert.rejects(prepare(1), /permission denied/);
+  await assert.rejects(records(), /permission denied/);
+  await asUser(outsider);
+  await assert.rejects(prepare(1), /access denied/);
+  const foreignAttachment = await prepare(90, other, otherEvent);
+  await asUser(member);
+  await assert.rejects(prepare(1), /access denied/);
+  await asUser(admin);
+  assert.equal(await remove(89), null, 'an unprepared local file can be removed without reserving metadata');
+  assert.equal(await remove(90), null, 'a foreign attachment ID is indistinguishable from an absent scoped ID');
+  await asUser(outsider);
+  assert.equal((await prepare(90, other, otherEvent)).object_path, foreignAttachment.object_path, 'scoped removal never changes a foreign intent');
+  await asUser(admin);
+  assert.equal((await rpc('get_event_attachment_capabilities', [])).maxFileBytes, 20971520);
+  await assert.rejects(prepare(1, other, event), /access denied/);
+  await assert.rejects(prepare(1, org, otherEvent), /access denied/);
+  await assert.rejects(prepare(1, org, event, 'evil.html', 'text/html'), /Invalid.*type/);
+  await assert.rejects(prepare(1, org, event, 'evil.svg', 'image/svg\+xml'), /Invalid.*type/);
+  await assert.rejects(prepare(1, org, event, 'evil.exe', 'application/pdf'), /Invalid.*type/);
+  await assert.rejects(prepare(1, org, event, '../Document.pdf'), /Invalid/);
+  await assert.rejects(prepare(1, org, event, 'Document.pdf', 'application/pdf', 20971521), /Invalid/);
+  const first = await prepare(1);
+  assert.equal(first.object_path, `${org}/${event}/${id(1)}`);
+  assert.equal((await prepare(1)).id, first.id, 'retry keeps the same upload intent');
+  await assert.rejects(prepare(1, org, event, 'Different.pdf'), /conflict/);
+  await assert.rejects(db.query('update public.event_attachments set uploaded_at=now() where id=$1', [id(1)]), /permission denied/);
+  await assert.rejects(db.query('insert into public.event_attachments(id) values($1)', [id(88)]), /permission denied/);
+  await assert.rejects(finalize(1), /upload incomplete/);
+  await assert.rejects(db.query("insert into storage.objects(bucket_id,name,metadata) values('event-attachments','foreign/path','{}')"), /row-level security/);
+  await db.query("insert into storage.objects(bucket_id,name,metadata) values('event-attachments',$1,$2::jsonb)", [first.object_path, JSON.stringify({ size: 124, mimetype: 'application/pdf' })]);
+  await assert.rejects(finalize(1), /upload incomplete/);
+  await asUser(member);
+  assert.equal((await records()).rows.length, 0, 'members cannot see pending metadata');
+  assert.equal((await objects()).rows.length, 0, 'members cannot see pending files');
+  await asUser(admin);
+  assert.equal((await db.query("update storage.objects set metadata='{}' where name=$1 returning id", [first.object_path])).rows.length, 0, 'objects cannot be overwritten');
+  await db.exec('reset role');
+  await db.query('update storage.objects set metadata=$2::jsonb where name=$1', [first.object_path, JSON.stringify({ size: 123, mimetype: 'text/html' })]);
+  await asUser(admin);
+  await assert.rejects(finalize(1), /upload incomplete/);
+  await db.exec('reset role');
+  await db.query('update storage.objects set metadata=$2::jsonb where name=$1', [first.object_path, JSON.stringify({ size: 'not-a-size', mimetype: 'application/pdf' })]);
+  await asUser(admin);
+  await assert.rejects(finalize(1), /upload incomplete/);
+  await db.exec('reset role');
+  await db.query('update storage.objects set metadata=$2::jsonb where name=$1', [first.object_path, JSON.stringify({ size: 123, mimetype: 'application/pdf' })]);
+  await asUser(admin);
+  const ready = await finalize(1);
+  assert.ok(ready.uploaded_at);
+  assert.equal((await finalize(1)).uploaded_at, ready.uploaded_at, 'finalization is idempotent');
+  await asUser(member);
+  assert.equal((await records()).rows.length, 1);
+  assert.equal((await objects()).rows.length, 1);
+  await db.exec('reset role');
+  // An extra audience boundary on events must also hide attachment metadata/objects.
+  await db.exec(`create policy restricted_event_audience on public.events as restrictive
+    for select to authenticated using (auth.uid()='${admin}'::uuid)`);
+  await asUser(member);
+  assert.equal((await records()).rows.length, 0, 'attachment read follows additional event audience RLS');
+  assert.equal((await objects()).rows.length, 0);
+  await db.exec('reset role; drop policy restricted_event_audience on public.events');
+  await db.query('delete from public.organization_members where user_id=$1', [member]);
+  await asUser(member);
+  assert.equal((await records()).rows.length, 0, 'membership revocation takes effect on the next read');
+  assert.equal((await objects()).rows.length, 0);
+  await db.exec('reset role');
+  await db.query('insert into public.organization_members values($1,$2,10)', [org, member]);
+  await asUser(member);
+  await assert.rejects(finalize(1), /access denied/);
+  await assert.rejects(remove(1), /access denied/);
+  assert.equal((await db.query('delete from storage.objects where name=$1 returning id', [first.object_path])).rows.length, 0);
+  await asUser(outsider);
+  assert.deepEqual((await records()).rows.map(row => row.id), [foreignAttachment.id], 'an admin reads only their own institution');
+  assert.equal((await objects()).rows.length, 0);
+  await asUser(admin);
+  for (let n = 2; n <= 10; n++) await prepare(n);
+  await assert.rejects(prepare(11), /limit reached/);
+  assert.equal((await prepare(10)).id, id(10), 'retry is allowed even when all slots are reserved');
+  const removed = await remove(1);
+  assert.ok(removed.deleted_at);
+  assert.equal((await remove(1)).deleted_at, removed.deleted_at, 'removal is idempotent');
+  await assert.rejects(finalize(1), /unavailable/);
+  await assert.rejects(prepare(1), /conflict/);
+  await prepare(11);
+  await asUser(member);
+  assert.equal((await objects()).rows.length, 0, 'tombstones immediately hide files from readers');
+  await asUser(admin);
+  assert.equal((await db.query('delete from storage.objects where name=$1 returning id', [first.object_path])).rows.length, 1, 'admin can clean a tombstoned object through Storage');
+  const second = await prepare(2);
+  await db.query("insert into storage.objects(bucket_id,name,metadata) values('event-attachments',$1,$2::jsonb)", [second.object_path, JSON.stringify({ size: 123, mimetype: 'application/pdf' })]);
+  await finalize(2);
+  await db.exec('reset role');
+  await db.query('delete from public.events where id=$1', [event]);
+  assert.equal((await db.query('select * from public.event_attachments where organization_id=$1', [org])).rows.length, 0, 'event cascade removes scoped metadata');
+  assert.equal((await db.query('select * from public.event_attachments where organization_id=$1', [other])).rows.length, 1, 'event cascade preserves another institution');
+  assert.equal((await db.query('select * from storage.objects')).rows.length, 1, 'physical cleanup is deliberately not faked by SQL');
+  await asUser(admin);
+  assert.equal((await objects()).rows.length, 0, 'orphan storage objects are inaccessible even to the former event admin');
+  await assert.rejects(finalize(2), /access denied/);
+  await asUser(member);
+  assert.equal((await objects()).rows.length, 0);
+  await db.exec('reset role');
+  const bucket = (await db.query("select * from storage.buckets where id='event-attachments'")).rows[0];
+  assert.equal(bucket.public, false);
+  assert.equal(bucket.file_size_limit, 20971520);
+  assert.ok(!bucket.allowed_mime_types.includes('text/html'));
+  console.log('[event-attachments] isolated SQL passed: scoped admin intents, safe types/limits, idempotency, completed member reads, immutable storage, tombstone cleanup and cascade access revocation.');
+} finally { await db.close(); }

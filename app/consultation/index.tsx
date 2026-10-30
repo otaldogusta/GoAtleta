@@ -1,7 +1,8 @@
 import { Redirect, useRouter } from "expo-router";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";

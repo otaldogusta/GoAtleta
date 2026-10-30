@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Animated, Platform, Pressable, Text, View } from "react-native";
+import { Animated, Platform, Pressable, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
 

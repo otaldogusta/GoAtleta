@@ -1,6 +1,7 @@
 import { memo } from "react";
 
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { useAppTheme } from "../../../ui/app-theme";
 import { formatClock, formatDuration } from "../../../utils/format-time";
@@ -13,6 +14,7 @@ import {
   type TrainingPlanBlockKey,
 } from "../../../core/training-plan-blocks";
 import { formatTrainingPlanDisplayText } from "../application/training-plan-display-text";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type Props = {
   plan: TrainingPlan;
@@ -135,7 +137,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                 gap: 10,
               }}
             >
-              <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
+              <Text style={{ fontWeight: "900", color: colors.text, fontSize: compactUiMetrics.titleFontSize }}>
                 {section.title}
               </Text>
               {section.time ? (
@@ -162,7 +164,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                 </Text>
                 <Text
                   numberOfLines={2}
-                  style={{ color: colors.secondaryText, fontSize: 13, lineHeight: 19 }}
+                  style={{ color: colors.secondaryText, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 19 }}
                 >
                   {objectiveLines.join(" · ")}
                 </Text>
@@ -218,7 +220,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                               color: colors.text,
                               fontWeight: "900",
                               flexShrink: 1,
-                              fontSize: 15,
+                              fontSize: compactUiMetrics.bodyFontSize,
                             }}
                           >
                             {activityName}
@@ -250,7 +252,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                         {description ? (
                           <Text
                             numberOfLines={2}
-                            style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}
+                            style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 18 }}
                           >
                             {description}
                           </Text>

@@ -1,8 +1,8 @@
 import { createWebPortal } from "./web-portal";
 import { NavigationContext } from "expo-router/react-navigation";
-import { useCallback, useContext, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
+import { Animated, Easing, Modal, Platform, Pressable as RawPressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
@@ -18,6 +18,9 @@ type ModalSheetProps = {
   bottomOffset?: number;
   containerPadding?: number;
   respectBottomInset?: boolean;
+  reduceMotion?: boolean;
+  onExited?: () => void;
+  transition?: "default" | "calendar";
 };
 
 let activeWebScrollLocks = 0;
@@ -115,6 +118,9 @@ export function ModalSheet({
   bottomOffset,
   containerPadding = 16,
   respectBottomInset = true,
+  reduceMotion = false,
+  onExited,
+  transition = "default",
 }: ModalSheetProps) {
   // Providers outside a route (for example global confirmations) have no screen
   // navigation context and remain visible. Native presentation is unchanged.
@@ -129,8 +135,12 @@ export function ModalSheet({
   const getFocus = useCallback(() => observeFocus ? navigation?.isFocused() ?? true : true, [navigation, observeFocus]);
   const routeFocused = useSyncExternalStore(subscribeFocus, getFocus, () => true);
   const effectiveVisible = visible && routeFocused;
-  const [anim] = useState(() => new Animated.Value(0));
+  const calendarTransition = transition === "calendar";
+  const exitState = useRef({ effectiveVisible, routeFocused, onExited });
+  useLayoutEffect(() => { exitState.current = { effectiveVisible, routeFocused, onExited }; }, [effectiveVisible, routeFocused, onExited]);
+  const [anim] = useState(() => new Animated.Value(effectiveVisible && reduceMotion ? 1 : 0));
   const [isMounted, setIsMounted] = useState(effectiveVisible);
+  const hasExited = useRef(!effectiveVisible);
   if (effectiveVisible && !isMounted) setIsMounted(true);
   else if (!routeFocused && isMounted) setIsMounted(false);
   const isCenter = position === "center";
@@ -141,48 +151,70 @@ export function ModalSheet({
     : Math.max(bottomOffset ?? 0, respectBottomInset ? insets.bottom : 0);
   const baseCardStyle = useModalCardStyle();
   const resolvedCardStyle = [baseCardStyle, cardStyle];
+  const { width: viewportWidth } = useWindowDimensions();
+  const flatCardStyle = StyleSheet.flatten(resolvedCardStyle);
+  const preferredWidth = typeof flatCardStyle.width === "number" ? flatCardStyle.width : flatCardStyle.maxWidth;
+  const sheetWidth = Math.max(0, Math.min(viewportWidth, typeof preferredWidth === "number" && Number.isFinite(preferredWidth) ? preferredWidth : viewportWidth));
+  const calendarOffset = isRight ? sheetWidth : (viewportWidth + sheetWidth) / 2;
+  const blocking = effectiveVisible || (calendarTransition && routeFocused && isMounted);
 
   useLayoutEffect(() => {
     if (!routeFocused) {
       anim.stopAnimation();
       anim.setValue(0);
+      hasExited.current = true;
       return;
     }
-    if (!effectiveVisible) return;
+    if (calendarTransition) {
+      anim.stopAnimation();
+      if (reduceMotion) anim.setValue(effectiveVisible ? 1 : 0);
+      else if (effectiveVisible && hasExited.current) anim.setValue(0);
+      if (effectiveVisible) hasExited.current = false;
+      return;
+    }
+    if (!effectiveVisible) {
+      if (reduceMotion) { anim.stopAnimation(); anim.setValue(0); }
+      return;
+    }
     anim.stopAnimation();
-    anim.setValue(0);
-  }, [anim, effectiveVisible, routeFocused]);
+    anim.setValue(reduceMotion ? 1 : 0);
+  }, [anim, effectiveVisible, routeFocused, reduceMotion, calendarTransition]);
 
   useEffect(() => {
     if (!effectiveVisible) return undefined;
     const animation = Animated.timing(anim, {
       toValue: 1,
-      duration: 240,
+      duration: reduceMotion ? 0 : calendarTransition ? 260 : 240,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
     animation.start();
     return () => animation.stop();
-  }, [anim, effectiveVisible]);
+  }, [anim, effectiveVisible, reduceMotion, calendarTransition]);
 
   useEffect(() => {
     if (!routeFocused || effectiveVisible || !isMounted) return undefined;
+    let current = true;
     const animation = Animated.timing(anim, {
       toValue: 0,
-      duration: 180,
-      easing: Easing.in(Easing.cubic),
+      duration: reduceMotion ? 0 : calendarTransition ? 240 : 180,
+      easing: calendarTransition ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
-      if (finished) setIsMounted(false);
+      if (!current || !finished || exitState.current.effectiveVisible || !exitState.current.routeFocused) return;
+      current = false;
+      hasExited.current = true;
+      setIsMounted(false);
+      exitState.current.onExited?.();
     });
-    return () => animation.stop();
-  }, [anim, effectiveVisible, isMounted, routeFocused]);
+    return () => { current = false; animation.stop(); };
+  }, [anim, effectiveVisible, isMounted, routeFocused, reduceMotion, calendarTransition]);
 
   useLayoutEffect(() => {
-    if (typeof document === "undefined" || !effectiveVisible) return undefined;
+    if (typeof document === "undefined" || !blocking) return undefined;
     return acquireWebScrollLock();
-  }, [effectiveVisible]);
+  }, [blocking]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined" || !effectiveVisible) {
@@ -213,12 +245,12 @@ export function ModalSheet({
           ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
           : null),
       } as unknown as ViewStyle}
-      pointerEvents={effectiveVisible ? "auto" : "none"}
+      pointerEvents={blocking ? "auto" : "none"}
     >
       <RawPressable
         style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-        onPress={onClose}
-        pointerEvents={effectiveVisible ? "auto" : "none"}
+        onPress={calendarTransition && !effectiveVisible ? undefined : onClose}
+        pointerEvents={blocking ? "auto" : "none"}
       >
         <Animated.View
           style={{
@@ -256,11 +288,14 @@ export function ModalSheet({
         pointerEvents="box-none"
       >
         <Animated.View
+          pointerEvents={calendarTransition && !effectiveVisible ? "none" : "auto"}
           style={[
             resolvedCardStyle,
             {
-              opacity: anim,
-              transform: [
+              opacity: calendarTransition ? 1 : anim,
+              transform: calendarTransition ? [{
+                translateX: anim.interpolate({ inputRange: [0, 1], outputRange: [calendarOffset, 0] }),
+              }] : [
                 {
                   translateY: anim.interpolate({
                     inputRange: [0, 1],
@@ -294,7 +329,7 @@ export function ModalSheet({
   return (
     <Modal
       visible={effectiveVisible || isMounted}
-      animationType="fade"
+      animationType={reduceMotion || calendarTransition ? "none" : "fade"}
       transparent
       onRequestClose={onClose}
       statusBarTranslucent

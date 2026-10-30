@@ -22,6 +22,13 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
 
 ## Contratos a preservar
 
+- Anexos de eventos usam bucket privado e FK organização/evento; RPCs de
+  preparar/finalizar/remover exigem o administrador canônico e serializam a cota.
+  Leitura segue a audiência existente do evento; URLs duram 60s e a sessão/origem
+  capturadas invalidam respostas antigas. Schema/Storage ativados com autorização
+  em 29/10 e smoke real de arquivos sintéticos concluído, sem publicar frontend.
+  [Contrato, limites e limpeza](../../ui/AGENDA_ANOTACOES_ANEXOS_2026-10-29.md).
+
 - Compartilhamento da quadra usa cópia isolada, tabela sem grants diretos e
   RPCs de gerenciamento restritas à turma/organização/autor. Leitura pública
   exige ID e código de 256 bits, guardado como hash; sem consulta ao documento

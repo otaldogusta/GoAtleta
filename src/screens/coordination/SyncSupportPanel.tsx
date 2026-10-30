@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FlatList, Text, useWindowDimensions, View } from "react-native";
+import { FlatList, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { SyncErrorClassificationResult } from "../../api/ai";
 import {

@@ -1,7 +1,8 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { FamilyScheduleItem } from "../../api/family-access";
-import { spacing } from "../../theme/tokens";
+import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { FamilySurface } from "./FamilyUi";
 
@@ -26,26 +27,23 @@ const formatScheduleTime = (value: string | null) => {
       });
 };
 
-export function FamilyScheduleItemCard({ item }: { item: FamilyScheduleItem }) {
+export function FamilyScheduleItemCard({ item, padding = 12 }: { item: FamilyScheduleItem; padding?: number }) {
   const { colors } = useAppTheme();
   const startsAt = formatScheduleTime(item.startsAt);
   const endsAt = formatScheduleTime(item.endsAt);
   const time = startsAt ? `${startsAt}${endsAt ? `–${endsAt}` : ""}` : "Horário não informado";
 
   return (
-    <FamilySurface
-      eyebrow={formatScheduleDate(item.startsAt)}
-      title={item.className ?? "Atividade"}
-    >
-      <View style={{ gap: spacing.xs }}>
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-          {time}
-        </Text>
-        {item.sessionType ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {item.sessionType}
-          </Text>
-        ) : null}
+    <FamilySurface padding={padding}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap }}>
+        <View style={{ minWidth: 0, flex: 1, gap: metrics.smallGap }}>
+          <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight, fontWeight: "700" }}>{item.className ?? "Atividade"}</Text>
+          <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>{formatScheduleDate(item.startsAt)}</Text>
+        </View>
+        <View style={{ maxWidth: "50%", minWidth: 0, alignItems: "flex-end", gap: metrics.smallGap }}>
+          <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight, fontWeight: "600", textAlign: "right" }}>{time}</Text>
+          {item.sessionType ? <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight, textAlign: "right" }}>{item.sessionType}</Text> : null}
+        </View>
       </View>
     </FamilySurface>
   );

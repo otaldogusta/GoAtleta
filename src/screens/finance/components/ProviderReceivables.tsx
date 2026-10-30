@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { OrganizationProviderReceivable } from "../../../api/finance";
 import { formatMoneyFromCents, formatFinanceDate } from "../../../finance/application/finance-format";
 import { getProviderReceivableBillingLabel, getProviderReceivableDisplayDate, getProviderReceivableMatchLabel, getProviderReceivableStatusLabel, isProviderReceivableReceived, type ProviderReceivablesSummary } from "../../../finance/application/provider-receivables";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -17,36 +18,36 @@ const createProviderStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) 
       overflow: "hidden",
     },
     providerSummary: {
-      minHeight: 72,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      minHeight: 56,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: 8,
     },
     providerSummaryCompact: {
       alignItems: "flex-start",
       flexWrap: "wrap",
     },
     providerIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.secondaryBg,
     },
     providerSummaryBody: { flex: 1, minWidth: 160, gap: 2 },
-    providerTitle: { color: colors.text, fontSize: 14, fontWeight: "900" },
+    providerTitle: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
     providerMeta: { color: colors.muted, fontSize: 11, lineHeight: 16 },
     providerAmountColumn: { alignItems: "flex-end", gap: 2 },
-    providerAmount: { color: colors.success, fontSize: 17, fontWeight: "900" },
+    providerAmount: { color: colors.success, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
     providerNetAmount: { color: colors.muted, fontSize: 11 },
     providerLink: { color: colors.success, fontSize: 12, fontWeight: "800" },
     providerListRow: {
-      minHeight: 62,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      minHeight: 52,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       borderTopWidth: 1,
       borderTopColor: colors.border,
       flexDirection: "row",
@@ -77,7 +78,7 @@ const createProviderStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) 
     },
     listPrimaryText: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "800",
     },
     listSecondaryText: {

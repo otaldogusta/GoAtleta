@@ -1,10 +1,12 @@
-import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { WeeklyAutopilotPlanReview } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 import type { WeekSessionPreview } from "../application/build-week-session-preview";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type Props = {
   visible: boolean;
@@ -218,7 +220,7 @@ export function WeekEditorModal({
                   <Text style={{ color: colors.muted, fontSize: 11, width: 68 }}>
                     Sessão {item.sessionIndex}/{sessionCount}
                   </Text>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                  <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                     {item.weekdayLabel} · {item.dateLabel}
                   </Text>
                 </View>
@@ -238,7 +240,7 @@ export function WeekEditorModal({
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
                   Revisão do plano
                 </Text>
                 <View
@@ -339,7 +341,7 @@ export function WeekEditorModal({
 
           {/* Planejamento da semana */}
           <View style={{ gap: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
-            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+            <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
                 {normalizeText("Planejamento da semana")}
               </Text>
 
@@ -420,7 +422,7 @@ export function WeekEditorModal({
 
             {/* Parâmetros da sessão */}
             <View style={{ gap: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+              <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
                 {normalizeText("Parâmetros da sessão")}
               </Text>
 

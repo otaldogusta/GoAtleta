@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ScoutingActionFundamental, ScoutingContact, Student } from "../../core/models";
 import { captureFundamentals, captureResult, getCaptureResultOptions } from "../../core/scouting-rallies";
 import { useAppTheme } from "../../ui/app-theme";

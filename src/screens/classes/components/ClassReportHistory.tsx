@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
-import { radius, spacing } from "../../../theme/tokens";
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, TextInput, View, type ViewStyle } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
+import { compactUiMetrics, radius, spacing } from "../../../theme/tokens";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -166,13 +167,13 @@ export function ClassReportHistory({ colors, inputBackground, compact, className
 
 const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 0 },
-  header: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.lg, borderBottomWidth: 1 },
+  header: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderBottomWidth: 1 },
   heading: { flex: 1, minWidth: 0, gap: 6 },
-  title: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
-  compactTitle: { fontSize: 20, lineHeight: 26 },
-  meta: { fontSize: 12, lineHeight: 18 },
+  title: { fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "700" },
+  compactTitle: { fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight },
+  meta: { fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight },
   close: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  filters: { flexDirection: "row", gap: spacing.xs, padding: spacing.lg },
+  filters: { flexDirection: "row", gap: spacing.xs, padding: spacing.sm },
   compactFilters: { flexWrap: "wrap", padding: spacing.md },
   year: { width: 140 },
   month: { flex: 1, minWidth: 145 },
@@ -188,15 +189,15 @@ const styles = StyleSheet.create({
   group: { marginBottom: spacing.lg },
   groupTitle: { fontSize: 12, fontWeight: "600", paddingHorizontal: spacing.xs, marginBottom: spacing.xs },
   rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 3 },
-  row: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderRadius: radius.internal },
+  row: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderRadius: radius.internal },
   date: { width: 34, alignItems: "center", gap: 2 },
-  day: { fontSize: 20, lineHeight: 24, fontWeight: "600" },
+  day: { fontSize: 16, lineHeight: 22, fontWeight: "600" },
   copy: { flex: 1, minWidth: 0, gap: 6 },
-  rowTitle: { fontSize: 14, lineHeight: 20, fontWeight: "600" },
+  rowTitle: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "600" },
   preview: { fontSize: 12, lineHeight: 18 },
   empty: { alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingVertical: 48, paddingHorizontal: spacing.md },
   emptyTitle: { fontSize: 14, lineHeight: 20, textAlign: "center" },
   link: { minHeight: 44, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", alignSelf: "center", borderRadius: radius.internal },
   linkText: { fontSize: 12, fontWeight: "600", textDecorationLine: "underline" },
-  footer: { flexDirection: "row", justifyContent: "space-between", gap: spacing.xs, padding: spacing.lg, borderTopWidth: 1 },
+  footer: { flexDirection: "row", justifyContent: "space-between", gap: spacing.xs, padding: spacing.sm, borderTopWidth: 1 },
 });

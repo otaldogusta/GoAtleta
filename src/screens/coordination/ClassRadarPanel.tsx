@@ -1,4 +1,5 @@
-import { Text, useWindowDimensions, View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAppTheme } from "../../ui/app-theme";
 import type { ClassRadarItem } from "./application/coordination-radar";

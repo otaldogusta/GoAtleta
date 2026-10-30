@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Platform, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -15,16 +9,17 @@ import {
   platformReviewAccessRequest,
   type OrganizationAccessRequest,
 } from "../../api/organization-access-requests";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius } from "../../theme/tokens";
 import { APP_PRODUCT_LABELS } from "../../config/brand";
 import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { useAppTheme } from "../../ui/app-theme";
-import { Button } from "../../ui/Button";
+import { PlatformAction as Button, PlatformMetric, platformHighlighted } from "./PlatformUiControls";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
+import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import { useRouter } from "expo-router";
 
 const demoRequests: OrganizationAccessRequest[] = [
@@ -251,8 +246,8 @@ function StatusPill({ request }: { request: OrganizationAccessRequest }) {
         borderWidth: 1,
         borderColor: colors[`${tone}Border`],
         backgroundColor: colors[`${tone}Bg`],
-        paddingHorizontal: 10,
-        paddingVertical: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
       }}
     >
       <Text
@@ -260,8 +255,8 @@ function StatusPill({ request }: { request: OrganizationAccessRequest }) {
         style={
           {
             color: colors[`${tone}Text`],
-            fontSize: 12,
-            fontWeight: "800",
+            fontSize: 11,
+            fontWeight: "600",
             whiteSpace: "nowrap",
           } as any
         }
@@ -284,6 +279,8 @@ export function PlatformAccessDashboard({
   const router = useRouter();
   const { width } = useWindowDimensions();
   const wide = width >= 1200;
+  const { containerRef: listRef, onLayout: onListLayout, measuredWidth: listWidth, layout } = useContainerResponsiveLayout("dashboard");
+  const usesTable = listWidth >= 760;
   const [requests, setRequests] = useState<OrganizationAccessRequest[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState(initialInstitution);
@@ -463,12 +460,12 @@ export function PlatformAccessDashboard({
               <View
                 style={{
                   width: 330,
-                  minHeight: 44,
-                  borderRadius: radius.internal,
+                  minHeight: 50,
+                  borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.inputBg,
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 14,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 8,
@@ -479,67 +476,21 @@ export function PlatformAccessDashboard({
                   onChangeText={setQuery}
                   placeholder="Buscar usuários, instituições..."
                   placeholderTextColor={colors.placeholder}
-                  style={{
+                  style={{ minWidth: 0,
                     flex: 1,
-                    minHeight: 44,
+                    minHeight: 48,
                     color: colors.inputText,
                     borderRadius: 0,
                   }}
                 />
                 <GoAtletaIcon name="search" size={17} color={colors.muted} />
               </View>
-              <Pressable
-                onPress={() =>
+<Button label="Filtros" icon="options" onPress={() =>
                   showSaveToast({
                     variant: "info",
                     message: "Use os filtros da lista para refinar os acessos.",
-                  })
-                }
-                style={{
-                  minHeight: 44,
-                  paddingHorizontal: 15,
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <GoAtletaIcon name="options" size={17} color={colors.text} />
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: 13,
-                    fontWeight: "800",
-                  }}
-                >
-                  Filtros
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Configurações de acesso"
-                onPress={() =>
-                  showSaveToast({
-                    variant: "info",
-                    message:
-                      "As regras de acesso são gerenciadas pela plataforma.",
-                  })
-                }
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <GoAtletaIcon name="management" size={18} color={colors.text} />
-              </Pressable>
+                  })} />
+              <Button label="Configurações de acesso" icon="management" iconOnly onPress={() => showSaveToast({ variant: "info", message: "As regras de acesso são gerenciadas pela plataforma." })} />
             </View>
           ) : null
         }
@@ -548,61 +499,25 @@ export function PlatformAccessDashboard({
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
       >
-        <ResponsivePage variant="dashboard" gap={spacing.md}>
-          <View
-            style={{ flexDirection: width >= 760 ? "row" : "column", gap: 12 }}
-          >
+        <ResponsivePage variant="dashboard" gap={layout.density.pageGap}>
+          <View style={{ flexDirection: "row", gap: compactUiMetrics.gap }}>
             {[
-              [
-                "time",
-                String(pending),
-                "aguardando aprovação",
-                colors.warningText,
-              ],
-              ["members", String(active), "ativos", colors.successText],
-              ["close", String(rejected), "recusados", colors.dangerText],
-            ].map(([icon, value, label, color]) => (
-              <View
-                key={label}
-                style={{
-                  flex: 1,
-                  minHeight: 78,
-                  borderRadius: radius.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                }}
-              >
-                <GoAtletaIcon
-                  name={icon as GoAtletaIconName}
-                  size={23}
-                  color={color}
-                />
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: 22,
-                    fontWeight: "900",
-                  }}
-                >
-                  {value}
-                </Text>
-                <Text style={{ color, fontSize: 13, fontWeight: "700" }}>
-                  {label}
-                </Text>
-              </View>
+              ["time", String(pending), "aguardando aprovação", colors.warningText, "Pendentes"],
+              ["members", String(active), "ativos", colors.successText, "Ativos"],
+              ["close", String(rejected), "recusados", colors.dangerText, "Recusados"],
+            ].map(([icon, value, label, color, compactLabel]) => (
+              <PlatformMetric key={label} icon={icon as GoAtletaIconName} value={value} label={label} compactLabel={compactLabel} color={color} compact={width < 768} />
             ))}
           </View>
           <ResponsiveGrid
             columns={{ compact: "1", split: "8/4" }}
-            gap={14}
+            gap={layout.density.pageGap}
             style={{ alignItems: "flex-start" }}
           >
             <View
+              ref={listRef}
+              onLayout={onListLayout}
+              testID="platform-access-list"
               style={{
                 flex: 1,
                 width: "100%",
@@ -614,10 +529,11 @@ export function PlatformAccessDashboard({
                 overflow: "hidden",
               }}
             >
-              <View style={{ padding: 16, gap: 12 }}>
+              <View style={{ padding: layout.density.cardPadding, gap: layout.density.sectionGap }}>
                 <View
                   style={{
                     flexDirection: "row",
+                    flexWrap: "wrap",
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 12,
@@ -626,14 +542,18 @@ export function PlatformAccessDashboard({
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 18,
+                      fontSize: compactUiMetrics.titleFontSize,
                       fontWeight: "900",
+                      flexGrow: 1,
+                      flexShrink: 1,
+                      flexBasis: 180,
+                      minWidth: 0,
                     }}
                   >
                     Solicitações de acesso
                   </Text>
                   <Button
-                    label="Conceder acesso"
+                    label="Conceder acesso" variant="primary"
                     onPress={() =>
                       showSaveToast({
                         variant: "info",
@@ -645,19 +565,24 @@ export function PlatformAccessDashboard({
                 </View>
                 <View
                   style={{
-                    flexDirection: width >= 760 ? "row" : "column",
+                    flexDirection: usesTable ? "row" : "column",
+                    flexWrap: "wrap",
                     gap: 10,
                   }}
                 >
                   <View
                     style={{
-                      flex: 1,
-                      minHeight: 46,
-                      borderRadius: radius.internal,
+                      flexGrow: 1,
+                      flexShrink: 1,
+                      flexBasis: usesTable ? 220 : "auto",
+                      minWidth: 0,
+                      width: usesTable ? undefined : "100%",
+                      minHeight: 50,
+                      borderRadius: 12,
                       borderWidth: 1,
                       borderColor: colors.border,
                       backgroundColor: colors.inputBg,
-                      paddingHorizontal: 12,
+                      paddingHorizontal: 14,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 8,
@@ -673,56 +598,29 @@ export function PlatformAccessDashboard({
                       onChangeText={setQuery}
                       placeholder="Buscar usuário, instituição..."
                       placeholderTextColor={colors.placeholder}
-                      style={{
+                      style={{ minWidth: 0,
                         flex: 1,
-                        minHeight: 46,
+                        minHeight: 48,
                         color: colors.inputText,
                         borderRadius: 0,
                       }}
                     />
                   </View>
-                  <View style={{ flexDirection: "row", gap: 6 }}>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                     {(["all", "pending", "approved"] as const).map((value) => (
-                      <Pressable
-                        key={value}
-                        onPress={() => setStatus(value)}
-                        style={{
-                          minHeight: 42,
-                          paddingHorizontal: 12,
-                          borderRadius: radius.internal,
-                          borderWidth: 1,
-                          borderColor:
-                            status === value ? colors.primaryBg : colors.border,
-                          backgroundColor:
-                            status === value
-                              ? colors.successBg
-                              : colors.secondaryBg,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {value === "all" ? "Todos" : statusLabel[value]}
-                        </Text>
-                      </Pressable>
+                      <Button key={value} onPress={() => setStatus(value)} selected={status === value} label={value === "all" ? "Todos" : statusLabel[value]} />
                     ))}
                   </View>
                 </View>
               </View>
-              {width >= 760 ? (
+              {usesTable ? (
                 <View
                   style={{
                     minHeight: 40,
                     borderTopWidth: 1,
                     borderTopColor: colors.border,
                     backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 16,
+                    paddingHorizontal: 12,
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 12,
@@ -768,7 +666,7 @@ export function PlatformAccessDashboard({
                   >
                     STATUS
                   </Text>
-                  {width >= 900 ? (
+                  {listWidth >= 900 ? (
                     <Text
                       style={{
                         width: 92,
@@ -788,29 +686,32 @@ export function PlatformAccessDashboard({
                 </Text>
               ) : (
                 filtered.slice(0, 12).map((request) => (
-                  <Pressable
+                  <Pressable suppressWebHoverFeedback disableWebPressScale
                     key={request.id}
                     onPress={() => setSelectedId(request.id)}
-                    style={{
+                    style={state => ({
                       minHeight: 58,
                       borderTopWidth: 1,
                       borderTopColor: colors.border,
                       backgroundColor:
                         selected?.id === request.id
                           ? colors.successBg
-                          : "transparent",
-                      paddingHorizontal: 16,
+                          : platformHighlighted(state) ? colors.secondaryBg : "transparent",
+                      marginHorizontal: 4,
+                      marginVertical: 2,
+                      borderRadius: radius.internal,
+                      paddingHorizontal: 8,
                       paddingVertical: 8,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 12,
-                    }}
+                    })}
                   >
                     <View
                       style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
+                        width: compactUiMetrics.controlHeight,
+                        height: compactUiMetrics.controlHeight,
+                        borderRadius: radius.full,
                         backgroundColor:
                           request.status === "approved"
                             ? colors.successBg
@@ -831,9 +732,11 @@ export function PlatformAccessDashboard({
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text
+                        numberOfLines={2}
                         style={{
                           color: colors.text,
-                          fontSize: 13,
+                          fontSize: compactUiMetrics.bodyFontSize,
+                          lineHeight: compactUiMetrics.bodyLineHeight,
                           fontWeight: "800",
                         }}
                       >
@@ -845,12 +748,15 @@ export function PlatformAccessDashboard({
                       >
                         {request.requesterEmail}
                       </Text>
+                      {!usesTable ? <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
+                        {request.organizationName} · {productLabel[request.requestedProduct]}
+                      </Text> : null}
                     </View>
-                    {width >= 760 ? (
+                    {usesTable ? (
                       <>
                         <Text
                           numberOfLines={1}
-                          style={{ flex: 1, color: colors.text, fontSize: 12 }}
+                          style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 12 }}
                         >
                           {request.organizationName}
                         </Text>
@@ -865,10 +771,10 @@ export function PlatformAccessDashboard({
                         </Text>
                       </>
                     ) : null}
-                    <View style={{ width: width >= 760 ? 148 : undefined }}>
+                    <View style={{ width: usesTable ? 148 : undefined }}>
                       <StatusPill request={request} />
                     </View>
-                    {width >= 900 ? (
+                    {listWidth >= 900 ? (
                       <Text
                         style={{ width: 92, color: colors.muted, fontSize: 11 }}
                       >
@@ -884,10 +790,13 @@ export function PlatformAccessDashboard({
                     minHeight: 48,
                     borderTopWidth: 1,
                     borderTopColor: colors.border,
-                    paddingHorizontal: 16,
+                    paddingHorizontal: 12,
                     flexDirection: "row",
+                    flexWrap: "wrap",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    gap: 8,
+                    paddingVertical: 8,
                   }}
                 >
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
@@ -901,30 +810,14 @@ export function PlatformAccessDashboard({
                       gap: 8,
                     }}
                   >
-                    <Pressable
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name="chevronBack"
-                        size={15}
-                        color={colors.muted}
-                      />
-                    </Pressable>
+                    <Button label="Página anterior" icon="chevronBack" iconOnly />
                     <View
                       style={{
                         width: 32,
                         height: 32,
                         borderRadius: 16,
                         borderWidth: 1,
-                        borderColor: colors.primaryBg,
+                        borderColor: colors.successBorder,
                         backgroundColor: colors.successBg,
                         alignItems: "center",
                         justifyContent: "center",
@@ -958,23 +851,7 @@ export function PlatformAccessDashboard({
                     >
                       3
                     </Text>
-                    <Pressable
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name="chevronForward"
-                        size={15}
-                        color={colors.muted}
-                      />
-                    </Pressable>
+                    <Button label="Próxima página" icon="chevronForward" iconOnly />
                   </View>
                 </View>
               ) : null}
@@ -982,42 +859,43 @@ export function PlatformAccessDashboard({
             {selected ? (
               <View
                 style={{
-                  width: wide ? 400 : "100%",
+                  width: "100%",
+                  minWidth: 0,
                   borderRadius: radius.container,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.card,
-                  padding: 18,
-                  gap: 16,
+                  padding: layout.density.cardPadding,
+                  gap: compactUiMetrics.gap,
                 }}
               >
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 12,
+                    gap: compactUiMetrics.gap,
                   }}
                 >
                   <View
                     style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
+                      width: compactUiMetrics.controlHeight,
+                      height: compactUiMetrics.controlHeight,
+                      borderRadius: radius.full,
                       backgroundColor: colors.infoBg,
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "900" }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
                       {initials(selected.requesterName)}
                     </Text>
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       style={{
                         color: colors.text,
-                        fontSize: 18,
-                        fontWeight: "900",
+                        fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight,
+                        fontWeight: "700",
                       }}
                     >
                       {selected.requesterName}
@@ -1030,8 +908,8 @@ export function PlatformAccessDashboard({
                 <Text
                   style={{
                     color: colors.text,
-                    fontSize: 15,
-                    fontWeight: "900",
+                    fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight,
+                    fontWeight: "700",
                   }}
                 >
                   Informações da conta
@@ -1058,7 +936,7 @@ export function PlatformAccessDashboard({
                     <Text
                       style={{
                         color: colors.text,
-                        fontSize: 14,
+                        fontSize: compactUiMetrics.bodyFontSize,
                         fontWeight: "700",
                       }}
                     >
@@ -1070,8 +948,8 @@ export function PlatformAccessDashboard({
                 <Text
                   style={{
                     color: colors.text,
-                    fontSize: 15,
-                    fontWeight: "900",
+                    fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight,
+                    fontWeight: "700",
                   }}
                 >
                   Histórico de acesso
@@ -1086,7 +964,7 @@ export function PlatformAccessDashboard({
                     <Text
                       style={{
                         color: colors.text,
-                        fontSize: 13,
+                        fontSize: compactUiMetrics.bodyFontSize,
                         fontWeight: "700",
                       }}
                     >
@@ -1105,30 +983,13 @@ export function PlatformAccessDashboard({
                     instituição.
                   </Text>
                 ) : selected.status === "pending" ? (
-                  <View style={{ marginTop: 4, gap: 8 }}>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: compactUiMetrics.gap }}>
                     <Button
-                      label={busy ? "Aprovando..." : "Aprovar acesso"}
+                      label={busy ? "Aprovando..." : "Aprovar acesso"} variant="primary"
                       disabled={busy}
                       onPress={() => void review("approved")}
                     />
-                    <Pressable
-                      disabled={busy}
-                      onPress={() => void review("rejected")}
-                      style={{
-                        minHeight: 44,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: radius.internal,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{ color: colors.dangerText, fontWeight: "800" }}
-                      >
-                        Recusar
-                      </Text>
-                    </Pressable>
+                    <Button label="Recusar" variant="danger" disabled={busy} onPress={() => void review("rejected")} />
                   </View>
                 ) : null}
               </View>

@@ -3,7 +3,7 @@ import type { ProfileRecord } from "../../core/class-pedagogical-profile";
 import type { ClassGroup } from "../../core/models";
 import { assertSessionIdentity, SessionIdentityChangedError } from "../../auth/session";
 import { getClassPedagogicalProfiles } from "../class-pedagogical-profile";
-import { getClasses } from "../classes";
+import { getClassById, getClasses } from "../classes";
 import {
   getScopedOrganizationId,
   getReadCacheGeneration,
@@ -69,6 +69,37 @@ beforeEach(() => {
 });
 
 afterEach(() => jest.useRealTimers());
+
+describe("getClassById availability", () => {
+  it("returns null only when the scoped query succeeds without a row", async () => {
+    jest.mocked(supabaseGet).mockImplementation(async path => path.startsWith("/units?") ? [] : []);
+    await expect(getClassById("class-1", { organizationId: "org-1" })).resolves.toBeNull();
+    expect(supabaseGet).toHaveBeenCalledWith(expect.stringContaining("id=eq.class-1&organization_id=eq.org-1"));
+    expect(readCache).not.toHaveBeenCalled();
+  });
+
+  it("keeps a missing offline class as a network error instead of not found", async () => {
+    const error = new Error("Network request failed");
+    jest.mocked(supabaseGet).mockImplementation(async path => { if (path.startsWith("/units?")) return []; throw error; });
+    jest.mocked(readCache).mockResolvedValue([]);
+    await expect(getClassById("class-1", { organizationId: "org-1" })).rejects.toBe(error);
+    expect(readCache).toHaveBeenCalledWith("cache_classes_v1_org-1");
+  });
+
+  it("preserves an available class from the same organization's offline cache", async () => {
+    const cached = { id: "class-1", organizationId: "org-1", name: "Turma" } as ClassGroup;
+    jest.mocked(supabaseGet).mockImplementation(async path => { if (path.startsWith("/units?")) return []; throw new Error("Network request failed"); });
+    jest.mocked(readCache).mockResolvedValue([cached]);
+    await expect(getClassById("class-1", { organizationId: "org-1" })).resolves.toEqual(expect.objectContaining(cached));
+  });
+
+  it("does not fall back to cache after a permission failure", async () => {
+    const error = new Error("permission denied");
+    jest.mocked(supabaseGet).mockImplementation(async path => { if (path.startsWith("/units?")) return []; throw error; });
+    await expect(getClassById("class-1", { organizationId: "org-1" })).rejects.toBe(error);
+    expect(readCache).not.toHaveBeenCalled();
+  });
+});
 
 describe("getClasses read performance and contracts", () => {
   it("overlaps independent unit and class reads and measures through fresh profiles", async () => {

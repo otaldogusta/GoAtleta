@@ -1,11 +1,12 @@
 // perf-check: ignore-inline-row-style - bounded monthly preview, styles depend on selection and theme.
 import { useLayoutEffect, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
-import { radius, spacing } from "../../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../../theme/tokens";
 import { previewProfilePlans, applyProfilePlanPreview, type ProfilePlanPreview } from "../../planning/application/review-profile-plans";
 
 type Props = Parameters<typeof previewProfilePlans>[0] & { onApplied: () => void };
@@ -49,7 +50,7 @@ export function ProfilePlanReview(props: Props) {
   return <>
     <Button label={`Perfil v${props.classGroup.pedagogicalProfile?.version} · Revisar planos futuros`} variant="ghost" onPress={() => void load()} />
     <ModalSheet visible={visible} onClose={() => !busy && setVisible(false)} position="center" cardStyle={{ width: "100%", maxWidth: 720, maxHeight: "88%", padding: spacing.md, borderRadius: radius.container, backgroundColor: colors.background, gap: spacing.sm }}>
-      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>Planos futuros deste mês</Text>
+      <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>Planos futuros deste mês</Text>
       <Text style={{ color: colors.muted, fontSize: 12 }}>Selecione as aulas que deseja ajustar. Originais, aulas realizadas e edições manuais são preservados.</Text>
       {busy ? <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>Processando…</Text> : null}
       {error ? <Text accessibilityLiveRegion="polite" style={{ color: colors.dangerText }}>{error}</Text> : null}
@@ -61,9 +62,9 @@ export function ProfilePlanReview(props: Props) {
             <Text style={{ color: colors.text, fontWeight: "700" }}>{selected.includes(row.before.id) ? "☑" : "☐"} {row.before.applyDate} · {row.before.title}</Text>
           </Pressable>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Atual</Text>
-          <Text style={{ color: colors.text, fontSize: 13 }}>{describePlan(row.before)}</Text>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize }}>{describePlan(row.before)}</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Prévia · Perfil v{row.version}</Text>
-          <Text style={{ color: colors.text, fontSize: 13 }}>{describePlan(row.after)}</Text>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize }}>{describePlan(row.after)}</Text>
         </View>)}
       </ScrollView>
       <View style={{ flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>

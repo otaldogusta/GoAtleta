@@ -6,17 +6,8 @@ import { usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AthleteAccessRequestRow } from "./AthleteAccessRequestRow";
 import { correctFamilyRequestKind } from "../../api/family-access-request";
-import {
-  Alert,
-  Animated,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-  type View as ViewType,
-} from "react-native";
+import { Alert, Animated, Platform, ScrollView, TextInput, useWindowDimensions, View, type View as ViewType } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import {
   adminApplyMemberAccessChange,

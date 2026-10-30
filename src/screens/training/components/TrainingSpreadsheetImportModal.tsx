@@ -2,7 +2,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Platform, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Platform, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../../components/ui/ScreenPageHeader";
 import { normalizeAgeBand } from "../../../core/age-band";
@@ -26,6 +27,7 @@ import {
     normalizeSpreadsheetMatrixForImport,
 } from "../../../utils/import-file-guards";
 import { loadXlsx } from "../../../utils/load-xlsx";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type CsvRow = Record<string, string>;
 
@@ -699,7 +701,7 @@ function ImportTrainingCsvScreen({
               <GoAtletaIcon name="upload" size={19} color={colors.primaryBg} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
                 Importar planilha
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>

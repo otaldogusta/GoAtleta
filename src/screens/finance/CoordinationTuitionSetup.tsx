@@ -4,14 +4,8 @@ import { PositionPicker } from "../../ui/PositionPicker";
 import { PlanModalityEditor } from "./PlanModalityEditor";
 import { getPlanModalities } from "../../api/athlete-modalities";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -42,7 +36,7 @@ import { canOpenFamilyAccessFromFinance } from "../../finance/application/financ
 import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useOrganization } from "../../providers/organization-context";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
@@ -51,19 +45,19 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 const createTuitionSetupStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     planRow: {
-      minHeight: 62,
+      minHeight: 52,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      paddingTop: 11,
+      paddingTop: 8,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
     },
     agreementRow: {
-      minHeight: 72,
+      minHeight: 60,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      paddingTop: 11,
+      paddingTop: 8,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
@@ -449,7 +443,7 @@ function CoordinationTuitionSetupOrganizationScope({
             />
           ) : (
             <View style={{ gap: 2 }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
                 Planos e mensalidades
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -494,7 +488,7 @@ function CoordinationTuitionSetupOrganizationScope({
                 <Text
                   style={{
                     color: colors.text,
-                    fontSize: 16,
+                    fontSize: compactUiMetrics.titleFontSize,
                     fontWeight: "900",
                   }}
                 >
@@ -557,7 +551,7 @@ function CoordinationTuitionSetupOrganizationScope({
                 <Text
                   style={{
                     color: colors.text,
-                    fontSize: 16,
+                    fontSize: compactUiMetrics.titleFontSize,
                     fontWeight: "900",
                   }}
                 >
@@ -565,7 +559,7 @@ function CoordinationTuitionSetupOrganizationScope({
                 </Text>
                 {loading ? <SectionLoadingState /> : null}
                 {!loading && scopedPlans.length === 0 ? (
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>
+                  <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>
                     Nenhum plano cadastrado.
                   </Text>
                 ) : null}
@@ -614,7 +608,7 @@ function CoordinationTuitionSetupOrganizationScope({
                     <Text
                       style={{
                         color: colors.text,
-                        fontSize: 16,
+                        fontSize: compactUiMetrics.titleFontSize,
                         fontWeight: "900",
                       }}
                     >
@@ -704,7 +698,7 @@ function CoordinationTuitionSetupOrganizationScope({
                   >
                     <GoAtletaIcon
                       name="family"
-                      size={24}
+                      size={18}
                       color={colors.muted}
                     />
                     <Text style={{ color: colors.text, fontWeight: "800" }}>

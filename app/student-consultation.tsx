@@ -1,7 +1,8 @@
 import { useLocalSearchParams } from "expo-router";
 // perf-check: ignore-inline-row-style - lista curta de exercicios do piloto; componente dedicado fica para consolidacao apos teste real.
 import { useCallback, useEffect,  useState } from "react";
-import { Alert, Linking, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Linking, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -21,11 +22,13 @@ import {
 import { useConsultationScreenContext, useConsultationScreenIdentity, type ConsultationStudentScope } from "../src/hooks/use-consultation-screen-context";
 import { notifyConsultationEvent } from "../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { radius } from "../src/theme/tokens";
+import { compactUiMetrics, radius } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Pressable } from "../src/ui/Pressable";
 import { SyncStatusBadge } from "../src/ui/SyncStatusBadge";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
+import { StudentAction, studentHighlighted } from "../src/screens/student/StudentUi";
 
 const scaleValues = Array.from({ length: 11 }, (_, index) => index);
 
@@ -55,27 +58,23 @@ function ScalePicker({
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ color: colors.text, fontWeight: "900" }}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: compactUiMetrics.smallGap }}>
         {scaleValues.map((item) => {
           const active = item === value;
           return (
             <Pressable
               key={`${label}-${item}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}: ${item}`}
+              accessibilityState={{ selected: active }}
               onPress={() => onChange(item)}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: radius.full,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: active ? colors.primaryBg : colors.card,
-                borderWidth: 1,
-                borderColor: active ? colors.primaryBg : colors.border,
-              }}
-            >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "900" }}>
-                {item}
-              </Text>
+              suppressWebHoverFeedback disableWebPressScale
+              style={{ width: compactUiMetrics.touchTarget, height: compactUiMetrics.touchTarget, alignItems: "center", justifyContent: "center" }}>
+              {state => <View pointerEvents="none" style={{ width: compactUiMetrics.controlHeight, height: compactUiMetrics.controlHeight, borderRadius: radius.full, alignItems: "center", justifyContent: "center",
+                backgroundColor: active ? colors.successBg : studentHighlighted(state) ? colors.secondaryBg : "transparent",
+                borderWidth: 1, borderColor: active ? colors.successBorder : studentHighlighted(state) ? colors.borderStrong : colors.border, opacity: state.pressed ? 0.9 : 1 }}>
+                <Text style={{ color: active ? colors.successText : colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>{item}</Text>
+              </View>}
             </Pressable>
           );
         })}
@@ -101,6 +100,7 @@ export default function StudentConsultationScreen() {
 
 function ScopedStudentConsultationScreen({ organizationId, studentScope }: { organizationId: string; studentScope?: ConsultationStudentScope }) {
   markRender("screen.studentConsultation.render.root");
+  const responsiveLayout = useResponsiveLayout();
   const { load, getContext, isCurrent, isActive } = useConsultationScreenContext(organizationId, studentScope);
   const { colors } = useAppTheme();
   const { student } = useRole();
@@ -277,9 +277,9 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 32 }}>
+      <ScrollView contentContainerStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", padding: responsiveLayout.gutter, gap: responsiveLayout.density.pageGap, paddingBottom: 32 }}>
         <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 26, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: responsiveLayout.density.pageTitleFontSize, lineHeight: responsiveLayout.density.pageTitleLineHeight, fontWeight: "900" }}>
             Treino de hoje
           </Text>
           <Text style={{ color: colors.muted }}>
@@ -301,9 +301,7 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
         {errorNotice ? (
           <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.dangerBg }}>
             <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontWeight: "800" }}>{errorNotice}</Text>
-            <Pressable onPress={() => { void reload(); }} style={{ alignSelf: "flex-start", paddingVertical: 8 }}>
-              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>Tentar novamente</Text>
-            </Pressable>
+            <StudentAction label="Tentar novamente" onPress={() => { void reload(); }} />
           </View>
         ) : null}
 
@@ -316,8 +314,8 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : errorNotice && !workout ? null : !workout ? (
-          <View style={{ gap: 8, padding: 16, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-            <GoAtletaIcon name="success" size={24} color={colors.successText} />
+          <View style={{ gap: 8, padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            <GoAtletaIcon name="success" size={compactUiMetrics.iconSize} color={colors.successText} />
             <Text style={{ color: colors.text, fontWeight: "900" }}>Nenhum treino publicado para hoje.</Text>
             <Text style={{ color: colors.muted }}>
               Quando o profissional publicar seu treino, ele aparecerá aqui.
@@ -325,8 +323,8 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
           </View>
         ) : (
           <>
-            <View style={{ gap: 8, padding: 16, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+            <View style={{ gap: 8, padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "900" }}>
                 {workout.title}
               </Text>
               <Text style={{ color: colors.muted }}>
@@ -340,7 +338,7 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
               ) : null}
             </View>
 
-            <View style={{ gap: 8, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ gap: 8, padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
               <Text style={{ color: colors.text, fontWeight: "900" }}>Exercícios</Text>
               <View
                 style={{
@@ -359,7 +357,7 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
               {workout.exercises.map((exercise) => (
                 <View key={exercise.id} style={{ gap: 4, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                   <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                    <Text style={{ color: colors.text, flex: 1.6, fontSize: 13, fontWeight: "900" }}>{exercise.name}</Text>
+                    <Text style={{ color: colors.text, flex: 1.6, minWidth: 0, flexShrink: 1, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "900" }}>{exercise.name}</Text>
                     <Text style={{ color: colors.text, flex: 0.7, fontSize: 12, fontWeight: "800", textAlign: "center" }}>
                       {exerciseCell(exercise.sets)}
                     </Text>
@@ -376,40 +374,15 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
                     </Text>
                   ) : null}
                   {exercise.mediaUrl ? (
-                    <Pressable
-                      onPress={() => {
-                        void openExerciseMedia(exercise.mediaUrl ?? "");
-                      }}
-                      style={{
-                        alignSelf: "flex-start",
-                        borderRadius: radius.full,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        marginTop: 4,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>
-                        Ver demonstração
-                      </Text>
-                    </Pressable>
+                    <StudentAction label="Ver demonstração" onPress={() => { void openExerciseMedia(exercise.mediaUrl ?? ""); }} />
                   ) : null}
                 </View>
               ))}
-              <Pressable
-                onPress={() => setStarted((current) => !current)}
-                style={{ alignItems: "center", padding: 12, borderRadius: radius.full, backgroundColor: colors.primaryBg }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>
-                  {started ? "Ocultar instruções" : "Iniciar treino"}
-                </Text>
-              </Pressable>
+              <StudentAction label={started ? "Ocultar instruções" : "Iniciar treino"} primary onPress={() => setStarted((current) => !current)} />
             </View>
 
-            <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
+            <View style={{ gap: compactUiMetrics.gap, padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "900" }}>
                 Como foi o treino?
               </Text>
               <ScalePicker label="Esforço percebido" value={pse} onChange={setPse} />
@@ -459,22 +432,9 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
                   }}
                 />
               </View>
-              <Pressable
-                disabled={!started}
-                onPress={submit}
-                style={{
-                  alignItems: "center",
-                  padding: 12,
-                  borderRadius: radius.full,
-                  backgroundColor: started ? colors.primaryBg : colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: started ? colors.primaryText : colors.muted, fontWeight: "900" }}>
-                  Concluir treino e enviar feedback
-                </Text>
-              </Pressable>
+              <StudentAction label="Concluir treino e enviar feedback" primary disabled={!started} onPress={submit} />
               {!started ? (
-                <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
+                <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}>
                   Toque em “Iniciar treino” antes de concluir.
                 </Text>
               ) : null}
@@ -497,8 +457,8 @@ function ScopedStudentConsultationScreen({ organizationId, studentScope }: { org
         ) : null}
 
         {progressSummary ? (
-          <View style={{ gap: 8, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Seu histórico</Text>
+          <View style={{ gap: 8, padding: responsiveLayout.density.cardPadding, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "900" }}>Seu histórico</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               {progressSummary.workoutsCompleted} treino(s) concluído(s) · adesão {progressSummary.adherencePercent}%
             </Text>

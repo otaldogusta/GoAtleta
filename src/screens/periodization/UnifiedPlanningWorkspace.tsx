@@ -2,13 +2,8 @@ import { PlanningAssistantHost, usePlanningAssistant } from "./PlanningAssistant
 import { ProfilePlanReview } from "./components/ProfilePlanReview";
 import { useActionSignal } from "../../hooks/use-action-signal";
 import { Suspense, lazy, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import Svg, { Path } from "react-native-svg";
 
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
@@ -52,6 +47,7 @@ import {
   PeriodizationLoadCurve,
   type PeriodizationLoadCurveDraft,
 } from "./components/PeriodizationLoadCurve";
+import { compactUiMetrics } from "../../theme/tokens";
 
 const ClassPlanPreviewModal = lazy(() =>
   import("../classes/components/ClassPlanPreviewModal").then((module) => ({
@@ -97,7 +93,7 @@ function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omi
             opacity: pressed ? 0.72 : 1,
           })}
         >
-          <GoAtletaIcon name="close" size={20} color={colors.text} />
+          <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
         </Pressable>
       </ClassPlanModalHeader>
       <View
@@ -106,7 +102,7 @@ function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omi
         style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: colors.backgroundSubtle }}
       >
         <ActivityIndicator size="small" color={colors.primaryBg} />
-        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>Carregando plano…</Text>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Carregando plano…</Text>
       </View>
     </>
   );
@@ -326,7 +322,7 @@ const MonthRail = memo(function MonthRail({ colors, summaries, selectedMonthKey,
             }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
                 <View accessible accessibilityLabel={`Status: ${status.label}`} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: status.color, opacity: past && !selected ? 0.6 : 1 }} />
-                <Text style={{ color: past && !selected ? colors.muted : colors.text, fontSize: 13, fontWeight: "900" }}>{MONTH_NAMES[summary.month - 1]}</Text>
+                <Text style={{ color: past && !selected ? colors.muted : colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>{MONTH_NAMES[summary.month - 1]}</Text>
               </View>
               <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 10 }}>{phase}</Text>
               <Text style={{ color: colors.muted, fontSize: 9 }}>S{presentation?.weekRangeLabel ?? "—"} · {summary.estimatedLessonCount} aulas</Text>
@@ -678,7 +674,7 @@ const WeekGroups = memo(function WeekGroups({ colors, events, selectedEventId, d
     return [...byWeek.entries()].sort(([a], [b]) => a - b);
   }, [events]);
   if (!groups.length) {
-    return <View style={[cardStyle(colors), { padding: 16, gap: 5 }]}><Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Nenhuma aula gerada para este mês</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Atualize o mês a partir dos parâmetros do ciclo.</Text></View>;
+    return <View style={[cardStyle(colors), { padding: 16, gap: 5 }]}><Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Nenhuma aula gerada para este mês</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Atualize o mês a partir dos parâmetros do ciclo.</Text></View>;
   }
   return (
     <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, overflow: "hidden" }}>
@@ -740,7 +736,7 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
 }) {
   if (!event) return (
     <View style={{ padding: 18, gap: 5 }}>
-      <View style={{ gap: 5 }}><Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Visão do mês</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Selecione uma aula para ver os detalhes.</Text></View>
+      <View style={{ gap: 5 }}><Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Visão do mês</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Selecione uma aula para ver os detalhes.</Text></View>
     </View>
   );
   const title = event.isMonthlyGameSession ? "Jogo consolidado do mês" : event.title;
@@ -770,7 +766,7 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
             </Pressable> : null}
           </View>
         </View>
-        <Text style={{ color: colors.text, fontSize: 15, lineHeight: 20, fontWeight: "900" }}>{title}</Text>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "900" }}>{title}</Text>
         <Text style={{ color: colors.muted, fontSize: 10 }}>Semana {event.weekNumber} · {phaseLabel} · {event.loadLabel || "Sem PSE"}</Text>
         {event.decisionReasons.length ? (
           <View style={{ gap: 4 }}>
@@ -815,9 +811,9 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
 
 function UnconfiguredGate({ colors, onOpenManager }: { colors: ThemeColors; onOpenManager: () => void }) {
   return (
-    <View style={[cardStyle(colors), { maxWidth: 720, width: "100%", alignSelf: "center", padding: 24, gap: 14, alignItems: "flex-start" }]}>
-      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.infoBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="periodization" size={24} color={colors.infoText} /></View>
-      <View style={{ gap: 6 }}><Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>Configure a periodização para liberar o planejamento</Text><Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>A agenda só será exibida depois que nível, início, duração e modelo de carga estiverem definidos. Assim, cada aula nasce vinculada ao ciclo correto.</Text></View>
+    <View style={[cardStyle(colors), { maxWidth: 720, width: "100%", alignSelf: "center", padding: 12, gap: 8, alignItems: "flex-start" }]}>
+      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.infoBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="periodization" size={18} color={colors.infoText} /></View>
+      <View style={{ gap: 6 }}><Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>Configure a periodização para liberar o planejamento</Text><Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>A agenda só será exibida depois que nível, início, duração e modelo de carga estiverem definidos. Assim, cada aula nasce vinculada ao ciclo correto.</Text></View>
       <ActionButton colors={colors} label="Configurar periodização" icon="options" primary onPress={onOpenManager} />
     </View>
   );
@@ -825,9 +821,9 @@ function UnconfiguredGate({ colors, onOpenManager }: { colors: ThemeColors; onOp
 
 function ArchivedCycleGate({ colors, onOpenManager }: { colors: ThemeColors; onOpenManager: (mode?: "manage" | "create-next") => void }) {
   return (
-    <View style={[cardStyle(colors), { maxWidth: 720, width: "100%", alignSelf: "center", padding: 24, gap: 14, alignItems: "flex-start" }]}>
-      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.warningBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="periodization" size={24} color={colors.warningText} /></View>
-      <View style={{ gap: 6 }}><Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>Periodização encerrada</Text><Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>O ciclo saiu da operação. Planos, aulas executadas e relatórios continuam no histórico.</Text></View>
+    <View style={[cardStyle(colors), { maxWidth: 720, width: "100%", alignSelf: "center", padding: 12, gap: 8, alignItems: "flex-start" }]}>
+      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.warningBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="periodization" size={18} color={colors.warningText} /></View>
+      <View style={{ gap: 6 }}><Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>Periodização encerrada</Text><Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>O ciclo saiu da operação. Planos, aulas executadas e relatórios continuam no histórico.</Text></View>
       <ActionButton colors={colors} label="Criar próximo ciclo" icon="options" primary onPress={() => onOpenManager("create-next")} />
     </View>
   );
@@ -1179,7 +1175,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
           <View style={{ paddingVertical: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>Ciclo</Text>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>Ciclo</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 1, backgroundColor: colors.secondaryBg, borderRadius: 6, paddingHorizontal: 3, paddingVertical: 2, borderWidth: 1, borderColor: colors.border }}>
                   <Pressable
                     accessibilityRole="button"
@@ -1215,7 +1211,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
               <View style={{ gap: 6 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Ciclo</Text>
+                    <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>Ciclo</Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 1, backgroundColor: colors.secondaryBg, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2, borderWidth: 1, borderColor: colors.border }}>
                       <Pressable
                         accessibilityRole="button"
@@ -1225,7 +1221,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
                       >
                         <GoAtletaIcon name="chevronBack" size={13} color={colors.text} />
                       </Pressable>
-                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900", minWidth: 34, textAlign: "center" }}>{selectedYear}</Text>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900", minWidth: 34, textAlign: "center" }}>{selectedYear}</Text>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={`Próximo ano (${Number(selectedYear) + 1})`}

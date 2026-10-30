@@ -15,7 +15,7 @@ export function getSectionCardStyle(
   tone: SectionTone = "neutral",
   options: SectionStyleOptions = {}
 ): ViewStyle {
-  const { padding = 14, radius = 18, shadow = true } = options;
+  const { padding = 12, radius = 14, shadow = true } = options;
   const toneMap = {
     neutral: { bg: colors.card, accent: "transparent", accentWidth: 0 },
     info: { bg: colors.card, accent: "transparent", accentWidth: 0 },
@@ -26,7 +26,7 @@ export function getSectionCardStyle(
   const selected = toneMap[tone];
 
   const baseStyle: ViewStyle = {
-    gap: 10,
+    gap: 8,
     padding,
     borderRadius: radius,
     backgroundColor: selected.bg,

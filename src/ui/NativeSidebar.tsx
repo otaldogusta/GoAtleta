@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 
 import { useAuth } from "../auth/auth";
 import { usePlatformAdminAccess } from "../auth/use-platform-admin-access";

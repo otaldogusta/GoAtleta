@@ -3,6 +3,7 @@ import { Animated, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 export type AnimatedSegmentedTabItem<T extends string> = {
   id: T;
@@ -33,10 +34,10 @@ export function AnimatedSegmentedTabs<T extends string>({
   inactiveBackgroundColor,
   activeTextColor,
   inactiveTextColor,
-  itemMinHeight = 40,
-  itemPaddingVertical = 10,
-  itemFontSize = 12,
-  itemGap = 6,
+  itemMinHeight = compactUiMetrics.touchTarget,
+  itemPaddingVertical = 6,
+  itemFontSize = compactUiMetrics.bodyFontSize,
+  itemGap = compactUiMetrics.smallGap,
 }: AnimatedSegmentedTabsProps<T>) {
   const { colors } = useAppTheme();
   const containerRadius = 999;

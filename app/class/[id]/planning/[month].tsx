@@ -1,13 +1,7 @@
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ActivityIndicator, Platform, ScrollView, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../../../src/ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,

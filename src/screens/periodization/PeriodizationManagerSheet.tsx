@@ -1,15 +1,7 @@
 import { PlanningAssistantHost, usePlanningAssistant } from "./PlanningAssistant";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import {
-  ScrollView,
-  type StyleProp,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-  type View as ViewType,
-  type ViewStyle,
-} from "react-native";
+import { ScrollView, type StyleProp, TextInput, useWindowDimensions, View, type View as ViewType, type ViewStyle } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { ThemeColors } from "../../ui/app-theme";
 import { useClassDiagnostic } from "../../assistant/hooks/useClassDiagnostic";
@@ -30,6 +22,7 @@ import {
 import { CourtFormatGlyph, PeriodizationCourtLevelDiagram } from "./components/PeriodizationCourtLevelDiagram";
 import { PeriodizationScheduleDays } from "./components/PeriodizationScheduleDays";
 import { getCourtDimensionsLabel } from "./components/periodization-court-geometry";
+import { compactUiMetrics } from "../../theme/tokens";
 
 function ManagerSelect<T extends string | number>({ value, options, colors, onChange, label }: { value: T; options: readonly { value: T; label: string }[]; colors: ThemeColors; onChange: (value: T) => void; label: string }) {
   const triggerRef = useRef<ViewType | null>(null);
@@ -339,7 +332,7 @@ function PseStepper({
             alignSelf: "center",
             color: colors.text,
             paddingHorizontal: 12,
-            fontSize: 14,
+            fontSize: compactUiMetrics.bodyFontSize,
             fontWeight: "800",
           }}
         >
@@ -540,7 +533,7 @@ function PeriodizationDiagnosticStep({
                     level={option.value}
                     color={active ? colors.successText : colors.muted}
                   />
-                  <Text style={{ color: active ? colors.successText : colors.text, fontSize: 15, fontWeight: "800" }}>
+                  <Text style={{ color: active ? colors.successText : colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                     {option.label}
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 10 }}>
@@ -727,11 +720,11 @@ export function PeriodizationManagerSheet({
       <View style={{ flex: 1, width: "100%", overflow: "hidden" }}>
         <View
           style={{
-            minHeight: 64,
+            minHeight: 52,
             flexDirection: "row",
             alignItems: "center",
-            gap: 12,
-            paddingHorizontal: compact ? 14 : 18,
+            gap: 8,
+            paddingHorizontal: 12,
             borderBottomWidth: 1,
             borderBottomColor: colors.border,
           }}
@@ -748,7 +741,7 @@ export function PeriodizationManagerSheet({
               <Text
                 style={{
                   color: colors.text,
-                  fontSize: compact ? 19 : 22,
+                  fontSize: compactUiMetrics.titleFontSize,
                   fontWeight: "800",
                 }}
               >
@@ -942,7 +935,7 @@ export function PeriodizationManagerSheet({
               borderColor: colors.border,
             }}
           >
-            <GoAtletaIcon name="close" size={20} color={colors.text} />
+            <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
           </Pressable>
         </View>
 
@@ -1051,7 +1044,7 @@ export function PeriodizationManagerSheet({
             ) : null}
 
             {activeStep === 1 ? <View style={{ gap: 12 }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                 1. Turma
               </Text>
               <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
@@ -1131,7 +1124,7 @@ export function PeriodizationManagerSheet({
 
             {activeStep === 4 ? <View style={{ gap: 12 }}>
               <View>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                   4. Modelo de carga
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 10, marginTop: 3 }}>
@@ -1176,7 +1169,7 @@ export function PeriodizationManagerSheet({
             </View> : null}
 
             {activeStep === 5 ? <View style={{ gap: 10 }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                 5. Competição, pausas e disponibilidade
               </Text>
               {advancedContent}
@@ -1218,7 +1211,7 @@ export function PeriodizationManagerSheet({
               gap: 22,
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
               6. Revisão e impacto
             </Text>
             <View style={{ gap: 8 }}>
@@ -1267,7 +1260,7 @@ export function PeriodizationManagerSheet({
               ) : null}
 
               <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                   Dados já disponíveis
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
@@ -1301,7 +1294,7 @@ export function PeriodizationManagerSheet({
               </View>
 
               <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                   Configuração da periodização
                 </Text>
               <View
@@ -1330,7 +1323,7 @@ export function PeriodizationManagerSheet({
               </View>
 
               <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                   Conteúdo existente
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>

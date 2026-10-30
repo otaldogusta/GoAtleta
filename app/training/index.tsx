@@ -3,7 +3,8 @@ import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { buildPlanningCopilotContext } from "../../src/screens/training/application/planning-copilot-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 
@@ -57,6 +58,7 @@ import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import { useOptionalOrganization } from "../../src/providers/organization-context";
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { compactUiMetrics } from "../../src/theme/tokens";
 
 
 const TrainingApplyModalContent = lazy(() =>
@@ -1069,7 +1071,7 @@ function TrainingWorkspace() {
     [colors.text]
   );
   const planningDetailTextStyle = useMemo(
-    () => ({ color: colors.muted, fontSize: 13, lineHeight: 20 }),
+    () => ({ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }),
     [colors.muted]
   );
 
@@ -1106,7 +1108,7 @@ function TrainingWorkspace() {
   );
   const planningDetailTitleWrapStyle = useMemo(() => ({ flex: 1, gap: 4 }), []);
   const planningDetailTitleStyle = useMemo(
-    () => ({ color: colors.text, fontSize: 19, fontWeight: "900" as const, lineHeight: 24 }),
+    () => ({ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" as const, lineHeight: compactUiMetrics.titleLineHeight }),
     [colors.text]
   );
   const planningDetailSourceStyle = useMemo(
@@ -2090,7 +2092,7 @@ function TrainingWorkspace() {
                       }}
                     >
                       <GoAtletaIcon name="document" size={30} color={colors.muted} />
-                      <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Comece um plano de aula</Text>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>Comece um plano de aula</Text>
                       <Pressable
                         onPress={handleCreateWorkspacePlan}
                         style={{
@@ -2171,7 +2173,7 @@ function TrainingWorkspace() {
           }}
         />
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: compactUiMetrics.titleFontSize, fontWeight: "700", color: colors.text }}>
             {applyPlan?.classId ? "Aplicar planejamento" : "Adicionar à turma"}
           </Text>
           <Pressable

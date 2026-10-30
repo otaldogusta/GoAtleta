@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import {
     type DataFixSuggestionsResult,

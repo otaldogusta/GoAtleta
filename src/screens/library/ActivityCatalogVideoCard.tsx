@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -8,6 +9,7 @@ import {
   getCatalogActivityPrimaryBadge,
   type ActivityCatalogListItem,
 } from "./activity-catalog-view-model";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type Props = {
   item: ActivityCatalogListItem;
@@ -32,15 +34,15 @@ export function ActivityCatalogVideoCard({ item, onView, onAddToLesson }: Props)
       <Pressable onPress={() => onView(item)} testID={`activity-catalog-card-${item.id}`}>
         <ActivityCatalogThumbnail item={item} badge={badge} />
       </Pressable>
-      <View style={{ gap: 8, padding: 14 }}>
+      <View style={{ gap: 8, padding: 12 }}>
         <View style={{ gap: 3 }}>
           <Text
             numberOfLines={2}
-            style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}
+            style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}
           >
             {item.variant.name}
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "800" }}>
+          <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
             {item.familyLabel}
           </Text>
         </View>
@@ -50,14 +52,14 @@ export function ActivityCatalogVideoCard({ item, onView, onAddToLesson }: Props)
             onPress={() => onView(item)}
             style={{
               flex: 1,
-              minHeight: 38,
+              minHeight: compactUiMetrics.touchTarget,
               borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: colors.secondaryBg,
             }}
           >
-            <Text style={{ color: colors.secondaryText, fontSize: 13, fontWeight: "900" }}>
+            <Text style={{ color: colors.secondaryText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
               Ver atividade
             </Text>
           </Pressable>
@@ -65,15 +67,15 @@ export function ActivityCatalogVideoCard({ item, onView, onAddToLesson }: Props)
             testID={`activity-catalog-add-${item.id}`}
             onPress={() => onAddToLesson(item)}
             style={{
-              height: 38,
-              width: 42,
+              height: compactUiMetrics.touchTarget,
+              width: compactUiMetrics.touchTarget,
               borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: colors.primaryBg,
             }}
           >
-            <GoAtletaIcon name="add" size={22} color={colors.primaryText} />
+            <GoAtletaIcon name="add" size={compactUiMetrics.iconSize} color={colors.primaryText} />
           </Pressable>
         </View>
       </View>

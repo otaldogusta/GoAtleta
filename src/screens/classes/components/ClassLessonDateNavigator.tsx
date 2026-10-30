@@ -1,4 +1,6 @@
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { compactUiMetrics } from "../../../theme/tokens";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -76,14 +78,14 @@ export function ClassLessonDateNavigator({
 const styles = StyleSheet.create({
   navigator: {
     width: "100%",
-    minHeight: 68,
+    minHeight: 56,
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 4,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: compactUiMetrics.gap,
   },
   arrowButton: {
     width: 44,
@@ -106,11 +108,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   dateLabel: {
-    fontSize: 16,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "800",
   },
   todayLabel: {
-    fontSize: 12,
+    fontSize: compactUiMetrics.metadataFontSize,
     fontWeight: "900",
   },
 });

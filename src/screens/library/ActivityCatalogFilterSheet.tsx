@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
 import { Pressable } from "../../ui/Pressable";
@@ -16,6 +17,7 @@ import {
   type CatalogFilterOptions,
   type CatalogFilterState,
 } from "./activity-catalog-view-model";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type Props = {
   visible: boolean;
@@ -216,7 +218,7 @@ function FilterRow({
   const { colors } = useAppTheme();
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
         {title}
       </Text>
       <ScrollView
@@ -246,7 +248,7 @@ function FilterRow({
               <Text
                 style={{
                   color: active ? colors.successText : colors.text,
-                  fontSize: 13,
+                  fontSize: compactUiMetrics.bodyFontSize,
                   fontWeight: "800",
                 }}
               >

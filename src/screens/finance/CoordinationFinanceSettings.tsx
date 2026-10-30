@@ -2,14 +2,8 @@ import { scheduleEffectTask } from "../../hooks/schedule-effect-task";
 // perf-check: ignore-measure -- one organization-scoped connector status load.
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -38,7 +32,7 @@ import { REAL_MONEY_PAYMENTS_ENABLED } from "../../core/payments";
 import { resolveFinanceSettingsDisplay } from "../../finance/application/finance-settings-state";
 import { markRender } from "../../observability/perf";
 import { useOrganization } from "../../providers/organization-context";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
@@ -75,8 +69,8 @@ const formatConnectionDate = (value: string | null | undefined) => {
 const createFinanceSettingsStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     modalHeader: {
-      minHeight: 64,
-      paddingHorizontal: spacing.md,
+      minHeight: 52,
+      paddingHorizontal: spacing.sm,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       flexDirection: "row",
@@ -84,7 +78,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       gap: spacing.sm,
     },
     modalHeaderText: { flex: 1, minWidth: 0, gap: 2 },
-    modalTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
+    modalTitle: { color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
     modalSubtitle: { color: colors.muted, fontSize: 12 },
     modalClose: {
       width: 38,
@@ -110,7 +104,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.sm,
-      padding: spacing.lg,
+      padding: spacing.sm,
     },
     connectedProviderHeader: {
       paddingBottom: spacing.sm,
@@ -124,7 +118,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       justifyContent: "center",
     },
     providerHeading: { flex: 1, minWidth: 0, gap: 2 },
-    providerTitle: { color: colors.text, fontSize: 17, fontWeight: "900" },
+    providerTitle: { color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
     providerSubtitle: { color: colors.muted, fontSize: 12 },
     statusChip: {
       borderRadius: radius.full,
@@ -249,8 +243,8 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       gap: 0,
     },
     sectionHeading: { gap: 3 },
-    sectionTitle: { color: colors.text, fontSize: 15, fontWeight: "900" },
-    bodyText: { color: colors.muted, fontSize: 13, lineHeight: 18 },
+    sectionTitle: { color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
+    bodyText: { color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 18 },
     supportingText: { color: colors.muted, fontSize: 12, lineHeight: 18 },
     fieldLabel: { color: colors.text, fontSize: 12, fontWeight: "800" },
     fieldGroup: { gap: 6 },
@@ -332,7 +326,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
     },
     operationalTitle: {
       color: colors.text,
-      fontSize: 15,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "900",
     },
     operationalSubtitle: {
@@ -381,7 +375,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       paddingRight: 12,
       gap: 2,
     },
-    summaryValue: { color: colors.text, fontSize: 15, fontWeight: "900" },
+    summaryValue: { color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
     summaryLabel: { color: colors.muted, fontSize: 11 },
     metaRow: {
       flexDirection: "row",
@@ -398,7 +392,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
     },
     metaPillText: { color: colors.muted, fontSize: 11, fontWeight: "700" },
     disclosureButton: {
-      minHeight: 56,
+      minHeight: 48,
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.sm,
@@ -406,7 +400,7 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       paddingVertical: 10,
     },
     disclosureHeading: { flex: 1, minWidth: 0, gap: 2 },
-    disclosureTitle: { color: colors.text, fontSize: 13, fontWeight: "800" },
+    disclosureTitle: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" },
     disclosureSummary: { color: colors.muted, fontSize: 11 },
     detailBody: {
       borderTopWidth: 1,
@@ -761,7 +755,7 @@ function FinanceSettingsContent({
             onPress={onClose}
             style={styles.modalClose}
           >
-            <GoAtletaIcon name="close" size={20} color={colors.muted} />
+            <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.muted} />
           </Pressable>
         </View>
       ) : null}
@@ -796,7 +790,7 @@ function FinanceSettingsContent({
                 ]}
               >
                 <View style={styles.providerIcon}>
-                  <GoAtletaIcon name="payments" size={20} color={colors.text} />
+                  <GoAtletaIcon name="payments" size={compactUiMetrics.iconSize} color={colors.text} />
                 </View>
                 <View style={styles.providerHeading}>
                   <Text style={styles.providerTitle}>Asaas</Text>
@@ -1185,7 +1179,7 @@ function FinanceSettingsContent({
                       <View style={styles.operationalIcon}>
                         <GoAtletaIcon
                           name="sync"
-                          size={20}
+                          size={compactUiMetrics.iconSize}
                           color={colors.text}
                         />
                       </View>
@@ -1214,7 +1208,7 @@ function FinanceSettingsContent({
                       <View style={styles.operationalIcon}>
                         <GoAtletaIcon
                           name="notifications"
-                          size={20}
+                          size={compactUiMetrics.iconSize}
                           color={colors.text}
                         />
                       </View>

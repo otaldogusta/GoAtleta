@@ -1,14 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ENABLE_SOCIAL_LOGIN } from "../../src/api/config";

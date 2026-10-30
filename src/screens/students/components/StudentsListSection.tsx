@@ -1,12 +1,13 @@
 import { memo, type ReactElement } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { Student } from "../../../core/models";
 import type {
   StudentListClassGroup,
   StudentListUnitGroup,
 } from "../application/student-list-selectors";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
@@ -125,7 +126,7 @@ export function StudentsUnitGroupBlockContent({
           justifyContent: "space-between",
         }}
       >
-        <Text style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary }}>
+        <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900", color: colors.textPrimary }}>
           {unitName}
         </Text>
         <GoAtletaIcon
@@ -272,7 +273,7 @@ function StudentsClassHeaderContent({
       node: (
         <Text
           style={{
-            fontSize: 13,
+            fontSize: compactUiMetrics.bodyFontSize,
             fontWeight: "800",
             color: colors.textPrimary,
           }}

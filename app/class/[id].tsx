@@ -1,14 +1,16 @@
+import { compactUiMetrics } from "../../src/theme/tokens";
 import { getSessionIdentity, isSessionIdentityCurrent } from "../../src/auth/session";
 import { getReadCacheGeneration } from "../../src/db/client";
 import { calendarReturnRoute } from "../../src/screens/calendar/application/calendar-return-route";
 import { confirmPlanWithoutPeriodization } from "../../src/screens/classes/application/confirm-plan-without-periodization";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
-import { getFriendlyErrorMessage, isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
+import { getFriendlyErrorMessage } from "../../src/ui/error-messages";
 import { trainingHistoryTitle } from "../../src/core/training-history-title";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useIsFocused, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { navigateBackToCalendar, navigateToDetailRoute } from "../../src/navigation/primary-route-navigation";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, ScrollView, TextInput, Vibration, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
@@ -17,6 +19,7 @@ import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsig
 import { resolveCopilotCompanionFabBottom } from "../../src/copilot/components/CopilotFab";
 
 import { ClassNavigationFab } from "../../src/screens/classes/components/ClassNavigationFab";
+import { ClassUnavailableState } from "../../src/screens/classes/components/ClassUnavailableState";
 import { ClassReportHistory } from "../../src/screens/classes/components/ClassReportHistory";
 import { useClassReportHistory } from "../../src/screens/classes/hooks/useClassReportHistory";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
@@ -49,7 +52,7 @@ import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/compone
 import { FloatingSaveBar } from "../../src/ui/FloatingSaveBar";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
 import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
-import { parseClassWorkspaceRouteDate, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
+import { parseClassWorkspaceRouteDate, resolveClassSettingsSection, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
 import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -200,14 +203,17 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, is
 export default function ClassDetails() {
   markRender("screen.classDetails.render.root");
 
-  const { id, section, date, settings, calendarSource, calendarDate, calendarUnit, calendarOriginKey } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string; calendarSource?: string; calendarDate?: string; calendarUnit?: string; calendarOriginKey?: string }>();
+  const { id, section, date, settings, settingsSection, calendarSource, calendarDate, calendarUnit, calendarOriginKey } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string; settingsSection?: string; calendarSource?: string; calendarDate?: string; calendarUnit?: string; calendarOriginKey?: string }>();
+  const requestedSettingsSection = resolveClassSettingsSection(settingsSection);
+  const settingsScrollRef = useRef<ScrollView | null>(null);
+  const classRouteFocused = useIsFocused();
   const router = useRouter();
   const navigation = useNavigation();
   const scopedRoutes = useTrainerRouteScope();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, mode } = useAppTheme();
-  const { session } = useAuth();
-  const { activeOrganization } = useOrganization();
+  const { session, loading: authLoading } = useAuth();
+  const { activeOrganization, isLoading: organizationLoading } = useOrganization();
   const detailIdentity = getSessionIdentity();
   const detailDataScope = JSON.stringify([
     detailIdentity.userId, detailIdentity.generation, getReadCacheGeneration(), activeOrganization?.id, id,
@@ -294,6 +300,8 @@ export default function ClassDetails() {
     setCls(current => current?.id === profile.class_id && current.organizationId === profile.organization_id ? { ...current, pedagogicalProfile: profile } : current);
   }), []);
   const [loading, setLoading] = useState(true);
+  const [classLoadError, setClassLoadError] = useState(false);
+  const [detailLoadAttempt, setDetailLoadAttempt] = useState(0);
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [missingContactCount, setMissingContactCount] = useState<number | null>(null);
   const [appliedPlan, setAppliedPlan] = useState<TrainingPlan | null>(null);
@@ -1053,8 +1061,10 @@ export default function ClassDetails() {
     const cacheGeneration = getReadCacheGeneration();
     const isCurrent = () => alive && isSessionIdentityCurrent(identity) && cacheGeneration === getReadCacheGeneration();
     (async () => {
+      if (authLoading || organizationLoading) { setLoading(true); return; }
       if (!session?.user?.id || !activeOrganization?.id) { if (isCurrent()) { setCls(null); setLoadedDetailDataScope(detailDataScope); setLoading(false); } return; }
       setLoading(true);
+      setClassLoadError(false);
       try {
         const dataResult = await measureAsync("screen.classDetails.load.initial", () => getClassById(id, { organizationId: activeOrganization.id }), { screen: "classDetails", classId: id });
         if (isCurrent()) {
@@ -1085,18 +1095,16 @@ export default function ClassDetails() {
           setCoachNameOverride(data?.id ? (coachNameByClass[data.id] ?? "") : "");
           setLoading(false);
         }
-        if (!isCurrent()) return;
+        if (!isCurrent() || !dataResult) return;
         void getStudentsByClass(id).catch(() => []).then((students) => {
           if (!isCurrent()) return;
           setStudentCount(students.length);
           setMissingContactCount(students.filter((student) => getContactPhone(student).status !== "ok").length);
         });
-      } catch (error) {
+      } catch {
         if (!isCurrent()) return;
         setCls(null);
-        if (!isAuthSessionError(error) && !isRequestCancellationError(error) && !(error instanceof Error && error.name === "SessionIdentityChangedError")) {
-          Alert.alert("Não foi possível carregar a turma", "Tente abrir a turma novamente.");
-        }
+        setClassLoadError(true);
       } finally {
         if (isCurrent()) {
           setLoadedDetailDataScope(detailDataScope);
@@ -1107,7 +1115,7 @@ export default function ClassDetails() {
     return () => {
       alive = false;
     };
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, coachNameByClass, activeOrganization?.id, detailDataScope, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, session?.user?.id]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, authLoading, organizationLoading, coachNameByClass, activeOrganization?.id, detailDataScope, detailLoadAttempt, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, session?.user?.id]);
 
   useEffect(() => {
     if (!id || !selectedLessonDateKey) {
@@ -1286,11 +1294,15 @@ export default function ClassDetails() {
   }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, editStaffBaseline, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, setName, setCoachNameOverride, setUnit, setTrainingSpace, setModality, setAgeBand, setGender, setStartTime, setEndTime, setDuration, setDaysOfWeek, setMvLevel, setCycleStartDate, setCycleLengthWeeks, setEditCustomAgeBand, setShowEditCustomAgeBand, setGoal, setEditCustomGoal, setShowEditCustomGoal, setFormError, setEditStaff]);
 
   useEffect(() => {
-    if (!cls || settings !== "1" || autoOpenedSettingsForClassRef.current === cls.id) return;
-    autoOpenedSettingsForClassRef.current = cls.id;
-    resetEditFields();
+    if (!classRouteFocused || settings !== "1") { autoOpenedSettingsForClassRef.current = null; return; }
+    const requestKey = cls ? `${cls.id}:${requestedSettingsSection}` : null;
+    if (!requestKey || autoOpenedSettingsForClassRef.current === requestKey) return;
+    autoOpenedSettingsForClassRef.current = requestKey;
+    // A route request initializes a closed form; returning must preserve an open draft.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!showEditModal) resetEditFields();
     setShowEditModal(true);
-  }, [cls, resetEditFields, settings]);
+  }, [classRouteFocused, cls, requestedSettingsSection, resetEditFields, settings, showEditModal]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditCycleLengthPicker(false);
@@ -1721,7 +1733,8 @@ export default function ClassDetails() {
     setShowEditCustomGoal(false);
     setEditCustomGoal("");
     resetEditFields();
-  }, [closeEditPickers, resetEditFields, setShowEditModal, setShowEditActionsMenu, setShowEditCloseConfirm, setShowEditCycleCalendar, setShowEditCustomAgeBand, setEditCustomAgeBand, setShowEditCustomGoal, setEditCustomGoal]);
+    if (settings === "1") router.setParams({ settings: undefined, settingsSection: undefined });
+  }, [closeEditPickers, resetEditFields, router, settings, setShowEditModal, setShowEditActionsMenu, setShowEditCloseConfirm, setShowEditCycleCalendar, setShowEditCustomAgeBand, setEditCustomAgeBand, setShowEditCustomGoal, setEditCustomGoal]);
 
   const requestCloseEditModal = useCallback(() => {
     if (isEditDirty) {
@@ -1736,11 +1749,12 @@ export default function ClassDetails() {
       const saved = await saveUnit();
       if (saved) {
         setShowEditModal(false);
+        if (settings === "1") router.setParams({ settings: undefined, settingsSection: undefined });
       }
     } catch (error) {
       setFormError(getFriendlyErrorMessage(error, "Não foi possível salvar as alterações da turma."));
     }
-  }, [saveUnit, setFormError, setShowEditModal]);
+  }, [router, saveUnit, settings, setFormError, setShowEditModal]);
 
   const handleScheduleStaffSubstitution = useCallback(async (input: {
     absentTenureId: string;
@@ -2111,15 +2125,18 @@ export default function ClassDetails() {
     }
   }, [cls, confirmDialog, handleOpenPlanning, isGeneratingPlan, selectedLessonDateKey, showSaveToast, setIsGeneratingPlan]);
 
-  if (loading || loadedDetailDataScope !== detailDataScope) {
+  if (authLoading || organizationLoading || loading || loadedDetailDataScope !== detailDataScope) {
     return <ScreenLoadingState />;
   }
 
   if (!cls) {
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>Turma não encontrada</Text>
-      </SafeAreaView>
+      <ClassUnavailableState
+        kind={!session?.user?.id || !activeOrganization?.id ? "context" : classLoadError ? "error" : "unavailable"}
+        organizationName={activeOrganization?.name}
+        onBack={() => router.replace(scopedRoutes.classes)}
+        onRetry={() => { setLoading(true); setDetailLoadAttempt(value => value + 1); }}
+      />
     );
   }
 
@@ -2738,9 +2755,9 @@ export default function ClassDetails() {
             >
               <View
                 style={{
-                  minHeight: 72,
-                  paddingHorizontal: 18,
-                  paddingVertical: 11,
+                  minHeight: 56,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
                   borderBottomWidth: 1,
                   borderBottomColor: colors.border,
                   flexDirection: "row",
@@ -2752,7 +2769,7 @@ export default function ClassDetails() {
                     style={{
                       flex: 1,
                       color: colors.text,
-                      fontSize: 19,
+                      fontSize: compactUiMetrics.titleFontSize,
                       fontWeight: "800",
                     }}
                   >
@@ -2821,7 +2838,7 @@ export default function ClassDetails() {
           <ConfirmCloseOverlay visible={showEditCloseConfirm} onCancel={() => setShowEditCloseConfirm(false)} onConfirm={closeEditModal} />
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 20 }}>
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={{ fontSize: isCompactEditModal ? 22 : 28, fontWeight: "800", color: colors.text }}>Editar turma</Text>
+              <Text style={{ fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "800", color: colors.text }}>Editar turma</Text>
               <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>{`${cls?.name || "Turma"}${cls?.unit ? ` · ${cls.unit}` : ""}`}</Text>
                 {gender ? <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.secondaryBg }}><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{gender === "feminino" ? "Feminino" : gender === "masculino" ? "Masculino" : "Misto"}</Text></View> : null}
@@ -2847,6 +2864,7 @@ export default function ClassDetails() {
 
           <View style={{ flex: 1, minHeight: 0, position: "relative" }}>
             <ScrollView
+              ref={settingsScrollRef}
               style={[
                 { width: "100%", flex: 1 },
                 Platform.OS === "web"
@@ -2869,6 +2887,8 @@ export default function ClassDetails() {
               showsVerticalScrollIndicator
             >
               <ModernClassEditModalBody
+                initialSection={settings === "1" ? requestedSettingsSection : "basics"}
+                onInitialSectionLayout={y => settingsScrollRef.current?.scrollTo({ y, animated: false })}
                 renderPickers={false}
                 leftColumnFooter={editStaffHistoryAvailable ? (
                   <ClassStaffHistoryPanel

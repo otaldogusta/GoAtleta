@@ -3,7 +3,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import { Text } from "react-native";
 
 import { COPILOT_FAB_SIZE, COPILOT_FAB_STACK_GAP, resolveCopilotCompanionFabBottom, resolveCopilotFabBottom } from "../../../../copilot/components/CopilotFab";
-import { buildClassAttendanceWorkspaceHref, parseClassWorkspaceRouteDate, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../class-workspace-route";
+import { buildClassAttendanceWorkspaceHref, parseClassWorkspaceRouteDate, resolveClassSettingsSection, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../class-workspace-route";
 import { ClassContextStrip, ClassOperationsWorkspace, resolveDenseClassWorkspace } from "../ClassOperationsWorkspace";
 import { ClassAttendanceWorkspacePanel, resolveStackedAttendancePanel } from "../ClassAttendanceWorkspacePanel";
 import { isTodayLessonDateLabel } from "../ClassLessonDateNavigator";
@@ -184,6 +184,9 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(resolveClassWorkspaceRouteSection("attendance")).toBe("attendance");
     expect(resolveClassWorkspaceRouteSection("nfc")).toBe("attendance");
     expect(parseClassWorkspaceRouteDate("2026-08-24")).toEqual(new Date(2026, 7, 24));
+    expect(resolveClassSettingsSection("agenda")).toBe("agenda");
+    expect(resolveClassSettingsSection(["profile", "agenda"])).toBe("profile");
+    expect(resolveClassSettingsSection("arbitrary-field")).toBe("basics");
   });
 
   it("keeps the explicit route date as the adjacent-navigation base", () => {
@@ -405,10 +408,10 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
 
     expect(screen.getByTestId("attendance-date-navigator")).toHaveStyle({
       width: "100%",
-      minHeight: 68,
+      minHeight: 56,
       borderRadius: 16,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingVertical: 4,
     });
     expect(screen.getByLabelText("Aula anterior")).toHaveStyle({ width: 44, height: 44, borderRadius: 22 });
     expect(screen.getByLabelText("Próxima aula")).toHaveStyle({ width: 44, height: 44, borderRadius: 22 });

@@ -2,7 +2,8 @@ import { markRender } from "../src/observability/perf";
 // perf-check: ignore-measure -- static onboarding content; persistence is an explicit user action.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -13,6 +14,7 @@ import {
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { compactUiMetrics } from "../src/theme/tokens";
 
 type FocusValue = OnboardingProfile["focus"];
 type FrequencyValue = OnboardingProfile["frequency"];
@@ -23,6 +25,13 @@ const totalSteps = 4;
 export default function OnboardingScreen() {
   markRender("screen.onboarding.render.root");
   const { colors } = useAppTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    skipAction: { minHeight: 44, paddingHorizontal: 8, justifyContent: "center" },
+    stepStack: { gap: 12 },
+    heading: { color: colors.text, fontSize: 20, fontWeight: "800", lineHeight: 26 },
+    description: { color: colors.muted, fontSize: compactUiMetrics.bodyFontSize },
+    choiceTitle: { color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize },
+  }), [colors]);
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [role, setRole] = useState<RoleValue>("trainer");
@@ -61,7 +70,8 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 8 }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 12 }}>
+      <View style={{ width: "100%", maxWidth: 440, alignSelf: "center" }}>
         <View
           style={{
             flexDirection: "row",
@@ -70,8 +80,8 @@ export default function OnboardingScreen() {
             marginBottom: 10,
           }}
         >
-          <Pressable onPress={prevStep} style={{ paddingVertical: 6, paddingHorizontal: 2 }}>
-            <GoAtletaIcon name="chevronBack" size={22} color={colors.text} />
+          <Pressable onPress={prevStep} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}>
+            <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
           </Pressable>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             {Array.from({ length: totalSteps }).map((_, index) => (
@@ -86,19 +96,19 @@ export default function OnboardingScreen() {
               />
             ))}
           </View>
-          <Pressable onPress={skipOnboarding} style={{ paddingVertical: 6, paddingHorizontal: 2 }}>
+          <Pressable onPress={skipOnboarding} style={styles.skipAction}>
             <Text style={{ color: colors.muted, fontWeight: "700", fontSize: 12 }}>Pular</Text>
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between", gap: 16 }}>
-          <View style={{ gap: 14, marginTop: 6 }}>
+        <View style={styles.stepStack}>
+          <View style={{ gap: 12, marginTop: 6 }}>
             {step === 0 ? (
               <>
-                <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800", lineHeight: 36 }}>
+                <Text style={styles.heading}>
                   Seu plano começa com clareza
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 15, lineHeight: 22 }}>
+                <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
                   Configure seu perfil em menos de 1 minuto para receber uma experiência alinhada ao seu momento.
                 </Text>
                 <View
@@ -107,7 +117,7 @@ export default function OnboardingScreen() {
                     borderColor: colors.border,
                     borderWidth: 1,
                     borderRadius: 18,
-                    padding: 16,
+                    padding: 12,
                     gap: 10,
                   }}
                 >
@@ -127,10 +137,10 @@ export default function OnboardingScreen() {
 
             {step === 1 ? (
               <>
-                <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800", lineHeight: 34 }}>
+                <Text style={styles.heading}>
                   Qual perfil representa você?
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 14 }}>
+                <Text style={styles.description}>
                   Isso ajuda a organizar a navegação inicial.
                 </Text>
                 <View style={{ gap: 10 }}>
@@ -158,13 +168,13 @@ export default function OnboardingScreen() {
                           borderWidth: 1,
                           borderColor: selected ? colors.primaryBg : colors.border,
                           backgroundColor: selected ? colors.secondaryBg : colors.card,
-                          padding: 14,
+                          padding: 12,
                           gap: 6,
                         }}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <GoAtletaIcon name={item.icon} size={18} color={selected ? colors.primaryBg : colors.text} />
-                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                          <Text style={styles.choiceTitle}>
                             {item.title}
                           </Text>
                         </View>
@@ -178,10 +188,10 @@ export default function OnboardingScreen() {
 
             {step === 2 ? (
               <>
-                <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800", lineHeight: 34 }}>
+                <Text style={styles.heading}>
                   Vamos alinhar sua rotina
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 14 }}>
+                <Text style={styles.description}>
                   Perfil atual: {roleLabel}
                 </Text>
 
@@ -252,10 +262,10 @@ export default function OnboardingScreen() {
 
             {step === 3 ? (
               <>
-                <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800", lineHeight: 34 }}>
+                <Text style={styles.heading}>
                   Tudo pronto para começar
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 21 }}>
+                <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
                   Você pode criar uma conta nova ou entrar com uma conta existente. Se sua conta já existe e ainda está sem acesso, o app vai direcionar para a tela de vínculo automaticamente.
                 </Text>
                 <View
@@ -264,14 +274,14 @@ export default function OnboardingScreen() {
                     borderWidth: 1,
                     borderColor: colors.border,
                     backgroundColor: colors.card,
-                    padding: 14,
+                    padding: 12,
                     gap: 8,
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700" }}>
                     Conta existente sem acesso?
                   </Text>
-                  <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                  <Text style={{ color: colors.muted, lineHeight: compactUiMetrics.bodyLineHeight }}>
                     Entre normalmente e, se necessário, valide o convite do treinador na tela de pendência.
                   </Text>
                 </View>
@@ -329,8 +339,9 @@ export default function OnboardingScreen() {
               </>
             )}
           </View>
-        </ScrollView>
+        </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

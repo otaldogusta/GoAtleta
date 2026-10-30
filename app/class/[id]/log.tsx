@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { ClassGroup, SessionLog } from "../../../src/core/models";
@@ -293,7 +294,7 @@ export default function LogScreen() {
           />
         ) : (
           <View style={{ gap: 6, marginBottom: 12 }}>
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+            <Text style={{ fontSize: 18, lineHeight: 24, fontWeight: "700", color: colors.text }}>
               Relatório da aula
             </Text>
             <Text style={{ color: colors.muted }}>Resumo da aula aplicada</Text>

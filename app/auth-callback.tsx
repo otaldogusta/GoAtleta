@@ -2,7 +2,8 @@ import { markRender } from "../src/observability/perf";
 // perf-check: ignore-measure -- visual fallback; auth recovery and boot timing are owned by app/_layout.tsx.
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { useAppTheme } from "../src/ui/app-theme";
 
 export default function AuthCallbackScreen() {

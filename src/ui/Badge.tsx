@@ -1,5 +1,6 @@
 import React from "react";
-import { Text, View, ViewStyle, TextStyle } from "react-native";
+import { View, ViewStyle, TextStyle } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { useAppTheme } from "./app-theme";
 
 type BadgeProps = {

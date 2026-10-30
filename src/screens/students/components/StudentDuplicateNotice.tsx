@@ -1,4 +1,6 @@
-import { Text, View } from "react-native";
+import { compactUiMetrics } from "../../../theme/tokens";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ThemeColors } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
@@ -47,7 +49,7 @@ export function StudentDuplicateReviewPrompt({
   return (
     <View style={{ gap: 12 }}>
       <View style={{ gap: 4 }}>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Nome repetido</Text>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>Nome repetido</Text>
         <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
           {studentName}
         </Text>

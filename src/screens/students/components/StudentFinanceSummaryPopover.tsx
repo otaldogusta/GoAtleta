@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import {
   formatFinanceDate,
   formatMoneyFromCents,

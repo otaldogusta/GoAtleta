@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { CalendarMonthPicker } from "../src/screens/calendar/CalendarMonthPicker";
 import { CalendarUnitSelect } from "../src/screens/calendar/CalendarUnitSelect";
 import { CalendarEventSheet } from "../src/screens/calendar/CalendarEventSheet";
+import { CalendarClassDetails, type CalendarClassOpenOptions } from "../src/screens/calendar/CalendarClassDetails";
 import { useCalendarWheel, useEventSheetGesture } from "../src/screens/calendar/useEventSheetGesture";
 import { NativeCalendarFold } from "../src/screens/calendar/NativeCalendarFold";
 import { CalendarFold } from "../src/screens/calendar/CalendarFold";
@@ -23,16 +24,8 @@ import {
   useRef,
   useState
 } from "react";
-import {
-  ActivityIndicator,
-  FlatList,  Platform,
-  StyleSheet,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions
-} from "react-native";
+import { ActivityIndicator, FlatList, Platform, StyleSheet, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
@@ -62,6 +55,8 @@ import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
 import { toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
+import { compactUiMetrics as metrics } from "../src/theme/tokens";
+import { responsiveBreakpoints } from "../src/ui/responsive-layout";
 
 const CalendarEventEditor = lazy(() => import("../src/screens/calendar/CalendarEventEditor").then(module => ({ default: module.CalendarEventEditor })));
 
@@ -164,6 +159,7 @@ type AgendaEventItemModel = {
 };
 
 type AgendaItemModel = AgendaClassItemModel | AgendaEventItemModel;
+type CalendarClassSelection = { scope: string; classId: string; date: string; timeLabel: string; unitLabel: string; accentColor: string; filterUnit: string; source: "prof" | "shared"; originKey?: string };
 
 type MonthCalendarDayModel = {
   day: number;
@@ -212,6 +208,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     return current.userId === identity.userId && current.generation === identity.generation && getReadCacheGeneration() === readGeneration;
   }, [identity.userId, identity.generation, readGeneration]);
   const [calendarPauses, setCalendarPauses] = useState<{ scope: string; rows: CalendarPause[] }>({ scope: "", rows: [] });
+  const [pauseRevision, setPauseRevision] = useState(0);
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
@@ -220,7 +217,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
       if (alive && isCurrentRead()) setCalendarPauses({ scope: readScope, rows });
     }).catch(() => { /* Keep the last verified calendar; retry on organization change. */ });
     return () => { alive = false; };
-  }, [activeOrganization?.id, readScope, isCurrentRead, studentMode]);
+  }, [activeOrganization?.id, readScope, isCurrentRead, studentMode, pauseRevision]);
 
   const params = useLocalSearchParams();
   const targetClassId =
@@ -234,7 +231,10 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const openApply =
     !studentMode && typeof params.openApply === "string" ? params.openApply === "1" : false;
   const canManageEvents = !studentMode && (activeOrganization?.role_level ?? 0) >= 50;
-  const [eventEditor, setEventEditor] = useState<{ scope: string; date: string; event?: EventListItem; seed?: EventDraft; resumeId?: string } | null>(null);
+  const [eventEditor, setEventEditor] = useState<{ scope: string; date: string; event?: EventListItem; seed?: EventDraft; resumeId?: string; instanceId?: number } | null>(null);
+  const eventEditorSequence = useRef(0);
+  const [classDetails, setClassDetails] = useState<CalendarClassSelection | null>(null);
+  if (classDetails && classDetails.scope !== readScope) setClassDetails(null);
   const [quickAdd, setQuickAdd] = useState<{ scope: string; date: string } | null>(null);
   const [eventRevision, setEventRevision] = useState(0);
   const [monthPickerScope, setMonthPickerScope] = useState<string | null>(null);
@@ -266,7 +266,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     gap: 12,
     maxHeight: "100%",
   });
-  const mobileAgenda = width < 600;
+  const mobileAgenda = width < responsiveBreakpoints.workspace;
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
   const [agendaHeight, setAgendaHeight] = useState(0);
   const eventListRef = useRef<ScrollView>(null);
@@ -344,6 +344,31 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     });
     return map;
   }, [classes]);
+  const classDetailsOwner = useRef({ scope: readScope, selection: classDetails, classes: classById, canManage: canManageEvents });
+  useLayoutEffect(() => { classDetailsOwner.current = { scope: readScope, selection: classDetails, classes: classById, canManage: canManageEvents }; }, [readScope, classDetails, classById, canManageEvents]);
+  const openSelectedClass = (selection: CalendarClassSelection, options?: CalendarClassOpenOptions) => {
+    const owner = classDetailsOwner.current;
+    if (owner.scope !== selection.scope || owner.selection !== selection || !owner.classes[selection.classId] || !isCurrentRead()) return;
+    if (options?.settings && !owner.canManage) return;
+    classDetailsOwner.current = { ...owner, selection: null };
+    setClassDetails(null);
+    // Persist the clicked occurrence before the shared shell opens/remounts its class route.
+    if (Platform.OS === "web") router.setParams({ targetDate: selection.date, unit: selection.filterUnit });
+    navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: { pathname: "/class/[id]", params: { id: selection.classId, date: selection.date, calendarSource: selection.source, calendarDate: selection.date, calendarUnit: selection.filterUnit, ...(selection.originKey ? { calendarOriginKey: selection.originKey } : {}), ...(options?.settings === "1" ? { settings: "1", settingsSection: options.settingsSection ?? "basics" } : {}) } } });
+  };
+  const duplicateEventDraft = (seed: EventDraft) => {
+    const owner = classDetailsOwner.current;
+    if (owner.scope !== readScope || !owner.canManage || !isCurrentRead()) return;
+    setClassDetails(null);
+    classDetailsOwner.current = { ...owner, selection: null };
+    setEventEditor({ scope: readScope, date: seed.startDate, seed, instanceId: ++eventEditorSequence.current });
+  };
+  const changeSelectedClass = (selection: CalendarClassSelection) => {
+    const owner = classDetailsOwner.current;
+    if (owner.scope !== selection.scope || owner.selection !== selection || !owner.canManage || !isCurrentRead()) return;
+    setCalendarPauses(current => ({ scope: readScope, rows: [...(current.scope === readScope ? current.rows : []).filter(item => item.class_id !== selection.classId || item.date !== selection.date), { class_id: selection.classId, date: selection.date }] }));
+    setPauseRevision(value => value + 1);
+  };
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
@@ -680,10 +705,10 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     selectedDay: { borderColor: "transparent" },
     otherMonth: { opacity: 0.3 },
     pastDay: { opacity: 0.8 },
-    number: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", borderColor: colors.primaryBg },
+    number: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", borderColor: colors.primaryBg },
     selectedNumber: { backgroundColor: colors.text },
     todayNumber: { borderWidth: 1 },
-    numberText: { color: colors.text, fontSize: 13, fontWeight: "500" },
+    numberText: { color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "500" },
     emphasizedNumberText: { fontWeight: "700" },
     selectedNumberText: { color: colors.background, fontWeight: "700" },
     markers: { flexDirection: "row", justifyContent: "center", gap: 3, height: 8 },
@@ -693,28 +718,33 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     events: { width: "100%", flex: 1, minHeight: 0 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
     headerText: { gap: 4 },
+    monthTrigger: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 },
+    monthLabel: { flexShrink: 1 },
+    monthMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
+    monthYear: { color: colors.muted, fontSize: 10 },
+    monthPending: { width: 14, height: 14 },
     composerDock: { paddingTop: 8, paddingBottom: Math.max(8, insets.bottom), paddingHorizontal: 8, backgroundColor: colors.background },
-    quickAdd: { width: "100%", maxWidth: 360, alignSelf: "center", minHeight: 48, paddingLeft: 18, paddingRight: 2, borderRadius: 24, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center" },
-    quickTrigger: { flex: 1, minHeight: 48, justifyContent: "center" },
+    quickAdd: { width: "100%", maxWidth: 360, alignSelf: "center", minHeight: metrics.touchTarget, paddingLeft: 12, paddingRight: 2, borderRadius: 22, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center" },
+    quickTrigger: { flex: 1, minHeight: metrics.touchTarget, justifyContent: "center" },
     quickDetails: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
-    quickAddText: { color: colors.muted, fontSize: 14 },
-    title: { color: colors.text, fontSize: 24, fontWeight: "700" },
-    dayHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
-    weekdayHeading: { color: colors.text, fontSize: 12, fontWeight: "700" },
-    count: { color: colors.muted, fontSize: 12 },
+    quickAddText: { color: colors.muted, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight },
+    title: { color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "700" },
+    dayHeading: { flexDirection: "row", alignItems: "center", gap: metrics.gap },
+    weekdayHeading: { color: colors.text, fontSize: metrics.metadataFontSize, fontWeight: "700" },
+    count: { color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight },
     toggle: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
-    event: { flexDirection: "row", alignItems: "flex-start", minHeight: 56, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 8, gap: 10 },
-    time: { width: 48, gap: 3 },
-    timeText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-    eventContent: { flex: 1, minWidth: 0, gap: 3 },
-    eventTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
-    empty: { color: colors.muted, fontSize: 14, paddingVertical: 24 },
+    event: { flexDirection: "row", alignItems: "flex-start", minHeight: 48, paddingVertical: metrics.gap, paddingHorizontal: metrics.smallGap, borderRadius: 8, gap: metrics.gap },
+    time: { width: 42, gap: 2 },
+    timeText: { color: colors.text, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight, fontWeight: "600" },
+    eventContent: { flex: 1, minWidth: 0, gap: 2 },
+    eventTitle: { color: colors.text, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight, fontWeight: "600" },
+    empty: { color: colors.muted, fontSize: metrics.bodyFontSize, paddingVertical: 16 },
   }), [colors, calendarRowHeight, insets.bottom]);
   const agendaColorStyles = useMemo(() => Object.fromEntries(
     [...new Set(monthlyCalendarDays.flatMap(day => day.agendaItems.map(item => item.dotColor)))].map(color => [color, StyleSheet.create({
       dot: { height: 4, width: 4, borderRadius: 2, backgroundColor: color },
       cell: { backgroundColor: toRgba(color, 0.1) },
-      bar: { width: 3, minHeight: 34, alignSelf: "stretch", borderRadius: 2, backgroundColor: color },
+      bar: { width: 2, minHeight: 28, alignSelf: "stretch", borderRadius: 1, backgroundColor: color },
     })]),
   ), [monthlyCalendarDays]);
 
@@ -914,11 +944,12 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [classes, unitKey, unitLabel]);
 
+    const quickAddBar = <View style={agendaStyles.quickAdd}>
+        <Pressable suppressWebHoverFeedback disableWebPressScale disabled={quickAdd?.scope === readScope} accessibilityRole="button" accessibilityLabel="Adicionar evento rápido" onPress={() => setQuickAdd({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickTrigger}><Text style={agendaStyles.quickAddText}>Adicionar em {new Date((selectedDay?.dateIso ?? selectedDate) + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</Text></Pressable>
+        <Pressable disabled={quickAdd?.scope === readScope} accessibilityRole="button" accessibilityLabel="Criar evento com detalhes" onPress={() => setEventEditor({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickDetails}><GoAtletaIcon name="add" size={20} color={colors.text} /></Pressable>
+      </View>;
     const quickFooter = canManageEvents ? <View style={agendaStyles.composerDock}>
-      {quickAdd?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${quickAdd.scope}-${quickAdd.date}`} quick date={quickAdd.date} classes={classes} suggestedTimes={(selectedDay?.agendaItems ?? []).map(item => item.timeLabel.split(" - ")[0])} onClose={() => setQuickAdd(null)} onSaved={() => setEventRevision(value => value + 1)} onExpand={(seed, resumeId) => { setEventEditor({ scope: readScope, date: quickAdd.date, seed, resumeId }); setQuickAdd(null); }} /></Suspense> : <View style={agendaStyles.quickAdd}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Adicionar evento rápido" onPress={() => setQuickAdd({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickTrigger}><Text style={agendaStyles.quickAddText}>Adicionar em {new Date((selectedDay?.dateIso ?? selectedDate) + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Criar evento com detalhes" onPress={() => setEventEditor({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickDetails}><GoAtletaIcon name="add" size={26} color={colors.text} /></Pressable>
-      </View>}
+      {quickAdd?.scope === readScope ? <Suspense fallback={quickAddBar}><CalendarEventEditor key={`${quickAdd.scope}-${quickAdd.date}`} quick date={quickAdd.date} classes={classes} suggestedTimes={(selectedDay?.agendaItems ?? []).map(item => item.timeLabel.split(" - ")[0])} onClose={() => setQuickAdd(null)} onSaved={() => setEventRevision(value => value + 1)} onExpand={(seed, resumeId) => { setEventEditor({ scope: readScope, date: quickAdd.date, seed, resumeId }); setQuickAdd(null); }} /></Suspense> : quickAddBar}
     </View> : null;
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -929,8 +960,8 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
           {!mobileAgenda ? <ScreenPageHeader title="Agenda" horizontalBleed={0} right={headerActions} onBack={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : calendarPath.startsWith("/coord") ? "/coord/dashboard" : "/prof/home" })} /> : null}
           <View style={{ width: "100%", maxWidth: 440, alignSelf: "center", paddingHorizontal: 12, paddingTop: mobileAgenda ? 6 : 0, paddingBottom: 2, flexDirection: "row", alignItems: "center", gap: 4 }}>
             {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel="Voltar de Agenda" onPress={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : calendarPath.startsWith("/coord") ? "/coord/dashboard" : "/prof/home" })} style={agendaStyles.toggle}><GoAtletaIcon name="chevronBack" size={20} color={colors.text} /></Pressable> : null}
-            <Pressable suppressWebHoverFeedback accessibilityRole="button" accessibilityHint={monthSummaryLabel} accessibilityLabel="Escolher mês e ano" onPress={() => setMonthPickerScope(readScope)} style={{ flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}><View style={{ flexShrink: 1 }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: 22, fontWeight: "700" }}>{visibleMonth.toLocaleDateString("pt-BR", { month: "long" })}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Text style={{ color: colors.muted, fontSize: 10 }}>{visibleMonth.getFullYear()}</Text><View style={{ width: 14, height: 14 }}>{loadingPlans ? <ActivityIndicator accessibilityLabel="Atualizando agenda" size={12} color={colors.muted} /> : null}</View></View></View><GoAtletaIcon name="chevronDown" size={12} color={colors.muted} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Pesquisar na agenda" onPress={() => { setSearchOpen(value => !value); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="search" size={20} color={colors.text} /></Pressable>
+            <Pressable suppressWebHoverFeedback accessibilityRole="button" accessibilityHint={monthSummaryLabel} accessibilityLabel="Escolher mês e ano" onPress={() => setMonthPickerScope(readScope)} style={agendaStyles.monthTrigger}><View style={agendaStyles.monthLabel}><Text numberOfLines={1} style={agendaStyles.title}>{visibleMonth.toLocaleDateString("pt-BR", { month: "long" })}</Text><View style={agendaStyles.monthMeta}><Text style={agendaStyles.monthYear}>{visibleMonth.getFullYear()}</Text><View style={agendaStyles.monthPending}>{loadingPlans ? <ActivityIndicator accessibilityLabel="Atualizando agenda" size={12} color={colors.muted} /> : null}</View></View></View><GoAtletaIcon name="chevronDown" size={12} color={colors.muted} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Pesquisar na agenda" onPress={() => { setSearchOpen(value => !value); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="search" size={metrics.iconSize} color={colors.text} /></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Hoje" onPress={() => requestPendingEditsNavigation(() => { setSearchQuery(""); const now = new Date(); setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(formatIsoDate(now)); })} style={agendaStyles.toggle}><View style={{ width: 22, height: 23, borderWidth: 1.5, borderColor: colors.text, borderRadius: 4, alignItems: "center", justifyContent: "flex-end", paddingBottom: 1 }}><View style={{ position: "absolute", top: 5, width: "100%", borderTopWidth: 1.5, borderColor: colors.text }} /><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{new Date().getDate()}</Text></View></Pressable>
           </View>
 
@@ -984,7 +1015,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
               <View ref={calendarGridRef} tabIndex={Platform.OS === "web" ? 0 : undefined} accessibilityLabel={calendarCollapsed ? "Calendário semanal. Enter para expandir o mês." : "Calendário mensal. Enter para recolher para a semana."} {...(Platform.OS === "web" ? { onKeyDown: (event: { key: string; target: unknown; currentTarget: unknown; preventDefault: () => void }) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setCalendarCollapsed(value => !value); } } } : {})} style={{ width: "100%", minWidth: 0, paddingHorizontal: 4, flexShrink: 0 }}>
                 <View>
                 <View style={{ flexDirection: "row", marginBottom: 4 }}>
-                  {MONTH_WEEKDAY_HEADERS.map((label, index) => <Text key={label} style={[agendaStyles.weekday, index === 0 && agendaStyles.sunday]}>{mobileAgenda ? label[0] : label}</Text>)}
+                  {MONTH_WEEKDAY_HEADERS.map((label, index) => <Text key={label} style={[agendaStyles.weekday, index === 0 && agendaStyles.sunday]}>{label}</Text>)}
                 </View>
                 {(rows => {
                   const selectedRow = monthlyCalendarRows.findIndex(row => row.some(day => day.dateIso === selectedDay?.dateIso));
@@ -1015,10 +1046,14 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
                     if (event) setEventEditor({ scope: readScope, date: item.dateIso, event });
                     return;
                   }
+                  if (!studentMode && item.kind === "class") {
+                    setClassDetails({ scope: readScope, classId: item.classId, date: item.dateIso, timeLabel: item.timeLabel, unitLabel: item.unitLabel, accentColor: item.dotColor, filterUnit: unitFilter, source: calendarPath === "/prof/calendar" ? "prof" : "shared", ...(Platform.OS === "web" ? { originKey: calendarRoute.key } : {}) });
+                    return;
+                  }
                   // The shared web shell may remount this screen without changing its route key.
                   if (studentMode && item.kind === "class") { router.push({ pathname: "/student-plan", params: { classId: item.classId, date: item.dateIso } }); return; }
                   if (Platform.OS === "web") router.setParams({ targetDate: item.dateIso, unit: unitFilter });
-                  navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: item.kind === "class" ? { pathname: "/class/[id]", params: { id: item.classId, calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", calendarDate: item.dateIso, calendarUnit: unitFilter, ...(Platform.OS === "web" ? { calendarOriginKey: calendarRoute.key } : {}) } } : { pathname: "/events/[id]", params: { id: item.eventId } } });
+                  if (item.kind === "event") navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: { pathname: "/events/[id]", params: { id: item.eventId } } });
                 }} style={agendaStyles.event}>
                   <View style={agendaStyles.time}><Text style={agendaStyles.timeText}>{item.timeLabel.split(" - ")[0]}</Text>{item.timeLabel.includes(" - ") ? <Text style={agendaStyles.count}>{item.timeLabel.split(" - ")[1]}</Text> : null}</View>
                   <View style={agendaColorStyles[item.dotColor].bar} />
@@ -1033,7 +1068,8 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
       </>
         )}
       <CalendarMonthPicker visible={monthPickerScope === readScope} value={selectedDay?.dateIso ?? selectedDate} onClose={() => setMonthPickerScope(null)} onChange={value => requestPendingEditsNavigation(() => { setSelectedDate(value); setVisibleMonth(new Date(value + "T00:00:00")); })} />
-      {!studentMode && eventEditor?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${eventEditor.scope}-${eventEditor.event?.id ?? eventEditor.date}`} date={eventEditor.date} event={eventEditor.event} seed={eventEditor.seed} resumeId={eventEditor.resumeId} classes={classes} onClose={() => setEventEditor(null)} onSaved={() => setEventRevision(value => value + 1)} /></Suspense> : null}
+      {!studentMode && eventEditor?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${eventEditor.scope}-${eventEditor.instanceId ?? eventEditor.event?.id ?? eventEditor.date}`} date={eventEditor.date} event={eventEditor.event} seed={eventEditor.seed} resumeId={eventEditor.resumeId} classes={classes} onClose={() => setEventEditor(null)} onSaved={() => setEventRevision(value => value + 1)} onDuplicate={duplicateEventDraft} /></Suspense> : null}
+      {!studentMode && classDetails?.scope === readScope && classById[classDetails.classId] ? <CalendarClassDetails key={`${classDetails.scope}-${classDetails.classId}-${classDetails.date}`} classGroup={classById[classDetails.classId]} date={classDetails.date} timeLabel={classDetails.timeLabel} unitLabel={classDetails.unitLabel} accentColor={classDetails.accentColor} onClose={() => setClassDetails(null)} onOpenClass={options => openSelectedClass(classDetails, options)} onDuplicate={seed => { if (classDetailsOwner.current.selection === classDetails) duplicateEventDraft(seed); }} onChanged={() => changeSelectedClass(classDetails)} /> : null}
       <ModalSheet
         visible={!studentMode && showApplyPicker}
         onClose={closeApplyPicker}

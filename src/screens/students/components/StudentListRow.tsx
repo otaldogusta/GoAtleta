@@ -1,5 +1,7 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import { Image } from "expo-image";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { Student } from "../../../core/models";
 import type { deriveStudentHealthAssessment } from "../../../core/student-health";
@@ -72,8 +74,8 @@ export function StudentListRowContent({
     <Pressable
       onPress={() => onPress(student)}
       style={{
-        padding: 14,
-        borderRadius: 18,
+        padding: 10,
+        borderRadius: 14,
         backgroundColor: colors.background,
         borderWidth: 1,
         borderColor: hasBirthDateWarning ? colors.dangerSolidBg : classPalette.bg,
@@ -111,10 +113,11 @@ export function StudentListRowContent({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Pressable
               onPress={() => onPhotoPress(student)}
+              hitSlop={4}
               style={{
                 width: 36,
                 height: 36,
-                borderRadius: 18,
+                borderRadius: 14,
                 backgroundColor: colors.secondaryBg,
                 borderWidth: 1,
                 borderColor: colors.border,
@@ -131,7 +134,7 @@ export function StudentListRowContent({
                   cachePolicy="memory-disk"
                 />
               ) : (
-                <GoAtletaIcon name="personSolid" size={18} color={colors.text} />
+                <GoAtletaIcon name="personSolid" size={compactUiMetrics.iconSize} color={colors.text} />
               )}
             </Pressable>
             <FadeHorizontalScroll
@@ -140,7 +143,7 @@ export function StudentListRowContent({
             >
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: compactUiMetrics.bodyFontSize,
                   fontWeight: "700",
                   color: colors.text,
                 }}
@@ -255,7 +258,7 @@ export function StudentListRowContent({
           }}
           accessibilityLabel="Abrir WhatsApp do aluno"
         >
-          <GoAtletaIcon name="whatsapp" size={18} color={disabled ? colors.muted : "white"} />
+          <GoAtletaIcon name="whatsapp" size={compactUiMetrics.iconSize} color={disabled ? colors.muted : "white"} />
         </Pressable>
       </View>
     </Pressable>

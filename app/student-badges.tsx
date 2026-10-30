@@ -1,7 +1,8 @@
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRole } from "../src/auth/role";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
@@ -14,6 +15,8 @@ import {
 import { getClasses, getStudentScoutingByRange } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
+import { compactUiMetrics as metrics, radius } from "../src/theme/tokens";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 const formatIsoDate = (value: Date) => {
@@ -61,6 +64,7 @@ const badgeDefs: BadgeDef[] = [
 export default function StudentBadges() {
   markRender("screen.studentBadges.render.root");
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout();
   const router = useRouter();
   const { student } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -126,7 +130,7 @@ export default function StudentBadges() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} stickyHeaderIndices={[0]}>
+      <ScrollView contentContainerStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", padding: responsiveLayout.gutter, gap: responsiveLayout.density.pageGap }} stickyHeaderIndices={[0]}>
         <ScreenPageHeader
           title="Conquistas"
           onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
@@ -134,94 +138,58 @@ export default function StudentBadges() {
 
         <View
           style={{
-            padding: 16,
-            borderRadius: 18,
+            padding: responsiveLayout.density.cardPadding,
+            borderRadius: radius.card,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
-            gap: 6,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: metrics.gap,
           }}
         >
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Mês atual</Text>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            {monthLabel(month)}
-          </Text>
-          <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>{score} pts</Text>
-          <Text style={{ color: colors.muted }}>Performance técnica</Text>
+          <View style={{ gap: metrics.smallGap }}>
+            <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize }}>Mês atual</Text>
+            <Text style={{ fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight, fontWeight: "700", color: colors.text }}>{monthLabel(month)}</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap, flexWrap: "wrap" }}>
+            <Text style={{ color: colors.text, fontSize: 20, lineHeight: 24, fontWeight: "800" }}>{score} pts</Text>
+            <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>Performance técnica</Text>
+          </View>
         </View>
 
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 18,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 12,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "800" }}>Badges</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <View style={{ gap: metrics.gap }}>
+          <Text style={{ color: colors.text, fontSize: metrics.titleFontSize, lineHeight: metrics.titleLineHeight, fontWeight: "800" }}>Badges</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: metrics.gap }}>
             {earned.map((badge) => (
               <View
                 key={badge.id}
                 style={{
-                  width: "30%",
-                  aspectRatio: 1,
-                  borderRadius: 16,
-                  backgroundColor: colors.secondaryBg,
+                  flexBasis: responsiveLayout.supportsSplitView ? "30%" : "45%",
+                  flexGrow: 1,
+                  minWidth: 0,
+                  padding: responsiveLayout.density.cardPadding,
+                  borderRadius: radius.card,
+                  backgroundColor: colors.card,
                   borderWidth: 1,
-                  borderColor: badge.earned ? colors.primaryBg : colors.border,
-                  alignItems: "center",
+                  borderColor: badge.earned ? colors.successBorder : colors.border,
                   justifyContent: "center",
-                  gap: 6,
+                  gap: metrics.smallGap,
                 }}
               >
-                <Text style={{ fontSize: 20 }}>{badge.icon}</Text>
-                <Text style={{ fontSize: 10, color: colors.text, textAlign: "center" }}>
-                  {badge.label}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap }}>
+                  <Text style={{ fontSize: metrics.iconSize }}>{badge.icon}</Text>
+                  <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: metrics.smallGap }}>
+                    <Text style={{ fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight, fontWeight: "700", color: colors.text }}>{badge.label}</Text>
+                    <Text style={{ fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight, color: badge.earned ? colors.successText : colors.muted }}>{badge.earned ? "✓ Conquistado" : `${badge.threshold} pts`}</Text>
+                  </View>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>{badge.description}</Text>
               </View>
             ))}
           </View>
-        </View>
-
-        <View style={{ gap: 8 }}>
-          {earned.map((badge) => (
-            <View
-              key={badge.id}
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={{ fontSize: 18 }}>{badge.icon}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>{badge.label}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{badge.description}</Text>
-              </View>
-              <Text style={{ color: badge.earned ? colors.primaryBg : colors.muted }}>
-                {badge.earned ? "✓" : `${badge.threshold} pts`}
-              </Text>
-            </View>
-          ))}
         </View>
       </ScrollView>
     </SafeAreaView>

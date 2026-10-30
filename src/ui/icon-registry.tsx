@@ -62,6 +62,8 @@ export const GOATLETA_ICON_NAMES = {
   link: "link-outline",
   open: "open-outline",
   document: "document-text-outline",
+  notes: "reader-outline",
+  attachment: "attach-outline",
   documentAttach: "document-attach-outline",
   edit: "create-outline",
   pencil: "pencil",

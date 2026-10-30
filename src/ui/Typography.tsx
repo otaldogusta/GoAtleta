@@ -1,4 +1,4 @@
-import { Text } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 
 import { useAppTheme } from "./app-theme";
 import { useResponsiveLayout } from "./use-responsive-layout";
@@ -18,19 +18,19 @@ export function Typography({
           fontSize: density.pageTitleFontSize,
           lineHeight: density.pageTitleLineHeight,
           fontWeight: "700" as const,
-          marginBottom: 8,
+          marginBottom: 6,
           color: colors.text,
         }
       : variant === "subtitle"
       ? {
           fontSize: density.sectionTitleFontSize,
           opacity: 0.7,
-          marginBottom: 10,
+          marginBottom: 8,
           color: colors.text,
         }
       : {
           fontSize: density.bodyFontSize,
-          lineHeight: density.bodyFontSize + 7,
+          lineHeight: density.bodyFontSize + 6,
           color: colors.text,
         };
 

@@ -1,5 +1,6 @@
 import { type RefObject } from "react";
-import { Alert, StyleProp, Text, TextInput, View, ViewStyle } from "react-native";
+import { Alert, StyleProp, TextInput, View, ViewStyle } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { ClassGroup } from "../../../core/models";
 import type { StudentDirectoryRecord } from "../../../core/student-read-models";
 import type { ThemeColors } from "../../../ui/app-theme";

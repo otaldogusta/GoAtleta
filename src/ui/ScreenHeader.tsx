@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppTheme } from "./app-theme";

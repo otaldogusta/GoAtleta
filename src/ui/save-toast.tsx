@@ -8,7 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, Platform, Text, View } from "react-native";
+import { Animated, Platform, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import type { ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "./Pressable";

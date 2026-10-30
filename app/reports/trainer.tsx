@@ -1,13 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-    Alert,
-    FlatList,
-    ScrollView,
-    Text,
-    View,
-} from "react-native";
+import { Alert, FlatList, ScrollView, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { ModalSheet } from "../../src/ui/ModalSheet";
@@ -21,7 +16,7 @@ import type {
 } from "../../src/core/models";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/organization-context";
-import { shadow } from "../../src/theme/tokens";
+import { compactUiMetrics, shadow } from "../../src/theme/tokens";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import {
     buildAggregatedAttendanceSummary,
@@ -97,6 +92,11 @@ export default function ReportsScreen() {
   markRender("screen.reportsTrainer.render.root");
 
   const { colors } = useAppTheme();
+  const textStyles = useMemo(() => StyleSheet.create({
+    statLabel: { color: colors.muted, fontSize: compactUiMetrics.metadataFontSize },
+    statValue: { color: colors.text, fontSize: 20, fontWeight: "700" },
+    badgeIcon: { fontSize: compactUiMetrics.titleFontSize },
+  }), [colors.muted, colors.text]);
   const responsiveLayout = useResponsiveLayout();
   const isMobile = responsiveLayout.isMobile;
   const { activeOrganization } = useOrganization();
@@ -141,7 +141,7 @@ export default function ReportsScreen() {
     gap: 6,
   };
   const sectionTitleStyle = {
-    fontSize: isMobile ? 14 : 15,
+    fontSize: compactUiMetrics.titleFontSize,
     fontWeight: "700" as const,
     color: colors.text,
   };
@@ -420,7 +420,7 @@ export default function ReportsScreen() {
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ fontSize: 16, color: colors.text }}>{"‹"}</Text>
+                <Text style={{ fontSize: compactUiMetrics.titleFontSize, color: colors.text }}>{"‹"}</Text>
               </Pressable>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View
@@ -439,7 +439,7 @@ export default function ReportsScreen() {
                     <View style={{ width: 5, height: 1.5, borderRadius: 1, backgroundColor: colors.muted, opacity: 0.75 }} />
                   </View>
                 </View>
-                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+                <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
                   {monthLabel(month)}
                 </Text>
               </View>
@@ -456,7 +456,7 @@ export default function ReportsScreen() {
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ fontSize: 16, color: colors.text }}>{"›"}</Text>
+                <Text style={{ fontSize: compactUiMetrics.titleFontSize, color: colors.text }}>{"›"}</Text>
               </Pressable>
             </View>
           </View>
@@ -475,10 +475,10 @@ export default function ReportsScreen() {
                   gap: isMobile ? 2 : 4,
                 }}
               >
-                <Text style={{ color: colors.muted, fontSize: isMobile ? 11 : 12 }}>
+                <Text style={textStyles.statLabel}>
                   {card.label}
                 </Text>
-                <Text style={{ color: colors.text, fontSize: isMobile ? 20 : 22, fontWeight: "700" }}>
+                <Text style={textStyles.statValue}>
                   {card.value}
                 </Text>
               </View>
@@ -529,11 +529,11 @@ export default function ReportsScreen() {
                 },
               ]}
             >
-              <GoAtletaIcon name="warning" size={24} color={colors.muted} />
+              <GoAtletaIcon name="warning" size={18} color={colors.muted} />
               <Text style={{ color: colors.text, fontWeight: "700", textAlign: "center" }}>
                 Nenhum dado registrado
               </Text>
-              <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13, lineHeight: 18 }}>
+              <Text style={{ color: colors.muted, textAlign: "center", fontSize: compactUiMetrics.bodyFontSize, lineHeight: 18 }}>
                 Não há chamadas ou sessões de aula finalizadas para as suas turmas neste período.
               </Text>
             </View>
@@ -726,7 +726,7 @@ export default function ReportsScreen() {
                     justifyContent: "space-between",
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
                     {unitFilter || "Selecione a unidade"}
                   </Text>
                   <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
@@ -797,7 +797,7 @@ export default function ReportsScreen() {
                     justifyContent: "space-between",
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
                     {classForUnitById[classId]?.name || "Selecione a turma"}
                   </Text>
                   <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
@@ -992,7 +992,7 @@ export default function ReportsScreen() {
                                 ...shadow.card,
                               }}
                             >
-                              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                              <Text style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.bodyFontSize }}>
                                 {getInitials(row.student.name)}
                               </Text>
                             </View>
@@ -1149,13 +1149,13 @@ export default function ReportsScreen() {
         >
           {selectedHighlight && (
           <View style={{ gap: 12 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
               Conquistas
             </Text>
             <Text style={{ color: colors.muted }}>
               {selectedHighlight.name}
             </Text>
-            <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: 20 }}>
+            <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: compactUiMetrics.titleFontSize }}>
               {selectedHighlight.score ?? 0} pts
             </Text>
 
@@ -1177,7 +1177,7 @@ export default function ReportsScreen() {
                       gap: 6,
                     }}
                   >
-                    <Text style={{ fontSize: 20 }}>{badge.icon}</Text>
+                    <Text style={textStyles.badgeIcon}>{badge.icon}</Text>
                     <Text style={{ fontSize: 10, color: colors.text, textAlign: "center" }}>
                       {badge.label}
                     </Text>

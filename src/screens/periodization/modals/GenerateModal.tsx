@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { isAnnualCycle } from "../../../core/periodization-basics";
 import type { ThemeColors } from "../../../ui/app-theme";

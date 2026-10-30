@@ -1,3 +1,5 @@
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
+
 export type ResponsiveTier =
   | "mobile"
   | "tablet"
@@ -60,62 +62,24 @@ const maxContentWidthByVariant: Record<ResponsivePageVariant, number> = {
   dashboard: 1600,
 };
 
+const workspaceDensity: ResponsiveDensity = {
+  pageTitleFontSize: 20,
+  pageTitleLineHeight: 26,
+  sectionTitleFontSize: compactUiMetrics.titleFontSize,
+  cardTitleFontSize: compactUiMetrics.bodyFontSize,
+  bodyFontSize: compactUiMetrics.bodyFontSize,
+  metadataFontSize: compactUiMetrics.metadataFontSize,
+  pageGap: 12,
+  sectionGap: compactUiMetrics.gap,
+  cardPadding: 12,
+};
+
 const densityByTier: Record<ResponsiveTier, ResponsiveDensity> = {
-  mobile: {
-    pageTitleFontSize: 20,
-    pageTitleLineHeight: 26,
-    sectionTitleFontSize: 16,
-    cardTitleFontSize: 14,
-    bodyFontSize: 14,
-    metadataFontSize: 12,
-    pageGap: 12,
-    sectionGap: 10,
-    cardPadding: 12,
-  },
-  tablet: {
-    pageTitleFontSize: 22,
-    pageTitleLineHeight: 28,
-    sectionTitleFontSize: 16,
-    cardTitleFontSize: 14,
-    bodyFontSize: 14,
-    metadataFontSize: 12,
-    pageGap: 12,
-    sectionGap: 10,
-    cardPadding: 14,
-  },
-  desktop: {
-    pageTitleFontSize: 22,
-    pageTitleLineHeight: 28,
-    sectionTitleFontSize: 16,
-    cardTitleFontSize: 14,
-    bodyFontSize: 14,
-    metadataFontSize: 12,
-    pageGap: 12,
-    sectionGap: 10,
-    cardPadding: 14,
-  },
-  wide: {
-    pageTitleFontSize: 22,
-    pageTitleLineHeight: 28,
-    sectionTitleFontSize: 16,
-    cardTitleFontSize: 14,
-    bodyFontSize: 14,
-    metadataFontSize: 12,
-    pageGap: 12,
-    sectionGap: 10,
-    cardPadding: 14,
-  },
-  ultrawide: {
-    pageTitleFontSize: 22,
-    pageTitleLineHeight: 28,
-    sectionTitleFontSize: 16,
-    cardTitleFontSize: 14,
-    bodyFontSize: 14,
-    metadataFontSize: 12,
-    pageGap: 12,
-    sectionGap: 10,
-    cardPadding: 14,
-  },
+  mobile: { ...workspaceDensity, pageTitleFontSize: 18, pageTitleLineHeight: 24, cardPadding: 10 },
+  tablet: workspaceDensity,
+  desktop: workspaceDensity,
+  wide: workspaceDensity,
+  ultrawide: workspaceDensity,
 };
 
 const normalizeWidth = (width: number) =>

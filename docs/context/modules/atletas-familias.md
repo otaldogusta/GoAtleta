@@ -73,6 +73,13 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 ## Decisões atuais e limites
 
+- Refino de composição de Aluno/Família em 30/10: cards e ações usam métricas
+  operacionais sem alterar capacidades, consultas ou regras do vínculo. A
+  [rodada local de composição](../../ui/CONSISTENCIA_ALUNO_FAMILIA_2026-10-30.md)
+  separa implementação, 22 pares novos e conferência sobre Supabase real local
+  com dados sintéticos, incluindo vínculo financeiro permitido/restrito.
+  Não equivale a aceite global ou validação hospedada.
+
 - Agenda do atleta reutiliza o calendário mensal de `app/calendar.tsx` em modo
   de leitura, alimentado exclusivamente pela turma vinculada via `classId` e
   organização do atleta em `app/agenda/index.tsx`. Mudança de vínculo descarta

@@ -1,4 +1,5 @@
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { LessonBlock } from "../../../core/models";
 import { useAppTheme } from "../../../ui/app-theme";

@@ -106,6 +106,48 @@ alvos interativos permanecem com pelo menos 40–44 px. Componentes repetidos
 devem receber a capacidade calculada pelo pai, evitando um listener de viewport
 por item de lista.
 
+## Proporção dos elementos
+
+A escala de `responsiveLayout.density` descrita no
+[Design System](DESIGN_SYSTEM.md#tipografia) é o padrão operacional: título de
+página 18/24 no mobile e 20/26 no workspace, seção 16, corpo/card 12 e metadado 11.
+O gap de página é 12, o de seção 8 e o padding de card é 10 no mobile e 12 no
+workspace. Mais largura permite reorganizar conteúdo e regiões, sem aumentar
+automaticamente fontes, ícones ou controles. Não usar uma imagem de anotação
+redimensionada como medida CSS: conferir os elementos no viewport real.
+
+`compactUiMetrics`, em `src/theme/compact-ui-metrics.ts` e reexportado por
+`src/theme/tokens.ts`, reúne ícones de 16/14, controles visuais de 32 e alvos de
+44 px, gaps e navegação. `OperationalText` fornece o corpo implícito de 12 px na
+UI operacional; estilos explícitos prevalecem e textos operacionais aninhados herdam o pai.
+O [contrato completo](DESIGN_SYSTEM.md#escala-operacional-compacta) preserva props
+nativas e escala de texto. Aplicar a escala ao conjunto da composição; não criar
+uma terceira escala inline por tela. Auth mantém bloco de 440 px e campos de
+50 px; canvas, gráficos, mídia e exportações mantêm suas medidas específicas.
+
+Em um ajuste de compactação, revisar fonte, ícones, espaçamento, padding e
+composição dos controles em conjunto. Preservar alvos de toque e a escala de
+texto do usuário sem transformar o alvo inteiro em um ícone ou botão visual
+ampliado. As exceções de autenticação e primitives especializadas continuam
+definidas nos próprios contratos.
+
+Compacidade depende da composição, não só da fonte. Indicadores mantêm valor e
+rótulo na mesma linha quando couberem e altura guiada pelo conteúdo. No mobile,
+encurtar um rótulo claro ou refluir o conjunto sem inflar cards nem esticar ações
+por toda a largura sem necessidade. Separar a pintura do controle de seu alvo de
+toque; hover discreto, sem escala, com cores do tema e a mesma hierarquia das
+referências aprovadas do produto.
+
+Fichas e menus curtos ajustam a altura ao conteúdo; o limite vem da área útil
+depois de safe area, teclado e ações fixas. Conteúdo longo ganha rolagem interna,
+sem esconder o fechamento ou as ações principais. A reserva de navegação deve
+acompanhar a barra real, evitando espaços excessivos e sobreposição com criação
+rápida, chat ou outra ação flutuante.
+
+Não aplicar `zoom` global ou `transform: scale` à página, alterar o zoom do
+navegador ou desabilitar escala de texto para obter uma captura menor. A
+responsividade pertence ao layout real e mantém foco, toque, seleção e leitura.
+
 ## Antes de criar um breakpoint local
 
 1. Verificar se uma capacidade global já representa a decisão.

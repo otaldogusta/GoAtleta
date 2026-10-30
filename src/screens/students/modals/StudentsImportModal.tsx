@@ -1,7 +1,9 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
 import {
@@ -871,7 +873,7 @@ export function StudentsImportModal({
         }}
       >
         <View style={{ gap: 2, flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
             Importar alunos
           </Text>
           <Text style={{ color: colors.muted, fontSize: 13 }}>

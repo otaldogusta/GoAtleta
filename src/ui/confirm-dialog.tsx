@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { getFriendlyErrorMessage } from "./error-messages";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";

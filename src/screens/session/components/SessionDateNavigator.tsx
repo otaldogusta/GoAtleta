@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
@@ -25,13 +26,13 @@ export function SessionDateNavigator({
   return (
     <View
       style={{
-        padding: 16,
+        padding: 12,
         borderRadius: 20,
         backgroundColor: colors.card,
         borderWidth: 1,
         borderColor: colors.border,
         marginBottom: 12,
-        gap: 12,
+        gap: 8,
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -54,10 +55,10 @@ export function SessionDateNavigator({
         </Pressable>
 
         <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+          <Text style={{ color: colors.text, fontSize: 18, lineHeight: 24, fontWeight: "800", textAlign: "center" }}>
             {dateLabel}
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>
+          <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" }}>
             {timeLabel || fallbackTimeLabel}
           </Text>
         </View>

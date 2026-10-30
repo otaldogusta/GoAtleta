@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ResistanceExercisePrescription, ResistanceTrainingPlan } from "../../../core/models";
 import { radius } from "../../../theme/tokens";

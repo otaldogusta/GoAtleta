@@ -1,7 +1,9 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 export function SettingsRow({
   icon,
@@ -23,7 +25,8 @@ export function SettingsRow({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
-    paddingVertical: 10,
+    minHeight: compactUiMetrics.touchTarget,
+    paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 14,
     backgroundColor: colors.card,
@@ -32,23 +35,23 @@ export function SettingsRow({
   };
   const content = (
     <>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0, gap: compactUiMetrics.gap }}>
         <View
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
+            width: compactUiMetrics.controlHeight,
+            height: compactUiMetrics.controlHeight,
+            borderRadius: 16,
             backgroundColor: iconBg,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <GoAtletaIcon name={icon} size={18} color={colors.text} />
+          <GoAtletaIcon name={icon} size={compactUiMetrics.iconSize} color={colors.text} />
         </View>
-        <View>
-          <Text style={{ color: colors.text, fontWeight: "600" }}>{label}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "600" }}>{label}</Text>
           {subtitle ? (
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+            <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight, marginTop: 2 }}>
               {subtitle}
             </Text>
           ) : null}

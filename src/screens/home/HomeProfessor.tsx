@@ -23,22 +23,8 @@ import {
     useState
 } from "react";
 
-import {
-    Animated,
-    AppState,
-
-    FlatList,
-    Modal,
-    PanResponder,
-
-    Platform,
-
-    ScrollView,
-    Text,
-
-    View,
-    useWindowDimensions
-} from "react-native";
+import { Animated, AppState, FlatList, Modal, PanResponder, Platform, ScrollView, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -101,6 +87,7 @@ import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { AgendaCard } from "./components/AgendaCard";
 import { CurrentLessonCarousel } from "./components/CurrentLessonCarousel";
 import { useHorizontalGestureArbitration } from "./components/horizontal-gesture-arbitration";
@@ -1057,11 +1044,7 @@ export function HomeProfessorScreen({
   const isUx2CCompact = usesCurrentHomeExperience && !isUx2CWideDesktop;
   const isUx2CMobile = usesCurrentHomeExperience && responsiveLayout.isMobile;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
-  const ux2CGap = 16;
-  const ux2CRailHeight = Math.max(
-    isUx2CCompact ? 520 : 560,
-    Math.min(isUx2CCompact ? 680 : 760, screenHeight - (isUx2CCompact ? 132 : 148))
-  );
+  const ux2CGap = 12;
   const ux2CPageBackground = colors.background;
   const ux2CShortcutSurface = colors.card;
   const ux2CShortcutBorder = colors.border;
@@ -1561,6 +1544,11 @@ export function HomeProfessorScreen({
 
   const todayScheduleSlots = useMemo(() => buildHomeScheduleSlots(todayAgendaItems), [todayAgendaItems]);
   const selectedDaySlots = useMemo(() => buildHomeScheduleSlots(selectedDayItems), [selectedDayItems]);
+  const ux2CRailHeight = Math.max(200, Math.min(
+    112 + selectedDaySlots.reduce((count, slot) => count + slot.items.length, 0) * 128,
+    680,
+    screenHeight - (isUx2CCompact ? 132 : 148)
+  ));
 
   const todayScheduleSlotPreview = useMemo(() => todayScheduleSlots.slice(0, 4), [todayScheduleSlots]);
   const todayRemainingSlots = Math.max(0, todayScheduleSlots.length - todayScheduleSlotPreview.length);
@@ -1706,7 +1694,7 @@ export function HomeProfessorScreen({
 
             >
 
-              <GoAtletaIcon name="notifications" size={24} color={colors.text} />
+              <GoAtletaIcon name="notifications" size={metrics.iconSize} color={colors.text} />
 
             </Pressable>
 
@@ -1803,7 +1791,7 @@ export function HomeProfessorScreen({
 
             >
 
-              <GoAtletaIcon name="profile" size={24} color={colors.text} />
+              <GoAtletaIcon name="profile" size={metrics.iconSize} color={colors.text} />
 
               { profilePhotoUri ? (
 

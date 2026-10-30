@@ -3,20 +3,8 @@ import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  BackHandler,
-  FlatList,
-  LayoutAnimation,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, LayoutAnimation, Platform, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../../src/ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup, Student } from "../../../core/models";
 import { normalizeStudentLookupName } from "../../../core/students/find-possible-existing-students";

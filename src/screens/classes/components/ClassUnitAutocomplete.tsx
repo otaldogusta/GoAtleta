@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Text, TextInput, View } from "react-native";
+import { Platform, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { normalizeUnitKey } from "../../../core/unit-key";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";

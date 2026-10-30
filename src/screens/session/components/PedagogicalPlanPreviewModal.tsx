@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type {
   LessonPlanDraft,
   PedagogicalObjective,

@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 export function PeriodizationScheduleDays({ colors, days, startTime, endTime, onDaysChange, onStartChange, onDurationChange }: {
   colors: ThemeColors; days: number[]; startTime: string; endTime: string;
@@ -34,7 +36,7 @@ export function PeriodizationScheduleDays({ colors, days, startTime, endTime, on
               style={{ width: 38, height: 22, borderRadius: 11, padding: 2, justifyContent: "center", backgroundColor: active ? colors.text : colors.border }}>
               <View style={{ width: 18, height: 18, borderRadius: 9, alignSelf: active ? "flex-end" : "flex-start", backgroundColor: colors.card }} />
             </Pressable>
-            <Text style={{ color: active ? colors.text : colors.muted, fontSize: 13, fontWeight: active ? "700" : "500" }}>{label}</Text>
+            <Text style={{ color: active ? colors.text : colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: active ? "700" : "500" }}>{label}</Text>
           </View>
           {(["De", "Até"] as const).map(field => <View key={field} style={{ flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 10, backgroundColor: colors.inputBg, paddingHorizontal: 10, opacity: active ? 1 : 0.65 }}>
             <Text style={{ color: colors.muted, fontSize: 11 }}>{field}</Text>

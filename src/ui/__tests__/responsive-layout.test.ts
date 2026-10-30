@@ -99,20 +99,20 @@ describe("responsive layout", () => {
 
   it("reduces visual density on mobile without shrinking touch targets", () => {
     expect(resolveResponsiveLayout(390).density).toEqual({
-      pageTitleFontSize: 20,
-      pageTitleLineHeight: 26,
+      pageTitleFontSize: 18,
+      pageTitleLineHeight: 24,
       sectionTitleFontSize: 16,
-      cardTitleFontSize: 14,
-      bodyFontSize: 14,
-      metadataFontSize: 12,
+      cardTitleFontSize: 12,
+      bodyFontSize: 12,
+      metadataFontSize: 11,
       pageGap: 12,
-      sectionGap: 10,
-      cardPadding: 12,
+      sectionGap: 8,
+      cardPadding: 10,
     });
     expect(resolveResponsiveLayout(1440).density).toEqual(
       expect.objectContaining({
-        pageTitleFontSize: 22,
-        cardPadding: 14,
+        pageTitleFontSize: 20,
+        cardPadding: 12,
       })
     );
   });

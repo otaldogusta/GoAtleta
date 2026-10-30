@@ -7,9 +7,10 @@ import { SessionIdentityChangedError } from "../session";
 
 let mockIdentity = { userId: "user-a", generation: 1 };
 let mockAuthUserId: string | null = "user-a";
+let mockAuthLoading = false;
 
 jest.mock("../auth", () => ({
-  useAuth: () => ({ session: mockAuthUserId ? { user: { id: mockAuthUserId } } : null }),
+  useAuth: () => ({ session: mockAuthUserId ? { user: { id: mockAuthUserId } } : null, loading: mockAuthLoading }),
 }));
 jest.mock("../session", () => {
   class IdentityChangedError extends Error {}
@@ -41,7 +42,45 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockIdentity = { userId: "user-a", generation: 1 };
   mockAuthUserId = "user-a";
+  mockAuthLoading = false;
   jest.mocked(supabaseRestRequest).mockResolvedValue(false);
+});
+
+test("waits for persisted auth restoration before querying the platform RPC", async () => {
+  mockAuthLoading = true;
+  mockAuthUserId = null;
+  const pending = deferred<boolean>();
+  jest.mocked(supabaseRestRequest).mockReturnValueOnce(pending.promise);
+  const { result, rerender } = renderHook(usePlatformAdminAccessState);
+  expect(result.current).toEqual({ allowed: false, loading: true });
+  expect(supabaseRestRequest).not.toHaveBeenCalled();
+
+  // Auth may expose the persisted user before its validation has finished.
+  mockAuthUserId = "user-a";
+  rerender({});
+  expect(result.current).toEqual({ allowed: false, loading: true });
+  expect(supabaseRestRequest).not.toHaveBeenCalled();
+
+  mockAuthLoading = false;
+  rerender({});
+  expect(result.current).toEqual({ allowed: false, loading: true });
+  expect(supabaseRestRequest).toHaveBeenCalledTimes(1);
+  await act(async () => { pending.resolve(true); });
+  expect(result.current).toEqual({ allowed: true, loading: false });
+});
+
+test("does not carry a pending cold-start grant into another account", async () => {
+  const first = deferred<boolean>();
+  const second = deferred<boolean>();
+  jest.mocked(supabaseRestRequest).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const { result, rerender } = renderHook(usePlatformAdminAccessState);
+  mockAuthUserId = "user-b";
+  mockIdentity = { userId: "user-b", generation: 2 };
+  rerender({});
+  await act(async () => { first.resolve(true); });
+  expect(result.current).toEqual({ allowed: false, loading: true });
+  await act(async () => { second.resolve(false); });
+  expect(result.current).toEqual({ allowed: false, loading: false });
 });
 
 test("shares only pending platform checks and asks again after success", async () => {

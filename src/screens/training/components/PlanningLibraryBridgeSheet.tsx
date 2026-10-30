@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  ImageBackground,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ImageBackground, Linking, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { getLinkKey, requestLinkMetadata, type LinkMetadata } from "../../../api/link-metadata";
 import { getValidAccessToken } from "../../../auth/session";
@@ -45,6 +37,7 @@ import {
 } from "../../library/activity-catalog-view-model";
 import { getPlanningBlockLabel } from "../application/planning-library-bridge";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type LibraryTab = "catalog" | "links";
 
@@ -396,7 +389,7 @@ export function PlanningLibraryBridgeSheet({
                 ))}
               </View>
             ) : (
-              <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700" }}>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 Nenhuma atividade encontrada para os filtros selecionados.
               </Text>
             )}
@@ -426,11 +419,11 @@ export function PlanningLibraryBridgeSheet({
               <GoAtletaIcon name="search" size={18} color={colors.muted} />
             </View>
             {loadingLinks ? (
-              <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700" }}>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 Carregando links...
               </Text>
             ) : linksError ? (
-              <Text style={{ color: colors.dangerText, fontSize: 14, fontWeight: "800" }}>
+              <Text style={{ color: colors.dangerText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                 {linksError}
               </Text>
             ) : filteredLinks.length ? (
@@ -452,7 +445,7 @@ export function PlanningLibraryBridgeSheet({
                 ))}
               </View>
             ) : (
-              <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700" }}>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 Nenhum link encontrado.
               </Text>
             )}
@@ -858,7 +851,7 @@ function LinkCard({
             numberOfLines={2}
             style={{
               color: colors.text,
-              fontSize: 14,
+              fontSize: compactUiMetrics.bodyFontSize,
               fontWeight: "900",
               lineHeight: 18,
             }}

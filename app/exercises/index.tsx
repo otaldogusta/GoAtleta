@@ -7,18 +7,8 @@ import {
     useRef,
     useState
 } from "react";
-import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    ScrollView,
-    Share,
-    Text,
-    TextInput,
-    View
-} from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Linking, Platform, ScrollView, Share, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
@@ -54,6 +44,7 @@ import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { compactUiMetrics } from "../../src/theme/tokens";
 
 type LibraryTab = "links" | "catalog";
 
@@ -717,7 +708,7 @@ export default function ExercisesScreen() {
               justifyContent: "center",
             }}
           >
-            <GoAtletaIcon name="link" size={22} color={colors.primaryText} />
+            <GoAtletaIcon name="link" size={compactUiMetrics.iconSize} color={colors.primaryText} />
           </Pressable>
         </View>
 
@@ -821,7 +812,7 @@ export default function ExercisesScreen() {
                       style={{
                         color: colors.text,
                         fontWeight: "900",
-                        fontSize: 16,
+                        fontSize: compactUiMetrics.titleFontSize,
                         minHeight: 42,
                         lineHeight: 21,
                       }}
@@ -842,7 +833,7 @@ export default function ExercisesScreen() {
                         style={{
                           color: colors.muted,
                           lineHeight: 18,
-                          fontSize: 13,
+                          fontSize: compactUiMetrics.bodyFontSize,
                           minHeight: 54,
                         }}
                       >
@@ -872,7 +863,7 @@ export default function ExercisesScreen() {
                         style={{
                           color: colors.primaryText,
                           fontWeight: "800",
-                          fontSize: 13,
+                          fontSize: compactUiMetrics.bodyFontSize,
                         }}
                       >
                         Abrir
@@ -941,7 +932,7 @@ export default function ExercisesScreen() {
                 gap: 6,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: compactUiMetrics.titleFontSize }}>
                 Nenhum link salvo ainda
               </Text>
               <Text style={{ color: colors.muted, lineHeight: 20 }}>
@@ -971,7 +962,7 @@ export default function ExercisesScreen() {
       >
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "900" }}>
+            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>
               {editingId ? "Editar link" : "Adicionar link"}
             </Text>
             <Text style={{ color: colors.muted, lineHeight: 20 }}>
@@ -992,7 +983,7 @@ export default function ExercisesScreen() {
               backgroundColor: colors.secondaryBg,
             }}
           >
-            <GoAtletaIcon name="close" size={20} color={colors.text} />
+            <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
           </Pressable>
         </View>
 
@@ -1091,7 +1082,7 @@ export default function ExercisesScreen() {
               <View style={{ padding: 12, gap: 6 }}>
                 <Text
                   numberOfLines={2}
-                  style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}
+                  style={{ color: colors.text, fontWeight: "900", fontSize: compactUiMetrics.titleFontSize }}
                 >
                   {formTitle || "Lendo link..."}
                 </Text>

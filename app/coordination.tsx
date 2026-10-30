@@ -3,7 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { Redirect, useFocusEffect, usePathname, useRouter } from "expo-router";
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform,  Text, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
@@ -52,6 +53,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
+import { compactUiMetrics } from "../src/theme/tokens";
 
 type CoordinationTab = "dashboard" | "members";
 
@@ -304,7 +306,7 @@ const IndicatorCard = memo(function IndicatorCard({
         backgroundColor: colors.secondaryBg,
       }}
     >
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>{value}</Text>
+      <Text style={{ color: colors.text, fontWeight: "800", fontSize: compactUiMetrics.titleFontSize }}>{value}</Text>
       <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
     </View>
   );
@@ -1332,7 +1334,7 @@ function CoordinationScreenContent() {
               gap: 8,
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
               Coordenação
             </Text>
             <Text style={{ color: colors.muted }}>
@@ -1438,7 +1440,7 @@ function CoordinationScreenContent() {
             }}
           >
             <View style={{ gap: 3 }}>
-              <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
                 Visão geral da coordenação
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -1468,7 +1470,7 @@ function CoordinationScreenContent() {
               <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
                 Status operacional do mês
               </Text>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                 {coordinationHealthScore === null ? "..." : `${coordinationHealthScore}%`}
               </Text>
             </View>
@@ -1504,7 +1506,7 @@ function CoordinationScreenContent() {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Coordenação</Text>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>Coordenação</Text>
               <Pressable
                 onPress={() => {
                   if (!notifyAttendanceTarget) return;
@@ -1530,7 +1532,7 @@ function CoordinationScreenContent() {
 
             {notifyAttendanceTarget ? (
               <>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                   Turma pendente: {notifyAttendanceTarget!.className}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -1561,7 +1563,7 @@ function CoordinationScreenContent() {
                     justifyContent: "center",
                   }}
                 >
-                  <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+                  <Text style={{ color: colors.primaryText, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
                     {notifySending
                       ? "Enviando aviso..."
                       : notifyHead

@@ -1,11 +1,12 @@
 import { type RefObject, useEffect, useState } from "react";
-import { Animated, Easing, Text, View } from "react-native";
+import { Animated, Easing, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { useAppTheme } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 
 export type TrainingFabMenuLayout = {
   x: number;
@@ -130,7 +131,7 @@ export function TrainingFabMenu({
         }}
       >
         <GoAtletaIcon name="calendar" size={16} color={colors.primaryText} />
-        <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "700" }}>
+        <Text style={{ color: colors.primaryText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
           Criar treino
         </Text>
       </Pressable>
@@ -151,7 +152,7 @@ export function TrainingFabMenu({
         }}
       >
         <GoAtletaIcon name="upload" size={16} color={colors.text} />
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
           {importBusy ? "Importando..." : "Importar planilha"}
         </Text>
       </Pressable>

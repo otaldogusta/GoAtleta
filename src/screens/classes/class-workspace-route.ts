@@ -1,6 +1,12 @@
 import type { ClassWorkspaceSection } from "./components/ClassOperationsWorkspace";
 
 type RouteParam = string | string[] | undefined;
+export type ClassSettingsSection = "basics" | "agenda" | "profile";
+
+export function resolveClassSettingsSection(value: RouteParam): ClassSettingsSection {
+  const section = firstRouteParam(value);
+  return section === "agenda" || section === "profile" ? section : "basics";
+}
 
 function firstRouteParam(value: RouteParam) {
   return Array.isArray(value) ? value[0] : value;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { setPlanModality } from "../../api/athlete-modalities";
 import { CLASS_MODALITY_OPTIONS, type ClassModality } from "../../core/class-modality";
 import { PositionPicker } from "../../ui/PositionPicker";

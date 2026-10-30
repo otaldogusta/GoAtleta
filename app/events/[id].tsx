@@ -1,15 +1,7 @@
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-    Alert,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View,
-} from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -33,13 +25,14 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { useAppTheme } from "../../src/ui/app-theme";
+import { useAppTheme, type ThemeColors } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
+import { compactUiMetrics } from "../../src/theme/tokens";
 
 const eventTypes: EventType[] = ["torneio", "amistoso", "treino", "reuniao", "outro"];
 const sportTypes: EventSport[] = ["geral", "volei_quadra", "volei_praia", "futebol"];
@@ -111,6 +104,19 @@ const buildSnapshot = (values: EventFormSnapshot) => {
   });
 };
 
+const createEventDetailOptionStyles = (colors: ThemeColors) => StyleSheet.create({
+  optionText: {
+    color: colors.text,
+    fontSize: compactUiMetrics.bodyFontSize,
+    fontWeight: "700",
+  },
+  activeOptionText: {
+    color: colors.primaryText,
+    fontSize: compactUiMetrics.bodyFontSize,
+    fontWeight: "700",
+  },
+});
+
 export default function EventDetailsScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
@@ -120,6 +126,7 @@ export default function EventDetailsScreen() {
   markRender("screen.eventsDetail.render.root", { hasEventId: eventId ? 1 : 0 });
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
+  const optionStyles = useMemo(() => createEventDetailOptionStyles(colors), [colors]);
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const organization = useOptionalOrganization();
@@ -528,8 +535,8 @@ export default function EventDetailsScreen() {
               onPress={closeDetails}
               style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
-              <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Detalhes do evento</Text>
+              <GoAtletaIcon name="chevronBack" size={compactUiMetrics.iconSize} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 20, fontWeight: "700" }}>Detalhes do evento</Text>
             </Pressable>
             <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 26 }}>Início: {startLabel}</Text>
           </View>
@@ -722,7 +729,7 @@ export default function EventDetailsScreen() {
                 setShowEventTypeDropdown(false);
               }}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
+              <Text style={active ? optionStyles.activeOptionText : optionStyles.optionText}>
                 {eventTypeLabel[option]}
               </Text>
             </AnchoredDropdownOption>
@@ -752,7 +759,7 @@ export default function EventDetailsScreen() {
                 setShowSportDropdown(false);
               }}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
+              <Text style={active ? optionStyles.activeOptionText : optionStyles.optionText}>
                 {sportTypeLabel[option]}
               </Text>
             </AnchoredDropdownOption>

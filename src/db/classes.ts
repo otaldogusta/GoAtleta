@@ -351,7 +351,10 @@ export async function getClassById(id: string, options: { organizationId?: strin
   } catch (error) {
     if (isNetworkError(error)) {
       const classes = await getClasses({ organizationId: activeOrganizationId });
-      return classes.find((item) => item.id === id) ?? null;
+      const cachedClass = classes.find((item) => item.id === id);
+      if (cachedClass) return cachedClass;
+      // Missing offline data cannot establish that the class does not exist.
+      throw error;
     }
     throw error;
   }

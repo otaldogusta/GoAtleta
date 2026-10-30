@@ -1,4 +1,4 @@
-import { Text } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";

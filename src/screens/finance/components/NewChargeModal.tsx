@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import {
   issueTuitionInvoice,
@@ -8,7 +9,7 @@ import {
 } from "../../../api/finance";
 import { SectionLoadingState } from "../../../components/ui/SectionLoadingState";
 import { formatMoneyFromCents } from "../../../finance/application/finance-format";
-import { radius, spacing } from "../../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../../theme/tokens";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
@@ -140,7 +141,7 @@ export function NewChargeModal({
     >
       <View
         style={{
-          minHeight: 64,
+          minHeight: 52,
           paddingHorizontal: spacing.md,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
@@ -150,7 +151,7 @@ export function NewChargeModal({
         }}
       >
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
             Nova cobrança
           </Text>
           <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
@@ -162,7 +163,7 @@ export function NewChargeModal({
           onPress={onClose}
           style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}
         >
-          <GoAtletaIcon name="close" size={20} color={colors.muted} />
+          <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.muted} />
         </Pressable>
       </View>
 
@@ -172,7 +173,7 @@ export function NewChargeModal({
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
             Escolha o atleta
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
@@ -196,7 +197,7 @@ export function NewChargeModal({
               gap: 9,
             }}
           >
-            <GoAtletaIcon name="paymentCard" size={24} color={colors.muted} />
+            <GoAtletaIcon name="paymentCard" size={18} color={colors.muted} />
             <Text style={{ color: colors.text, fontWeight: "900" }}>Nenhum vínculo ativo</Text>
             <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "center" }}>
               Cadastre um plano e vincule o atleta antes de emitir a primeira cobrança.
@@ -214,7 +215,7 @@ export function NewChargeModal({
                   accessibilityLabel={`Selecionar ${agreement.studentName}`}
                   onPress={() => setSelectedId(agreement.id)}
                   style={{
-                    minHeight: 58,
+                    minHeight: 50,
                     borderRadius: radius.card,
                     borderWidth: 1,
                     borderColor: selected ? colors.success : colors.border,
@@ -241,14 +242,14 @@ export function NewChargeModal({
                     {selected ? <GoAtletaIcon name="checkmark" size={14} color={colors.primaryText} /> : null}
                   </View>
                   <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                    <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
                       {agreement.studentName}
                     </Text>
                     <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
                       {agreement.planName} · vence dia {agreement.dueDay}
                     </Text>
                   </View>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+                  <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
                     {formatMoneyFromCents(agreement.amountCents)}
                   </Text>
                 </Pressable>

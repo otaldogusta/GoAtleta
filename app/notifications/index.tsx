@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../src/auth/auth";
@@ -26,6 +27,7 @@ import { SettingsRow } from "../../src/ui/SettingsRow";
 import { Typography } from "../../src/ui/Typography";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { compactUiMetrics } from "../../src/theme/tokens";
 
 const STORAGE_KEY = "notify_settings_v1";
 const isWeb = Platform.OS === "web";
@@ -173,7 +175,7 @@ export default function NotificationsScreen() {
           <View style={{ marginTop: 12, gap: 12 }}>
           <View style={{ gap: 8 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 Notificações
               </Text>
               {items.length ? (
@@ -242,7 +244,7 @@ export default function NotificationsScreen() {
           </View>
 
           <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
               Configurações
             </Text>
             <SettingsRow
@@ -308,7 +310,7 @@ export default function NotificationsScreen() {
 
           {__DEV__ ? (
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 Preview de perfil (DEV)
               </Text>
               <View style={{ gap: 8 }}>
@@ -319,7 +321,7 @@ export default function NotificationsScreen() {
                   onPress={() => applyProfilePreview("professor")}
                   rightContent={
                     selectedProfilePreview === "professor" ? (
-                      <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={compactUiMetrics.iconSize} color={colors.primaryBg} />
                     ) : undefined
                   }
                 />
@@ -330,7 +332,7 @@ export default function NotificationsScreen() {
                   onPress={() => applyProfilePreview("student")}
                   rightContent={
                     selectedProfilePreview === "student" ? (
-                      <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={compactUiMetrics.iconSize} color={colors.primaryBg} />
                     ) : undefined
                   }
                 />
@@ -341,7 +343,7 @@ export default function NotificationsScreen() {
                   onPress={() => applyProfilePreview("admin")}
                   rightContent={
                     selectedProfilePreview === "admin" ? (
-                      <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={compactUiMetrics.iconSize} color={colors.primaryBg} />
                     ) : undefined
                   }
                 />
@@ -350,7 +352,7 @@ export default function NotificationsScreen() {
           ) : null}
 
           <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
               Conta
             </Text>
             <SettingsRow

@@ -1,9 +1,10 @@
 import {  useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
 import type { TrainingPlanSummary } from "../../../db/training";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
   },
   collapsedRail: { width: 36, minWidth: 36, borderWidth: 0, borderRadius: 9, padding: 0, alignItems: "center" },
   header: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { flex: 1, fontSize: 17, fontWeight: "900" },
+  title: { flex: 1, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
   iconButton: { width: 36, height: 36, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   searchShell: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 },
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 8, fontSize: 12, outlineStyle: "none", borderRadius: 0 } as any,
@@ -449,11 +450,11 @@ const styles = StyleSheet.create({
   breadcrumbRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   backButton: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   breadcrumb: { flex: 1, minWidth: 0, fontSize: 10.5, lineHeight: 15 },
-  monthRow: { minHeight: 62, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  monthRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   monthButton: { width: 38, height: 38, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  monthLabel: { flex: 1, textAlign: "center", fontSize: 13, fontWeight: "900" },
+  monthLabel: { flex: 1, textAlign: "center", fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
   weekList: { borderWidth: 1, borderRadius: 10, overflow: "hidden" },
-  weekRow: { minHeight: 62, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  weekRow: { minHeight: 48, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 },
   weekCopy: { flex: 1, minWidth: 0 },
   weekLabel: { fontSize: 12.5, fontWeight: "900" },
   weekMeta: { marginTop: 2, fontSize: 10.5 },

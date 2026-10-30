@@ -38,6 +38,11 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 - Organização e turma acompanham acesso, cache e resposta assíncrona. Na API do
   perfil, mudança de organização invalida a operação e a resposta recebida.
+- O detalhe aguarda sessão e instituição prontas antes de decidir disponibilidade.
+  Consulta vazia, contexto ausente e falha de leitura têm estados distintos, com
+  retorno às turmas do perfil atual e nova tentativa. Falta no cache durante uma
+  falha de rede não prova ausência da turma; filtro institucional e RLS permanecem.
+  [Correção local de disponibilidade](../../operations/class-availability-local-2026-10-28.md).
 - Perfil é canônico por organização/turma, versionado e independente do ciclo;
   relatos, revisões e sugestões têm proveniência. O diagnóstico antigo do ciclo
   serve à compatibilidade, sem substituir automaticamente o perfil vigente.
@@ -52,6 +57,12 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
   de versão/hash/execução no servidor. Não tratar prévia como gravação efetiva.
 - Excluir turma e duplicar turma têm contratos próprios: consultar os testes de
   preservação de alunos e duplicação antes de ampliar cascatas ou copiar vínculos.
+
+- No calendário professor/coordenação, tocar a aula abre `CalendarClassDetails`
+  com a leitura compartilhada `CalendarEntryDetails`: dados da ocorrência/turma
+  já carregados, conforme disponibilidade, sem criar evento. Ir para a turma
+  aguarda a saída e envia `date` para abrir a ocorrência, mantendo `calendarDate`/unidade/origem para retorno; troca de instituição invalida
+  a seleção. Estudante mantém `/student-plan`. Aula e ida/volta com data/unidade conferidas no localhost.
 
 - Ao abrir uma turma pelo calendário, a seta de voltar usa origem permitida
   (`prof`/`shared`), data válida e filtro de unidade. O retorno ancorado ao

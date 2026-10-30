@@ -1,26 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Platform, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius } from "../../theme/tokens";
 import { APP_PRODUCT_LABELS } from "../../config/brand";
 import { useAppTheme } from "../../ui/app-theme";
-import { Button } from "../../ui/Button";
+import { PlatformAction as Button, PlatformMetric, platformHighlighted } from "./PlatformUiControls";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
+import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import {
   platformListInstitutions,
   platformUpdateInstitutionAccount,
@@ -87,15 +82,15 @@ function StatusPill({ status }: { status: InstitutionStatus }) {
         borderWidth: 1,
         borderColor: colors[`${tone}Border`],
         backgroundColor: colors[`${tone}Bg`],
-        paddingHorizontal: 10,
-        paddingVertical: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
       }}
     >
       <Text
         style={{
           color: colors[`${tone}Text`],
-          fontSize: 12,
-          fontWeight: "800",
+          fontSize: 11,
+          fontWeight: "600",
         }}
       >
         {labels[status]}
@@ -111,6 +106,8 @@ export function PlatformDashboard() {
   const { confirm } = useConfirmDialog();
   const { width } = useWindowDimensions();
   const wide = width >= 1200;
+  const { containerRef: listRef, onLayout: onListLayout, measuredWidth: listWidth, layout } = useContainerResponsiveLayout("dashboard");
+  const usesTable = listWidth >= 760;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | InstitutionStatus>("all");
   const [selectedId, setSelectedId] = useState("");
@@ -348,12 +345,12 @@ export function PlatformDashboard() {
               <View
                 style={{
                   width: 330,
-                  minHeight: 44,
-                  borderRadius: radius.internal,
+                  minHeight: 50,
+                  borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.inputBg,
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 14,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 8,
@@ -364,39 +361,20 @@ export function PlatformDashboard() {
                   onChangeText={setQuery}
                   placeholder="Buscar instituições..."
                   placeholderTextColor={colors.placeholder}
-                  style={{
+                  style={{ minWidth: 0,
                     flex: 1,
-                    minHeight: 44,
+                    minHeight: 48,
                     color: colors.inputText,
                     borderRadius: 0,
                   }}
                 />
                 <GoAtletaIcon name="search" size={17} color={colors.muted} />
               </View>
-              <Pressable
-                onPress={() =>
+<Button label="Filtros" icon="options" onPress={() =>
                   showSaveToast({
                     variant: "info",
                     message: "Use as abas para filtrar as instituições.",
-                  })
-                }
-                style={{
-                  minHeight: 44,
-                  paddingHorizontal: 15,
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <GoAtletaIcon name="options" size={17} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: "800" }}>
-                  Filtros
-                </Text>
-              </Pressable>
+                  })} />
             </View>
           ) : null
         }
@@ -405,50 +383,23 @@ export function PlatformDashboard() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
       >
-        <ResponsivePage variant="dashboard" gap={spacing.md}>
-          <View
-            style={{ flexDirection: width >= 760 ? "row" : "column", gap: 12 }}
-          >
-            {metrics.map(([icon, value, label, color]) => (
-              <View
-                key={label}
-                style={{
-                  flex: 1,
-                  minHeight: 84,
-                  borderRadius: radius.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 13,
-                }}
-              >
-                <GoAtletaIcon name={icon} size={22} color={color} />
-                <View>
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontSize: 22,
-                      fontWeight: "900",
-                    }}
-                  >
-                    {value}
-                  </Text>
-                  <Text style={{ color, fontSize: 12, fontWeight: "700" }}>
-                    {label}
-                  </Text>
-                </View>
+        <ResponsivePage variant="dashboard" gap={layout.density.pageGap}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: compactUiMetrics.gap }}>
+            {metrics.map(([icon, value, label, color], index) => (
+              <View key={label} style={{ flexGrow: 1, flexBasis: 128, minWidth: 0 }}>
+                <PlatformMetric icon={icon} value={value} label={label} compactLabel={["Ativas", "Avaliação", "Renovações", "Atenção"][index]} color={color} compact={width < 768} />
               </View>
             ))}
           </View>
           <ResponsiveGrid
             columns={{ compact: "1", split: "8/4" }}
-            gap={14}
+            gap={layout.density.pageGap}
             style={{ alignItems: "flex-start" }}
           >
             <View
+              ref={listRef}
+              onLayout={onListLayout}
+              testID="platform-institution-list"
               style={{
                 minWidth: 0,
                 borderRadius: radius.container,
@@ -458,11 +409,11 @@ export function PlatformDashboard() {
                 overflow: "hidden",
               }}
             >
-              <View style={{ padding: 16, gap: 12 }}>
+              <View style={{ padding: layout.density.cardPadding, gap: layout.density.sectionGap }}>
                 <Text
                   style={{
                     color: colors.text,
-                    fontSize: 18,
+                    fontSize: compactUiMetrics.titleFontSize,
                     fontWeight: "900",
                   }}
                 >
@@ -470,60 +421,31 @@ export function PlatformDashboard() {
                 </Text>
                 <View
                   style={{
-                    flexDirection: width >= 760 ? "row" : "column",
+                    flexDirection: usesTable ? "row" : "column",
+                    flexWrap: "wrap",
                     gap: 10,
                   }}
                 >
                   <View
                     style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}
                   >
-                    {(
-                      [
-                        "all",
-                        "evaluation",
-                        "active",
-                        "paused",
-                        "cancelled",
-                      ] as const
-                    ).map((value) => (
-                      <Pressable
-                        key={value}
-                        onPress={() => setFilter(value)}
-                        style={{
-                          minHeight: 40,
-                          paddingHorizontal: 12,
-                          borderRadius: radius.internal,
-                          borderWidth: 1,
-                          borderColor:
-                            filter === value ? colors.primaryBg : colors.border,
-                          backgroundColor:
-                            filter === value
-                              ? colors.successBg
-                              : colors.secondaryBg,
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {value === "all" ? "Todas" : labels[value]}
-                        </Text>
-                      </Pressable>
+                    {(["all", "evaluation", "active", "paused", "cancelled"] as const).map(value => (
+                      <Button key={value} onPress={() => setFilter(value)} selected={filter === value} label={value === "all" ? "Todas" : labels[value]} />
                     ))}
                   </View>
                   <View
                     style={{
-                      flex: 1,
-                      minHeight: 42,
-                      borderRadius: radius.internal,
+                      flexGrow: 1,
+                      flexShrink: 1,
+                      flexBasis: usesTable ? 220 : "auto",
+                      minWidth: 0,
+                      width: usesTable ? undefined : "100%",
+                      minHeight: 50,
+                      borderRadius: 12,
                       borderWidth: 1,
                       borderColor: colors.border,
                       backgroundColor: colors.inputBg,
-                      paddingHorizontal: 12,
+                      paddingHorizontal: 14,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 8,
@@ -539,9 +461,9 @@ export function PlatformDashboard() {
                       onChangeText={setQuery}
                       placeholder="Buscar instituição..."
                       placeholderTextColor={colors.placeholder}
-                      style={{
+                      style={{ minWidth: 0,
                         flex: 1,
-                        minHeight: 42,
+                        minHeight: 48,
                         color: colors.inputText,
                         borderRadius: 0,
                       }}
@@ -549,11 +471,11 @@ export function PlatformDashboard() {
                   </View>
                 </View>
               </View>
-              {width >= 760 ? (
+              {usesTable ? (
                 <View
                   style={{
                     minHeight: 38,
-                    paddingHorizontal: 16,
+                    paddingHorizontal: 12,
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 10,
@@ -614,7 +536,7 @@ export function PlatformDashboard() {
                   </Text>
                   <Text
                     style={{
-                      width: 48,
+                      width: 64,
                       color: colors.muted,
                       fontSize: 10,
                       fontWeight: "800",
@@ -627,7 +549,7 @@ export function PlatformDashboard() {
               {loading ? (
                 <View
                   style={{
-                    minHeight: 72,
+                    minHeight: 56,
                     borderTopWidth: 1,
                     borderTopColor: colors.border,
                     alignItems: "center",
@@ -642,7 +564,7 @@ export function PlatformDashboard() {
               {!loading && filtered.length === 0 ? (
                 <View
                   style={{
-                    minHeight: 72,
+                    minHeight: 56,
                     borderTopWidth: 1,
                     borderTopColor: colors.border,
                     alignItems: "center",
@@ -656,29 +578,32 @@ export function PlatformDashboard() {
               ) : null}
               {!loading &&
                 filtered.map((item) => (
-                  <Pressable
+                  <Pressable suppressWebHoverFeedback disableWebPressScale
                     key={item.id}
                     onPress={() => setSelectedId(item.id)}
-                    style={{
-                      minHeight: 64,
+                    style={state => ({
+                      minHeight: 52,
                       borderTopWidth: 1,
                       borderTopColor: colors.border,
                       backgroundColor:
                         selected.id === item.id
                           ? colors.successBg
-                          : "transparent",
-                      paddingHorizontal: 16,
+                          : platformHighlighted(state) ? colors.secondaryBg : "transparent",
+                      marginHorizontal: 4,
+                      marginVertical: 2,
+                      borderRadius: radius.internal,
+                      paddingHorizontal: 8,
                       paddingVertical: 9,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 10,
-                    }}
+                    })}
                   >
                     <View
                       style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
+                        width: compactUiMetrics.controlHeight,
+                        height: compactUiMetrics.controlHeight,
+                        borderRadius: radius.full,
                         backgroundColor: colors.infoBg,
                         alignItems: "center",
                         justifyContent: "center",
@@ -689,25 +614,26 @@ export function PlatformDashboard() {
                       </Text>
                     </View>
                     <View
-                      style={{ flex: width >= 760 ? 1.25 : 1, minWidth: 0 }}
+                      style={{ flex: usesTable ? 1.25 : 1, minWidth: 0 }}
                     >
                       <Text
-                        numberOfLines={1}
+                        numberOfLines={usesTable ? 1 : 2}
                         style={{
                           color: colors.text,
-                          fontSize: 13,
+                          fontSize: compactUiMetrics.bodyFontSize,
+                          lineHeight: compactUiMetrics.bodyLineHeight,
                           fontWeight: "800",
                         }}
                       >
                         {item.name}
                       </Text>
-                      {width < 760 ? (
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {!usesTable ? (
+                        <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
                           {item.responsible} · {productLabels[item.product]}
                         </Text>
                       ) : null}
                     </View>
-                    {width >= 760 ? (
+                    {usesTable ? (
                       <>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text
@@ -743,13 +669,13 @@ export function PlatformDashboard() {
                         </Text>
                       </>
                     ) : null}
-                    <View style={{ width: width >= 760 ? 100 : undefined }}>
+                    <View style={{ width: usesTable ? 100 : undefined }}>
                       <StatusPill status={item.status} />
                     </View>
-                    {width >= 760 ? (
+                    {usesTable ? (
                       <Text
                         style={{
-                          width: 48,
+                          width: 64,
                           color: colors.text,
                           fontSize: 12,
                           fontWeight: "800",
@@ -764,13 +690,14 @@ export function PlatformDashboard() {
             </View>
             <View
               style={{
-                width: wide ? 390 : "100%",
+                width: "100%",
+                minWidth: 0,
                 borderRadius: radius.container,
                 borderWidth: 1,
                 borderColor: colors.border,
                 backgroundColor: colors.card,
-                padding: 18,
-                gap: 15,
+                padding: layout.density.cardPadding,
+                gap: compactUiMetrics.gap,
               }}
             >
               <View
@@ -778,9 +705,9 @@ export function PlatformDashboard() {
               >
                 <View
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
+                    width: compactUiMetrics.controlHeight,
+                    height: compactUiMetrics.controlHeight,
+                    borderRadius: radius.full,
                     backgroundColor: colors.infoBg,
                     alignItems: "center",
                     justifyContent: "center",
@@ -788,16 +715,16 @@ export function PlatformDashboard() {
                 >
                   <GoAtletaIcon
                     name="organization"
-                    size={22}
+                    size={compactUiMetrics.iconSize}
                     color={colors.infoText}
                   />
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 18,
-                      fontWeight: "900",
+                      fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight,
+                      fontWeight: "700",
                     }}
                   >
                     {selected.name}
@@ -819,7 +746,7 @@ export function PlatformDashboard() {
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 14,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "700",
                       marginTop: 3,
                     }}
@@ -840,37 +767,8 @@ export function PlatformDashboard() {
                     Produto
                   </Text>
                   <View style={{ flexDirection: "row", gap: 6 }}>
-                    {(["goatleta", "goatleta_pro"] as const).map((value) => (
-                      <Pressable
-                        key={value}
-                        onPress={() => setEditProduct(value)}
-                        style={{
-                          flex: 1,
-                          minHeight: 38,
-                          borderRadius: radius.internal,
-                          borderWidth: 1,
-                          borderColor:
-                            editProduct === value
-                              ? colors.primaryBg
-                              : colors.border,
-                          backgroundColor:
-                            editProduct === value
-                              ? colors.successBg
-                              : colors.secondaryBg,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {productLabels[value]}
-                        </Text>
-                      </Pressable>
+                    {(["goatleta", "goatleta_pro"] as const).map(value => (
+                      <Button key={value} onPress={() => setEditProduct(value)} selected={editProduct === value} label={productLabels[value]} />
                     ))}
                   </View>
                   <Text
@@ -885,91 +783,16 @@ export function PlatformDashboard() {
                   <View
                     style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}
                   >
-                    {(["evaluation", "active", "paused"] as const).map(
-                      (value) => (
-                        <Pressable
-                          key={value}
-                          onPress={() => setEditStatus(value)}
-                          style={{
-                            minHeight: 36,
-                            paddingHorizontal: 10,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor:
-                              editStatus === value
-                                ? colors.primaryBg
-                                : colors.border,
-                            backgroundColor:
-                              editStatus === value
-                                ? colors.successBg
-                                : colors.secondaryBg,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: colors.text,
-                              fontSize: 11,
-                              fontWeight: "800",
-                            }}
-                          >
-                            {labels[value]}
-                          </Text>
-                        </Pressable>
-                      ),
-                    )}
+                    {(["evaluation", "active", "paused"] as const).map(value => (
+                      <Button key={value} onPress={() => setEditStatus(value)} selected={editStatus === value} label={labels[value]} />
+                    ))}
                   </View>
-                  <Pressable
-                    onPress={() =>
-                      setEditCommercialStatus((value) =>
-                        value === "ok" ? "attention" : "ok",
-                      )
-                    }
-                    style={{
-                      minHeight: 40,
-                      borderRadius: radius.internal,
-                      borderWidth: 1,
-                      borderColor:
-                        editCommercialStatus === "attention"
-                          ? colors.dangerBorder
-                          : colors.border,
-                      backgroundColor:
-                        editCommercialStatus === "attention"
-                          ? colors.dangerBg
-                          : colors.secondaryBg,
-                      paddingHorizontal: 12,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <GoAtletaIcon
-                      name="warningCircle"
-                      size={16}
-                      color={
-                        editCommercialStatus === "attention"
-                          ? colors.dangerText
-                          : colors.muted
-                      }
-                    />
-                    <Text
-                      style={{
-                        color: colors.text,
-                        fontSize: 12,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {editCommercialStatus === "attention"
-                        ? "Em atenção comercial"
-                        : "Sem atenção comercial"}
-                    </Text>
-                  </Pressable>
+                  <Button icon="warningCircle" variant={editCommercialStatus === "attention" ? "danger" : "outline"} label={editCommercialStatus === "attention" ? "Em atenção comercial" : "Sem atenção comercial"} onPress={() => setEditCommercialStatus(value => value === "ok" ? "attention" : "ok")} />
                 </View>
               ) : null}
               <View
                 style={{
-                  padding: 13,
+                  padding: compactUiMetrics.gap,
                   borderRadius: radius.internal,
                   backgroundColor: colors.secondaryBg,
                   gap: 5,
@@ -1016,7 +839,7 @@ export function PlatformDashboard() {
               </View>
               <View style={{ height: 1, backgroundColor: colors.border }} />
               <Text
-                style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700" }}
               >
                 Atividade recente
               </Text>
@@ -1030,7 +853,7 @@ export function PlatformDashboard() {
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 13,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "700",
                     }}
                   >
@@ -1041,78 +864,16 @@ export function PlatformDashboard() {
                   </Text>
                 </View>
               </View>
-              {editing ? (
-                <View style={{ gap: 8 }}>
-                  <Button
-                    label={busy ? "Salvando..." : "Salvar alterações"}
-                    disabled={busy}
-                    onPress={() => void saveInstitution()}
-                  />
-                  <Pressable
-                    disabled={busy}
-                    onPress={() => setEditing(false)}
-                    style={{
-                      minHeight: 42,
-                      borderRadius: radius.internal,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "800" }}>
-                      Cancelar
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <Button label="Gerenciar instituição" onPress={startEditing} />
-              )}
-              {!editing &&
-              selected.id &&
-              selected.status !== "cancelled" &&
-              selected.status !== "paused" ? (
-                <Pressable
-                  onPress={() => void suspendInstitution()}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Suspender ${selected.name}`}
-                  style={{
-                    minHeight: 44,
-                    borderRadius: radius.internal,
-                    borderWidth: 1,
-                    borderColor: colors.dangerBorder,
-                    backgroundColor: colors.dangerBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.dangerText, fontWeight: "800" }}>
-                    Suspender instituição
-                  </Text>
-                </Pressable>
-              ) : null}
-              {selected.id ? (
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: "/platform/accesses",
-                      params: { institution: selected.name },
-                    })
-                  }
-                  style={{
-                    minHeight: 44,
-                    borderRadius: radius.internal,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "800" }}>
-                    Ver acessos
-                  </Text>
-                </Pressable>
-              ) : null}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: compactUiMetrics.gap }}>
+                {editing ? <>
+                  <Button label={busy ? "Salvando..." : "Salvar alterações"} variant="primary" disabled={busy} onPress={() => void saveInstitution()} />
+                  <Button label="Cancelar" disabled={busy} onPress={() => setEditing(false)} />
+                </> : <Button label="Gerenciar instituição" variant="primary" onPress={startEditing} />}
+                {!editing && selected.id && selected.status !== "cancelled" && selected.status !== "paused" ? (
+                  <Button label="Suspender instituição" accessibilityLabel={`Suspender ${selected.name}`} variant="danger" onPress={() => void suspendInstitution()} />
+                ) : null}
+                {selected.id ? <Button label="Ver acessos" onPress={() => router.push({ pathname: "/platform/accesses", params: { institution: selected.name } })} /> : null}
+              </View>
             </View>
           </ResponsiveGrid>
         </ResponsivePage>

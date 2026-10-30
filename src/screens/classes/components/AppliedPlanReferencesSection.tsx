@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
@@ -251,13 +252,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   planningSource: {
-    minHeight: 76,
+    minHeight: 56,
     borderWidth: 1,
     borderRadius: 11,
-    padding: 12,
+    padding: compactUiMetrics.gap,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: compactUiMetrics.gap,
   },
   planningSourceTitle: {
     fontSize: 12,
@@ -270,11 +271,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   sectionHeader: {
-    minHeight: 76,
-    padding: 12,
+    minHeight: 56,
+    padding: compactUiMetrics.gap,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: compactUiMetrics.gap,
   },
   sectionHeaderCopy: {
     flex: 1,

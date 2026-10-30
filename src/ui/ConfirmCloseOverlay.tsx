@@ -1,7 +1,5 @@
-import {
-    Text,
-    View
-} from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";

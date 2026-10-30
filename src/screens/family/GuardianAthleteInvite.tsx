@@ -1,9 +1,11 @@
+import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { useRef, useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import * as Clipboard from "expo-clipboard";
 import { createStudentRelationshipInvite } from "../../api/student-relationship-invite";
-import { Button } from "../../ui/Button";
 import { useAppTheme } from "../../ui/app-theme";
+import { FamilyButton } from "./FamilyUi";
 
 export function useGuardianAthleteInvite(organizationId: string, studentId: string) {
   const [email, setEmail] = useState("");
@@ -36,19 +38,19 @@ export function GuardianAthleteInvite({ organizationId, studentId }: { organizat
 export function GuardianAthleteInviteView({ state }: { state: ReturnType<typeof useGuardianAthleteInvite> }) {
   const { colors } = useAppTheme();
   const { email, url, busy, error, copied, create, changeEmail, copy } = state;
-  return <View style={{ gap: 12 }}>
-    <Text style={{ color: colors.text, fontWeight: "700" }}>Convidar atleta</Text>
+  return <View style={{ gap: metrics.gap }}>
+    <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "700" }}>Convidar atleta</Text>
     <View style={{ minHeight: 50, borderRadius: 12, paddingHorizontal: 14, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }}>
       <TextInput accessibilityLabel="E-mail do atleta" placeholder="E-mail do atleta" placeholderTextColor={colors.placeholder}
         value={email} editable={!busy && !url} onChangeText={changeEmail}
         keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
-        style={{ minHeight: 50, borderRadius: 0, color: colors.inputText }} />
+        style={{ minHeight: 50, borderRadius: 0, fontSize: metrics.bodyFontSize, color: colors.inputText }} />
     </View>
     {url ? <>
-      <Text style={{ color: colors.muted }}>Convite criado para este atleta. Envie o link ao destinatário.</Text>
-      <Button label={copied ? "Link copiado" : "Copiar convite"} onPress={() => { void copy(); }} />
-    </> : <Button label="Criar convite" loading={busy} loadingLabel="Criando convite…"
+      <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Convite criado para este atleta. Envie o link ao destinatário.</Text>
+      <FamilyButton label={copied ? "Link copiado" : "Copiar convite"} variant="primary" onPress={() => { void copy(); }} />
+    </> : <FamilyButton label="Criar convite" variant="primary" loading={busy} loadingLabel="Criando convite…"
       disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())} onPress={() => void create()} />}
-    {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
+    {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: metrics.bodyFontSize }}>{error}</Text> : null}
   </View>;
 }

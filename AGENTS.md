@@ -66,6 +66,14 @@
 
 To preserve visual consistency, prevent regressions, and avoid arbitrary "vibecoding" additions, all user interfaces in GoAtleta MUST strictly adhere to the following rules:
 
+### Product scale and responsive composition
+- Use `responsiveLayout.density` and the existing viewport/container capabilities before defining local sizes. Follow `docs/ui/DESIGN_SYSTEM.md` and `docs/ui/RESPONSIVE_RULES.md`; a larger viewport releases content and regions, not automatically larger text, icons or controls.
+- Match the proportions of the approved operational controls, including Visual Court when it is the requested reference. Adjust typography, icon size, padding, gaps and control composition together; shrinking only the outer card does not satisfy a density correction.
+- Separate the visible glyph/control from its touch target. Preserve touch, keyboard, focus, safe areas and user text scaling while keeping operational controls compact. The existing auth/input and specialized primitive requirements below remain applicable.
+- Size a detail sheet to its content and cap it by the available viewport. Long content scrolls inside the sheet; a short detail must not reserve an empty screen-sized frame. Keep navigation and floating actions clear of the content and of each other.
+- Do not simulate responsiveness with page-wide CSS `zoom`, `transform: scale`, disabled text scaling, or browser zoom changes. Reflow the actual layout with shared primitives and semantic sizing.
+- Validate the rendered proportions of the affected page, detail and navigation together at the real reported size and relevant responsive boundaries. Record the scope actually inspected; updating the rule does not certify that every existing screen already complies.
+
 ### 1. Centered 440px Compact Block Layout
 - **Standard Auth Container**: All authentication, onboarding, welcome, and recovery screens (`welcome`, `login`, `signup`, `reset-password`) MUST be centered vertically and horizontally inside a compact 440px maximum width block (`maxWidth: 440`, `width: "100%"`, `alignSelf: "center"`, `justifyContent: "center"`).
 

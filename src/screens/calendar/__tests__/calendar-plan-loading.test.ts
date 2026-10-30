@@ -7,14 +7,18 @@ import { getCalendarTrainingPlanApplications, getTrainingPlanById, getTrainingPl
 import { getClasses, getLatestTrainingPlanByClass, getTrainingPlans, saveTrainingPlan } from "../../../db/seed";
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { RootWebShell } from "../../../ui/RootWebShell";
+import { listCalendarPauses } from "../../../api/holiday-decisions";
 
 let mockOrganization: { id: string; role_level?: number } = { id: "org-a" };
 let mockGeneration = 1;
 let mockParams: Record<string, string> = { targetDate: "2026-10-23", targetClassId: "class-a" };
 let mockPathname = "/prof/calendar";
+let mockQuickEditorPending: Promise<void> | null = null;
 const mockToast = jest.fn();
 const mockCalendarPush = jest.fn();
 const mockCalendarSetParams = jest.fn((params: Record<string, string>) => { mockParams = { ...mockParams, ...params }; });
+const mockClassDetails = jest.fn();
+const mockEventEditor = jest.fn();
 const mockColors = new Proxy({}, { get: () => "#334455" });
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockCalendarPush, replace: jest.fn(), setParams: mockCalendarSetParams }), useRoute: () => ({ key: "calendar-public-origin-key", name: "calendar", params: mockParams }), useNavigationContainerRef: () => ({ current: { getRootState: () => ({ routes: [] }) } }), usePathname: () => mockPathname, useLocalSearchParams: () => mockParams }));
 jest.mock("../../../hooks/use-effective-profile", () => ({ useEffectiveProfile: () => "professor" }));
@@ -25,14 +29,18 @@ jest.mock("../../../db/client", () => ({ getReadCacheGeneration: () => mockGener
 jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ activeOrganization: mockOrganization }) }));
 jest.mock("../../../db/training", () => ({ getCalendarTrainingPlanApplications: jest.fn(), getTrainingPlanSummaries: jest.fn(), getTrainingPlanById: jest.fn() }));
 jest.mock("../../../db/seed", () => ({ getClasses: jest.fn(), getTrainingPlans: jest.fn(), getLatestTrainingPlanByClass: jest.fn(), saveTrainingPlan: jest.fn() }));
-jest.mock("../../../api/holiday-decisions", () => ({ listCalendarPauses: async () => [] }));
+jest.mock("../../../api/holiday-decisions", () => ({ listCalendarPauses: jest.fn(async () => []) }));
 jest.mock("../../../api/events", () => ({ listEvents: async () => [] }));
 // Substitute only the async chunk transport; exercise the real calendar action/date flow.
 jest.mock("react", () => {
  const runtime = jest.requireActual("react");
  return { ...runtime, lazy: (factory: () => Promise<unknown>) => {
   if (!String(factory).includes("CalendarEventEditor")) return runtime.lazy(factory);
-  return ({ date }: { date: string }) => runtime.createElement(jest.requireActual("react-native").Text, null, `Editor ${date}`);
+  return (props: { date: string }) => {
+   mockEventEditor(props);
+   if (mockQuickEditorPending) throw mockQuickEditorPending;
+   return runtime.createElement(jest.requireActual("react-native").Text, null, `Editor ${props.date}`);
+  };
  } };
 });
 jest.mock("../../../observability/perf", () => ({ markRender: () => undefined, measureAsync: (_name: string, load: () => Promise<unknown>) => load() }));
@@ -59,6 +67,17 @@ jest.mock("../CalendarEventSheet", () => {
   const runtimeReact = jest.requireActual("react");
   return { CalendarEventSheet: ({ header, children, footer }: { header: React.ReactNode; children: React.ReactNode; footer: React.ReactNode }) => runtimeReact.createElement(runtimeReact.Fragment, null, header, children, footer) };
 });
+jest.mock("../CalendarClassDetails", () => {
+ const ReactRuntime = jest.requireActual("react"), { View, Text, Pressable } = jest.requireActual("react-native");
+ return { CalendarClassDetails: (props: { classGroup: ClassGroup; timeLabel: string; onClose: () => void; onOpenClass: () => void }) => {
+  mockClassDetails(props);
+  return ReactRuntime.createElement(View, { testID: "calendar-class-details" },
+   ReactRuntime.createElement(Text, { accessibilityRole: "header" }, props.classGroup.name),
+   ReactRuntime.createElement(Text, null, props.timeLabel),
+   ReactRuntime.createElement(Pressable, { accessibilityLabel: "Voltar à agenda", onPress: props.onClose }, ReactRuntime.createElement(Text, null, "Voltar à agenda")),
+   ReactRuntime.createElement(Pressable, { accessibilityLabel: "Ir para a turma", onPress: props.onOpenClass }, ReactRuntime.createElement(Text, null, "Ir para a turma")));
+ } };
+});
 jest.mock("../useEventSheetGesture", () => ({ useCalendarWheel: () => undefined, useEventSheetGesture: () => ({ interacting: false, progress: 0, nativeMotion: null, wheel: jest.fn() }) }));
 
 const classGroup = (id: string, name: string, unit = "Centro", ageBand = "12-14"): ClassGroup => ({
@@ -81,6 +100,8 @@ beforeEach(() => {
   mockGeneration = 1;
   mockParams = { targetDate: "2026-10-23", targetClassId: "class-a" };
   mockPathname = "/prof/calendar";
+  mockQuickEditorPending = null;
+  jest.mocked(listCalendarPauses).mockResolvedValue([]);
   jest.mocked(getClasses).mockResolvedValue(classes);
   jest.mocked(getCalendarTrainingPlanApplications).mockResolvedValue([]);
   jest.mocked(getTrainingPlanSummaries).mockResolvedValue([summary]);
@@ -111,7 +132,10 @@ test("web agenda carries the public focused calendar leaf key into the class ori
   try {
     const view=render(React.createElement(CalendarScreen));await flush();
     fireEvent.press(view.getByText("Turma Alfa"));
-    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({pathname:"/class/[id]",params:expect.objectContaining({id:"class-a",calendarSource:"prof",calendarDate:"2026-10-23",calendarOriginKey:"calendar-public-origin-key"})}));
+    expect(mockCalendarPush).not.toHaveBeenCalled();
+    expect(view.getByRole("header", { name: "Turma Alfa" })).toBeTruthy();
+    fireEvent.press(view.getByLabelText("Ir para a turma"));
+    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({pathname:"/class/[id]",params:expect.objectContaining({id:"class-a",date:"2026-10-23",calendarSource:"prof",calendarDate:"2026-10-23",calendarOriginKey:"calendar-public-origin-key"})}));
   } finally {Object.defineProperty(Platform,"OS",original);}
 });
 
@@ -136,7 +160,9 @@ test.each([false, true])("restores the clicked day across the real shared shell 
     }
     expect(view.getByRole("header", { name: "27 de outubro" })).toBeTruthy();
     fireEvent.press(view.getByText("Turma 002"));
-    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ calendarDate: "2026-10-27", calendarOriginKey: "calendar-public-origin-key" }) }));
+    expect(mockCalendarPush).not.toHaveBeenCalled();
+    fireEvent.press(view.getByLabelText("Ir para a turma"));
+    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ date: "2026-10-27", calendarDate: "2026-10-27", calendarOriginKey: "calendar-public-origin-key" }) }));
 
     // RootWebShell changes Fragment → AppShell on a shared class route. The
     // navigator can preserve the route key while its screen remounts underneath.
@@ -167,12 +193,90 @@ test.each(["android", "ios"])("%s keeps the existing unit parameters and agenda 
     expect(mockCalendarSetParams).toHaveBeenCalledWith({ unit: "Centro" });
     mockCalendarSetParams.mockClear();
     fireEvent.press(view.getByText("Turma Alfa"));
+    expect(mockCalendarPush).not.toHaveBeenCalled();
+    fireEvent.press(view.getByLabelText("Ir para a turma"));
     expect(mockCalendarSetParams).not.toHaveBeenCalled();
-    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ calendarSource: "prof", calendarDate: "2026-10-23", calendarUnit: "Centro" }) }));
+    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ date: "2026-10-23", calendarSource: "prof", calendarDate: "2026-10-23", calendarUnit: "Centro" }) }));
     expect(mockCalendarPush.mock.calls[0][0].params).not.toHaveProperty("calendarOriginKey");
   } finally {
     Object.defineProperty(Platform, "OS", originalOS);
   }
+});
+
+test("closing lesson details stays in the calendar and invalidates its old navigation action", async () => {
+  const view = render(React.createElement(CalendarScreen)); await flush();
+  fireEvent.press(view.getByLabelText("Selecionar unidade Centro"));
+  const paramsBeforeOpen = { ...mockParams };
+  fireEvent.press(view.getByText("Turma Alfa"));
+  const oldOpen = mockClassDetails.mock.calls.at(-1)![0].onOpenClass;
+  expect(mockClassDetails.mock.calls.at(-1)![0]).toMatchObject({ date: "2026-10-23", timeLabel: "14:00 - 15:00", unitLabel: "Centro" });
+  fireEvent.press(view.getByLabelText("Voltar à agenda"));
+  expect(view.queryByTestId("calendar-class-details")).toBeNull();
+  act(() => oldOpen());
+  expect(mockCalendarPush).not.toHaveBeenCalled();
+  expect(mockParams).toEqual(paramsBeforeOpen);
+  expect(saveTrainingPlan).not.toHaveBeenCalled();
+});
+
+test("a workspace round trip cannot reopen or navigate an old lesson detail", async () => {
+  const view = render(React.createElement(CalendarScreen)); await flush();
+  fireEvent.press(view.getByText("Turma Alfa"));
+  const oldOpen = mockClassDetails.mock.calls.at(-1)![0].onOpenClass;
+  mockOrganization = { id: "org-b" };
+  view.rerender(React.createElement(CalendarScreen)); await flush();
+  expect(view.queryByTestId("calendar-class-details")).toBeNull();
+  mockOrganization = { id: "org-a" };
+  view.rerender(React.createElement(CalendarScreen)); await flush();
+  expect(view.queryByTestId("calendar-class-details")).toBeNull();
+  act(() => oldOpen());
+  expect(mockCalendarPush).not.toHaveBeenCalled();
+});
+
+test("coordination opens class details and keeps the shared origin when entering the class", async () => {
+  mockPathname = "/coord/calendar";
+  const view = render(React.createElement(CalendarScreen)); await flush();
+  fireEvent.press(view.getByText("Turma Alfa"));
+  expect(mockCalendarPush).not.toHaveBeenCalled();
+  fireEvent.press(view.getByLabelText("Ir para a turma"));
+  expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/class/[id]", params: expect.objectContaining({ id: "class-a", date: "2026-10-23", calendarSource: "shared", calendarDate: "2026-10-23", calendarUnit: "Todas" }) }));
+});
+
+test("class settings retain the occurrence and calendar return context", async () => {
+  mockOrganization = { id: "org-a", role_level: 50 };
+  const view = render(React.createElement(CalendarScreen)); await flush();
+  fireEvent.press(view.getByText("Turma Alfa"));
+  act(() => mockClassDetails.mock.calls.at(-1)![0].onOpenClass({ settings: "1", settingsSection: "agenda" }));
+  expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/class/[id]", params: expect.objectContaining({ id: "class-a", date: "2026-10-23", calendarDate: "2026-10-23", calendarUnit: "Todas", settings: "1", settingsSection: "agenda" }) }));
+});
+
+test("a class duplicate opens a fresh linked event draft without navigating or saving", async () => {
+  mockOrganization = { id: "org-a", role_level: 50 };
+  const view = render(React.createElement(CalendarScreen)); await flush();
+  fireEvent.press(view.getByText("Turma Alfa"));
+  const seed = { title: "Cópia", description: "", startDate: "2026-10-23", endDate: "2026-10-23", startTime: "14:00", endTime: "15:00", allDay: false, locationLabel: "Centro", eventType: "treino", sport: "geral", classIds: ["class-a"] };
+  act(() => mockClassDetails.mock.calls.at(-1)![0].onDuplicate(seed)); await flush();
+  expect(view.queryByTestId("calendar-class-details")).toBeNull();
+  expect(mockEventEditor.mock.calls.at(-1)![0]).toMatchObject({ date: seed.startDate, seed });
+  expect(mockEventEditor.mock.calls.at(-1)![0].event).toBeUndefined();
+  expect(mockEventEditor.mock.calls.at(-1)![0].resumeId).toBeUndefined();
+  expect(mockCalendarPush).not.toHaveBeenCalled(); expect(saveTrainingPlan).not.toHaveBeenCalled();
+});
+
+test("confirmed cancellation refreshes scoped pauses and hides only that occurrence", async () => {
+  mockOrganization = { id: "org-a", role_level: 50 };
+  const view = render(React.createElement(CalendarScreen)); await flush();
+  fireEvent.press(view.getByText("Turma Alfa"));
+  jest.mocked(listCalendarPauses).mockResolvedValue([{ class_id: "class-a", date: "2026-10-23" }]);
+  act(() => { const detail = mockClassDetails.mock.calls.at(-1)![0]; detail.onChanged(); detail.onClose(); }); await flush();
+  expect(listCalendarPauses).toHaveBeenCalledTimes(2); expect(listCalendarPauses).toHaveBeenLastCalledWith("org-a");
+  expect(view.queryByText("Turma Alfa")).toBeNull(); expect(view.getByText("Turma Compatível")).toBeTruthy();
+});
+
+test("student lessons keep opening the authorized student plan directly", async () => {
+  const view = render(React.createElement(CalendarScreen, { studentClasses: [classes[0]] })); await flush();
+  fireEvent.press(view.getByText("Turma Alfa"));
+  expect(mockClassDetails).not.toHaveBeenCalled();
+  expect(mockCalendarPush).toHaveBeenCalledWith({ pathname: "/student-plan", params: { classId: "class-a", date: "2026-10-23" } });
 });
 
 test("an incoming target date restores both the displayed month and selected agenda day", async () => {
@@ -298,6 +402,22 @@ test("keeps a quick event draft mounted while filtering the month", async () => 
   fireEvent.press(view.getByLabelText("Pesquisar na agenda"));
   fireEvent.changeText(view.getByLabelText("Pesquisar neste mês"), "Alfa");
   expect(view.getByText("Editor 2026-10-23")).toBeTruthy();
+});
+
+test("keeps the quick bar visible without competing actions while the editor loads", async () => {
+  mockOrganization = { id: "org-a", role_level: 50 };
+  let release!: () => void;
+  mockQuickEditorPending = new Promise(resolve => {
+    release = () => { mockQuickEditorPending = null; resolve(); };
+  });
+  const view = render(React.createElement(CalendarScreen));
+  await flush();
+  fireEvent.press(view.getByLabelText("Adicionar evento rápido"));
+  expect(view.getByLabelText("Adicionar evento rápido")).toBeDisabled();
+  expect(view.getByLabelText("Criar evento com detalhes")).toBeDisabled();
+  await act(async () => release());
+  expect(view.getByText("Editor 2026-10-23")).toBeTruthy();
+  expect(view.queryByLabelText("Criar evento com detalhes")).toBeNull();
 });
 
 test("keeps the calendar visible with a compact indicator during the plan read", async () => {

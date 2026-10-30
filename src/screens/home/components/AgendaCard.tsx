@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";

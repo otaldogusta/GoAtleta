@@ -1,12 +1,5 @@
-import {
-  AccessibilityInfo,
-  Animated,
-  Platform,
-  type StyleProp,
-  Text,
-  View,
-  type ViewStyle,
-} from "react-native";
+import { AccessibilityInfo, Animated, Platform, type StyleProp, View, type ViewStyle } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { radius } from "../theme/tokens";

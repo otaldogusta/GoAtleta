@@ -1,7 +1,8 @@
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Animated, AppState, PanResponder, Platform, ScrollView, Text, View } from "react-native";
+import { Animated, AppState, PanResponder, Platform, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -15,13 +16,14 @@ import { getClassById } from "../../db/seed";
 import { useStudentProfilePhoto } from "../../hooks/use-student-profile-photo";
 import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { getNotifications, subscribeNotifications, type AppNotification } from "../../notificationsInbox";
-import { spacing, radius } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius } from "../../theme/tokens";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useNativeSidebarController } from "../../ui/native-sidebar-controller";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import { StudentAction, studentHighlighted } from "./StudentUi";
 import {
   formatImportantStudentFields,
   getMissingImportantStudentFields,
@@ -232,35 +234,38 @@ export function StudentAthleteHome() {
     openMobileSidebar();
   };
   const rowBorder = { borderBottomWidth: 1, borderBottomColor: colors.border } as const;
+  const rowFeedback = (state: { pressed: boolean }) => ({
+    backgroundColor: studentHighlighted(state) ? colors.secondaryBg : "transparent",
+    opacity: state.pressed ? 0.9 : 1,
+  });
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: layout.isMobile ? 112 : spacing.xxl }}
+        contentContainerStyle={{ paddingBottom: layout.isMobile ? metrics.navigation.height + layout.density.pageGap : layout.density.pageGap }}
         refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } }} tintColor={colors.text} colors={[colors.text]} />}
       >
-        <ResponsivePage variant="dashboard" gap={layout.isMobile ? spacing.xl : spacing.xxl} style={{ paddingTop: spacing.md }}>
+        <ResponsivePage variant="dashboard" gap={layout.density.pageGap} style={{ paddingTop: layout.density.cardPadding }}>
           {loading ? <ScreenLoadingState /> : (
             <>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, minWidth: 0, flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: metrics.gap }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.smallGap, minWidth: 0, flex: 1 }}>
                   {layout.isMobile ? (
                     <Pressable
                       accessibilityLabel="Abrir menu principal"
                       onPress={openMainMenu}
+                      suppressWebHoverFeedback disableWebPressScale
                       style={({ pressed, hovered }: any) => ({
-                        width: 40,
-                        height: 40,
+                        width: metrics.touchTarget,
+                        height: metrics.touchTarget,
                         borderRadius: 12,
-                        backgroundColor: hovered ? colors.secondaryBg : colors.card,
-                        borderWidth: 1,
-                        borderColor: hovered ? colors.primaryBg : colors.border,
+                        backgroundColor: hovered ? colors.secondaryBg : "transparent",
                         alignItems: "center",
                         justifyContent: "center",
                         opacity: pressed ? 0.8 : 1,
                       })}
                     >
-                      <GoAtletaIcon name="align" size={18} color={colors.text} />
+                      <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: radius.internal, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="align" size={metrics.iconSize} color={colors.text} /></View>
                     </Pressable>
                   ) : null}
                   <View style={{ minWidth: 0, flex: 1 }}>
@@ -270,13 +275,15 @@ export function StudentAthleteHome() {
                     <Text numberOfLines={1} style={{ color: colors.muted, fontSize: layout.density.bodyFontSize, marginTop: 2 }}>{todayLabel}</Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                  <Pressable accessibilityLabel="Abrir notificações" onPress={() => router.push("/communications")} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
-                    <GoAtletaIcon name="notifications" size={19} color={colors.primaryText} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.smallGap }}>
+                  <Pressable accessibilityLabel="Abrir notificações" onPress={() => router.push("/communications")} suppressWebHoverFeedback disableWebPressScale style={state => ({ width: metrics.touchTarget, height: metrics.touchTarget, borderRadius: 22, alignItems: "center", justifyContent: "center", ...rowFeedback(state) })}>
+                    <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}><GoAtletaIcon name="notifications" size={metrics.iconSize} color={colors.successText} /></View>
                   </Pressable>
-                  <Pressable accessibilityLabel="Abrir perfil" onPress={() => router.push(getScopedProfilePath("/student/home"))} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
-                    <GoAtletaIcon name="personSolid" size={20} color={colors.text} />
-                    {profilePhotoUri ? <Image source={{ uri: profilePhotoUri }} contentFit="cover" style={{ position: "absolute", inset: 0 }} /> : null}
+                  <Pressable accessibilityLabel="Abrir perfil" onPress={() => router.push(getScopedProfilePath("/student/home"))} suppressWebHoverFeedback disableWebPressScale style={state => ({ width: metrics.touchTarget, height: metrics.touchTarget, borderRadius: 22, alignItems: "center", justifyContent: "center", ...rowFeedback(state) })}>
+                    <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+                      <GoAtletaIcon name="personSolid" size={metrics.iconSize} color={colors.text} />
+                      {profilePhotoUri ? <Image source={{ uri: profilePhotoUri }} contentFit="cover" style={{ position: "absolute", inset: 0 }} /> : null}
+                    </View>
                   </Pressable>
                 </View>
               </View>
@@ -293,29 +300,30 @@ export function StudentAthleteHome() {
                       accessibilityLabel={trainingIndex >= 0 ? `Ver treino de ${day.weekday}, dia ${day.day}` : `Ver ${day.weekday}, dia ${day.day}, sem treino`}
                       accessibilityState={{ selected }}
                       onPress={() => animateToDate(day.key, weekDays.indexOf(day) > selectedDayIndex ? 1 : -1)}
+                      suppressWebHoverFeedback disableWebPressScale
                       style={({ pressed, hovered }: any) => ({
                         flex: 1,
-                        minHeight: 68,
+                        minHeight: metrics.touchTarget,
                         borderRadius: radius.internal,
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: 4,
+                        gap: metrics.smallGap,
                         backgroundColor: selected ? colors.successBg : hovered ? colors.secondaryBg : "transparent",
                         borderWidth: selected ? 1 : 0,
-                        borderColor: colors.primaryBg,
+                        borderColor: colors.successBorder,
                         opacity: pressed ? 0.76 : 1,
                       })}
                     >
                       <Text style={{ color: selected ? colors.success : colors.muted, fontSize: 11, fontWeight: "700" }}>{day.weekday}</Text>
-                      <Text style={{ color: selected ? colors.success : colors.text, fontSize: 16, fontWeight: "800" }}>{day.day}</Text>
+                      <Text style={{ color: selected ? colors.success : colors.text, fontSize: 14, fontWeight: "800" }}>{day.day}</Text>
                     </Pressable>
                   );
                 })}
               </View>
 
               <View style={{ flexDirection: layout.supportsSplitView ? "row" : "column", gap: layout.density.pageGap, alignItems: "stretch" }}>
-                <View style={{ flex: 2, minWidth: 0, gap: spacing.sm }}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: spacing.sm }}>
+                <View style={{ flex: layout.supportsSplitView ? 2 : undefined, minWidth: 0, gap: metrics.gap }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: metrics.gap }}>
                     <Text style={{ color: colors.text, fontSize: layout.density.sectionTitleFontSize, fontWeight: "800" }}>{selectedDateKey === null ? "Próximo treino" : selectedTraining ? "Treino do dia" : "Sem treino"}</Text>
                     <Text style={{ color: colors.muted, fontSize: layout.density.metadataFontSize }}>{weekDays[selectedDayIndex]?.active ? "Hoje" : weekDays[selectedDayIndex]?.weekday ?? ""}</Text>
                   </View>
@@ -333,35 +341,32 @@ export function StudentAthleteHome() {
                       {...trainingPanResponder.panHandlers}
                       accessibilityHint="Arraste para os lados para ver o dia anterior ou seguinte"
                       style={[{
-                        minHeight: 150,
                         borderRadius: radius.container,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
                         padding: layout.density.cardPadding,
-                        gap: spacing.md,
+                        gap: metrics.gap,
                         justifyContent: "center",
                         opacity: cardOpacity,
                         transform: [{ translateX: cardTranslateX }],
                       }, Platform.OS === "web" ? ({ touchAction: "pan-y", userSelect: "none" } as any) : null]}
                     >
                       {selectedTraining ? (
-                        <View style={{ flexDirection: layout.isMobile ? "column" : "row", alignItems: layout.isMobile ? "stretch" : "center", gap: spacing.md }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1, minWidth: 0 }}>
-                            <View style={{ width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}><GoAtletaIcon name="classes" size={24} color={colors.success} /></View>
+                        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: metrics.gap }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap, flex: 1, minWidth: 120 }}>
+                            <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}><GoAtletaIcon name="classes" size={metrics.iconSize} color={colors.success} /></View>
                             <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
                               <Text style={{ color: colors.muted, fontSize: layout.density.metadataFontSize }}>{selectedTraining.timeLabel}</Text>
-                              <Text style={{ color: colors.text, fontSize: layout.density.cardTitleFontSize + 1, fontWeight: "800" }} numberOfLines={1}>{selectedTraining.className}</Text>
+                              <Text style={{ color: colors.text, fontSize: layout.density.cardTitleFontSize, fontWeight: "800" }} numberOfLines={1}>{selectedTraining.className}</Text>
                               <Text style={{ color: colors.muted, fontSize: layout.density.bodyFontSize }} numberOfLines={1}>{selectedTraining.unit}</Text>
                             </View>
                           </View>
-                          <Pressable onPress={openTraining} style={{ minHeight: 44, minWidth: layout.isMobile ? undefined : 132, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
-                            <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Ver detalhes</Text>
-                          </Pressable>
+                          <StudentAction label="Ver detalhes" primary onPress={openTraining} />
                         </View>
                       ) : (
-                        <View style={{ alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
-                          <GoAtletaIcon name="calendar" size={24} color={colors.muted} />
+                        <View style={{ alignItems: "center", justifyContent: "center", gap: metrics.gap }}>
+                          <GoAtletaIcon name="calendar" size={metrics.iconSize} color={colors.muted} />
                           <Text style={{ color: colors.text, fontSize: layout.density.cardTitleFontSize, fontWeight: "700" }}>Nenhum treino neste dia</Text>
                           <Text style={{ color: colors.muted, fontSize: layout.density.metadataFontSize }}>Escolha outro dia ou arraste para o lado.</Text>
                         </View>
@@ -370,23 +375,23 @@ export function StudentAthleteHome() {
                   </View>
                 </View>
 
-                <View style={{ flex: 1, minWidth: 0, gap: 0 }}>
+                <View style={{ flex: layout.supportsSplitView ? 1 : undefined, minWidth: 0, gap: 0 }}>
                   {followingTraining ? (
-                    <Pressable onPress={() => router.push("/student/agenda")} style={[{ minHeight: 68, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 14, paddingHorizontal: spacing.sm, marginVertical: 2, borderRadius: radius.internal }, rowBorder]}>
-                      <GoAtletaIcon name="mainActivity" size={22} color={colors.success} />
+                    <Pressable onPress={() => router.push("/student/agenda")} suppressWebHoverFeedback disableWebPressScale style={state => [{ minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "center", gap: metrics.gap, paddingVertical: metrics.gap, paddingHorizontal: metrics.gap, borderRadius: radius.internal }, rowBorder, rowFeedback(state)]}>
+                      <GoAtletaIcon name="mainActivity" size={metrics.iconSize} color={colors.success} />
                       <View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "800" }}>Depois</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{followingTraining.className} · {followingTraining.startsAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</Text></View>
-                      <GoAtletaIcon name="chevronForward" size={18} color={colors.muted} />
+                      <GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
                     </Pressable>
                   ) : null}
-                  <Pressable onPress={() => router.push("/student/achievements")} style={[{ minHeight: 58, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 14, paddingHorizontal: spacing.sm, marginVertical: 2, borderRadius: radius.internal }, rowBorder]}>
-                    <GoAtletaIcon name="achievements" size={21} color={colors.success} /><Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>Conquistas</Text><GoAtletaIcon name="chevronForward" size={18} color={colors.muted} />
+                  <Pressable onPress={() => router.push("/student/achievements")} suppressWebHoverFeedback disableWebPressScale style={state => [{ minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "center", gap: metrics.gap, paddingVertical: metrics.gap, paddingHorizontal: metrics.gap, borderRadius: radius.internal }, rowBorder, rowFeedback(state)]}>
+                    <GoAtletaIcon name="achievements" size={metrics.iconSize} color={colors.success} /><Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>Conquistas</Text><GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
                   </Pressable>
-                  <Pressable onPress={() => router.push("/communications")} style={[{ minHeight: 58, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 14, paddingHorizontal: spacing.sm, marginVertical: 2, borderRadius: radius.internal }, rowBorder]}>
-                    <GoAtletaIcon name="absenceNotices" size={21} color={colors.success} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>{latestNotification ? latestNotification.title : "Comunicados"}</Text>{latestNotification ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{latestNotification.body}</Text> : null}</View><GoAtletaIcon name="chevronForward" size={18} color={colors.muted} />
+                  <Pressable onPress={() => router.push("/communications")} suppressWebHoverFeedback disableWebPressScale style={state => [{ minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "center", gap: metrics.gap, paddingVertical: metrics.gap, paddingHorizontal: metrics.gap, borderRadius: radius.internal }, rowBorder, rowFeedback(state)]}>
+                    <GoAtletaIcon name="absenceNotices" size={metrics.iconSize} color={colors.success} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>{latestNotification ? latestNotification.title : "Comunicados"}</Text>{latestNotification ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{latestNotification.body}</Text> : null}</View><GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
                   </Pressable>
                   {role === "pending" ? (
-                    <Pressable onPress={() => router.push("/pending")} style={[{ minHeight: 58, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 14, paddingHorizontal: spacing.sm, marginVertical: 2, borderRadius: radius.internal }, rowBorder]}>
-                      <GoAtletaIcon name="organization" size={21} color={colors.success} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>Encontre sua instituição</Text><Text style={{ color: colors.muted, fontSize: 12 }}>Veja equipes e planos disponíveis.</Text></View><GoAtletaIcon name="chevronForward" size={18} color={colors.muted} />
+                    <Pressable onPress={() => router.push("/pending")} suppressWebHoverFeedback disableWebPressScale style={state => [{ minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "center", gap: metrics.gap, paddingVertical: metrics.gap, paddingHorizontal: metrics.gap, borderRadius: radius.internal }, rowBorder, rowFeedback(state)]}>
+                      <GoAtletaIcon name="organization" size={metrics.iconSize} color={colors.success} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>Encontre sua instituição</Text><Text style={{ color: colors.muted, fontSize: 12 }}>Veja equipes e planos disponíveis.</Text></View><GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -399,23 +404,21 @@ export function StudentAthleteHome() {
         visible={!loading && isFocused && shouldGuideProfile && !guidanceDismissed}
         onClose={() => setGuidanceDismissed(true)}
         position="center"
-        cardStyle={{ width: "100%", maxWidth: 440, borderRadius: radius.container, padding: spacing.xl, gap: spacing.md }}
+        cardStyle={{ width: "100%", maxWidth: 440, borderRadius: radius.container, padding: 12, gap: metrics.gap }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}>
-            <GoAtletaIcon name="personSolid" size={20} color={colors.success} />
+          <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}>
+            <GoAtletaIcon name="personSolid" size={metrics.iconSize} color={colors.success} />
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Fechar boas-vindas" onPress={() => setGuidanceDismissed(true)} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" }}>
-            <GoAtletaIcon name="close" size={20} color={colors.muted} />
+            <GoAtletaIcon name="close" size={metrics.iconSize} color={colors.muted} />
           </Pressable>
         </View>
-        <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+        <Text accessibilityRole="header" style={{ color: colors.text, fontSize: metrics.titleFontSize, lineHeight: metrics.titleLineHeight, fontWeight: "800" }}>
           {isNewAccount || role === "pending" ? "Bem-vindo ao Go Atleta" : "Complete seu perfil"}
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 14 }}>{profileGuidance}</Text>
-        <Pressable accessibilityRole="button" onPress={() => { setGuidanceDismissed(true); router.push("/student/profile/settings"); }} style={{ minHeight: 50, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
-          <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 14 }}>Completar perfil</Text>
-        </Pressable>
+        <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight }}>{profileGuidance}</Text>
+        <StudentAction label="Completar perfil" primary onPress={() => { setGuidanceDismissed(true); router.push("/student/profile/settings"); }} />
       </ModalSheet>
     </SafeAreaView>
   );

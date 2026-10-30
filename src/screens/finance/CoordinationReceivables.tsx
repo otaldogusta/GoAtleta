@@ -1,14 +1,7 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -37,7 +30,7 @@ import {
 import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useOrganization } from "../../providers/organization-context";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
 import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../ui/DateInput";
@@ -118,7 +111,7 @@ const createReceivablesStyles = (colors: ThemeColors) =>
     },
     rowTitle: {
       color: colors.text,
-      fontSize: 14,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "900",
     },
     rowMeta: {
@@ -136,7 +129,7 @@ const createReceivablesStyles = (colors: ThemeColors) =>
     },
     rowBalance: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "900",
     },
     rowAction: {
@@ -165,7 +158,7 @@ const createReceivablesStyles = (colors: ThemeColors) =>
     },
     emptyDescription: {
       color: colors.muted,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       textAlign: "center",
     },
   });
@@ -490,7 +483,7 @@ export function ManualPaymentModal({
             }}
           >
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
                 Registrar pagamento
               </Text>
               <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
@@ -512,7 +505,7 @@ export function ManualPaymentModal({
                 opacity: busy ? 0.55 : 1,
               }}
             >
-              <GoAtletaIcon name="close" size={21} color={colors.text} />
+              <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
             </Pressable>
           </View>
 
@@ -535,7 +528,7 @@ export function ManualPaymentModal({
             >
               <View style={{ flexGrow: 1, minWidth: 130, gap: 3 }}>
                 <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Saldo</Text>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
                   {formatMoneyFromCents(outstandingCents)}
                 </Text>
               </View>
@@ -665,7 +658,7 @@ export function ManualPaymentModal({
               >
                 {confirmed ? <GoAtletaIcon name="checkmark" size={16} color={colors.primaryText} /> : null}
               </View>
-              <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              <Text style={{ flex: 1, color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 Confirmo que este valor já foi recebido pela instituição.
               </Text>
             </Pressable>
@@ -934,7 +927,7 @@ function CoordinationReceivablesOrganizationScope() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl }}>
           <GoAtletaIcon name="lock" size={28} color={colors.muted} />
-          <Text style={{ marginTop: 12, color: colors.text, fontSize: 18, fontWeight: "800" }}>
+          <Text style={{ marginTop: 12, color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
             Financeiro restrito
           </Text>
           <Text style={{ marginTop: 5, color: colors.muted, textAlign: "center" }}>

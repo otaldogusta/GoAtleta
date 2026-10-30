@@ -1,4 +1,5 @@
-import { Linking, Text, View } from "react-native";
+import { Linking, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { RegulationUpdate } from "../../api/regulation-updates";
 import { Pressable } from "../../ui/Pressable";

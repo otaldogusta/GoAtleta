@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useRole } from "../../auth/role";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius } from "../../theme/tokens";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 export function FamilyStudentSwitcher() {
   const { colors } = useAppTheme();
+  const layout = useResponsiveLayout("dashboard");
+  const padding = layout.density.cardPadding;
   const {
     familyContexts,
     selectedFamilyStudent,
@@ -25,10 +29,10 @@ export function FamilyStudentSwitcher() {
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          padding: spacing.md,
+          padding,
         }}
       >
-        <Text style={{ color: colors.muted, fontSize: 13 }}>
+        <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>
           Nenhum atleta vinculado a esta conta.
         </Text>
       </View>
@@ -39,27 +43,30 @@ export function FamilyStudentSwitcher() {
     <>
       <View
         style={{
-          width: 40,
-          height: 40,
+          width: metrics.controlHeight,
+          height: metrics.controlHeight,
           borderRadius: radius.full,
           backgroundColor: colors.successBg,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <GoAtletaIcon name="student" size={20} color={colors.successText} />
+        <GoAtletaIcon name="student" size={metrics.iconSize} color={colors.successText} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-          {selectedFamilyStudent.studentName}
-        </Text>
-        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap }}>
+          <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight, fontWeight: "700" }}>
+            {selectedFamilyStudent.studentName}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>{selectedFamilyStudent.relationshipLabel}</Text>
+        </View>
+        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: metrics.metadataFontSize, lineHeight: metrics.metadataLineHeight }}>
           {selectedFamilyStudent.organizationName}
           {selectedFamilyStudent.className ? ` · ${selectedFamilyStudent.className}` : ""}
         </Text>
       </View>
       {familyContexts.length > 1 ? (
-        <GoAtletaIcon name="chevronDown" size={18} color={colors.muted} />
+        <GoAtletaIcon name="chevronDown" size={metrics.secondaryIconSize} color={colors.muted} />
       ) : null}
     </>
   );
@@ -71,32 +78,35 @@ export function FamilyStudentSwitcher() {
           accessibilityLabel="Trocar atleta acompanhado"
           accessibilityState={{ expanded: open }}
           onPress={() => setOpen(true)}
-          style={{
-            minHeight: 58,
+          suppressWebHoverFeedback disableWebPressScale
+          style={state => ({
+            minHeight: metrics.touchTarget,
             borderRadius: radius.card,
             borderWidth: 1,
-            borderColor: colors.border,
+            borderColor: state.pressed || Boolean((state as { hovered?: boolean }).hovered) ? colors.borderStrong : colors.border,
             backgroundColor: colors.card,
-            paddingHorizontal: spacing.md,
+            paddingHorizontal: padding,
+            paddingVertical: metrics.smallGap,
             flexDirection: "row",
             alignItems: "center",
-            gap: spacing.sm,
-          }}
+            gap: metrics.gap,
+          })}
         >
           {content}
         </Pressable>
       ) : (
         <View
           style={{
-            minHeight: 58,
+            minHeight: metrics.touchTarget,
             borderRadius: radius.card,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            paddingHorizontal: spacing.md,
+            paddingHorizontal: padding,
+            paddingVertical: metrics.smallGap,
             flexDirection: "row",
             alignItems: "center",
-            gap: spacing.sm,
+            gap: metrics.gap,
           }}
         >
           {content}
@@ -115,22 +125,20 @@ export function FamilyStudentSwitcher() {
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          padding: spacing.md,
-          gap: spacing.sm,
+          padding,
+          gap: metrics.gap,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: metrics.titleFontSize, fontWeight: "800" }}>
               Trocar atleta
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
-              Selecione quem você quer acompanhar.
             </Text>
           </View>
           <Pressable
             accessibilityLabel="Fechar"
             onPress={() => setOpen(false)}
+            disableWebPressScale
             style={{
               width: 38,
               height: 38,
@@ -139,10 +147,10 @@ export function FamilyStudentSwitcher() {
               justifyContent: "center",
             }}
           >
-            <GoAtletaIcon name="close" size={21} color={colors.text} />
+            <GoAtletaIcon name="close" size={metrics.iconSize} color={colors.text} />
           </Pressable>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: metrics.smallGap }}>
           {familyContexts.map((context) => {
             const selected = context.studentId === selectedFamilyStudent.studentId;
             return (
@@ -155,29 +163,31 @@ export function FamilyStudentSwitcher() {
                     if (changed) setOpen(false);
                   });
                 }}
-                style={{
-                  minHeight: 58,
+                suppressWebHoverFeedback disableWebPressScale
+                style={state => ({
+                  minHeight: metrics.touchTarget,
                   borderRadius: radius.card,
                   borderWidth: 1,
-                  borderColor: selected ? colors.primaryBg : colors.border,
-                  backgroundColor: selected ? colors.successBg : colors.secondaryBg,
-                  paddingHorizontal: spacing.sm,
+                  borderColor: selected ? colors.successBorder : state.pressed || Boolean((state as { hovered?: boolean }).hovered) ? colors.borderStrong : "transparent",
+                  backgroundColor: selected ? colors.successBg : state.pressed || Boolean((state as { hovered?: boolean }).hovered) ? colors.secondaryBg : "transparent",
+                  paddingHorizontal: metrics.gap,
+                  paddingVertical: metrics.smallGap,
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: spacing.sm,
-                }}
+                  gap: metrics.gap,
+                })}
               >
-                <GoAtletaIcon name="student" size={19} color={selected ? colors.successText : colors.text} />
+                <GoAtletaIcon name="student" size={metrics.iconSize} color={selected ? colors.successText : colors.text} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "800" }}>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "800" }}>
                     {context.studentName}
                   </Text>
-                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: metrics.metadataFontSize, marginTop: 2 }}>
                     {context.organizationName}
                   </Text>
                 </View>
                 {selected ? (
-                  <GoAtletaIcon name="checkmarkCircle" size={19} color={colors.successText} />
+                  <GoAtletaIcon name="checkmarkCircle" size={metrics.iconSize} color={colors.successText} />
                 ) : null}
               </Pressable>
             );

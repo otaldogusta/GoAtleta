@@ -1,4 +1,5 @@
-import { Text, TextInput, useWindowDimensions, View } from "react-native";
+import { TextInput, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { TrainingPlanActivity } from "../../../core/models";
 import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
@@ -8,6 +9,7 @@ import { TimeInput } from "../../../ui/TimeInput";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { getPlanningBlockLabel } from "../application/planning-library-bridge";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type Props = {
   blockKey: TrainingPlanBlockKey;
@@ -82,7 +84,7 @@ export function PlanningBlockActivityCards({
             minWidth: 0,
           }}
         >
-          <Text numberOfLines={1} style={{ color: colors.text, fontSize: compact ? 15 : 16, fontWeight: "900" }}>
+          <Text numberOfLines={1} style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
             {getPlanningBlockLabel(blockKey)}
           </Text>
         </View>
@@ -196,7 +198,7 @@ export function PlanningBlockActivityCards({
           }}
         >
           <GoAtletaIcon name="add" size={18} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
             Adicionar atividade
           </Text>
         </Pressable>
@@ -226,7 +228,7 @@ export function PlanningBlockActivityCards({
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text
                     numberOfLines={2}
-                    style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}
+                    style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}
                   >
                     {activity.name || "Atividade sem título"}
                   </Text>

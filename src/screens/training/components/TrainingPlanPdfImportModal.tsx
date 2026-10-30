@@ -1,17 +1,8 @@
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-  type ViewStyle,
-  useWindowDimensions,
-} from "react-native";
+import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, View, type ViewStyle, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { analyzeTrainingPlanPdf } from "../../../api/training-plan-pdf-import";
 import type { TrainingPlan } from "../../../core/models";
@@ -24,6 +15,7 @@ import {
   buildPlanningDraftsFromPdfAnalysis,
   type PlanningPdfAnalysis,
 } from "../application/training-plan-pdf-import";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 const MAX_PDF_BYTES = 6 * 1024 * 1024;
 
@@ -473,7 +465,7 @@ export function TrainingPlanPdfImportModal({
     >
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={[styles.headerIcon, { backgroundColor: colors.successBg }]}>
-          <GoAtletaIcon name="upload" size={20} color={colors.primaryBg} />
+          <GoAtletaIcon name="upload" size={compactUiMetrics.iconSize} color={colors.primaryBg} />
         </View>
         <View style={styles.headerCopy}>
           <Text style={[styles.title, { color: colors.text }]}>Importar plano em PDF</Text>
@@ -555,10 +547,10 @@ export function TrainingPlanPdfImportModal({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 16, overflow: "visible", minHeight: 320 },
-  header: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", gap: 11 },
+  header: { minHeight: 52, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   headerIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   headerCopy: { flex: 1, minWidth: 0 },
-  title: { fontSize: 17, fontWeight: "900" },
+  title: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
   subtitle: { marginTop: 2, fontSize: 12 },
   closeButton: { width: 38, height: 38, borderWidth: 1, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   emptyState: { padding: 18, gap: 10 },
@@ -571,7 +563,7 @@ const styles = StyleSheet.create({
   analysisOrbWrap: { width: 72, height: 72, alignItems: "center", justifyContent: "center" },
   analysisRing: { position: "absolute", width: 70, height: 70, borderRadius: 35, borderWidth: 2 },
   analysisOrb: { width: 52, height: 52, alignItems: "center", justifyContent: "center" },
-  analysisFilename: { width: "100%", maxWidth: 390, paddingHorizontal: 16, fontSize: 14, lineHeight: 19, fontWeight: "900", textAlign: "center" },
+  analysisFilename: { width: "100%", maxWidth: 390, paddingHorizontal: 16, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 19, fontWeight: "900", textAlign: "center" },
   analysisMessageRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   thinkingDots: { flexDirection: "row", alignItems: "center", gap: 3 },
   thinkingDot: { width: 4, height: 4, borderRadius: 2 },
@@ -584,7 +576,7 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 12, lineHeight: 17, textAlign: "center" },
   contextBar: { paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   contextCopy: { flex: 1, minWidth: 0 },
-  contextTitle: { fontSize: 13, fontWeight: "900" },
+  contextTitle: { fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
   contextMeta: { marginTop: 2, fontSize: 11 },
   replaceButton: { minHeight: 34, paddingHorizontal: 11, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   replaceLabel: { fontSize: 11, fontWeight: "800" },
@@ -595,14 +587,14 @@ const styles = StyleSheet.create({
   warningBox: { padding: 11, borderWidth: 1, borderRadius: 10, flexDirection: "row", alignItems: "flex-start", gap: 8 },
   warningText: { flex: 1, fontSize: 11, lineHeight: 16 },
   sectionHeading: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
-  sectionTitle: { fontSize: 14, fontWeight: "900" },
+  sectionTitle: { fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
   sectionSubtitle: { marginTop: 2, fontSize: 11 },
   counter: { fontSize: 12, fontWeight: "900" },
   plansList: { gap: 12 },
   planCard: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
-  planHeader: { minHeight: 62, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  planHeader: { minHeight: 52, padding: 8, flexDirection: "row", alignItems: "center", gap: 8 },
   planHeaderCopy: { flex: 1, minWidth: 0 },
-  planTitle: { fontSize: 13, fontWeight: "900" },
+  planTitle: { fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
   planMeta: { marginTop: 3, fontSize: 10, lineHeight: 14 },
   planWarning: { paddingHorizontal: 12, paddingBottom: 10, fontSize: 10, lineHeight: 14 },
   itemsCard: { borderTopWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
@@ -616,6 +608,6 @@ const styles = StyleSheet.create({
   currentValue: { fontSize: 10, lineHeight: 14 },
   evidence: { fontSize: 9, fontWeight: "700" },
   footerError: { paddingHorizontal: 16, paddingTop: 8 },
-  footer: { minHeight: 66, paddingHorizontal: 16, paddingVertical: 11, borderTopWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
+  footer: { minHeight: 56, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   footerNote: { flex: 1, minWidth: 150, fontSize: 10 },
 });

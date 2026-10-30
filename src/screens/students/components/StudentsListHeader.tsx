@@ -1,5 +1,7 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
 
@@ -27,10 +29,10 @@ export function StudentsListHeaderContent({
         alignItems: "center",
       }}
     >
-      <Text style={{ fontSize: 16, fontWeight: "900", color: colors.textPrimary }}>
+      <Text style={{ fontSize: compactUiMetrics.titleFontSize, fontWeight: "900", color: colors.textPrimary }}>
         Alunos
       </Text>
-      <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+      <Text style={{ color: colors.textMuted, fontSize: compactUiMetrics.metadataFontSize }}>
         {resultCount} resultado(s)
       </Text>
     </View>

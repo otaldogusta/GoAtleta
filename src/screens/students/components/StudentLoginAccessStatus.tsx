@@ -1,4 +1,5 @@
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { Student } from "../../../core/models";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getStudentLoginAccessLabel } from "../application/student-login-access";

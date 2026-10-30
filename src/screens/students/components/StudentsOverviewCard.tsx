@@ -1,4 +1,6 @@
-import { Text, View } from "react-native";
+import { compactUiMetrics } from "../../../theme/tokens";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
 
@@ -38,7 +40,7 @@ export function StudentsOverviewCardContent({
   return (
     <View
       style={{
-        borderRadius: 18,
+        borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
@@ -47,7 +49,7 @@ export function StudentsOverviewCardContent({
       }}
     >
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
           Visão geral
         </Text>
         <Text style={{ color: colors.muted, fontSize: 11 }}>
@@ -85,7 +87,7 @@ function OverviewMetric({
       }}
     >
       <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{value}</Text>
+      <Text style={{ color: colors.text, fontWeight: "800", fontSize: compactUiMetrics.titleFontSize }}>{value}</Text>
     </View>
   );
 }

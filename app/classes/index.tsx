@@ -1,17 +1,8 @@
+import { compactUiMetrics } from "../../src/theme/tokens";
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useNavigationContainerRef, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-    ActivityIndicator,
-    Animated,
-    Easing,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    Vibration,
-    View
-} from "react-native";
+import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, TextInput, Vibration, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { Pressable } from "../../src/ui/Pressable";
@@ -2731,7 +2722,7 @@ export default function ClassesScreen() {
         <View ref={editContainerRef} style={{ flex: 1, minHeight: 0, gap: 12, position: "relative" }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 20 }}>
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={{ fontSize: responsiveLayout.density.pageTitleFontSize, lineHeight: responsiveLayout.density.pageTitleLineHeight, fontWeight: "800", color: colors.text }}>Editar turma</Text>
+              <Text style={{ fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "800", color: colors.text }}>Editar turma</Text>
               <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>{`${editingClass?.name || "Turma"}${editingClass?.unit ? ` · ${editingClass.unit}` : ""}`}</Text>
                 {editGender ? <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.secondaryBg }}><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{editGender === "feminino" ? "Feminino" : editGender === "masculino" ? "Masculino" : "Misto"}</Text></View> : null}

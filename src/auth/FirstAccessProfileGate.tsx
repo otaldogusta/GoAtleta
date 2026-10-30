@@ -1,15 +1,8 @@
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getMyProfilePhoto, setMyProfilePhoto } from "../api/profile-photo";

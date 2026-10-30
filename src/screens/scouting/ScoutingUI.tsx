@@ -1,25 +1,27 @@
 import { useEffect, useLayoutEffect, useRef, type PropsWithChildren } from "react";
-import { Platform, ScrollView, Text, TextInput, View, useWindowDimensions, type TextInputProps } from "react-native";
+import { Platform, ScrollView, TextInput, View, useWindowDimensions, type TextInputProps } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { useModalCardStyle } from "../../ui/use-modal-card-style";
 import { scoutingActionFundamentals } from "../../core/scouting";
+import { compactUiMetrics } from "../../theme/tokens";
 
 export const skillLabel = (id: string) => scoutingActionFundamentals.find(f => f.id === id)?.label ?? id;
 export const shortDate = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 export const amount = (n: number, singular: string, plural = `${singular}s`) => `${n} ${n === 1 ? singular : plural}`;
 export function Copy({ children, muted, title }: PropsWithChildren<{ muted?: boolean; title?: boolean }>) {
   const { colors } = useAppTheme();
-  return <Text style={{ color: muted ? colors.muted : colors.text, fontSize: title ? 18 : muted ? 12 : 14, lineHeight: title ? 25 : 21, fontWeight: title ? "700" : "400" }}>{children}</Text>;
+  return <Text style={{ color: muted ? colors.muted : colors.text, fontSize: title ? compactUiMetrics.titleFontSize : muted ? compactUiMetrics.metadataFontSize : compactUiMetrics.bodyFontSize, lineHeight: title ? compactUiMetrics.titleLineHeight : muted ? compactUiMetrics.metadataLineHeight : compactUiMetrics.bodyLineHeight, fontWeight: title ? "700" : "400" }}>{children}</Text>;
 }
 export function Choice({ label, accessibilityLabel, nativeID, selected, disabled, onPress, compact = false }: { label: string; accessibilityLabel?: string; nativeID?: string; selected?: boolean; disabled?: boolean; onPress: () => void; compact?: boolean }) {
   const { colors } = useAppTheme();
   return <Pressable nativeID={nativeID} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} accessibilityState={{ selected: !!selected, disabled: !!disabled }} disabled={disabled} onPress={onPress}
     style={{ maxWidth: "100%", flexShrink: 1, minHeight: compact ? 38 : 44, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1,
       borderColor: selected ? colors.primaryBg : colors.border, backgroundColor: selected ? colors.secondaryBg : "transparent", opacity: disabled ? .55 : 1, justifyContent: "center" }}>
-    <Text style={{ color: colors.text, fontSize: 14, fontWeight: selected ? "700" : "400" }}>{label}</Text>
+    <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: selected ? "700" : "400" }}>{label}</Text>
   </Pressable>;
 }
 export function Link({ label, onPress, disabled, selected, icon }: { label: string; onPress: () => void; disabled?: boolean; selected?: boolean; icon?: React.ComponentProps<typeof GoAtletaIcon>["name"] }) {
@@ -43,7 +45,7 @@ export function ScoutingModal({ title, subtitle, onClose, children, footer, summ
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
   const card = useModalCardStyle({ maxWidth: compact ? 480 : 640, padding: 0, gap: 0 });
-  const inset = width < 600 ? 16 : 20;
+  const inset = 12;
   const root = useRef<View>(null);
   const closeRef = useRef(onClose);
   useLayoutEffect(() => { closeRef.current = onClose; }, [onClose]);
@@ -68,12 +70,12 @@ export function ScoutingModal({ title, subtitle, onClose, children, footer, summ
   return <ModalSheet visible onClose={onClose} position="center" containerPadding={width < 600 ? 8 : 16}
     cardStyle={[card, { height: compact ? undefined : width < 600 ? height - 16 : Math.min(684, height - 32), maxHeight: height - (width < 600 ? 16 : 32), backgroundColor: colors.surface, paddingBottom: 0, marginBottom: 0, overflow: "hidden" }, Platform.OS === "web" ? { backgroundImage: "none" } as never : null]}>
     <View ref={root} role="dialog" aria-modal={true} accessibilityLabel={title} style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }}>
-      <View style={{ flexDirection: "row", gap: 16, paddingHorizontal: inset, paddingVertical: 16, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
+      <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: inset, paddingVertical: 10, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <View style={{ flex: 1, gap: 3 }}><Copy title>{title}</Copy>{subtitle ? <Copy muted>{subtitle}</Copy> : null}</View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fechar análise" onPress={onClose} style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, justifyContent: "center", alignItems: "center" }}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable>
       </View>
       {summary ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 10 }}>{summary}</View> : null}
-      <ScrollView style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: inset, paddingVertical: compact ? 20 : 12, gap: 14 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+      <ScrollView style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: inset, paddingVertical: 12, gap: 8 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
       {footer ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 8, gap: 4, borderTopWidth: 1, borderTopColor: colors.border }}>{footer}</View> : null}
     </View>
   </ModalSheet>;

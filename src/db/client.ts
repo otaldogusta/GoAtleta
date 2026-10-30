@@ -131,15 +131,18 @@ export const supabaseRequest = async (
   body?: unknown,
   extraHeaders?: Record<string, string>,
   expectedIdentity?: SessionIdentity,
+  assertContextCurrent?: () => void,
 ) => {
   // Capture identity before any token refresh or asynchronous retry. A request
   // started by A may never be retried using B's session.
   const initialIdentity = expectedIdentity ?? getSessionIdentity();
   const requestCacheGeneration = cacheGeneration;
   const assertRequestContext = (identity: SessionIdentity) => {
+    assertContextCurrent?.();
     assertSessionIdentity(identity);
     if (requestCacheGeneration !== cacheGeneration) throw new SessionIdentityChangedError();
   };
+  assertRequestContext(initialIdentity);
   let token = await getValidAccessToken();
   const identity = initialIdentity.userId ? initialIdentity : getSessionIdentity();
   assertRequestContext(identity);
@@ -242,8 +245,9 @@ export const supabasePost = async <T>(
   body: unknown,
   extraHeaders?: Record<string, string>,
   identity?: SessionIdentity,
+  assertContextCurrent?: () => void,
 ) => {
-  const text = await supabaseRequest("POST", path, body, extraHeaders, identity);
+  const text = await supabaseRequest("POST", path, body, extraHeaders, identity, assertContextCurrent);
   if (!text) return [] as T;
   return safeJsonParse<T>(text, [] as T);
 };

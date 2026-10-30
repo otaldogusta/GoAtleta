@@ -2,7 +2,8 @@ import { markRender } from "../src/observability/perf";
 // perf-check: ignore-measure -- preference loading belongs to the instrumented WhatsAppSettingsProvider.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
@@ -13,6 +14,7 @@ import {
   hasWhatsAppEmbeddedSignupParams,
   parseWhatsAppEmbeddedSignupResult,
 } from "../src/integrations/whatsapp/embedded-signup-result";
+import { compactUiMetrics } from "../src/theme/tokens";
 
 export default function WhatsAppSettingsScreen() {
   markRender("screen.whatsappSettings.render.root");
@@ -65,7 +67,7 @@ export default function WhatsAppSettingsScreen() {
           >
             <Text
               style={{
-                fontSize: 14,
+                fontSize: compactUiMetrics.bodyFontSize,
                 fontWeight: "700",
                 color: embeddedSignupResult.kind === "returned" ? "#2E7D32" : "#E65100",
               }}
@@ -104,10 +106,10 @@ export default function WhatsAppSettingsScreen() {
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              <Text style={{ fontSize: compactUiMetrics.titleFontSize, fontWeight: "700", color: colors.text }}>
                 Mensagem padrão
               </Text>
-              <Text style={{ fontSize: 13, color: colors.muted }}>
+              <Text style={{ fontSize: compactUiMetrics.bodyFontSize, color: colors.muted }}>
                 Inclui mensagem automática ao abrir WhatsApp
               </Text>
             </View>
@@ -182,7 +184,7 @@ export default function WhatsAppSettingsScreen() {
         >
           <Text
             style={{
-              fontSize: 13,
+              fontSize: compactUiMetrics.bodyFontSize,
               fontWeight: "600",
               color: defaultMessageEnabled ? "#2E7D32" : "#E65100",
             }}

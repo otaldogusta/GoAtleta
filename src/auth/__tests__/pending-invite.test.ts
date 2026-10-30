@@ -332,6 +332,24 @@ describe("pending invite storage", () => {
       })
     ).toBe(true);
   });
+
+  test.each(["/platform", "/platform/accesses", "/platform/institutions/qa"])(
+    "keeps a separately authorized platform administrator on %s without an institutional role",
+    pathname => {
+      const entry = { hasSession: true, role: "pending", pathname, isInviteRoute: false };
+      expect(shouldRedirectPendingRole({ ...entry, hasPlatformAccess: true })).toBe(false);
+      expect(shouldRedirectPendingRole({ ...entry, hasPlatformAccess: false })).toBe(true);
+    },
+  );
+
+  test.each(["/coord/dashboard", "/prof/home", "/platform-untrusted"])(
+    "does not use platform access to grant the pending account the %s route",
+    pathname => {
+      expect(shouldRedirectPendingRole({
+        hasSession: true, role: "pending", pathname, isInviteRoute: false, hasPlatformAccess: true,
+      })).toBe(true);
+    },
+  );
 });
 
 describe("post-auth entry continuity", () => {

@@ -1,13 +1,7 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -53,7 +47,7 @@ import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async
 import { markRender, measureAsync } from "../../observability/perf";
 import { navigateBackOrReplace } from "../../navigation/safe-router";
 import { useOrganization } from "../../providers/organization-context";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
@@ -358,9 +352,9 @@ type FinanceDashboardColors = ReturnType<typeof useAppTheme>["colors"];
 const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
   StyleSheet.create({
     summaryMetricCell: {
-      minHeight: 76,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      minHeight: 64,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       justifyContent: "center",
       gap: 4,
       borderColor: colors.border,
@@ -377,7 +371,7 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
       fontWeight: "700",
     },
     summaryMetricValue: {
-      fontSize: 18,
+      fontSize: compactUiMetrics.titleFontSize,
       lineHeight: 22,
       fontWeight: "900",
     },
@@ -411,11 +405,11 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
       fontWeight: "700",
     },
     attentionRow: {
-      minHeight: 58,
+      minHeight: 52,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
@@ -427,7 +421,7 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
     },
     listPrimaryText: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "800",
     },
     listSecondaryText: {
@@ -460,15 +454,15 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
     },
     receiptBreakdownValue: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "900",
     },
     flexSpacer: { flex: 1 },
     payerRow: {
-      minHeight: 62,
+      minHeight: 52,
       borderTopColor: colors.border,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     payerRowFirst: { borderTopWidth: 0 },
     payerRowDivided: { borderTopWidth: 1 },
@@ -510,7 +504,7 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
     },
     detailValue: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       lineHeight: 18,
       fontWeight: "700",
     },
@@ -528,7 +522,7 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
     },
     detailHistoryTitle: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: compactUiMetrics.bodyFontSize,
       fontWeight: "900",
     },
     detailHistoryEntry: {
@@ -750,7 +744,7 @@ function FinanceSummaryStrip({
           >
             Taxa recebida
           </Text>
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
             {receivedRate}%
           </Text>
         </View>
@@ -894,8 +888,8 @@ function FinanceOverviewPanel({
         >
           <View
             style={{
-              minHeight: 58,
-              paddingHorizontal: 16,
+              minHeight: 52,
+              paddingHorizontal: 12,
               flexDirection: "row",
               alignItems: "center",
               gap: 12,
@@ -903,7 +897,7 @@ function FinanceOverviewPanel({
           >
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
-                style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}
               >
                 Precisam de atenção
               </Text>
@@ -978,9 +972,9 @@ function FinanceOverviewPanel({
                 padding: 16,
               }}
             >
-              <GoAtletaIcon name="success" size={24} color={colors.success} />
+              <GoAtletaIcon name="success" size={18} color={colors.success} />
               <Text
-                style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}
+                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}
               >
                 Tudo em dia
               </Text>
@@ -1002,7 +996,7 @@ function FinanceOverviewPanel({
         >
           <View style={{ gap: 3 }}>
             <Text
-              style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}
+              style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}
             >
               Recebimentos do mês
             </Text>
@@ -1082,7 +1076,7 @@ function FinancePayersPanel({
         }}
       >
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}>
             Pagadores
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -1168,7 +1162,7 @@ function FinancePayersPanel({
           >
             <GoAtletaIcon name="family" size={25} color={colors.muted} />
             <Text
-              style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}
+              style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}
             >
               Nenhum pagador vinculado
             </Text>
@@ -1222,11 +1216,11 @@ function InvoiceDetails({
           gap: 8,
         }}
       >
-        <GoAtletaIcon name="receipt" size={24} color={colors.muted} />
+        <GoAtletaIcon name="receipt" size={18} color={colors.muted} />
         <Text
           style={{
             color: colors.text,
-            fontSize: 14,
+            fontSize: compactUiMetrics.bodyFontSize,
             fontWeight: "800",
             textAlign: "center",
           }}
@@ -1278,7 +1272,7 @@ function InvoiceDetails({
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text
             numberOfLines={1}
-            style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}
+            style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}
           >
             {invoice.studentName}
           </Text>
@@ -1299,7 +1293,7 @@ function InvoiceDetails({
               justifyContent: "center",
             }}
           >
-            <GoAtletaIcon name="close" size={20} color={colors.muted} />
+            <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.muted} />
           </Pressable>
         ) : null}
       </View>
@@ -1307,7 +1301,7 @@ function InvoiceDetails({
         <Text
           style={{
             color: colors.text,
-            fontSize: 22,
+            fontSize: 20,
             lineHeight: 27,
             fontWeight: "900",
           }}
@@ -1654,7 +1648,7 @@ function InvoiceList({
                       numberOfLines={1}
                       style={{
                         color: colors.text,
-                        fontSize: 14,
+                        fontSize: compactUiMetrics.bodyFontSize,
                         fontWeight: "900",
                       }}
                     >
@@ -1689,7 +1683,7 @@ function InvoiceList({
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 13,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "900",
                     }}
                   >
@@ -2328,7 +2322,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
             style={{
               marginTop: 12,
               color: colors.text,
-              fontSize: 18,
+              fontSize: compactUiMetrics.titleFontSize,
               fontWeight: "800",
             }}
           >
@@ -2425,7 +2419,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
               <Text
                 style={{
                   color: colors.warningText,
-                  fontSize: 13,
+                  fontSize: compactUiMetrics.bodyFontSize,
                   lineHeight: 19,
                 }}
               >
@@ -2562,7 +2556,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
                         <Text
                           style={{
                             color: colors.text,
-                            fontSize: 17,
+                            fontSize: compactUiMetrics.titleFontSize,
                             fontWeight: "900",
                           }}
                         >
@@ -2657,13 +2651,13 @@ function CoordinationFinanceDashboardOrganizationScope() {
                         >
                           <GoAtletaIcon
                             name="receipt"
-                            size={24}
+                            size={18}
                             color={colors.muted}
                           />
                           <Text
                             style={{
                               color: colors.text,
-                              fontSize: 14,
+                              fontSize: compactUiMetrics.bodyFontSize,
                               fontWeight: "800",
                               textAlign: "center",
                             }}
@@ -2847,13 +2841,13 @@ function CoordinationFinanceDashboardOrganizationScope() {
                       >
                         <GoAtletaIcon
                           name="receipt"
-                          size={24}
+                          size={18}
                           color={colors.muted}
                         />
                         <Text
                           style={{
                             color: colors.text,
-                            fontSize: 14,
+                            fontSize: compactUiMetrics.bodyFontSize,
                             fontWeight: "800",
                             textAlign: "center",
                           }}

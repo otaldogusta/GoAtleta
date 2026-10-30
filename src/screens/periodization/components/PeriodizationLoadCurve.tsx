@@ -9,7 +9,8 @@ import {
   type ComponentProps,
   type ComponentRef,
 } from "react";
-import { Animated, Easing, Text, View } from "react-native";
+import { Animated, Easing, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import Svg, { Defs, LinearGradient, Line, Path, Stop } from "react-native-svg";
 
 import type { VolumeLevel } from "../../../core/periodization-basics";

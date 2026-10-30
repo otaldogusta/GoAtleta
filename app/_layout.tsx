@@ -12,7 +12,8 @@ import { withWebStackHistory } from "../src/navigation/web-stack-history";
 import { StatusBar } from "expo-status-bar";
 import * as Updates from "expo-updates";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, LogBox, Platform, Text, View } from "react-native";
+import { AppState, LogBox, Platform, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { Pressable } from "../src/ui/Pressable";
 
 import * as Sentry from "@sentry/react-native";
@@ -413,7 +414,12 @@ function RootLayoutContent() {
     );
   const platformRouteAccess = resolvePlatformRouteAccess({
     pathname: normalizedPathname,
+    currentRoute:
+      Platform.OS === "web" && typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+        : normalizedPathname,
     hasSession: Boolean(session),
+    authLoading: loading,
     accessLoading: platformAccessLoading,
     hasPlatformAccess,
     authenticatedFallback: appHomeHref,
@@ -772,6 +778,9 @@ function RootLayoutContent() {
       return;
     }
 
+    // A pending platform decision must not fall through to a workspace home.
+    if (platformRouteAccess.blockRender) return;
+
     if (
       session &&
       isPlatformOnlyProfile &&
@@ -813,6 +822,7 @@ function RootLayoutContent() {
         role,
         pathname: normalizedPathname,
         isInviteRoute,
+        hasPlatformAccess,
       })
     ) {
       router.replace(role === "pending" ? "/student/home" : "/pending");
@@ -880,6 +890,7 @@ function RootLayoutContent() {
     hasPlatformAccess,
     platformAccessLoading,
     platformRouteAccess.redirectTo,
+    platformRouteAccess.blockRender,
     appStartedAtRef,
     oauthResolving,
   ]);

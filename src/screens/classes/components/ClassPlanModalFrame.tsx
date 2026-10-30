@@ -1,5 +1,7 @@
+import { compactUiMetrics } from "../../../theme/tokens";
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { ModalSheet } from "../../../ui/ModalSheet";
 
@@ -106,23 +108,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   header: {
-    minHeight: 72,
+    minHeight: 56,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   headerPhone: {
-    minHeight: 60,
+    minHeight: 52,
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 6,
   },
   headerCopy: { flex: 1, minWidth: 0 },
-  title: { fontSize: 19, fontWeight: "800" },
-  titlePhone: { fontSize: 17 },
+  title: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" },
+  titlePhone: { fontSize: compactUiMetrics.titleFontSize },
   subtitle: { marginTop: 3, fontSize: 12 },
   subtitlePhone: { marginTop: 1, fontSize: 11 },
 });

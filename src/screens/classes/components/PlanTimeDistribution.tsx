@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import Svg, { Circle } from "react-native-svg";
 
 import type { ThemeColors } from "../../../ui/app-theme";

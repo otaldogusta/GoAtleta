@@ -3,18 +3,8 @@ import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-    Alert,
-    Animated,
-    Easing,
-    InteractionManager,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    useWindowDimensions,
-    View,
-} from "react-native";
+import { Alert, Animated, Easing, InteractionManager, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
 import {
@@ -3679,7 +3669,7 @@ export function SessionScreen({
             <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
           </Pressable> : resolveResponsiveTier(viewportWidth) !== "mobile" ? <GoAtletaIcon name="document" size={20} color={colors.muted} /> : null}
           <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: resolveResponsiveTier(viewportWidth) === "mobile" ? 20 : 22, lineHeight: 28, fontWeight: "700" }}>Relatório da aula</Text>
+            <Text style={{ color: colors.text, fontSize: 16, lineHeight: 22, fontWeight: "700" }}>Relatório da aula</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>{cls.name} · {sessionDate.split("-").reverse().join("/")}{timeLabel ? ` · ${timeLabel}` : ""}</Text>
           </View>
           <Pressable

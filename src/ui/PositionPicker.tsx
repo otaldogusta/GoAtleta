@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
-import { Platform, Text, TextInput, View, type TextStyle } from "react-native";
+import { Platform, TextInput, View, type TextStyle } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { AnchoredDropdown } from "./AnchoredDropdown";
 import { AnchoredDropdownOption } from "./AnchoredDropdownOption";
 import { useAppTheme } from "./app-theme";

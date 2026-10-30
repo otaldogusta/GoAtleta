@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Animated, Linking, Platform, Pressable, Text, View } from "react-native";
+import { Animated, Linking, Platform, Pressable, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import type { ContextualInsight } from "../../copilot/hooks/useContextualInsight";

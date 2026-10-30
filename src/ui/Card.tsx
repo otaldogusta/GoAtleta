@@ -1,7 +1,8 @@
-import { Text } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { getGlassCardStyle } from "./glass-styles";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 export function Card({
   title,
@@ -18,7 +19,8 @@ export function Card({
     <Pressable
       onPress={onPress}
       style={{
-        padding: 14,
+        padding: 12,
+        minHeight: onPress ? compactUiMetrics.touchTarget : undefined,
         borderRadius: 16,
         overflow: "hidden",
         ...getGlassCardStyle(colors),
@@ -26,7 +28,8 @@ export function Card({
     >
       <Text
         style={{
-          fontSize: 16,
+          fontSize: compactUiMetrics.bodyFontSize,
+          lineHeight: compactUiMetrics.bodyLineHeight,
           fontWeight: "700",
           color: colors.text,
         }}
@@ -35,7 +38,7 @@ export function Card({
       </Text>
       {subtitle ? (
         <Text
-          style={{ color: colors.text, marginTop: 6, opacity: 0.8 }}
+          style={{ color: colors.text, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight, marginTop: 4, opacity: 0.8 }}
         >
           {subtitle}
         </Text>

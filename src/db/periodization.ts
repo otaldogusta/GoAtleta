@@ -2,6 +2,7 @@
 // Class plans + competitive profiles + calendar exceptions domain module
 // ---------------------------------------------------------------------------
 
+import { assertSessionIdentity, getSessionIdentity } from "../auth/session";
 import type {
     ClassCalendarException,
     ClassCalendarExceptionKind,
@@ -567,33 +568,43 @@ export async function deleteClassCompetitiveProfile(
 
 export async function getClassCalendarExceptions(
   classId: string,
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; assertCurrent?: () => void } = {}
 ): Promise<ClassCalendarException[]> {
+  const identity = getSessionIdentity();
+  const assertCurrent = () => { if (options.assertCurrent) { assertSessionIdentity(identity); options.assertCurrent(); } };
   try {
+    assertCurrent();
     const organizationId = await getScopedOrganizationId(
       options.organizationId,
       "getClassCalendarExceptions"
     );
+    assertCurrent();
     if (!organizationId) return [];
     const rows = await supabaseGet<ClassCalendarExceptionRow[]>(
       `/class_calendar_exceptions?select=*&class_id=eq.${encodeURIComponent(
         classId
-      )}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.asc`
+      )}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.asc`,
+      options.assertCurrent ? identity : undefined,
     );
+    assertCurrent();
     const mapped = rows.map(mapClassCalendarExceptionRow);
     const cache =
       (await readCache<Record<string, ClassCalendarException[]>>(
         CACHE_KEYS.classCalendarExceptions
       )) ?? {};
+    assertCurrent();
     cache[classId] = mapped;
     await writeCache(CACHE_KEYS.classCalendarExceptions, cache);
+    assertCurrent();
     return mapped;
   } catch (error) {
+    assertCurrent();
     if (isMissingRelation(error, "class_calendar_exceptions")) return [];
     if (isNetworkError(error)) {
       const cache = await readCache<Record<string, ClassCalendarException[]>>(
         CACHE_KEYS.classCalendarExceptions
       );
+      assertCurrent();
       if (cache && cache[classId]) return cache[classId];
     }
     throw error;
@@ -602,12 +613,16 @@ export async function getClassCalendarExceptions(
 
 export async function saveClassCalendarException(
   item: ClassCalendarException,
-  options?: { organizationId?: string | null }
+  options?: { organizationId?: string | null; assertCurrent?: () => void }
 ) {
+  const identity = getSessionIdentity();
+  const assertCurrent = () => { assertSessionIdentity(identity); options?.assertCurrent?.(); };
+  assertCurrent();
   const organizationId = await getScopedOrganizationId(
     options?.organizationId ?? item.organizationId,
     "saveClassCalendarException"
   );
+  assertCurrent();
   if (!organizationId) {
     throw new Error("Organizacao ativa nao encontrada.");
   }
@@ -626,8 +641,11 @@ export async function saveClassCalendarException(
     ],
     {
       Prefer: "resolution=merge-duplicates",
-    }
+    },
+    identity,
+    assertCurrent,
   );
+  assertCurrent();
 }
 
 export async function deleteClassCalendarException(

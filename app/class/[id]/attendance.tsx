@@ -6,16 +6,8 @@ import {
     useRef,
     useState
 } from "react";
-import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Text,
-    TextInput,
-    View
-} from "react-native";
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../../src/ui/Pressable";
 

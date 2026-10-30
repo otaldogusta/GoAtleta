@@ -1,7 +1,9 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { useAppTheme } from "./app-theme";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 import { getUnitPalette } from "./unit-colors";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 interface UnitFilterBarProps {
   units: string[];
@@ -33,7 +35,10 @@ export function UnitFilterBar({ units, selectedUnit, onSelectUnit, showLabel = t
               key={unit}
               onPress={() => onSelectUnit(unit)}
               style={{
-                paddingVertical: 7,
+                minHeight: compactUiMetrics.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 6,
                 paddingHorizontal: 11,
                 borderRadius: 999,
                 backgroundColor: active ? palette.bg : colors.secondaryBg,

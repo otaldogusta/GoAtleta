@@ -6,6 +6,7 @@ module.exports = {
   preset: "jest-expo",
   cacheDirectory: "<rootDir>/.tmp/validation/jest",
   testMatch: ["**/__tests__/**/*.test.ts"],
+  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/[.]tmp/"],
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   moduleNameMapper: {
     "^expo-modules-core$": "<rootDir>/node_modules/expo-modules-core",

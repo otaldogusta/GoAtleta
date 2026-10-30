@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { Pressable } from "./Pressable";
 
 import { useAppTheme } from "./app-theme";
@@ -7,6 +8,20 @@ import { GoAtletaIcon } from "./icon-registry";
 import { ModalSheet } from "./ModalSheet";
 
 type ViewMode = "day" | "month" | "year";
+
+const parseIsoDate = (value: string) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const local = new Date(year, month - 1, day);
+    return Number.isNaN(local.getTime()) ? null : local;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 export function DatePickerModal({
   visible,
@@ -16,6 +31,7 @@ export function DatePickerModal({
   closeOnSelect = false,
   closeOnMonthYearSelect = false,
   initialViewMode = "day",
+  inline = false,
 }: {
   visible: boolean;
   value: string;
@@ -24,12 +40,17 @@ export function DatePickerModal({
   closeOnSelect?: boolean;
   closeOnMonthYearSelect?: boolean;
   initialViewMode?: ViewMode;
+  inline?: boolean;
 }) {
   const { colors } = useAppTheme();
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    if (!inline) return new Date();
+    const base = parseIsoDate(value) ?? new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const [viewMode, setViewMode] = useState<ViewMode>(inline ? initialViewMode : "day");
   const [yearPageStart, setYearPageStart] = useState(
-    Math.floor(new Date().getFullYear() / 12) * 12
+    () => Math.floor((inline ? (parseIsoDate(value) ?? new Date()) : new Date()).getFullYear() / 12) * 12
   );
   const wasVisible = useRef(false);
 
@@ -56,27 +77,13 @@ export function DatePickerModal({
     return `${y}-${m}-${d}`;
   };
 
-  const parseIsoDate = (value: string) => {
-    if (!value) return null;
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) {
-      const year = Number(match[1]);
-      const month = Number(match[2]);
-      const day = Number(match[3]);
-      const local = new Date(year, month - 1, day);
-      return Number.isNaN(local.getTime()) ? null : local;
-    }
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  };
-
-  const getCalendarDays = (year: number, month: number) => {
+  const getCalendarDays = (year: number, month: number, includeAdjacent: boolean) => {
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells: { date: Date | null }[] = [];
     for (let i = 0; i < 42; i += 1) {
       const dayNumber = i - firstDay + 1;
-      if (dayNumber < 1 || dayNumber > daysInMonth) {
+      if (!includeAdjacent && (dayNumber < 1 || dayNumber > daysInMonth)) {
         cells.push({ date: null });
       } else {
         cells.push({ date: new Date(year, month, dayNumber) });
@@ -107,8 +114,8 @@ export function DatePickerModal({
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
-    return getCalendarDays(year, month);
-  }, [calendarMonth]);
+    return getCalendarDays(year, month, inline);
+  }, [calendarMonth, inline]);
 
   const selectDate = (date: Date) => {
     onChange(formatIsoDate(date));
@@ -122,20 +129,15 @@ export function DatePickerModal({
     setViewMode("day");
   };
 
-  return (
-    <ModalSheet
-      visible={visible}
-      onClose={onClose}
-      position="center"
-      cardStyle={{
-        width: "100%",
-        maxWidth: 440,
-        backgroundColor: colors.card,
-        borderRadius: 18,
-        padding: 14,
-        gap: 8,
-      }}
-    >
+  const inlineTitle = viewMode === "year"
+    ? `${yearPageStart}–${yearPageStart + 11}`
+    : viewMode === "month"
+      ? String(calendarMonth.getFullYear())
+      : `${monthNames[calendarMonth.getMonth()]} de ${calendarMonth.getFullYear()}`;
+  const inlineTitleAction = viewMode === "day" ? "Selecionar mês" : viewMode === "month" ? "Selecionar ano" : "Mostrar dias do mês";
+
+  const content = (
+    <>
           <View
             style={{
               flexDirection: "row",
@@ -145,6 +147,8 @@ export function DatePickerModal({
             }}
           >
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={viewMode === "day" ? "Mês anterior" : viewMode === "month" ? "Ano anterior" : "12 anos anteriores"}
               onPress={() => {
                 if (viewMode === "day") {
                   setCalendarMonth(
@@ -180,7 +184,18 @@ export function DatePickerModal({
                 flexWrap: "wrap",
               }}
             >
-              <Pressable
+              {inline ? <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${inlineTitleAction}: ${inlineTitle}`}
+                suppressWebHoverFeedback
+                onPress={() => setViewMode(current => current === "day" ? "month" : current === "month" ? "year" : "day")}
+                style={{ minHeight: 40, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}
+              >
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>{inlineTitle}</Text>
+                <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
+              </Pressable> : <><Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ir para hoje"
                 onPress={goToday}
                 style={{
                   paddingVertical: 6,
@@ -204,6 +219,8 @@ export function DatePickerModal({
                 </Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Selecionar mês"
                 onPress={() => setViewMode("month")}
                 style={{
                   paddingVertical: 6,
@@ -236,6 +253,8 @@ export function DatePickerModal({
                 </Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Selecionar ano"
                 onPress={() => setViewMode("year")}
                 style={{
                   paddingVertical: 6,
@@ -266,9 +285,11 @@ export function DatePickerModal({
                 >
                   {calendarMonth.getFullYear()}
                 </Text>
-              </Pressable>
+              </Pressable></>}
             </View>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={viewMode === "day" ? "Próximo mês" : viewMode === "month" ? "Próximo ano" : "Próximos 12 anos"}
               onPress={() => {
                 if (viewMode === "day") {
                   setCalendarMonth(
@@ -327,10 +348,24 @@ export function DatePickerModal({
                     cell.date && formatIsoDate(cell.date) === value;
                   const isToday =
                     cell.date && formatIsoDate(cell.date) === todayIso;
+                  const outsideMonth = cell.date && cell.date.getMonth() !== calendarMonth.getMonth();
+                  const number = <Text
+                    style={{
+                      color: cell.date
+                        ? (isSelected ? colors.primaryText : colors.text)
+                        : "transparent",
+                      fontSize: 12,
+                    }}
+                  >{cell.date ? cell.date.getDate() : ""}</Text>;
                   return (
                     <Pressable
                       key={`${cell.date ? cell.date.toISOString() : "empty"}_${index}`}
+                      accessibilityRole={cell.date ? "button" : undefined}
+                      accessibilityLabel={cell.date ? cell.date.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : undefined}
+                      accessibilityState={{ selected: Boolean(isSelected), disabled: !cell.date }}
+                      accessible={Boolean(cell.date)}
                       disabled={!cell.date}
+                      suppressWebHoverFeedback={inline}
                       onPress={() => {
                         if (!cell.date) return;
                         selectDate(cell.date);
@@ -342,25 +377,24 @@ export function DatePickerModal({
                         justifyContent: "center",
                         marginBottom: 4,
                         borderRadius: 18,
-                        backgroundColor: isSelected
+                        backgroundColor: !inline && isSelected
                           ? colors.primaryBg
                           : "transparent",
-                        borderWidth: isToday && !isSelected ? 1 : 0,
-                        borderColor: isToday ? colors.primaryBg : "transparent",
+                        borderWidth: !inline && isToday && !isSelected ? 1 : 0,
+                        borderColor: !inline && isToday ? colors.primaryBg : "transparent",
                       }}
                     >
-                      <Text
-                        style={{
-                          color: cell.date
-                            ? (isSelected
-                                ? colors.primaryText
-                                : colors.text)
-                            : "transparent",
-                          fontSize: 12,
-                        }}
-                      >
-                        {cell.date ? cell.date.getDate() : ""}
-                      </Text>
+                      {inline ? <View style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isSelected ? colors.primaryBg : "transparent",
+                        borderWidth: isToday && !isSelected ? 1 : 0,
+                        borderColor: isToday ? colors.primaryBg : "transparent",
+                        opacity: outsideMonth && !isSelected ? 0.4 : 1,
+                      }}>{number}</View> : number}
                     </Pressable>
                   );
                 })}
@@ -373,6 +407,9 @@ export function DatePickerModal({
                 return (
                   <Pressable
                     key={name}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${name} de ${calendarMonth.getFullYear()}`}
+                    accessibilityState={{ selected: active }}
                     onPress={() => {
                       const nextDate = buildClampedDate(
                         calendarMonth.getFullYear(),
@@ -416,6 +453,9 @@ export function DatePickerModal({
                   return (
                     <Pressable
                       key={year}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ano ${year}`}
+                      accessibilityState={{ selected: active }}
                       onPress={() => {
                         const nextDate = buildClampedDate(
                           year,
@@ -453,7 +493,9 @@ export function DatePickerModal({
               )}
             </View>
           )}
-          <Pressable
+          {!inline ? <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar calendário"
             onPress={onClose}
             style={{
               paddingVertical: 8,
@@ -466,7 +508,23 @@ export function DatePickerModal({
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
-          </Pressable>
-    </ModalSheet>
+          </Pressable> : null}
+    </>
   );
+
+  if (inline) return visible ? <View testID="date-picker-inline" style={{ width: "100%", gap: 8 }}>{content}</View> : null;
+
+  return <ModalSheet
+    visible={visible}
+    onClose={onClose}
+    position="center"
+    cardStyle={{
+      width: "100%",
+      maxWidth: 440,
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 14,
+      gap: 8,
+    }}
+  >{content}</ModalSheet>;
 }

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { renderToString } from "react-dom/server";
 import { NavigationContext } from "expo-router/react-navigation";
-import { Animated, Modal, Platform, TextInput } from "react-native";
+import { Animated, Dimensions, Modal, Platform, StyleSheet, TextInput, type StyleProp, type ViewStyle } from "react-native";
 
 import { ModalSheet } from "../ModalSheet";
 import { createWebPortal } from "../web-portal";
@@ -15,6 +15,7 @@ jest.mock("react-native-safe-area-context", () => ({
 
 const descriptor = (target: object, key: PropertyKey) => Object.getOwnPropertyDescriptor(target, key);
 const originals = {
+  nativeDimensions: Dimensions.get("window"),
   document: descriptor(globalThis, "document"), platform: descriptor(Platform, "OS"),
   scrollY: descriptor(window, "scrollY"), innerWidth: descriptor(window, "innerWidth"),
   getComputedStyle: descriptor(window, "getComputedStyle"), scrollTo: descriptor(window, "scrollTo"),
@@ -52,16 +53,16 @@ const initialBody = {
 };
 const initialHtml = { overflow: "scroll", overscrollBehavior: "auto" };
 const initialRoot = { overflow: "auto", height: "90%", overscrollBehavior: "contain" };
-function Caller({ visible = true }: { visible?: boolean }) {
+function Caller({ visible = true, reduceMotion = false, onExited }: { visible?: boolean; reduceMotion?: boolean; onExited?: () => void }) {
   const [title, setTitle] = useState("Original");
-  return React.createElement(ModalSheet, { visible, onClose: close, cardStyle: {} },
+  return React.createElement(ModalSheet, { visible, reduceMotion, onExited, onClose: close, cardStyle: {} },
     React.createElement(TextInput, { testID: "retained-draft", value: title, onChangeText: setTitle }));
 }
-const contents = (nav?: Nav, visible = true) => nav
-  ? React.createElement(NavigationContext.Provider, { value: nav.nav as never }, React.createElement(Caller, { visible }))
-  : React.createElement(Caller, { visible });
-const mount = (nav?: Nav, visible = true) => act(() => { view = create(contents(nav, visible)); });
-const update = (nav?: Nav, visible = true) => act(() => view!.update(contents(nav, visible)));
+const contents = (nav?: Nav, visible = true, reduceMotion = false, onExited?: () => void) => nav
+  ? React.createElement(NavigationContext.Provider, { value: nav.nav as never }, React.createElement(Caller, { visible, reduceMotion, onExited }))
+  : React.createElement(Caller, { visible, reduceMotion, onExited });
+const mount = (nav?: Nav, visible = true, reduceMotion = false, onExited?: () => void) => act(() => { view = create(contents(nav, visible, reduceMotion, onExited)); });
+const update = (nav?: Nav, visible = true, reduceMotion = false, onExited?: () => void) => act(() => view!.update(contents(nav, visible, reduceMotion, onExited)));
 const emit = (nav: Nav, focused: boolean) => act(() => nav.emit(focused));
 const escape = () => {
   const event = { key: "Escape", preventDefault: jest.fn() };
@@ -87,6 +88,7 @@ beforeEach(() => {
   set(window, "scrollY", 42); set(window, "innerWidth", 1000);
   set(window, "getComputedStyle", jest.fn(() => ({ paddingRight: "4px" })));
   set(window, "scrollTo", jest.fn());
+  Dimensions.set({ window: { width: 1000, height: 800, scale: 1, fontScale: 1 } });
   jest.mocked(createWebPortal).mockImplementation(children => children);
   jest.spyOn(Animated, "timing").mockImplementation((_value, config) => {
     const entry = { config, stop: jest.fn(), finish: undefined as ((result: { finished: boolean }) => void) | undefined };
@@ -96,6 +98,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   act(() => { view?.unmount(); view = undefined; }); jest.restoreAllMocks();
+  Dimensions.set({ window: originals.nativeDimensions });
   restore(globalThis, "document", originals.document); restore(Platform, "OS", originals.platform);
   restore(window, "scrollY", originals.scrollY); restore(window, "innerWidth", originals.innerWidth);
   restore(window, "getComputedStyle", originals.getComputedStyle); restore(window, "scrollTo", originals.scrollTo);
@@ -136,12 +139,74 @@ test("blur removes the portal immediately, releases Escape and scroll locks, and
 
 test("explicit hiding unsubscribes and preserves its normal 180 ms noninteractive exit", () => {
   const nav = navigation(); mount(nav); update(nav, false);
+  expect(timings[0].config.duration).toBe(240);
   expect(nav.cleanups).toHaveLength(2); nav.cleanups.forEach(cleanup => expect(cleanup).toHaveBeenCalledTimes(1));
   expect(nav.handlers.focus.size + nav.handlers.blur.size).toBe(0); expect(keydowns.size).toBe(0); expectUnlocked();
   const exit = timings.find(item => item.config.toValue === 0)!; expect(exit.config.duration).toBe(180);
   expect(view!.root.findAll(node => node.props.pointerEvents === "none").length).toBeGreaterThan(0);
   act(() => exit.finish!({ finished: true })); expect(view!.toJSON()).toBeNull();
   update(nav, true); expect(nav.nav.addListener).toHaveBeenCalledTimes(4); expect(body.style.overflow).toBe("hidden");
+});
+
+test("reduced motion opens fully visible, closes without motion and resets on reopening", () => {
+  const nav = navigation(); mount(nav, true, true);
+  const progress = jest.mocked(Animated.timing).mock.calls[0][0] as unknown as { __getValue: () => number };
+  expect(progress.__getValue()).toBe(1);
+  expect(timings[0].config).toMatchObject({ toValue: 1, duration: 0 });
+  expect(body.style.overflow).toBe("hidden");
+  update(nav, false, true);
+  expect(progress.__getValue()).toBe(0);
+  const exit = timings.find(item => item.config.toValue === 0)!;
+  expect(exit.config.duration).toBe(0);
+  expectUnlocked();
+  act(() => exit.finish!({ finished: true }));
+  expect(view!.toJSON()).toBeNull();
+  update(nav, true, true);
+  expect(progress.__getValue()).toBe(1);
+  expect(timings[timings.length - 1].config).toMatchObject({ toValue: 1, duration: 0 });
+});
+
+test("native reduced motion also suppresses the platform modal fade", () => {
+  set(Platform, "OS", "android"); Reflect.deleteProperty(globalThis, "document");
+  mount(undefined, true, true);
+  expect(view!.root.findByType(Modal).props.animationType).toBe("none");
+  expect(timings[0].config.duration).toBe(0);
+});
+
+test.each([false, true])("onExited uses the current callback exactly once after a completed exit, reduced=%s", reduced => {
+  const nav = navigation(), previous = jest.fn(), latest = jest.fn();
+  mount(nav, true, reduced, previous);
+  expect(previous).not.toHaveBeenCalled();
+  update(nav, false, reduced, previous);
+  const exit = timings.find(item => item.config.toValue === 0)!;
+  update(nav, false, reduced, latest);
+  expect(latest).not.toHaveBeenCalled();
+  expect(exit.stop).not.toHaveBeenCalled();
+  act(() => exit.finish!({ finished: true }));
+  expect(view!.toJSON()).toBeNull();
+  expect(previous).not.toHaveBeenCalled();
+  expect(latest).toHaveBeenCalledTimes(1);
+  act(() => exit.finish!({ finished: true }));
+  expect(latest).toHaveBeenCalledTimes(1);
+});
+
+test("onExited ignores interrupted cleanup, reopening and stale completion after unmount", () => {
+  const nav = navigation(), exited = jest.fn();
+  mount(nav, true, false, exited);
+  update(nav, false, false, exited);
+  const firstExit = timings.find(item => item.config.toValue === 0)!;
+  update(nav, true, false, exited);
+  expect(firstExit.stop).toHaveBeenCalledTimes(1);
+  act(() => firstExit.finish!({ finished: true }));
+  expect(exited).not.toHaveBeenCalled();
+  expect(view!.toJSON()).not.toBeNull();
+  update(nav, false, false, exited);
+  const secondExit = timings[timings.length - 1];
+  act(() => secondExit.finish!({ finished: false }));
+  expect(exited).not.toHaveBeenCalled();
+  act(() => { view!.unmount(); view = undefined; });
+  act(() => secondExit.finish!({ finished: true }));
+  expect(exited).not.toHaveBeenCalled();
 });
 
 test("unmount releases each subscription, animation and scroll state exactly once", () => {
@@ -187,4 +252,103 @@ test("SSR uses the stable visible server snapshot without touching the client na
   expect(renderToString(contents(nav))).toBe("");
   expect(createWebPortal).toHaveBeenCalledTimes(1); expect(nav.nav.isFocused).not.toHaveBeenCalled();
   expect(nav.nav.addListener).not.toHaveBeenCalled(); expect(keydowns.size).toBe(0); expect(timings).toHaveLength(0); expectUnlocked();
+});
+
+type CalendarOptions = { visible?: boolean; reduceMotion?: boolean; onExited?: () => void; position?: "center" | "right"; cardStyle?: StyleProp<ViewStyle> };
+const calendarContents = ({ visible = true, reduceMotion = false, onExited, position = "center", cardStyle = { maxWidth: 440 } }: CalendarOptions = {}, nav?: Nav) => {
+  const sheet = React.createElement(ModalSheet, { visible, reduceMotion, onExited, position, cardStyle, onClose: close, transition: "calendar" },
+    React.createElement(TextInput, { testID: "calendar-draft", value: "Evento" }));
+  return nav ? React.createElement(NavigationContext.Provider, { value: nav.nav as never }, sheet) : sheet;
+};
+const calendarProgress = () => jest.mocked(Animated.timing).mock.calls[0][0] as Animated.Value;
+const progressValue = () => (calendarProgress() as unknown as { __getValue: () => number }).__getValue();
+const cardMotion = () => {
+  const node = view!.root.findAll(item => Array.isArray(item.props.style) && Boolean(StyleSheet.flatten(item.props.style)?.transform))[0];
+  return StyleSheet.flatten(node.props.style) as { opacity: number; transform: { translateX: { __getValue: () => number } }[] };
+};
+
+test("calendar transition keeps the card opaque across intermediate horizontal frames", () => {
+  act(() => { view = create(calendarContents()); });
+  expect(timings[0].config).toMatchObject({ toValue: 1, duration: 260 });
+  const entering = jest.mocked(Animated.timing).mock.calls[0][1];
+  expect(entering.easing!(0.5)).toBeCloseTo(0.875);
+  for (const fraction of [0, 0.25, 0.5, 0.75, 1]) {
+    act(() => calendarProgress().setValue(fraction));
+    const motion = cardMotion();
+    expect(motion.opacity).toBe(1);
+    expect(motion.transform).toHaveLength(1);
+    expect(motion.transform[0].translateX.__getValue()).toBeCloseTo(720 * (1 - fraction));
+  }
+});
+
+test.each([
+  [{ width: 300, maxWidth: 440 }, "center", 650],
+  [{ width: "100%", maxWidth: 440 }, "center", 720],
+  [{ maxWidth: 1400 }, "center", 1000],
+  [{ width: 300 }, "right", 300],
+] as const)("calendar offset follows its card width and viewport limit: %s/%s", (cardStyle, position, expected) => {
+  act(() => { view = create(calendarContents({ cardStyle, position })); });
+  expect(cardMotion().transform[0].translateX.__getValue()).toBe(expected);
+});
+
+test("calendar reversals preserve partial progress and ignore the interrupted exit callback", () => {
+  const exited = jest.fn();
+  act(() => { view = create(calendarContents({ onExited: exited })); });
+  act(() => calendarProgress().setValue(0.6));
+  act(() => view!.update(calendarContents({ visible: false, onExited: exited })));
+  const oldExit = timings[timings.length - 1];
+  expect(oldExit.config).toMatchObject({ toValue: 0, duration: 240 });
+  const exiting = jest.mocked(Animated.timing).mock.calls.at(-1)![1];
+  expect(exiting.easing!(0.5)).toBeCloseTo(0.875);
+  expect(progressValue()).toBe(0.6);
+  act(() => calendarProgress().setValue(0.35));
+  act(() => view!.update(calendarContents({ visible: true, onExited: exited })));
+  expect(progressValue()).toBe(0.35);
+  act(() => oldExit.finish!({ finished: true }));
+  expect(exited).not.toHaveBeenCalled();
+  expect(view!.toJSON()).not.toBeNull();
+  expect(progressValue()).toBe(0.35);
+});
+
+test("calendar holds its scroll lock and pointer barrier until the final exit finishes", () => {
+  const exited = jest.fn();
+  act(() => { view = create(calendarContents({ onExited: exited })); });
+  act(() => calendarProgress().setValue(1));
+  act(() => view!.update(calendarContents({ visible: false, onExited: exited })));
+  expect(body.style.overflow).toBe("hidden");
+  expect(keydowns.size).toBe(0);
+  const backdrop = view!.root.findAll(node => node.props.style?.position === "absolute" && node.props.pointerEvents === "auto")[0];
+  expect(backdrop).toBeTruthy();
+  expect(backdrop.props.onPress).toBeUndefined();
+  const exit = timings[timings.length - 1];
+  act(() => exit.finish!({ finished: true }));
+  expect(view!.toJSON()).toBeNull();
+  expectUnlocked();
+  expect(exited).toHaveBeenCalledTimes(1);
+  act(() => exit.finish!({ finished: true }));
+  expect(exited).toHaveBeenCalledTimes(1);
+  act(() => view!.update(calendarContents({ visible: true, onExited: exited })));
+  expect(progressValue()).toBe(0);
+});
+
+test("calendar resets after route blur but not when reduced motion is turned off while open", () => {
+  const nav = navigation();
+  act(() => { view = create(calendarContents({ reduceMotion: true }, nav)); });
+  expect(progressValue()).toBe(1);
+  expect(timings[0].config.duration).toBe(0);
+  act(() => view!.update(calendarContents({ reduceMotion: false }, nav)));
+  expect(progressValue()).toBe(1);
+  emit(nav, false);
+  expect(view!.toJSON()).toBeNull();
+  expectUnlocked();
+  emit(nav, true);
+  expect(progressValue()).toBe(0);
+  expect(body.style.overflow).toBe("hidden");
+});
+
+test("calendar suppresses the additional native fade without enabling reduced motion", () => {
+  set(Platform, "OS", "android"); Reflect.deleteProperty(globalThis, "document");
+  act(() => { view = create(calendarContents()); });
+  expect(view!.root.findByType(Modal).props.animationType).toBe("none");
+  expect(timings[0].config.duration).toBe(260);
 });

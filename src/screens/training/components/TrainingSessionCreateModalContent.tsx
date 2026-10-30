@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { Alert,  Text, View } from "react-native";
+import { Alert, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
 import { buildTrainingSessionWindow } from "../../../db/training-sessions";
@@ -12,6 +13,7 @@ import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
 import { TrainingAnchoredDropdownOption } from "./TrainingAnchoredDropdownOption";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type TrainingSessionCreatePayload = {
   classIds: string[];
@@ -188,7 +190,7 @@ function TrainingSessionCreateModalContentBase({
           { gap: 8 },
         ]}
       >
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Turmas</Text>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Turmas</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>
           Toque nas turmas que vão treinar juntas.
         </Text>
@@ -227,7 +229,7 @@ function TrainingSessionCreateModalContentBase({
                           <Text
                             style={{
                               color: active ? colors.primaryText : colors.text,
-                              fontSize: 14,
+                              fontSize: compactUiMetrics.bodyFontSize,
                               fontWeight: active ? "700" : "600",
                             }}
                           >
@@ -263,7 +265,7 @@ function TrainingSessionCreateModalContentBase({
           }}
         >
           <View style={{ gap: 2, flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
               Data e horário
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -307,8 +309,8 @@ function TrainingSessionCreateModalContentBase({
           { gap: 8 },
         ]}
       >
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Resumo</Text>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Resumo</Text>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
           {sessionTitle}
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{summaryLabel}</Text>

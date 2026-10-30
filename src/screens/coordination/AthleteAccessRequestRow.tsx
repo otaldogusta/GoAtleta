@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { familyCandidateSchedule } from "../../core/family-candidate-schedule";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { Pressable } from "../../ui/Pressable";
 import { ModalSheet } from "../../ui/ModalSheet";
 import type { OrganizationAccessRequest } from "../../api/organization-access-requests";

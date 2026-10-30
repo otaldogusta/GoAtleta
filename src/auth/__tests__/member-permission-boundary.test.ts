@@ -3,11 +3,13 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import ProfCalendarRoute from "../../../app/prof/calendar";
 import ProfPeriodizationRoute from "../../../app/prof/periodization";
+import { FullscreenLoadingState } from "../../components/ui/FullscreenLoadingState";
 import { OrganizationContext, type Organization, type OrganizationContextValue } from "../../providers/organization-context";
 
 let mockCurrentHref = "";
 const mockRouter = { replace: jest.fn((href: string) => { mockCurrentHref = href; }) };
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
+jest.mock("expo-linear-gradient", () => ({ LinearGradient: "LinearGradient" }));
 jest.mock("../../../app/calendar", () => ({
   __esModule: true,
   default: () => jest.requireActual("react").createElement("protected-calendar"),
@@ -47,6 +49,7 @@ describe.each(routes)("professor $name entry", route => {
   const update = (context: OrganizationContextValue) => { act(() => renderer!.update(element(context))); };
   const expectHiddenWithoutRedirect = () => {
     expect(renderer!.root.findAllByType(route.host)).toHaveLength(0);
+    expect(renderer!.root.findAllByType(FullscreenLoadingState)).toHaveLength(1);
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(mockCurrentHref).toBe(route.href);
   };
@@ -61,6 +64,7 @@ describe.each(routes)("professor $name entry", route => {
     expectHiddenWithoutRedirect();
     update({ ...pending, permissionsLoading: false, memberPermissions: kind === "admin" ? {} : { [route.permissionKey]: true } });
     expect(renderer!.root.findAllByType(route.host)).toHaveLength(1);
+    expect(renderer!.root.findAllByType(FullscreenLoadingState)).toHaveLength(0);
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(mockCurrentHref).toBe(route.href);
   });
@@ -72,6 +76,7 @@ describe.each(routes)("professor $name entry", route => {
     const active = organization();
     update({ ...context, organizations: [active], activeOrganizationId: active.id, activeOrganization: active, isLoading: false, memberPermissions: { [route.permissionKey]: false } });
     expect(renderer!.root.findAllByType(route.host)).toHaveLength(0);
+    expect(renderer!.root.findAllByType(FullscreenLoadingState)).toHaveLength(1);
     expect(mockRouter.replace).toHaveBeenCalledTimes(1);
     expect(mockCurrentHref).toBe("/prof/home");
   });

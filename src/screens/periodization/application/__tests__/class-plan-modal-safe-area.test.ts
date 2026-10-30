@@ -1,8 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import React from "react";
+import { StyleSheet } from "react-native";
+import { render } from "@testing-library/react-native";
 
 import { resolveClassPlanModalSafeAreaPadding } from "../class-plan-modal-safe-area";
-import { isClassPlanPhoneLayout } from "../../../classes/components/ClassPlanModalFrame";
+import { ClassPlanModalHeader, isClassPlanPhoneLayout } from "../../../classes/components/ClassPlanModalFrame";
+import { compactUiMetrics } from "../../../../theme/tokens";
 
 const workspaceSource = readFileSync(
   resolve(__dirname, "../../UnifiedPlanningWorkspace.tsx"),
@@ -65,6 +69,18 @@ describe("class plan fullscreen modal safe area", () => {
     expect(frameSource).toContain('width: "94%"');
     expect(frameSource).toContain('height: "90%"');
     expect(frameSource).toContain("borderRadius: 18");
-    expect(frameSource).toContain("minHeight: 60");
+  });
+
+  it("keeps both rendered headers compact while preserving the minimum touch target", () => {
+    for (const phoneLayout of [false, true]) {
+      const props = { phoneLayout, borderColor: "#334455", textColor: "#ffffff", mutedColor: "#aabbcc", title: "Plano", subtitle: "Turma", children: null };
+      const header = render(React.createElement(ClassPlanModalHeader, props));
+      const tree = header.toJSON();
+      if (!tree || Array.isArray(tree)) throw new Error("Expected a single header frame");
+      const height = StyleSheet.flatten(tree.props.style).minHeight;
+      expect(height).toBeGreaterThanOrEqual(compactUiMetrics.touchTarget);
+      expect(height).toBeLessThanOrEqual(56);
+      header.unmount();
+    }
   });
 });

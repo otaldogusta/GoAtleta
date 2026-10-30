@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { Pressable } from "../../../ui/Pressable";
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     borderWidth: 0,
     borderRadius: 0,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
   },
   selectSlot: {
     flex: 1,
@@ -353,7 +354,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  selectValue: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "800" },
+  selectValue: { flex: 1, minWidth: 0, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" },
   clearButton: {
     minWidth: 132,
     height: 42,

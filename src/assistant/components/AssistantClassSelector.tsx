@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
+import { compactUiMetrics } from "../../theme/tokens";
 
 import type { ClassGroup } from "../../core/models";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
@@ -156,13 +158,13 @@ const styles = StyleSheet.create({
   compactTrigger: { minHeight: 32, borderWidth: 0, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   compactCopy: { flexDirection: "row", alignItems: "center", gap: 7 },
   eyebrow: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4 },
-  selectedLabel: { fontSize: 14, fontWeight: "700" },
+  selectedLabel: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700" },
   compactLabel: { fontSize: 12, fontWeight: "600" },
   inlineSentence: { minHeight: 40, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center" },
-  inlineText: { fontSize: 16, lineHeight: 24 },
+  inlineText: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight },
   inlineAnchor: { alignSelf: "center" },
   inlineClassTrigger: { minHeight: 40, justifyContent: "center" },
-  inlineClass: { fontSize: 16, lineHeight: 24, fontWeight: "600", textDecorationLine: "underline" },
+  inlineClass: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "600", textDecorationLine: "underline" },
   count: { fontSize: 12 },
   options: { padding: 6, gap: 2 },
   option: {
@@ -175,6 +177,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   optionCopy: { flex: 1, minWidth: 0, gap: 2 },
-  optionLabel: { fontSize: 14, fontWeight: "700" },
+  optionLabel: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700" },
   optionMeta: { fontSize: 12 },
 });

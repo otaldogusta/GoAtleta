@@ -1,4 +1,5 @@
-import { Animated, FlatList, Text, TextInput, View } from "react-native";
+import { Animated, FlatList, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
@@ -7,6 +8,7 @@ import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import { CyclePlanTable, type CyclePlanTableProps, type WeekPlan } from "./CyclePlanTable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { compactUiMetrics } from "../../theme/tokens";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
@@ -217,7 +219,7 @@ export function CycleTab({
 
       {!hasWeekPlans ? (
         <View style={getSectionCardStyle(colors, "neutral")}>
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
             {normalizeText("Nenhum ciclo salvo para esta turma.")}
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -242,7 +244,7 @@ export function CycleTab({
 
         >
 
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
 
             {normalizeText("Carga semanal")}
 
@@ -495,7 +497,7 @@ export function CycleTab({
 
         >
 
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
 
             {normalizeText("Agenda do ciclo")}
 

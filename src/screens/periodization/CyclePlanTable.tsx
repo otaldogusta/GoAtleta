@@ -1,13 +1,6 @@
 import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import {
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import {
     getDemandIndexForModel,
@@ -21,7 +14,7 @@ import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
-import { radius } from "../../theme/tokens";
+import { compactUiMetrics, radius } from "../../theme/tokens";
 
 // ── Local helpers (mirror of parent-file helpers) ───────────────────────────
 
@@ -331,13 +324,13 @@ export function CyclePlanTable({
             onPress={openCycleTitleEditor}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
           >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
               {normalizeText(cyclePanelTitle)}
             </Text>
             <GoAtletaIcon name="edit" size={14} color={colors.muted} />
           </Pressable>
         ) : (
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
             {normalizeText(cyclePanelTitle)}
           </Text>
         )}

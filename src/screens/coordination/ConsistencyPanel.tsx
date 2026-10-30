@@ -1,4 +1,5 @@
-import { FlatList, Platform, Text, useWindowDimensions, View } from "react-native";
+import { FlatList, Platform, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import {
   type AdminPendingAttendance,

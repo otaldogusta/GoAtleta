@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { resolveStudentDirectoryStatus } from "../application/student-list-status";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { Pressable } from "../../../ui/Pressable";

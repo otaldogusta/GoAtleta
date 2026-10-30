@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenBackdrop } from "../../../components/ui/ScreenBackdrop";

@@ -46,7 +46,17 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
   de identidade e limpeza de caches antes de publicar o novo contexto.
 - A matriz de rotas é proteção de interface; RLS/RPC/Edge continuam responsáveis por
   negar leitura e escrita indevidas. Alterar somente um redirecionamento é insuficiente.
-- Entradas diretas aguardam organização e permissões, ocultando os filhos sem redirecionar antes de aplicar a decisão final de acesso.
+- Entradas diretas aguardam organização e permissões, ocultando os filhos sem
+  redirecionar antes da decisão final. MemberPermissionBoundary mostra o estado
+  FullscreenLoadingState durante essa espera e o redirecionamento negado; não
+  monta o conteúdo protegido para preencher a área vazia.
+- A rota `/platform` e o prefixo `/platform/` aguardam restauração do Auth e consulta
+  administrativa da sessão/geração atual antes do redirecionamento. Papel
+  institucional `pending` não substitui acesso à Plataforma confirmado nem
+  concede outras rotas. O [refinamento local de 30/10](../../ui/CONSISTENCIA_PLATAFORMA_2026-10-30.md)
+  registra administrador puro, login/reload e negação para Família conferidos
+  localmente. O login conserva destino/query pelo sanitizador existente; não
+  libera destino externo. Limites e um desvio intermediário constam no registro.
 - Links de recuperação/expiração são interceptados no bootstrap. O parâmetro `next`
   passa por [post-login-redirect.ts](../../../src/auth/post-login-redirect.ts), que aceita destinos internos seguros.
 

@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import type { StaffInviteResult, StaffSignupFields } from "../src/api/staff-invite";
 import { refreshStaffSignupSession, resumeStaffSignup, StaffInviteUnavailableError } from "../src/api/staff-invite";
 import SignupScreen from "../src/screens/auth/SignupScreen";
@@ -163,8 +164,8 @@ export default function StaffInviteScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, justifyContent: "center", padding: 24 },
-  block: { width: "100%", maxWidth: 440, alignSelf: "center", gap: 20 },
-  title: { fontSize: 24, fontWeight: "800" },
-  copy: { fontSize: 15, lineHeight: 23 },
+  page: { flexGrow: 1, justifyContent: "center", padding: 16 },
+  block: { width: "100%", maxWidth: 440, alignSelf: "center", gap: 12 },
+  title: { fontSize: 20, lineHeight: 26, fontWeight: "800" },
+  copy: { fontSize: 14, lineHeight: 20 },
 });

@@ -1,8 +1,9 @@
 import { memo } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { Pressable } from "../../../ui/Pressable";
-import { radius, shadow } from "../../../theme/tokens";
+import { compactUiMetrics as metrics, radius, shadow } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { useHorizontalGestureArbitration } from "./horizontal-gesture-arbitration";
 import type { WeekDaySummary } from "./homeScheduleTypes";
@@ -42,7 +43,7 @@ export const WeekDaySelector = memo(function WeekDaySelector({
         gap: 8,
       }}
     >
-        <Text style={{ color: colors.textPrimary, fontSize: mobile ? 15 : compact ? 16 : 17, fontWeight: "900" }}>
+        <Text style={{ color: colors.textPrimary, fontSize: metrics.titleFontSize, fontWeight: "900" }}>
         Agenda da semana
       </Text>
 
@@ -66,8 +67,8 @@ export const WeekDaySelector = memo(function WeekDaySelector({
               onPress={() => onSelect(day.dateKey)}
               style={{
                 flex: 1,
-                minWidth: mobile ? 40 : compact ? 68 : 80,
-                minHeight: mobile ? 58 : 60,
+                minWidth: mobile ? metrics.touchTarget : compact ? 56 : 64,
+                minHeight: 56,
                 borderRadius: radius.card,
                 backgroundColor: isSelected ? colors.successBg : colors.surface,
                 borderWidth: isSelected ? 1 : 0,
@@ -81,23 +82,23 @@ export const WeekDaySelector = memo(function WeekDaySelector({
               <Text
                 style={{
                   color: isSelected ? colors.successText : colors.textPrimary,
-                  fontSize: mobile ? 10 : compact ? 11 : 12,
+                  fontSize: metrics.metadataFontSize,
                   fontWeight: "800",
                 }}
                 numberOfLines={1}
               >
                 {day.weekdayLabel}
               </Text>
-              <Text style={{ color: colors.textMuted, fontSize: mobile ? 10 : compact ? 12 : 13, fontWeight: "700" }}>
+              <Text style={{ color: colors.textMuted, fontSize: metrics.bodyFontSize, fontWeight: "700" }}>
                 {day.dateLabel}
               </Text>
-              <Text style={{ color: colors.textMuted, fontSize: mobile ? 9 : compact ? 10 : 12 }} numberOfLines={1}>
+              <Text style={{ color: colors.textMuted, fontSize: metrics.metadataFontSize }} numberOfLines={1}>
                 {day.lessonCount} {day.lessonCount === 1 ? "aula" : "aulas"}
               </Text>
               <View
                 style={{
-                  width: 8,
-                  height: 8,
+                  width: 6,
+                  height: 6,
                   borderRadius: radius.full,
                   overflow: "hidden",
                   backgroundColor: isSelected ? colors.success : day.isToday ? colors.primaryBg : "transparent",

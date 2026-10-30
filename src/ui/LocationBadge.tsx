@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { GoAtletaIcon } from "./icon-registry";
 import type { UnitPalette } from "./unit-colors";
 

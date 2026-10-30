@@ -2,10 +2,8 @@ import { CopilotScreenChat } from "./CopilotScreenChat";
 import { AssistantModelSelector } from "../../assistant/components/AssistantModelSelector";
 import type { AssistantModelChoice } from "../../assistant/model-choice";
 import { memo, useState } from "react";
-import {
-    Text,
-    View,
-} from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import type { RegulationUpdate } from "../../api/regulation-updates";

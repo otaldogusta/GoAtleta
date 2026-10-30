@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import type { RegulationUpdate } from "../../api/regulation-updates";

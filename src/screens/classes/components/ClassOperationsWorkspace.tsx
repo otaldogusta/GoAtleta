@@ -1,10 +1,11 @@
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { TrainingPlan } from "../../../core/models";
 import { resolveCopilotCompanionFabBottom } from "../../../copilot/components/CopilotFab";
-import { radius, spacing } from "../../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { ModalSheet } from "../../../ui/ModalSheet";
@@ -249,7 +250,7 @@ function CompactClassNavigation({
             },
           ]}
         >
-          <GoAtletaIcon name="close" size={20} color={colors.text} />
+          <GoAtletaIcon name="close" size={18} color={colors.text} />
         </Pressable>
       </View>
 
@@ -344,7 +345,7 @@ function OperationalStatusRow({
     >
       <GoAtletaIcon
         name={completed ? "checkmarkCircle" : pending ? "warningCircle" : "time"}
-        size={19}
+        size={16}
         color={statusColor}
       />
       <View style={styles.operationalStatusCopy}>
@@ -580,7 +581,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           {appliedPlan ? (
           <>
             <View style={styles.planSummary}>
-              <GoAtletaIcon name="document" size={20} color={colors.muted} />
+              <GoAtletaIcon name="document" size={18} color={colors.muted} />
               <View style={styles.planSummaryCopy}>
                 <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{appliedPlan.title}</Text>
                 <Text numberOfLines={1} style={[styles.planSummaryMeta, { color: colors.muted }]}>
@@ -665,7 +666,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
                   <>
                   <GoAtletaIcon
                     name="document"
-                    size={30}
+                    size={24}
                     color={planActionHovered || planActionFocused || pressed ? colors.primaryBg : colors.muted}
                   />
                   <Text style={[
@@ -814,7 +815,7 @@ const styles = StyleSheet.create({
     minHeight: 58,
     borderWidth: 1,
     borderRadius: 14,
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
@@ -855,7 +856,7 @@ const styles = StyleSheet.create({
   },
   contextLabel: {
     minWidth: 0,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "600",
   },
   contextItemMobile: {
@@ -875,7 +876,7 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 22,
+    gap: 12,
   },
   workspaceCompact: {
     flexDirection: "column",
@@ -892,7 +893,7 @@ const styles = StyleSheet.create({
   },
   compactNavigationHeader: {
     flexShrink: 0,
-    minHeight: 72,
+    minHeight: 56,
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -905,7 +906,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   compactNavigationTitle: {
-    fontSize: 18,
+    fontSize: compactUiMetrics.titleFontSize,
     fontWeight: "800",
   },
   compactNavigationSubtitle: {
@@ -945,7 +946,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   railHeading: {
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "700",
     paddingHorizontal: 10,
     paddingTop: 4,
@@ -996,7 +997,7 @@ const styles = StyleSheet.create({
   railActionLabel: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "600",
   },
   railActionLabelDense: {
@@ -1010,7 +1011,7 @@ const styles = StyleSheet.create({
   mainColumn: {
     flex: 1,
     minWidth: 0,
-    gap: 22,
+    gap: 12,
   },
   mainColumnDense: {
     gap: 14,
@@ -1018,12 +1019,12 @@ const styles = StyleSheet.create({
   desktopWorkspace: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 18,
+    gap: 12,
   },
   desktopContentColumn: {
     flex: 1,
     minWidth: 0,
-    gap: 22,
+    gap: 12,
   },
   planSection: {
     gap: 12,
@@ -1034,13 +1035,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   lessonPlanContent: {
-    minHeight: 250,
+    minHeight: 180,
   },
   emptyLessonPlanContent: {
     justifyContent: "center",
   },
   lessonLoadingContent: {
-    minHeight: 250,
+    minHeight: 180,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -1048,16 +1049,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   planHeader: {
-    minHeight: 60,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
   },
   planTitle: {
-    fontSize: 18,
+    fontSize: compactUiMetrics.titleFontSize,
     fontWeight: "800",
   },
   planAppliedStatus: {
@@ -1070,7 +1071,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   planSummary: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
     paddingBottom: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -1089,7 +1090,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   planBlocks: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
   },
   planBlockRow: {
     minHeight: 52,
@@ -1103,7 +1104,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   planBlockLabel: {
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "700",
   },
   planBlockMeta: {
@@ -1116,7 +1117,7 @@ const styles = StyleSheet.create({
   },
   planActions: {
     flexDirection: "row",
-    padding: 18,
+    padding: 12,
     gap: 9,
   },
   planAppliedAction: {
@@ -1142,10 +1143,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
   },
   planPrimaryButtonLabel: {
-    fontSize: 14,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "800",
   },
   planSecondaryButton: {
@@ -1159,7 +1160,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   planSecondaryButtonLabel: {
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "700",
   },
   emptyPlanContent: {
@@ -1187,7 +1188,7 @@ const styles = StyleSheet.create({
   operationalSummaryTitle: {
     paddingHorizontal: 2,
     paddingBottom: 4,
-    fontSize: 15,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "800",
   },
   operationalStatusRow: {
@@ -1203,7 +1204,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   operationalStatusTitle: {
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "800",
   },
   operationalStatusDetail: {
@@ -1229,7 +1230,7 @@ const styles = StyleSheet.create({
   recentTrainingsTitle: {
     paddingHorizontal: 2,
     paddingBottom: 3,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "800",
   },
   recentTrainingsLoading: {

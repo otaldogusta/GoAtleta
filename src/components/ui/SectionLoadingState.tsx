@@ -1,4 +1,5 @@
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAppTheme } from "../../ui/app-theme";
 

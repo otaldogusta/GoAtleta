@@ -1,6 +1,7 @@
 import { AssistantPending } from "../../../assistant/components/AssistantPending";
 import { useEffect, useRef, useState } from "react";
-import { AppState, Platform, StyleSheet, Text, View } from "react-native";
+import { AppState, Platform, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
 import { Pressable } from "../../../ui/Pressable";
 import { GoAtletaIcon } from "../../../ui/icon-registry";

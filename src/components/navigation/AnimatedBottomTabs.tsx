@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from "expo-router";
 import { memo, useEffect, useMemo, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -20,7 +21,7 @@ import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
-import { radius, shadow } from "../../theme/tokens";
+import { compactUiMetrics, radius, shadow } from "../../theme/tokens";
 import { resolveBottomTabPress } from "./bottom-tab-navigation";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
@@ -46,12 +47,12 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
   );
   const permissionsLoading = organization?.permissionsLoading ?? true;
   const insets = useSafeAreaInsets();
-  const { usesWorkspaceShell } = useResponsiveLayout();
+  const { usesWorkspaceShell, contentWidth } = useResponsiveLayout();
   const router = useRouter();
   const pathname = usePathname();
   useRenderDiagnostic("AnimatedBottomTabs", { role, pathname, "colors.background": colors.background });
   const [menuOpen, setMenuOpen] = useState(false);
-  const [barHeight, setBarHeight] = useState(74);
+  const [barHeight, setBarHeight] = useState<number>(compactUiMetrics.navigation.height);
   const iconAnim = useSharedValue(0);
   const hideNavigation =
     /\/(assistant)(\/|$)/.test(pathname) ||
@@ -99,6 +100,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
     });
   }, [activeOrganization?.role_level, memberPermissions, permissionsLoading, role]);
   const bottom = Math.max(insets.bottom + 8, 14);
+  const barWidth = Math.min(contentWidth, compactUiMetrics.navigation.maxWidth);
 
   useEffect(() => {
     iconAnim.value = withTiming(menuOpen ? 1 : 0, {
@@ -202,14 +204,16 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
         pointerEvents="box-none"
         style={{
           position: "absolute",
-          left: 12,
-          right: 12,
+          left: "50%",
+          marginLeft: -barWidth / 2,
+          width: barWidth,
           bottom,
           zIndex: 10,
         }}
       >
         <FabRadialMenu
           visible={menuOpen}
+          compact={role === "student"}
           actions={radialActions}
           anchorBottom={52}
           onActionPress={(action) => {
@@ -220,13 +224,14 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
         <View
           style={{
             flexDirection: "row",
-            alignItems: "flex-end",
+            alignItems: "center",
             justifyContent: "space-between",
             borderRadius: radius.full,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            paddingVertical: 6,
+            minHeight: compactUiMetrics.navigation.height,
+            paddingVertical: compactUiMetrics.smallGap,
             paddingHorizontal: 8,
             zIndex: 20,
             ...(Platform.OS === "web"
@@ -240,23 +245,24 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
             return (
               <Pressable
                 key={tab.key}
+                accessibilityRole="button"
                 accessibilityLabel={menuOpen ? "Fechar ações rápidas" : "Abrir ações rápidas"}
+                accessibilityState={{ expanded: menuOpen }}
                 onPress={() => setMenuOpen((current) => !current)}
                 style={{
-                  width: 58,
-                  height: 58,
+                  width: compactUiMetrics.navigation.actionSize,
+                  height: compactUiMetrics.navigation.actionSize,
                   borderRadius: radius.full,
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: colors.primaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  marginTop: -20,
                   zIndex: 4300,
                 }}
               >
                 <Animated.View style={plusIconStyle}>
-                  <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
+                  <GoAtletaIcon name="add" size={20} color={colors.primaryText} />
                 </Animated.View>
               </Pressable>
             );
@@ -269,7 +275,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                 flex: 1,
                 alignItems: "center",
                 justifyContent: "center",
-                paddingVertical: 4,
+                minWidth: 0,
               }}
             >
               <Pressable
@@ -300,7 +306,10 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                 style={({ pressed }: any) => ({
                   alignItems: "center",
                   justifyContent: "center",
-                  paddingVertical: 2,
+                  width: "100%",
+                  minWidth: compactUiMetrics.touchTarget,
+                  minHeight: compactUiMetrics.touchTarget,
+                  paddingVertical: 3,
                   paddingHorizontal: 2,
                   gap: 2,
                   opacity: pressed ? 0.88 : 1,
@@ -310,9 +319,9 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                   <>
                     <View
                       style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 17,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor: focused
@@ -323,14 +332,14 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                         borderWidth: keyboardFocused ? 2 : 0,
                         borderColor: focused ? colors.primaryText : colors.primaryBg,
                         transform: [
-                          { translateY: focused ? -3 : hovered ? -1 : 0 },
+                          { translateY: hovered ? -1 : 0 },
                           { scale: pressed ? 0.94 : 1 },
                         ],
                       }}
                     >
                       <GoAtletaIcon
                         name={tab.icon}
-                        size={18}
+                        size={compactUiMetrics.navigation.iconSize}
                         color={
                           focused
                             ? colors.primaryText
@@ -341,8 +350,12 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                       />
                     </View>
                     <Text
+                      numberOfLines={1}
                       style={{
-                        fontSize: 10,
+                        maxWidth: "100%",
+                        fontSize: compactUiMetrics.navigation.labelFontSize,
+                        lineHeight: 12,
+                        textAlign: "center",
                         fontWeight: focused || hovered || keyboardFocused ? "700" : "600",
                         color: focused || hovered || keyboardFocused ? colors.text : colors.muted,
                       }}

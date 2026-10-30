@@ -5,7 +5,7 @@ import { useAuth } from "./auth";
 import { getSessionIdentity, isSessionIdentityCurrent } from "./session";
 
 export function usePlatformAdminAccessState() {
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const userId = session?.user?.id ?? null;
   const identity = getSessionIdentity();
   const identityUserId = identity.userId;
@@ -21,7 +21,7 @@ export function usePlatformAdminAccessState() {
     let active = true;
 
     const requestIdentity = getSessionIdentity();
-    if (!userId || identityUserId !== userId || requestIdentity.userId !== userId || requestIdentity.generation !== identityGeneration) {
+    if (authLoading || !userId || identityUserId !== userId || requestIdentity.userId !== userId || requestIdentity.generation !== identityGeneration) {
       return () => {
         active = false;
       };
@@ -42,14 +42,14 @@ export function usePlatformAdminAccessState() {
     return () => {
       active = false;
     };
-  }, [userId, identityUserId, identityGeneration]);
+  }, [authLoading, userId, identityUserId, identityGeneration]);
 
   const resultMatchesCurrentUser = result.userId === userId &&
     identityUserId === userId && result.generation === identityGeneration;
   return {
     allowed:
-      Boolean(userId) && resultMatchesCurrentUser ? result.allowed : false,
-    loading: Boolean(userId) && (!resultMatchesCurrentUser || result.loading),
+      !authLoading && Boolean(userId) && resultMatchesCurrentUser ? result.allowed : false,
+    loading: authLoading || (Boolean(userId) && (!resultMatchesCurrentUser || result.loading)),
   };
 }
 

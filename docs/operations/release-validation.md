@@ -28,6 +28,8 @@ são gravados nos recibos nem mostrados no terminal.
   `src/core/court-simulation/` e fixtures em `src/core/__tests__/fixtures/court-reference/`.
 - Jest e build: todos os arquivos conhecidos pelo Git, entradas não versionadas
   e diretórios de runtime, incluindo entradas ignoradas.
+- A descoberta do Jest exclui `.tmp/`, que guarda cópias e fixtures privadas
+  de QA; as suítes do produto continuam na busca normal.
 - Configurações na raiz, scripts do executor, patches, dependências e ambiente
   invalidam todos os recibos afetados.
 - Encoding, marca, JWT, escopo, assets, arquitetura e comparação de performance

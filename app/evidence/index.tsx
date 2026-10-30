@@ -1,12 +1,7 @@
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useMemo, useState } from "react";
-import {
-    ActivityIndicator,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -21,10 +16,12 @@ import { useOrganization } from "../../src/providers/organization-context";
 import { Button } from "../../src/ui/Button";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 
 export default function EvidenceScreen() {
   markRender("screen.evidence.render.root");
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout();
   const { role } = useRole();
   const { activeOrganizationId, activeOrganization } = useOrganization();
 
@@ -154,11 +151,11 @@ export default function EvidenceScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 36 }}
+        contentContainerStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", padding: responsiveLayout.gutter, gap: responsiveLayout.density.pageGap, paddingBottom: 36 }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontSize: 24, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: responsiveLayout.density.pageTitleFontSize, lineHeight: responsiveLayout.density.pageTitleLineHeight, fontWeight: "700" }}>
             Evidências científicas
           </Text>
           <Text style={{ color: colors.muted }}>

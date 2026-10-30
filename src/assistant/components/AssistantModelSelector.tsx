@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
+import { compactUiMetrics } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -46,8 +48,8 @@ const styles = StyleSheet.create({
   compactRoot: { alignSelf: "center" },
   trigger: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 38 },
   compactTrigger: { height: 44, minHeight: 44, gap: 3, paddingHorizontal: 4, justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "700", flexShrink: 1 },
+  title: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700", flexShrink: 1 },
   compactTitle: { fontSize: 12, fontWeight: "600" },
   option: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10 },
-  copy: { flex: 1, gap: 3 }, label: { fontSize: 14, fontWeight: "600" }, detail: { fontSize: 12 },
+  copy: { flex: 1, minWidth: 0, gap: 3 }, label: { fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "600" }, detail: { fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight },
 });

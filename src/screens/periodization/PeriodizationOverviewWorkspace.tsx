@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 
 import {
@@ -9,7 +10,7 @@ import {
   type VolumeLevel,
 } from "../../core/periodization-basics";
 import { formatPlannedLoad } from "../../core/periodization-load";
-import { radius } from "../../theme/tokens";
+import { compactUiMetrics, radius } from "../../theme/tokens";
 import type { ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
@@ -281,7 +282,7 @@ function ManagerAction({
       }}
     >
       <GoAtletaIcon name="options" size={17} color={colors.primaryText} />
-      <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "700" }}>
+      <Text style={{ color: colors.primaryText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
         Gerenciar periodização
       </Text>
     </Pressable>
@@ -403,10 +404,10 @@ export function PeriodizationOverviewWorkspace({
           { gap: 12, alignItems: "flex-start" },
         ]}
       >
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
           O ciclo ainda não foi gerado
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+        <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: 19 }}>
           Configure a turma e gere o macrociclo para acompanhar períodos, blocos e
           evolução.
         </Text>
@@ -469,7 +470,7 @@ export function PeriodizationOverviewWorkspace({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text
                 numberOfLines={2}
-                style={{ flexShrink: 1, color: colors.text, fontSize: 16, fontWeight: "700" }}
+                style={{ flexShrink: 1, color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}
               >
                 {cycleHeading}
               </Text>
@@ -794,7 +795,7 @@ export function PeriodizationOverviewWorkspace({
             }}
           >
             <View style={{ gap: 5, paddingBottom: 6 }}>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
                 {selectedRange}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
@@ -822,7 +823,7 @@ export function PeriodizationOverviewWorkspace({
             <Metric label="PSE alvo" value={selectedWeek.PSETarget} colors={colors} last />
             <View style={{ gap: 4, paddingTop: 8 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Foco do bloco</Text>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 {selectedBlock}
               </Text>
               <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
@@ -871,7 +872,7 @@ export function PeriodizationOverviewWorkspace({
               <Text style={{ color: colors.muted, fontSize: 12 }}>·</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>{classTimeLabel}</Text>
             </View>
-            <Text numberOfLines={2} style={{ color: colors.text, fontSize: 19, fontWeight: "700" }}>
+            <Text numberOfLines={2} style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
               {selectedWeek.title || selectedBlock}
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
@@ -913,7 +914,7 @@ export function PeriodizationOverviewWorkspace({
             { flex: 2, minWidth: 0, gap: 4 },
           ]}
         >
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700", marginBottom: 3 }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", marginBottom: 3 }}>
             Próximas sessões
           </Text>
           {nextSessions.map(({ label, week }, index) => (
@@ -982,7 +983,7 @@ export function PeriodizationOverviewWorkspace({
           <GoAtletaIcon name="management" size={17} color={colors.muted} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
             Configuração da turma
           </Text>
           <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>

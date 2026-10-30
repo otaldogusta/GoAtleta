@@ -1,10 +1,12 @@
 import { memo } from "react";
 
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import type { TrainingPlan } from "../../../core/models";
+import { compactUiMetrics } from "../../../theme/tokens";
 
 type Props = {
   plan: TrainingPlan;
@@ -29,7 +31,7 @@ function TrainingPlanActionsModalContentBase({
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <View style={{ gap: 4, paddingRight: 12 }}>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: compactUiMetrics.titleFontSize, fontWeight: "700", color: colors.text }}>
             {plan.title}
           </Text>
           <Text style={{ color: colors.muted }}>{getClassName(plan.classId)}</Text>

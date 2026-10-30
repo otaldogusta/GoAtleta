@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ClassGroup } from "../../core/models";
 import { missingClassActivity, type MissingClassActivity } from "../../core/activity-review";
 import { loadActivityReview, saveActivityReview } from "../../api/activity-review";
@@ -10,7 +11,7 @@ import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useAppTheme } from "../../ui/app-theme";
 import { claimActivityNotice } from "../../core/activity-notice";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius, spacing } from "../../theme/tokens";
 
 const EMPTY_ACTIVITY_ITEMS: MissingClassActivity[] = [];
 
@@ -94,7 +95,7 @@ export function ActivityReviewSuggestion({ organizationId, userId, classes, toda
 const styles=StyleSheet.create({
   notice:{width:'100%',padding:spacing.md,gap:spacing.sm,borderWidth:1,borderRadius:radius.container},
   panel:{width:'100%',maxWidth:520,maxHeight:'90%',padding:spacing.lg,gap:spacing.sm,borderWidth:1,borderRadius:radius.container},
-  row:{flexDirection:'row',alignItems:'center',gap:spacing.sm},grow:{flex:1,minWidth:0},title:{fontSize:18,fontWeight:'700'},
+  row:{flexDirection:'row',alignItems:'center',gap:spacing.sm},grow:{flex:1,minWidth:0},title:{fontSize:metrics.titleFontSize,fontWeight:'700'},
   close:{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center'},actions:{flexDirection:'row',justifyContent:'flex-end'},
   list:{flexShrink:1},item:{paddingVertical:spacing.sm,borderBottomWidth:1,gap:4},label:{fontWeight:'600',marginTop:spacing.sm,marginBottom:spacing.xs},
   option:{padding:spacing.sm,borderRadius:radius.internal,marginBottom:spacing.xs},dates:{flexDirection:'row',gap:spacing.sm},

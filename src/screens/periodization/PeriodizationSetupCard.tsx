@@ -1,5 +1,6 @@
 import type React from "react";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../core/class-development-level";
 import { Button } from "../../ui/Button";
@@ -8,6 +9,7 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import type { ThemeColors } from "../../ui/app-theme";
+import { compactUiMetrics } from "../../theme/tokens";
 
 const LEVEL_OPTIONS = CLASS_DEVELOPMENT_LEVEL_OPTIONS;
 
@@ -62,7 +64,7 @@ export function PeriodizationSetupCard({
         }}
       >
         <View style={{ flex: 1, minWidth: 220 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
             Configuração da periodização
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 4 }}>
@@ -178,7 +180,7 @@ export function PeriodizationSetupCard({
                 paddingVertical: 10,
               }}
             >
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
                 {cycleLength} semanas
               </Text>
               <GoAtletaIcon

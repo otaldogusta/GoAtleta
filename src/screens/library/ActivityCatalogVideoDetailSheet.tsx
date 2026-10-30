@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, useWindowDimensions, View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
 import { Pressable } from "../../ui/Pressable";
@@ -26,6 +27,7 @@ import {
   getCatalogActivityShortFamilyLabel,
   type ActivityCatalogListItem,
 } from "./activity-catalog-view-model";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type Props = {
   item: ActivityCatalogListItem | null;
@@ -133,10 +135,10 @@ export function ActivityCatalogVideoDetailSheet({
           ))}
         </View>
         <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
             Descrição
           </Text>
-          <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22 }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
             {item.purpose}
           </Text>
         </View>
@@ -163,13 +165,13 @@ export function ActivityCatalogVideoDetailSheet({
           <View testID="activity-catalog-guidance-details" style={{ gap: 12 }}>
             {guidanceSections.map((section) => (
               <View key={section.title} style={{ gap: 7 }}>
-                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
                   {section.title}
                 </Text>
                 {section.lines.map((line) => (
                   <Text
                     key={line}
-                    style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}
+                    style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}
                   >
                     {line}
                   </Text>

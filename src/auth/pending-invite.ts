@@ -182,11 +182,13 @@ export const shouldRedirectPendingRole = ({
   role,
   pathname,
   isInviteRoute,
+  hasPlatformAccess = false,
 }: {
   hasSession: boolean;
   role?: string | null;
   pathname: string;
   isInviteRoute: boolean;
+  hasPlatformAccess?: boolean;
 }) =>
   hasSession &&
   role === "pending" &&
@@ -196,4 +198,5 @@ export const shouldRedirectPendingRole = ({
   pathname !== "/student-plan" &&
   pathname !== "/student/profile" &&
   pathname !== "/student/profile/settings" &&
+  !(hasPlatformAccess && (pathname === "/platform" || pathname.startsWith("/platform/"))) &&
   !isInviteRoute;

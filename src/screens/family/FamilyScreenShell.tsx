@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Platform, ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
-import { spacing, radius } from "../../theme/tokens";
+import { compactUiMetrics as metrics, radius } from "../../theme/tokens";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -34,8 +35,8 @@ export function FamilyScreenShell({
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: spacing.md,
-          paddingBottom: layout.usesWorkspaceShell ? spacing.xxl : 112,
+          paddingTop: metrics.gap,
+          paddingBottom: layout.usesWorkspaceShell ? layout.density.pageGap : metrics.navigation.height + layout.density.pageGap,
         }}
         refreshControl={
           onRefresh ? (
@@ -60,7 +61,7 @@ export function FamilyScreenShell({
               minHeight: 44,
               flexDirection: "row",
               alignItems: "center",
-              gap: spacing.sm,
+              gap: metrics.gap,
             }}
           >
             {showNativeMenu ? (
@@ -78,7 +79,7 @@ export function FamilyScreenShell({
                   justifyContent: "center",
                 }}
               >
-                <GoAtletaIcon name="align" size={21} color={colors.text} />
+                <GoAtletaIcon name="align" size={metrics.iconSize} color={colors.text} />
               </Pressable>
             ) : null}
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -94,7 +95,7 @@ export function FamilyScreenShell({
                 {title}
               </Text>
               {subtitle ? (
-                <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 13 }}>
+                <Text numberOfLines={2} style={{ color: colors.muted, fontSize: metrics.metadataFontSize }}>
                   {subtitle}
                 </Text>
               ) : null}

@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import { getClassModalityLabel, getClassModalityOrder } from "../../../core/class-modality";
 import type { ClassGroup } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";

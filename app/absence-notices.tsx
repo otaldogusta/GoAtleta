@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { SectionList, Text, View } from "react-native";
+import { SectionList, View } from "react-native";
+import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -35,7 +36,7 @@ import {
   resolveNoticeFeedCategory,
   type NoticeFeedFilter,
 } from "../src/screens/absence-notices/notice-feed-view-model";
-import { radius, spacing } from "../src/theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../src/theme/tokens";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -634,7 +635,7 @@ export function NotificationsCenterScreen({
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 13,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "800",
                     }}
                   >
@@ -682,7 +683,7 @@ export function NotificationsCenterScreen({
                   <Text
                     style={{
                       color: active ? colors.successText : colors.text,
-                      fontSize: 13,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: active ? "800" : "700",
                     }}
                   >
@@ -831,7 +832,7 @@ export function NotificationsCenterScreen({
                           ? "archive"
                           : "notifications"
                     }
-                    size={24}
+                    size={18}
                     color={
                       selectedFilter === "unread"
                         ? colors.success
@@ -923,7 +924,7 @@ export function NotificationsCenterScreen({
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 14,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "900",
                     }}
                   >
@@ -1058,7 +1059,7 @@ export function NotificationsCenterScreen({
                           style={{
                             flex: 1,
                             color: colors.text,
-                            fontSize: 14,
+                            fontSize: compactUiMetrics.bodyFontSize,
                             fontWeight: "800",
                           }}
                         >

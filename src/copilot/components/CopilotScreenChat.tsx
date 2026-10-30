@@ -1,6 +1,7 @@
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAuth } from "../../auth/auth";
 import { AttendanceDestinationDialog } from "../../assistant/components/AttendanceDestinationDialog";

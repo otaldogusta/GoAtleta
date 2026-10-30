@@ -1,4 +1,5 @@
-import { ImageBackground, Text, View } from "react-native";
+import { ImageBackground, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { getCatalogActivityThumbnailSource } from "./activity-catalog-media";

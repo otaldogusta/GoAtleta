@@ -1,6 +1,7 @@
 // perf-check: ignore-inline-row-style - bounded profile facts and revisions use current theme tokens.
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { useClassDiagnostic } from "../../../assistant/hooks/useClassDiagnostic";
 import { AssistantComposer } from "../../../assistant/components/AssistantComposer";
 import { PROFILE_LABELS, type ProfileKey, type ProfileFact } from "../../../core/class-pedagogical-profile";
@@ -8,7 +9,7 @@ import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
-import { radius, spacing } from "../../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../../theme/tokens";
 import { readClassProfileSource } from "../../../api/class-pedagogical-profile";
 
 function OriginalReport({ fact, organizationId, classId }: { fact: ProfileFact; organizationId: string; classId: string }) {
@@ -24,7 +25,7 @@ function OriginalReport({ fact, organizationId, classId }: { fact: ProfileFact; 
   return <View style={{ gap: 4 }}>
     <Text style={{ color: colors.muted, fontSize: 12 }}>“{fact.quote}” · {new Date(fact.updatedAt).toLocaleDateString("pt-BR")}</Text>
     {fact.origin === "teacher" ? <Button label={busy ? "Carregando…" : text ? "Ocultar relato" : "Ver relato original"} variant="ghost" disabled={busy} onPress={() => text ? setText("") : void load()} /> : null}
-    {text ? <Text style={{ color: colors.text, fontSize: 13 }}>{text}</Text> : null}
+    {text ? <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize }}>{text}</Text> : null}
   </View>;
 }
 
@@ -64,7 +65,7 @@ export function ClassProfileDetails({ visible, onClose, diagnostic, organization
   const facts = Object.entries(diagnostic.snapshot?.profile?.profile.facts ?? {});
   return <ModalSheet visible={visible} onClose={onClose} position="center" overlayZIndex={9600} cardStyle={{ width: "100%", maxWidth: 620, maxHeight: "88%", backgroundColor: colors.background, borderRadius: radius.container, padding: spacing.md, gap: spacing.sm }}>
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>Perfil da turma</Text>
+      <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>Perfil da turma</Text>
       <Button label="Fechar" variant="ghost" onPress={onClose} />
     </View>
     <ClassProfileStatus diagnostic={diagnostic} />
@@ -72,7 +73,7 @@ export function ClassProfileDetails({ visible, onClose, diagnostic, organization
       {!facts.length ? <Text style={{ color: colors.muted }}>Conte como a turma joga e o que precisa desenvolver.</Text> : null}
       {facts.map(([key, fact]) => <View key={key} style={{ gap: 3, paddingBottom: spacing.sm, borderBottomWidth: 1, borderColor: colors.border }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>{PROFILE_LABELS[key as ProfileKey]}</Text>
-        <Text style={{ color: colors.text, fontSize: 14 }}>{fact.value}</Text>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize }}>{fact.value}</Text>
         <Text style={{ color: colors.muted, fontSize: 11 }}>{fact.origin === "legacy" ? "Ciclo anterior" : fact.origin === "evolution" ? "Evolução confirmada" : "Informado pelo professor"} · {new Date(fact.updatedAt).toLocaleDateString("pt-BR")}</Text>
         {history ? (fact.claims ?? [fact]).map((claim, index) => <OriginalReport key={`${claim.sourceId}:${index}`} fact={claim} organizationId={organizationId} classId={classId} />) : null}
       </View>)}

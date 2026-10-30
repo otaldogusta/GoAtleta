@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
 import { Pressable } from "../../ui/Pressable";
@@ -10,6 +11,7 @@ import {
   type CatalogLessonDestination,
 } from "./activity-catalog-plan-actions";
 import type { ActivityCatalogListItem } from "./activity-catalog-view-model";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type Props = {
   item: ActivityCatalogListItem | null;
@@ -177,12 +179,12 @@ export function ActivityCatalogAddToLessonModal({
       }
     >
       {loading ? (
-        <Text style={{ color: colors.muted, fontSize: 14 }}>
+        <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>
           Carregando aulas disponíveis...
         </Text>
       ) : hasDestinations ? (
         <>
-          <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
             Para qual aula você quer adicionar “{item.variant.name}”?
           </Text>
           <View style={{ gap: 8 }}>
@@ -205,7 +207,7 @@ export function ActivityCatalogAddToLessonModal({
                   <Text
                     style={{
                       color: selected ? colors.successText : colors.text,
-                      fontSize: 14,
+                      fontSize: compactUiMetrics.bodyFontSize,
                       fontWeight: "900",
                     }}
                   >
@@ -228,14 +230,14 @@ export function ActivityCatalogAddToLessonModal({
                 backgroundColor: colors.secondaryBg,
               }}
             >
-              <Text style={{ color: colors.secondaryText, fontSize: 14, fontWeight: "900" }}>
+              <Text style={{ color: colors.secondaryText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
                 Escolher outro plano
               </Text>
             </Pressable>
           </View>
         </>
       ) : (
-        <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
           Crie ou abra uma aula planejada para adicionar este exercício.
         </Text>
       )}
@@ -251,7 +253,7 @@ export function ActivityCatalogAddToLessonModal({
             borderColor: colors.dangerBorder,
           }}
         >
-          <Text style={{ color: colors.dangerText, fontSize: 13, fontWeight: "800" }}>
+          <Text style={{ color: colors.dangerText, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
             {error}
           </Text>
         </View>

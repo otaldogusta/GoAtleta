@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ReactNode } from "react";
 
 import type {
@@ -10,6 +11,7 @@ import { buildActivityCatalogInsights } from "../../core/volleyball/activity-cat
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { CatalogAuditInsightsPanel } from "./CatalogAuditInsightsPanel";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type CatalogAuditPanelProps = {
   report: ActivityCatalogAuditReport | null;
@@ -63,7 +65,7 @@ function MetricCard({ label, value }: { label: string; value: string | number })
       }}
     >
       <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>{label}</Text>
-      <Text style={{ color: colors.text, fontSize: 22, fontWeight: "900" }}>{value}</Text>
+      <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>{value}</Text>
     </View>
   );
 }
@@ -81,7 +83,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         gap: 10,
       }}
     >
-      <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>{title}</Text>
+      <Text style={{ color: colors.text, fontWeight: "900", fontSize: compactUiMetrics.titleFontSize }}>{title}</Text>
       {children}
     </View>
   );

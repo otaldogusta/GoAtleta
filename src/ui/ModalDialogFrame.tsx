@@ -1,10 +1,12 @@
 import { type ReactNode } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 
 import type { ThemeColors } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
+import { compactUiMetrics } from "../theme/compact-ui-metrics";
 
 type Props = {
   visible: boolean;
@@ -45,22 +47,22 @@ export function ModalDialogFrame({
             flexDirection: "row",
             alignItems: "flex-start",
             justifyContent: "space-between",
-            gap: 12,
-            paddingBottom: 10,
+            gap: compactUiMetrics.gap,
+            paddingBottom: compactUiMetrics.gap,
           }}
         >
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>{title}</Text>
-            {subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text> : null}
+          <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+            <Text style={{ fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "900", color: colors.text }}>{title}</Text>
+            {subtitle ? <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}>{subtitle}</Text> : null}
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={closeAccessibilityLabel}
             onPress={onClose}
             style={{
-              height: 32,
-              width: 32,
-              borderRadius: 16,
+              height: 38,
+              width: 38,
+              borderRadius: 19,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: colors.secondaryBg,
@@ -68,14 +70,14 @@ export function ModalDialogFrame({
               borderColor: colors.border,
             }}
           >
-            <GoAtletaIcon name="close" size={18} color={colors.text} />
+            <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
           </Pressable>
         </View>
 
         <View style={[{ flex: 1, minHeight: 0 }, bodyStyle]}>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={contentContainerStyle ?? { gap: 12, paddingBottom: 24, paddingTop: 12 }}
+            contentContainerStyle={contentContainerStyle ?? { gap: compactUiMetrics.gap, paddingBottom: 12, paddingTop: 8 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
             nestedScrollEnabled
@@ -88,8 +90,8 @@ export function ModalDialogFrame({
           <View
             style={[
               {
-                paddingTop: 12,
-                paddingBottom: 12,
+                paddingTop: 8,
+                paddingBottom: 8,
                 borderTopWidth: 1,
                 borderTopColor: colors.border,
                 gap: 8,

@@ -11,17 +11,8 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, View, useWindowDimensions } from "react-native";
+import { OperationalText as Text } from "../../src/ui/OperationalText";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -73,7 +64,7 @@ import {
   measureAsync,
 } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/organization-context";
-import { shadow } from "../../src/theme/tokens";
+import { compactUiMetrics, shadow } from "../../src/theme/tokens";
 import {
   StudentClassDropdownPanel,
   type ClassModalityFilterValue,
@@ -2285,7 +2276,7 @@ export default function StudentsScreen() {
             onOpenFinance={scopedRoutes.scope === "coord" ? () => router.push({ pathname: "/coord/finance", params: { section: "charges", studentId: profile.student.id, studentName: profile.student.name } }) : undefined}
           />
         ) : (
-          <View style={{ flex: 1, padding: 24, gap: 20 }}>
+          <View style={{ flex: 1, padding: 16, gap: 12 }}>
             <PageBreadcrumbHeader title="Perfil" context="Atletas" onBack={closeProfile} />
             <Text style={{ color: colors.muted }}>{loading || profileDetail.loading ? "Carregando perfil..." : profileDetail.error || "Atleta indisponível nesta organização."}</Text>
             {profileTarget && profileDetail.error ? <Button label="Tentar novamente" onPress={profileDetail.retry} /> : null}
@@ -2449,7 +2440,7 @@ export default function StudentsScreen() {
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: windowWidth < 720 ? 18 : 20,
+                      fontSize: compactUiMetrics.titleFontSize,
                       fontWeight: "900",
                     }}
                   >
@@ -2479,7 +2470,7 @@ export default function StudentsScreen() {
                 <ScrollView
                   style={{ flex: 1 }}
                   contentContainerStyle={{
-                    padding: windowWidth < 720 ? 12 : 20,
+                    padding: 12,
                     paddingBottom: windowWidth < 720 ? 20 : 28,
                   }}
                   keyboardShouldPersistTaps="handled"

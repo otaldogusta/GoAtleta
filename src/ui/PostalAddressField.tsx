@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, TextInput, View } from "react-native";
+import { OperationalText as Text } from "./OperationalText";
 import { findPostalAddress } from "../api/postal-address";
 import { useAppTheme } from "./app-theme";
 import { Button } from "./Button";

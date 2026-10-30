@@ -1,18 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StyleProp, ViewStyle, ViewToken } from "react-native";
-import {
-  Animated,
-  FlatList,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Animated, FlatList, Platform, StyleSheet, TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
-import { radius } from "../../../theme/tokens";
+import { compactUiMetrics, radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AppRefreshControl } from "../../../ui/AppRefreshControl";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
@@ -316,6 +309,7 @@ export const ClassesListSection = memo(function ClassesListSection({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Limpar busca"
+                hitSlop={7}
                 onPress={() => setClassSearch("")}
                 suppressWebHoverFeedback
                 style={styles.clearSearchButton}
@@ -468,12 +462,12 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   classesHeader: {
-    minHeight: 62,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   unitSelectAnchor: {
@@ -498,7 +492,7 @@ const styles = StyleSheet.create({
   unitSelectText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "800",
   },
   unitSelectCount: {
@@ -521,7 +515,7 @@ const styles = StyleSheet.create({
   classSearchInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     paddingVertical: Platform.OS === "web" ? 0 : 8,
   },
   clearSearchButton: {
@@ -542,7 +536,7 @@ const styles = StyleSheet.create({
   dropdownOptionText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    fontSize: compactUiMetrics.bodyFontSize,
     fontWeight: "700",
   },
   dropdownOptionCount: {

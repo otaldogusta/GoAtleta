@@ -76,6 +76,8 @@ export const pageHeaderMetrics = {
   breadcrumbGap: 8,
 } as const;
 
+export { compactUiMetrics } from "./compact-ui-metrics";
+
 export const spacing = {
   xs: 8,
   sm: 12,

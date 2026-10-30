@@ -1,4 +1,5 @@
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -9,6 +10,7 @@ import {
   type CatalogFilterOptions,
   type CatalogFilterState,
 } from "./activity-catalog-view-model";
+import { compactUiMetrics } from "../../theme/tokens";
 
 type Props = {
   filters: CatalogFilterState;
@@ -88,7 +90,7 @@ export function ActivityCatalogFilters({
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Text style={{ flex: 1, color: colors.muted, fontSize: 14, fontWeight: "700" }}>
+        <Text style={{ flex: 1, color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
           {resultCount} atividades
         </Text>
         <Pressable
@@ -106,7 +108,7 @@ export function ActivityCatalogFilters({
           <Text
             style={{
               color: active ? colors.infoText : colors.secondaryText,
-              fontSize: 13,
+              fontSize: compactUiMetrics.bodyFontSize,
               fontWeight: "900",
             }}
           >
@@ -148,7 +150,7 @@ function QuickFilterChip({
       <Text
         style={{
           color: active ? colors.successText : colors.text,
-          fontSize: 13,
+          fontSize: compactUiMetrics.bodyFontSize,
           fontWeight: "800",
         }}
       >
