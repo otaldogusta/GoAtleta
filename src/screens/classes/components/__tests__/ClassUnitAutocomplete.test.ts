@@ -47,6 +47,17 @@ const colors = {
 } as ThemeColors;
 
 describe("ClassUnitAutocomplete", () => {
+  test("supports autofocus and prevents the suggestion picker while disabled", () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(ClassUnitAutocomplete, {
+      colors, value: "Centro", units: ["Centro"], onChangeText: jest.fn(), autoFocus: true, disabled: true,
+    })); });
+    const input = renderer.root.findByType(TextInput);
+    expect(input.props.autoFocus).toBe(true); expect(input.props.editable).toBe(false);
+    act(() => input.props.onFocus());
+    expect(renderer.root.findByType("AnchoredDropdown" as React.ElementType).props.visible).toBe(false);
+    act(() => renderer.unmount());
+  });
   it("deduplicates units and ignores the placeholder unit", () => {
     expect(
       buildExistingUnitOptions([

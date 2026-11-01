@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, ScrollView, Text } from "react-native";
+import { Platform, ScrollView, Text, TextInput } from "react-native";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { CalendarEntryDetails, type CalendarEntryDetailAction, type CalendarEntryDetailsProps } from "../CalendarEntryDetails";
 
@@ -21,6 +21,18 @@ const props: CalendarEntryDetailsProps = {
   startTime: "09:00", endTime: "10:30", rows: [], onClose: jest.fn(),
 };
 beforeEach(() => jest.clearAllMocks());
+
+test("an active field editor replaces the row button and remains editable inside the card", () => {
+  const onChangeText = jest.fn();
+  const view = render(React.createElement(CalendarEntryDetails, { ...props, rows: [{
+    key: "unit", icon: "organization", label: "Unidade", value: "Centro", onPress: jest.fn(),
+    editor: React.createElement(TextInput, { accessibilityLabel: "Unidade", value: "Centro", onChangeText }),
+  }] }));
+  expect(view.queryByRole("button", { name: "Editar Unidade" })).toBeNull();
+  fireEvent.changeText(view.getByLabelText("Unidade"), "Norte");
+  expect(onChangeText).toHaveBeenCalledWith("Norte");
+  expect(view.UNSAFE_getByType(ScrollView).findByType(TextInput)).toBeTruthy();
+});
 
 test("presents the title and inclusive interval, and invokes only supplied actions", () => {
   const edit = jest.fn();

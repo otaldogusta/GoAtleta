@@ -52,6 +52,8 @@ type ClassUnitAutocompleteProps = {
   label?: string;
   placeholder?: string;
   showValueAsBadge?: boolean;
+  autoFocus?: boolean;
+  disabled?: boolean;
 };
 
 export function ClassUnitAutocomplete({
@@ -62,6 +64,8 @@ export function ClassUnitAutocomplete({
   label = "Unidade",
   placeholder = "Digite para buscar",
   showValueAsBadge = false,
+  autoFocus = false,
+  disabled = false,
 }: ClassUnitAutocompleteProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isEditing, setIsEditing] = useState(() => !value.trim());
@@ -87,6 +91,7 @@ export function ClassUnitAutocomplete({
   );
 
   const keepSuggestionsOpen = () => {
+    if (disabled) return;
     if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
     measureTrigger();
     setShowSuggestions(true);
@@ -97,6 +102,7 @@ export function ClassUnitAutocomplete({
   };
 
   const handleSelect = (unit: string) => {
+    if (disabled) return;
     if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
     onChangeText(unit);
     setIsEditing(false);
@@ -118,7 +124,7 @@ export function ClassUnitAutocomplete({
           <View style={{ minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.inputBg, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
             <View style={{ flex: 1, minWidth: 0, minHeight: 34, borderRadius: 9, backgroundColor: colors.secondaryBg, paddingLeft: 11, paddingRight: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 12, fontWeight: "700" }}>{typedValue}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Remover ${label.toLocaleLowerCase("pt-BR")} ${typedValue}`} onPress={() => { onChangeText(""); setIsEditing(true); setShowSuggestions(true); }} style={{ width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center" }}>
+              <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Remover ${label.toLocaleLowerCase("pt-BR")} ${typedValue}`} onPress={() => { onChangeText(""); setIsEditing(true); setShowSuggestions(true); }} style={{ width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center" }}>
                 <GoAtletaIcon name="close" size={16} color={colors.muted} />
               </Pressable>
             </View>
@@ -127,6 +133,8 @@ export function ClassUnitAutocomplete({
           <>
             <TextInput
               accessibilityLabel={label}
+              autoFocus={autoFocus}
+              editable={!disabled}
               autoCapitalize="words"
               autoCorrect={false}
               placeholder={placeholder}
@@ -162,7 +170,7 @@ export function ClassUnitAutocomplete({
       </View>
 
       <AnchoredDropdown
-        visible={showSuggestions}
+        visible={showSuggestions && !disabled}
         layout={triggerLayout}
         container={null}
         animationStyle={{ opacity: triggerLayout ? 1 : 0 }}

@@ -38,6 +38,10 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 
 - Organização e turma acompanham acesso, cache e resposta assíncrona. Na API do
   perfil, mudança de organização invalida a operação e a resposta recebida.
+- A edição de unidade pela ficha da Agenda usa `db/class-unit.ts`: PATCH somente
+  de `unit`/`unit_id` por turma/instituição, sem reenviar o objeto da turma nem
+  criar/renomear unidades globais. A relação existente é resolvida pelas turmas
+  autorizadas da instituição; rótulo personalizado pode ficar sem `unit_id`.
 - O detalhe aguarda sessão e instituição prontas antes de decidir disponibilidade.
   Consulta vazia, contexto ausente e falha de leitura têm estados distintos, com
   retorno às turmas do perfil atual e nova tentativa. Falta no cache durante uma

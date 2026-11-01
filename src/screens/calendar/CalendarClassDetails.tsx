@@ -1,10 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useWindowDimensions } from "react-native";
+import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useIsFocused } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../auth/auth";
 import { getSessionIdentity, isSessionIdentityCurrent, SessionIdentityChangedError } from "../../auth/session";
 import type { ClassGroup } from "../../core/models";
+import { canonicalizeUnitLabel } from "../../core/unit-label";
+import { updateClassUnit } from "../../db/class-unit";
+import { registerPendingEditsNavigation } from "../../navigation/pending-edits-navigation";
+import { registerBrowserPendingEdits } from "../../navigation/browser-pending-edits";
 import { resolveClassDevelopmentLevelLabel } from "../../core/class-development-level";
 import { getClassModalityLabel } from "../../core/class-modality";
 import { getReadCacheGeneration } from "../../db/client";
@@ -13,6 +17,10 @@ import { useOrganization } from "../../providers/organization-context";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { useSaveToast } from "../../ui/save-toast";
+import { useAppTheme } from "../../ui/app-theme";
+import { OperationalText as Text } from "../../ui/OperationalText";
+import { compactUiMetrics } from "../../theme/tokens";
+import { ClassUnitAutocomplete } from "../classes/components/ClassUnitAutocomplete";
 import { CalendarEntryDetails, calendarEntryDetailsShellStyle, type CalendarEntryDetailsProps } from "./CalendarEntryDetails";
 import { useCalendarReducedMotion } from "./CalendarTimePicker";
 import { useCalendarEditorScrollbars } from "./useCalendarEditorScrollbars";
@@ -20,19 +28,20 @@ import { eventDraftInterval, type EventDraft } from "./application/event-draft";
 import { copyCalendarEntry, exportCalendarEntry, shareCalendarEntry, type CalendarEntryShareSnapshot } from "./application/share-calendar-entry";
 
 export type CalendarClassOpenOptions = { settings?: "1"; settingsSection?: "basics" | "agenda" | "profile" };
-type Props = { classGroup: ClassGroup; date: string; timeLabel: string; unitLabel: string; accentColor?: string; onClose: () => void; onOpenClass: (options?: CalendarClassOpenOptions) => void; onDuplicate?: (draft: EventDraft) => void; onChanged?: () => void };
+type Props = { classGroup: ClassGroup; date: string; timeLabel: string; unitLabel: string; unitOptions?: string[]; accentColor?: string; onClose: () => void; onOpenClass: (options?: CalendarClassOpenOptions) => void; onDuplicate?: (draft: EventDraft) => void; onChanged?: () => void; onUnitChanged?: (unit: { unit: string; unitId?: string }) => void };
 type CloseIntent = { scope: string } & ({ kind: "close" } | { kind: "class"; options?: CalendarClassOpenOptions } | { kind: "duplicate"; draft: EventDraft });
 
 /** A lesson keeps its class identity; only an explicit duplicate becomes a new event draft. */
-export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, accentColor, onClose, onOpenClass, onDuplicate, onChanged }: Props) {
+export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, unitOptions = [], accentColor, onClose, onOpenClass, onDuplicate, onChanged, onUnitChanged }: Props) {
   useCalendarEditorScrollbars(true);
   const { width, height } = useWindowDimensions(), insets = useSafeAreaInsets();
   const reducedMotion = useCalendarReducedMotion(), focused = useIsFocused();
   const { session } = useAuth(), { activeOrganization } = useOrganization();
   const { confirm } = useConfirmDialog(), { showSaveToast } = useSaveToast();
+  const { colors } = useAppTheme();
   const identity = getSessionIdentity(), generation = getReadCacheGeneration();
   const canManage = focused && Boolean(session?.user?.id) && activeOrganization?.id === classGroup.organizationId && (activeOrganization?.role_level ?? 0) >= 50;
-  const scope = JSON.stringify([identity.userId, identity.generation, generation, activeOrganization?.id, activeOrganization?.role_level, focused, classGroup.id, classGroup.organizationId, date, timeLabel]);
+  const scope = JSON.stringify([identity.userId, identity.generation, generation, activeOrganization?.id, activeOrganization?.role_level, focused, classGroup.id, classGroup.organizationId, classGroup.unit, classGroup.unitId, date, timeLabel]);
   const liveScope = useRef(scope), mounted = useRef(true), pending = useRef<{ scope: string; key: string } | null>(null);
   const intent = useRef<CloseIntent | null>(null), completed = useRef(false);
   useLayoutEffect(() => {
@@ -42,8 +51,11 @@ export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, a
   }, [scope]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [closing, setClosing] = useState(false), [busy, setBusy] = useState<string | null>(null);
+  const [unitDraft, setUnitDraft] = useState<string | null>(null);
+  const editingUnit = canManage && unitDraft !== null;
+  const unitChanged = editingUnit && canonicalizeUnitLabel(unitDraft) !== canonicalizeUnitLabel(unitLabel);
   const [activityScope, setActivityScope] = useState(scope);
-  if (activityScope !== scope) { setActivityScope(scope); setClosing(false); setBusy(null); }
+  if (activityScope !== scope) { setActivityScope(scope); setClosing(false); setBusy(null); setUnitDraft(null); }
   const current = () => mounted.current && liveScope.current === scope && focused && activeOrganization?.id === classGroup.organizationId && Boolean(identity.userId) && isSessionIdentityCurrent(identity) && getReadCacheGeneration() === generation;
   const assertCurrent = () => { if (!current()) throw new SessionIdentityChangedError(); };
   const requestClose = (next: CloseIntent) => {
@@ -79,6 +91,40 @@ export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, a
   const snapshot: CalendarEntryShareSnapshot = { title: classGroup.name, location, startDate: date, endDate, startTime, endTime, uid: `class-${classGroup.id}-${date}` };
   const duplicateDraft: EventDraft = { title: `${classGroup.name} (cópia)`, description: "", startDate: date, endDate, startTime: startTime ?? "", endTime: endTime ?? "", allDay: false, locationLabel: location, eventType: "treino", sport: classGroup.modality === "voleibol" ? "volei_quadra" : classGroup.modality === "voleibol_areia" ? "volei_praia" : classGroup.modality === "futebol" ? "futebol" : "geral", classIds: [classGroup.id] };
   const disabled = Boolean(busy) || closing;
+  const detailDisabled = disabled || editingUnit;
+  const leave = async (next: () => void) => {
+    if (pending.current || closing || !current()) return;
+    if (!unitChanged) { setUnitDraft(null); next(); return; }
+    const draft = unitDraft;
+    await run("leave", async () => {
+      const discard = await confirm({ title: "Descartar alterações?", message: "A unidade ainda não foi salva.", confirmLabel: "Descartar", cancelLabel: "Continuar editando", onConfirm: () => undefined });
+      assertCurrent();
+      if (discard && draft === unitDraft) { setUnitDraft(null); next(); }
+    });
+  };
+  const leaveRef = useRef(leave);
+  useLayoutEffect(() => { leaveRef.current = leave; });
+  useEffect(() => {
+    if (!focused || !canManage || (!unitChanged && busy !== "unit")) return;
+    const protect = (navigate: () => void) => { void leaveRef.current(() => { onClose(); navigate(); }); };
+    const releaseNavigation = registerPendingEditsNavigation(protect);
+    const releaseBrowser = registerBrowserPendingEdits(protect);
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    if (Platform.OS === "web") window.addEventListener("beforeunload", beforeUnload);
+    return () => { releaseNavigation(); releaseBrowser(); if (Platform.OS === "web") window.removeEventListener("beforeunload", beforeUnload); };
+  }, [focused, canManage, unitChanged, busy, scope, onClose]);
+  const close = () => { void leave(() => requestClose({ kind: "close", scope })); };
+  const saveUnit = () => {
+    if (!canManage || !unitChanged || !unitDraft?.trim()) return;
+    const value = unitDraft;
+    void run("unit", async () => {
+      const updated = await updateClassUnit(classGroup.id, value, { organizationId: classGroup.organizationId!, assertCurrent });
+      assertCurrent();
+      setUnitDraft(null);
+      onUnitChanged?.(updated);
+      showSaveToast({ message: "Unidade atualizada.", variant: "success" });
+    });
+  };
   const edit = (settingsSection: CalendarClassOpenOptions["settingsSection"] = "basics") => {
     if (!canManage) return;
     void run("edit", async () => {
@@ -106,12 +152,17 @@ export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, a
   const openClass = () => { if (!pending.current) requestClose({ kind: "class", scope }); };
   const sport = getClassModalityLabel(classGroup.modality);
   const rows: CalendarEntryDetailsProps["rows"] = [
-    ...(unitLabel.trim() ? [{ key: "unit", icon: "organization" as const, label: "Unidade", value: unitLabel, onPress: canManage ? () => edit("basics") : undefined, disabled }] : []),
-    ...(classGroup.trainingSpace?.trim() ? [{ key: "space", icon: "location" as const, label: "Local", value: classGroup.trainingSpace.trim(), onPress: canManage ? () => edit("basics") : undefined, disabled }] : []),
-    ...(classGroup.ageBand?.trim() ? [{ key: "age", icon: "students" as const, label: "Faixa etária", value: classGroup.ageBand, onPress: canManage ? () => edit("profile") : undefined, disabled }] : []),
-    ...(classGroup.level || classGroup.mvLevel?.trim() ? [{ key: "level", icon: "trend" as const, label: "Nível", value: resolveClassDevelopmentLevelLabel(classGroup), onPress: canManage ? () => edit("profile") : undefined, disabled }] : []),
-    ...(sport ? [{ key: "sport", icon: "training" as const, label: "Esporte", value: sport, onPress: canManage ? () => edit("basics") : undefined, disabled }] : []),
-    ...(!range && timeLabel.trim() ? [{ key: "time", icon: "time" as const, label: "Horário", value: timeLabel, onPress: canManage ? () => edit("agenda") : undefined, disabled }] : []),
+    ...(unitLabel.trim() ? [{ key: "unit", icon: "organization" as const, label: "Unidade", value: unitLabel, onPress: canManage ? () => { if (!pending.current && !closing) setUnitDraft(unitLabel); } : undefined, disabled,
+      ...(editingUnit ? { editor: <View style={styles.unitEditor}>
+        <ClassUnitAutocomplete colors={colors} value={unitDraft ?? ""} units={unitOptions} onChangeText={value => { if (!pending.current) setUnitDraft(value); }} autoFocus disabled={disabled} />
+        <Text style={[styles.unitHint, { color: colors.muted }]}>Atualiza a unidade de todas as aulas da turma.</Text>
+      </View> } : {}),
+    }] : []),
+    ...(classGroup.trainingSpace?.trim() ? [{ key: "space", icon: "location" as const, label: "Local", value: classGroup.trainingSpace.trim(), onPress: canManage ? () => edit("basics") : undefined, disabled: detailDisabled }] : []),
+    ...(classGroup.ageBand?.trim() ? [{ key: "age", icon: "students" as const, label: "Faixa etária", value: classGroup.ageBand, onPress: canManage ? () => edit("profile") : undefined, disabled: detailDisabled }] : []),
+    ...(classGroup.level || classGroup.mvLevel?.trim() ? [{ key: "level", icon: "trend" as const, label: "Nível", value: resolveClassDevelopmentLevelLabel(classGroup), onPress: canManage ? () => edit("profile") : undefined, disabled: detailDisabled }] : []),
+    ...(sport ? [{ key: "sport", icon: "training" as const, label: "Esporte", value: sport, onPress: canManage ? () => edit("basics") : undefined, disabled: detailDisabled }] : []),
+    ...(!range && timeLabel.trim() ? [{ key: "time", icon: "time" as const, label: "Horário", value: timeLabel, onPress: canManage ? () => edit("agenda") : undefined, disabled: detailDisabled }] : []),
   ];
   const actions: NonNullable<CalendarEntryDetailsProps["actions"]> = [
     ...(canManage && onDuplicate ? [{ key: "duplicate", label: "Duplicar", accessibilityLabel: "Duplicar como novo evento", icon: "copy" as const, disabled: disabled || !eventDraftInterval(duplicateDraft), onPress: () => { if (!pending.current && current()) requestClose({ kind: "duplicate", scope, draft: duplicateDraft }); } }] : []),
@@ -127,13 +178,22 @@ export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, a
   ];
   const availableHeight = height - insets.top - insets.bottom;
   const detailHeight = Math.max(160, width < 600 ? availableHeight - 32 : Math.min(availableHeight - 64, 760));
-  return <ModalSheet visible={!closing} transition="calendar" reduceMotion={reducedMotion} onClose={() => { if (!pending.current) requestClose({ kind: "close", scope }); }} onExited={completeClose}
+  const unitActions: NonNullable<CalendarEntryDetailsProps["actions"]> = [
+    { key: "cancel-unit", label: "Cancelar", accessibilityLabel: "Cancelar edição da unidade", icon: "close", disabled, onPress: () => { if (!pending.current) setUnitDraft(null); } },
+    { key: "save-unit", label: busy === "unit" ? "Salvando…" : "Salvar", accessibilityLabel: "Salvar unidade", icon: "checkmark", disabled: disabled || !unitChanged || !unitDraft?.trim(), onPress: saveUnit },
+  ];
+  return <ModalSheet visible={!closing} transition="calendar" reduceMotion={reducedMotion} onClose={close} onExited={completeClose}
     position="center" containerPadding={width < 600 ? 12 : 16} backdropOpacity={width < 600 ? 1 : 0.5}
     cardStyle={[calendarEntryDetailsShellStyle, { width: width < 600 ? Math.max(0, width - 24) : "100%", maxWidth: 400, maxHeight: detailHeight }]}>
     <CalendarEntryDetails title={classGroup.name} accentColor={accentColor} startDate={date} endDate={endDate} startTime={startTime} endTime={endTime} disabled={disabled}
-      onTitlePress={canManage ? () => edit() : undefined} onAccentPress={canManage ? () => edit() : undefined}
-      onStartDatePress={canManage ? () => edit("agenda") : undefined} onEndDatePress={canManage ? () => edit("agenda") : undefined}
-      onStartTimePress={canManage ? () => edit("agenda") : undefined} onEndTimePress={canManage ? () => edit("agenda") : undefined}
-      rows={rows} onClose={() => { if (!pending.current) requestClose({ kind: "close", scope }); }} actions={actions} />
+      onTitlePress={canManage && !editingUnit ? () => edit() : undefined} onAccentPress={canManage && !editingUnit ? () => edit() : undefined}
+      onStartDatePress={canManage && !editingUnit ? () => edit("agenda") : undefined} onEndDatePress={canManage && !editingUnit ? () => edit("agenda") : undefined}
+      onStartTimePress={canManage && !editingUnit ? () => edit("agenda") : undefined} onEndTimePress={canManage && !editingUnit ? () => edit("agenda") : undefined}
+      rows={rows} onClose={close} actions={editingUnit ? unitActions : actions} />
   </ModalSheet>;
 }
+
+const styles = StyleSheet.create({
+  unitEditor: { gap: compactUiMetrics.gap },
+  unitHint: { fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight },
+});

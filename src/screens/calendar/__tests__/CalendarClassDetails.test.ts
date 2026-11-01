@@ -6,6 +6,8 @@ import { CalendarClassDetails } from "../CalendarClassDetails";
 import type { CalendarEntryDetailsProps } from "../CalendarEntryDetails";
 import { getClassCalendarExceptions, saveClassCalendarException } from "../../../db/periodization";
 import { copyCalendarEntry, exportCalendarEntry, shareCalendarEntry } from "../application/share-calendar-entry";
+import { updateClassUnit } from "../../../db/class-unit";
+import { ClassUnitAutocomplete } from "../../classes/components/ClassUnitAutocomplete";
 
 const mockEntry = jest.fn(), mockSheet = jest.fn();
 const mockConfirm = jest.fn(), mockToast = jest.fn();
@@ -16,6 +18,7 @@ jest.mock("../../../auth/session", () => ({ getSessionIdentity: () => ({ ...mock
 jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ activeOrganization: mockOrganization }) }));
 jest.mock("../../../db/client", () => ({ getReadCacheGeneration: () => 1 }));
 jest.mock("../../../db/periodization", () => ({ getClassCalendarExceptions: jest.fn(), saveClassCalendarException: jest.fn() }));
+jest.mock("../../../db/class-unit", () => ({ updateClassUnit: jest.fn() }));
 jest.mock("../../../ui/confirm-dialog", () => ({ useConfirmDialog: () => ({ confirm: mockConfirm }) }));
 jest.mock("../../../ui/save-toast", () => ({ useSaveToast: () => ({ showSaveToast: mockToast }) }));
 jest.mock("../application/share-calendar-entry", () => ({ shareCalendarEntry: jest.fn(), copyCalendarEntry: jest.fn(), exportCalendarEntry: jest.fn() }));
@@ -28,7 +31,7 @@ jest.mock("../CalendarTimePicker", () => ({ useCalendarReducedMotion: () => true
 jest.mock("../../../ui/ModalSheet", () => ({ ModalSheet: (props: { visible: boolean; children: React.ReactNode }) => { mockSheet(props); return props.visible ? props.children : null; } }));
 jest.mock("../CalendarEntryDetails", () => ({ ...jest.requireActual("../CalendarEntryDetails"), CalendarEntryDetails: (props: CalendarEntryDetailsProps) => { mockEntry(props); return null; } }));
 const group = { id: "class-a", name: "Primeiros Saques", unit: "Rede Esperança", organizationId: "org-a", ageBand: "12-14", level: 1, mvLevel: "MV2", modality: "voleibol", trainingSpace: "Quadra 2", startTime: "09:00", durationMinutes: 60 } as ClassGroup;
-const props = { classGroup: group, date: "2026-12-31", timeLabel: "23:30 - 00:30", unitLabel: "Rede Esperança", accentColor: "#aaccff", onClose: jest.fn(), onOpenClass: jest.fn(), onDuplicate: jest.fn(), onChanged: jest.fn() };
+const props = { classGroup: group, date: "2026-12-31", timeLabel: "23:30 - 00:30", unitLabel: "Rede Esperança", unitOptions: ["Rede Esperança", "UniBrasil"], accentColor: "#aaccff", onClose: jest.fn(), onOpenClass: jest.fn(), onDuplicate: jest.fn(), onChanged: jest.fn(), onUnitChanged: jest.fn() };
 const entry = () => mockEntry.mock.calls.at(-1)![0] as CalendarEntryDetailsProps;
 const action = (key: string) => entry().actions!.find(item => item.key === key)!;
 const menu = (key: string) => action("more").menuItems!.find(item => item.key === key)!;
@@ -37,6 +40,67 @@ beforeEach(() => {
   jest.clearAllMocks(); mockDimensions = { width: 1036, height: 704 }; mockInsets = { top: 0, bottom: 0, left: 0, right: 0 };
   mockOrganization = { id: "org-a", role_level: 50 }; mockIdentity = { userId: "user-a", generation: 1 }; mockFocused = true;
   mockConfirm.mockResolvedValue(true); jest.mocked(getClassCalendarExceptions).mockResolvedValue([]); jest.mocked(saveClassCalendarException).mockResolvedValue(undefined);
+  jest.mocked(updateClassUnit).mockResolvedValue({ unit: "UniBrasil", unitId: "unit-b" });
+});
+
+const unitField = () => {
+  const row = entry().rows.find(item => item.key === "unit")!;
+  const editor = row.editor as React.ReactElement<{ children: React.ReactNode[] }>;
+  return React.Children.toArray(editor.props.children).find(child => React.isValidElement(child) && child.type === ClassUnitAutocomplete) as React.ReactElement<React.ComponentProps<typeof ClassUnitAutocomplete>>;
+};
+const startUnitEdit = () => act(() => entry().rows.find(row => row.key === "unit")!.onPress!());
+
+test("unit click edits inside the detail with scoped suggestions and no navigation or confirmation", () => {
+  render(React.createElement(CalendarClassDetails, props));
+  startUnitEdit();
+  expect(unitField().props).toMatchObject({ value: props.unitLabel, units: props.unitOptions, autoFocus: true });
+  expect(action("save-unit").disabled).toBe(true);
+  expect(mockConfirm).not.toHaveBeenCalled(); expect(props.onOpenClass).not.toHaveBeenCalled();
+  act(() => unitField().props.onChangeText("UniBrasil"));
+  expect(action("save-unit").disabled).toBe(false);
+  act(() => action("cancel-unit").onPress());
+  expect(entry().rows.find(row => row.key === "unit")!.editor).toBeUndefined();
+  expect(entry().rows.find(row => row.key === "unit")!.value).toBe(props.unitLabel);
+  expect(updateClassUnit).not.toHaveBeenCalled();
+});
+
+test("unit save updates only the unit and refreshes metadata without cancelling an occurrence", async () => {
+  render(React.createElement(CalendarClassDetails, props)); startUnitEdit();
+  act(() => unitField().props.onChangeText("UniBrasil"));
+  act(() => { action("save-unit").onPress(); action("save-unit").onPress(); }); await flush();
+  expect(updateClassUnit).toHaveBeenCalledTimes(1);
+  expect(updateClassUnit).toHaveBeenCalledWith("class-a", "UniBrasil", { organizationId: "org-a", assertCurrent: expect.any(Function) });
+  expect(props.onUnitChanged).toHaveBeenCalledWith({ unit: "UniBrasil", unitId: "unit-b" });
+  expect(props.onChanged).not.toHaveBeenCalled(); expect(saveClassCalendarException).not.toHaveBeenCalled();
+  expect(props.onOpenClass).not.toHaveBeenCalled(); expect(props.onClose).not.toHaveBeenCalled();
+});
+
+test("unit failure preserves the draft and closing protects unsaved changes", async () => {
+  jest.mocked(updateClassUnit).mockRejectedValueOnce(new Error("offline"));
+  render(React.createElement(CalendarClassDetails, props)); startUnitEdit();
+  act(() => unitField().props.onChangeText("UniBrasil"));
+  act(() => action("save-unit").onPress()); await flush();
+  expect(unitField().props.value).toBe("UniBrasil"); expect(props.onUnitChanged).not.toHaveBeenCalled();
+  mockConfirm.mockResolvedValueOnce(false);
+  act(() => entry().onClose()); await flush();
+  expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Descartar alterações?" }));
+  expect(unitField().props.value).toBe("UniBrasil"); expect(props.onClose).not.toHaveBeenCalled();
+});
+
+test.each(["organization", "session", "focus", "role"])("%s change invalidates an in-flight unit edit", async change => {
+  let release!: (unit: { unit: string }) => void;
+  jest.mocked(updateClassUnit).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+  const view = render(React.createElement(CalendarClassDetails, props)); startUnitEdit();
+  act(() => unitField().props.onChangeText("UniBrasil"));
+  act(() => action("save-unit").onPress());
+  if (change === "organization") mockOrganization = { id: "org-b", role_level: 50 };
+  if (change === "session") mockIdentity = { userId: "user-b", generation: 2 };
+  if (change === "focus") mockFocused = false;
+  if (change === "role") mockOrganization = { id: "org-a", role_level: 10 };
+  view.rerender(React.createElement(CalendarClassDetails, props));
+  await act(async () => release({ unit: "UniBrasil" }));
+  expect(props.onUnitChanged).not.toHaveBeenCalled();
+  expect(entry().rows.find(row => row.key === "unit")!.editor).toBeUndefined();
 });
 
 test("uses the displayed occurrence interval across midnight and existing class metadata", () => {

@@ -20,7 +20,7 @@ export type CalendarEntryDetailsProps = {
   startTime?: string;
   endTime?: string;
   allDay?: boolean;
-  rows: { key: string; icon: GoAtletaIconName; label?: string; value: string; onPress?: () => void; disabled?: boolean }[];
+  rows: { key: string; icon: GoAtletaIconName; label?: string; value: string; onPress?: () => void; disabled?: boolean; editor?: ReactNode }[];
   extra?: ReactNode;
   onClose: () => void;
   actions?: CalendarEntryDetailAction[];
@@ -211,6 +211,10 @@ export function CalendarEntryDetails({ title, accentColor, startDate, endDate, s
       </View>
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
       {rows.filter(row => row.value.trim()).map(row => {
+        if (row.editor) return <View key={row.key} style={[styles.detailRow, { borderColor: colors.border }]}>
+          <View pointerEvents="none" style={styles.rowIcon}><GoAtletaIcon name={row.icon} size={metrics.iconSize} color={colors.muted} /></View>
+          <View style={styles.rowEditor}>{row.editor}</View>
+        </View>;
         const content = <><View pointerEvents="none" style={styles.rowIcon}><GoAtletaIcon name={row.icon} size={metrics.iconSize} color={colors.muted} /></View><View style={styles.rowText}><Text style={[styles.value, { color: colors.text }]}>{row.value}</Text></View></>;
         return row.onPress ? <Pressable key={row.key} accessibilityRole="button" accessibilityLabel={`Editar ${row.label ?? row.value}`} accessibilityValue={{ text: row.value }}
           disabled={disabled || row.disabled} onPress={row.onPress} suppressWebHoverFeedback disableWebPressScale style={[styles.detailRow, { borderColor: colors.border, opacity: disabled || row.disabled ? 0.55 : 1 }]}>{content}</Pressable>
@@ -244,6 +248,7 @@ const styles = StyleSheet.create({
   detailRow: { minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "flex-start", gap: metrics.gap, paddingLeft: metrics.smallGap, borderBottomWidth: StyleSheet.hairlineWidth },
   rowIcon: { width: metrics.iconSize, height: 20, marginTop: 12, alignItems: "center", justifyContent: "center" },
   rowText: { flex: 1, minWidth: 0, minHeight: metrics.touchTarget, paddingVertical: 13 }, value: { fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight },
+  rowEditor: { flex: 1, minWidth: 0, paddingVertical: metrics.gap, gap: metrics.gap },
   actions: { alignSelf: "stretch", flexShrink: 0, marginHorizontal: 4, minHeight: 56, borderRadius: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, gap: 0 },
   actionSlot: { flex: 1, minWidth: 44 },
   action: { minWidth: 44, minHeight: 56, paddingHorizontal: 2, paddingVertical: 4, borderRadius: 24, alignItems: "center", justifyContent: "center", gap: 3 },

@@ -529,3 +529,29 @@ recarregamento completo, que foi a base da conferência final. Não houve nova
 gravação de dados de evento, alteração remota ou publicação nesta rodada. A evidência
 se limita à composição exercitada, sem certificar produção ou uniformidade de
 todo o aplicativo.
+
+## Unidade editável na ficha — 31/10/2026
+
+Clicar em Unidade agora abre o campo na própria ficha da aula, com foco imediato,
+busca entre as unidades das turmas já autorizadas, digitação livre e Cancelar/Salvar.
+O rodapé troca de ações durante a edição; os demais campos ficam bloqueados.
+O texto de alcance informa que a unidade pertence à turma e suas aulas.
+Os outros campos mantêm a edição completa existente; esta rodada não afirma
+paridade integral com o Samsung nem altera a escala compacta aprovada.
+
+Salvar envia somente `unit` e `unit_id`, com turma/instituição, identidade e guarda
+de contexto até os retries. Uma resposta vazia não é sucesso. A resolução da relação
+consulta turmas da mesma instituição; rótulo novo usa relação nula, sem criar ou
+renomear unidades globais. O snapshot da Agenda recebe apenas a unidade; nenhuma
+pausa, horário, espaço, perfil ou outro campo é reenviado. Cancelar restaura o valor;
+erro preserva o rascunho e sair exige confirmar o descarte. Troca de papel, foco,
+instituição ou sessão invalida o editor e os callbacks antigos.
+
+Conferência autenticada em `localhost:8081`, desktop 1146×704 e 390×844: abertura
+sem navegação, sugestões, seleção, digitação, Salvar habilitado só com mudança,
+cancelamento e confirmação de descarte exercitados. No celular, largura do documento
+e scrollWidth de 390px, campo de 50px e ações visíveis. Capturas inspecionadas em
+`.tmp/calendar-unit-20261031/`. Salvamento/erros/negações cobertos por testes mockados;
+nenhuma gravação em turma real e nenhuma nova conferência física Samsung nesta rodada.
+Passaram 75 testes focados em quatro suítes, tipos, lint, escopo, perf-hygiene
+strict e diff-check. Sem publicação desta correção.

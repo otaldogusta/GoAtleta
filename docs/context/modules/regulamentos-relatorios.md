@@ -38,7 +38,10 @@ de torneio, início do professor/coordenação ou relatórios.
   A leitura de eventos e aulas usa `CalendarEntryDetails`; `CalendarClassDetails`
   abre a ocorrência de turma já carregada, sem criar evento. Ir para a turma
   preserva origem/data/unidade após a saída; seleção de outra instituição é
-  invalidada. Campos autorizados focam o editor real; a barra oferece ações
+  invalidada. Unidade abre busca/edição na própria ficha, com Cancelar/Salvar e
+  alcance explícito à turma. A gravação altera somente `unit`/`unit_id`, confirma
+  uma linha por turma/instituição e atualiza a Agenda sem cancelar a ocorrência.
+  Rascunho/erro preservam contexto; demais campos focam o editor real. A barra oferece ações
   reais conforme o papel. Duplicar abre rascunho independente sem IDs/anexos,
   com confirmação sobre os arquivos quando aplicável. Editar aula confirma
   o alcance à série; Excluir cancela somente a ocorrência por `no_training`.

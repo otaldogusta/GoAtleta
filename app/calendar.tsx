@@ -369,6 +369,12 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     setCalendarPauses(current => ({ scope: readScope, rows: [...(current.scope === readScope ? current.rows : []).filter(item => item.class_id !== selection.classId || item.date !== selection.date), { class_id: selection.classId, date: selection.date }] }));
     setPauseRevision(value => value + 1);
   };
+  const changeSelectedClassUnit = (selection: CalendarClassSelection, unit: { unit: string; unitId?: string }) => {
+    const owner = classDetailsOwner.current;
+    if (owner.scope !== selection.scope || owner.selection !== selection || !owner.canManage || !isCurrentRead()) return;
+    setClassSnapshot(snapshot => snapshot.scope !== readScope ? snapshot : { ...snapshot, rows: snapshot.rows.map(group => group.id === selection.classId ? { ...group, ...unit } : group) });
+    setClassDetails(current => current === selection ? { ...current, unitLabel: unit.unit } : current);
+  };
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
@@ -1069,7 +1075,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
         )}
       <CalendarMonthPicker visible={monthPickerScope === readScope} value={selectedDay?.dateIso ?? selectedDate} onClose={() => setMonthPickerScope(null)} onChange={value => requestPendingEditsNavigation(() => { setSelectedDate(value); setVisibleMonth(new Date(value + "T00:00:00")); })} />
       {!studentMode && eventEditor?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${eventEditor.scope}-${eventEditor.instanceId ?? eventEditor.event?.id ?? eventEditor.date}`} date={eventEditor.date} event={eventEditor.event} seed={eventEditor.seed} resumeId={eventEditor.resumeId} classes={classes} onClose={() => setEventEditor(null)} onSaved={() => setEventRevision(value => value + 1)} onDuplicate={duplicateEventDraft} /></Suspense> : null}
-      {!studentMode && classDetails?.scope === readScope && classById[classDetails.classId] ? <CalendarClassDetails key={`${classDetails.scope}-${classDetails.classId}-${classDetails.date}`} classGroup={classById[classDetails.classId]} date={classDetails.date} timeLabel={classDetails.timeLabel} unitLabel={classDetails.unitLabel} accentColor={classDetails.accentColor} onClose={() => setClassDetails(null)} onOpenClass={options => openSelectedClass(classDetails, options)} onDuplicate={seed => { if (classDetailsOwner.current.selection === classDetails) duplicateEventDraft(seed); }} onChanged={() => changeSelectedClass(classDetails)} /> : null}
+      {!studentMode && classDetails?.scope === readScope && classById[classDetails.classId] ? <CalendarClassDetails key={`${classDetails.scope}-${classDetails.classId}-${classDetails.date}`} classGroup={classById[classDetails.classId]} date={classDetails.date} timeLabel={classDetails.timeLabel} unitLabel={classDetails.unitLabel} unitOptions={unitOptions.filter(option => option !== "Todas")} accentColor={classDetails.accentColor} onClose={() => setClassDetails(null)} onOpenClass={options => openSelectedClass(classDetails, options)} onDuplicate={seed => { if (classDetailsOwner.current.selection === classDetails) duplicateEventDraft(seed); }} onChanged={() => changeSelectedClass(classDetails)} onUnitChanged={unit => changeSelectedClassUnit(classDetails, unit)} /> : null}
       <ModalSheet
         visible={!studentMode && showApplyPicker}
         onClose={closeApplyPicker}
