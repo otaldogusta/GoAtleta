@@ -115,7 +115,8 @@ export function Studio(props: StudioViewProps) {
     const { doc } = draft, video = useRef<HTMLVideoElement>(null), fileInput = useRef<HTMLInputElement>(null), importInput = useRef<HTMLInputElement>(null), trackInput = useRef<HTMLInputElement>(null), stage = useRef<HTMLDivElement>(null);
 
     const playback = useRef<VideoPlayback | null>(null), localOwner = useRef<VideoPlayback | null>(null), originalInput = useRef<HTMLInputElement>(null);
-    const latestDoc = useRef(doc); latestDoc.current = doc;
+    const latestDoc = useRef(doc);
+    useLayoutEffect(() => { latestDoc.current = doc; }, [doc]);
     const youtubeId = doc?.media.youtubeId;
     const [original, setOriginal] = useState<{ youtubeId: string; media: VideoMedia; url: string; kind: 'blob' | 'drive'; file?: File; confirmedSource?: string } | null>(null), [useOriginal, setUseOriginal] = useState(false);
     const [youtubeAttempt, setYoutubeAttempt] = useState(0), [playbackRate, setPlaybackRate] = useState(1);
@@ -162,7 +163,8 @@ export function Studio(props: StudioViewProps) {
     const isCurrentActivity = useCallback((epoch: number) => alive.current && activityEpoch.current === epoch, []);
 
     const focus = selectedFocus && doc?.rallies.some(r => r.id === selectedFocus) ? selectedFocus : null;
-    const playbackFocus = useRef(focus); playbackFocus.current = focus;
+    const playbackFocus = useRef(focus);
+    useLayoutEffect(() => { playbackFocus.current = focus; }, [focus]);
     const editorId = editor?.id;
     const editorDirty = !!editor && contactChanged(editor, doc?.contacts.find(c => c.id === editor.id));
     const linkKind = videoLinkKind(youtubeLink);
@@ -273,10 +275,12 @@ export function Studio(props: StudioViewProps) {
 
     useEffect(() => {
         if (studioVisible) return;
+        let current = true;
         playback.current?.pause();
         if (mediaResume.current) mediaResume.current = { ...mediaResume.current, playing: false };
-        setPlaying(false);
+        void Promise.resolve().then(() => { if (current) setPlaying(false); });
         if (hideTimer.current) clearTimeout(hideTimer.current);
+        return () => { current = false; };
     }, [studioVisible]);
 
     useEffect(() => { if (!studioActive || props.embedded) return; const app = document.getElementById('root'), prior = app?.inert, previousFocus = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow; if (app)
@@ -773,11 +777,12 @@ export function Studio(props: StudioViewProps) {
     const leaveRequest = useRef(requestLeave);
     useLayoutEffect(() => { leaveRequest.current = requestLeave; }, [requestLeave]);
     const registeredLeave = useCallback((next: () => void) => leaveRequest.current(next), []);
+    const { embedded, shared, onLeaveGuard } = props;
     useEffect(() => {
-        if (!props.embedded || !props.onLeaveGuard || !studioActive || props.shared) return;
-        props.onLeaveGuard(registeredLeave);
-        return () => props.onLeaveGuard?.(null);
-    }, [props.embedded, props.onLeaveGuard, studioActive, props.shared, registeredLeave]);
+        if (!embedded || !onLeaveGuard || !studioActive || shared) return;
+        onLeaveGuard(registeredLeave);
+        return () => onLeaveGuard(null);
+    }, [embedded, onLeaveGuard, studioActive, shared, registeredLeave]);
     useEffect(() => {
         if (!studioActive || props.shared || props.embedded) return;
         return registerPendingEditsNavigation(requestLeave);

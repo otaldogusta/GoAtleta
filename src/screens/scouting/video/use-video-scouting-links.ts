@@ -20,7 +20,11 @@ export function useVideoScoutingLinks(key: string, org: string, classId: string,
     useEffect(() => {
         const context = { identity, alive: true, raw: null as string | null, links: emptyScoutingVideoLinks() };
         active.current = context;
-        let alive = true; setLoading(true); setSaving(false); setError(''); setLinks(context.links); setSources([]); setAvailable([]);
+        let alive = true;
+        void Promise.resolve().then(() => {
+            if (!alive) return;
+            setLoading(true); setSaving(false); setError(''); setLinks(context.links); setSources([]); setAvailable([]);
+        });
         void (async () => {
             const [raw, overview] = await Promise.all([getVideoDraft(key), loadScoutingOverview(org, classId)]);
             const restored = raw ? parseScoutingVideoLinks(JSON.parse(raw), duration) : emptyScoutingVideoLinks();

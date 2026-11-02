@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { StudioAction, StudioDialog } from '../video/StudioUI.web';
 import type { LiveHostSession } from './live-storage';
+import { markRender, measureAsync } from '../../../observability/perf';
 
 const time=(milliseconds:number)=>{const seconds=Math.max(0,Math.floor(milliseconds/1000));return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;};
 type Source={url:string;name:string};
 export default function LiveRecordingReview({session,onClose}:{session:LiveHostSession;onClose:()=>void}) {
+    markRender('screen.scoutingLiveReview.render.web');
     const input=useRef<HTMLInputElement|null>(null),video=useRef<HTMLVideoElement|null>(null),url=useRef<string|null>(null);
+    const metadataLoad=useRef<{resolve:()=>void;reject:(failure:Error)=>void}|null>(null);
     const [source,setSource]=useState<Source|null>(null),[duration,setDuration]=useState<number|null>(null),[error,setError]=useState(''),[selected,setSelected]=useState<string|null>(null);
     const release=()=>{
+        if(metadataLoad.current){metadataLoad.current.reject(new Error('Leitura de metadados encerrada.'));metadataLoad.current=null;}
         const node=video.current;if(node){node.pause();node.removeAttribute('src');node.load();}
         if(url.current){URL.revokeObjectURL(url.current);url.current=null;}
     };
@@ -23,7 +27,9 @@ export default function LiveRecordingReview({session,onClose}:{session:LiveHostS
         if(!file.size||!file.name.toLowerCase().includes(session.recordingId.toLowerCase())||!/[.](mp4|webm)$/i.test(file.name)||file.type&&!file.type.startsWith('video/')){
             setError(`Escolha o vídeo desta gravação: go-atleta-${session.recordingId}.mp4 ou .webm.`);return;
         }
-        const next=URL.createObjectURL(file);url.current=next;setSource({url:next,name:file.name});
+        const next=URL.createObjectURL(file);
+        void measureAsync('screen.scoutingLiveReview.load.metadata',()=>new Promise<void>((resolve,reject)=>{metadataLoad.current={resolve,reject};})).catch(()=>undefined);
+        url.current=next;setSource({url:next,name:file.name});
     };
     const checkDuration=(node:HTMLVideoElement)=>{
         if(!source||url.current!==source.url)return;
@@ -32,7 +38,7 @@ export default function LiveRecordingReview({session,onClose}:{session:LiveHostS
         if(node.duration<=0||node.duration>86400||!node.videoWidth||!node.videoHeight||session.points.some(point=>point.timeMs<0||point.timeMs>node.duration*1000)){
             setError('A duração deste vídeo não inclui todos os pontos da gravação. Confira o arquivo exportado no celular.');release();setSource(null);setDuration(null);return;
         }
-        if(duration===null){node.currentTime=0;setDuration(node.duration);}
+        if(duration===null){metadataLoad.current?.resolve();metadataLoad.current=null;node.currentTime=0;setDuration(node.duration);}
     };
     const metadata=(node:HTMLVideoElement)=>{
         if(Number.isFinite(node.duration))checkDuration(node);

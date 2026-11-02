@@ -159,3 +159,9 @@ recebe essas mudanças automaticamente. Atualize-a manualmente somente após
 finalizar e exportar o que desejar preservar. Estes ajustes não exigem reiniciar
 o companion. Sem deploy, alteração remota de banco ou exclusão de arquivos do
 usuário nesta etapa.
+
+## Fechamento da etapa
+
+Publicação do frontend autorizada em 02/11. Câmera/QR e sidecars continuam
+locais; a publicação não ativa infraestrutura pública nem transfere vínculos
+entre origens. [Preflight e fluxo do release](scouting-release-2026-11-02.md).

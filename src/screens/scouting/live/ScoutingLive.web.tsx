@@ -8,6 +8,9 @@ import { downloadVideoBlob } from '../video/video-media.web';
 import { useLiveHost } from './use-live-host';
 import LiveRecordingReview from './LiveRecordingReview.web';
 import type { LiveHostSession } from './live-storage';
+import { markRender } from '../../../observability/perf';
+
+// perf-check: ignore-measure -- useLiveHost owns and measures config/history loads; this view only composes their state.
 
 export type ScoutingLiveProps = { userId:string; org:string; classId:string; className?:string; onClose:()=>void; embedded?:boolean; visible?:boolean; onLeaveGuard?:(request:((next:()=>void)=>void)|null)=>void };
 const time=(milliseconds:number)=>{const seconds=Math.max(0,Math.floor(milliseconds/1000));return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;};
@@ -18,13 +21,16 @@ export function exportLiveHostSession(session:LiveHostSession) {
     downloadVideoBlob(new Blob([JSON.stringify(document,null,2)],{type:'application/json'}),`scouting-ao-vivo-${session.recordingId}.json`);
 }
 export default function ScoutingLive(props:ScoutingLiveProps) {
+    markRender('screen.scoutingLive.render.web');
+    const {onClose,onLeaveGuard,embedded}=props;
     const {colors}=useAppTheme();
     const scope=useMemo(()=>({userId:props.userId,org:props.org,classId:props.classId}),[props.userId,props.org,props.classId]);
     const live=useLiveHost(scope,props.className??'Jogo');
+    const {attachVideo}=live;
     const [closing,setClosing]=useState(false),[copied,setCopied]=useState(false),[review,setReview]=useState<LiveHostSession|null>(null),[removing,setRemoving]=useState<LiveHostSession|null>(null);
     const preview=useRef<HTMLVideoElement|null>(null),pendingLeave=useRef<(()=>void)|null>(null);
     const visible=props.visible!==false;
-    const attachPreview=useCallback((node:HTMLVideoElement|null)=>{preview.current=node;live.attachVideo(node);},[live.attachVideo]);
+    const attachPreview=useCallback((node:HTMLVideoElement|null)=>{preview.current=node;attachVideo(node);},[attachVideo]);
     useEffect(()=>{
         if(typeof document==='undefined'||props.embedded)return;
         const app=document.getElementById('root'),previousInert=app?.inert,previousFocus=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow;
@@ -38,7 +44,8 @@ export default function ScoutingLive(props:ScoutingLiveProps) {
         if(!visible)node.pause();
         else if(live.stream)void node.play().catch(()=>undefined);
     },[visible,live.stream]);
-    const qr=useMemo(()=>live.room?.cameraUrl?`data:image/svg+xml;charset=utf-8,${encodeURIComponent(liveQrSvg(live.room.cameraUrl))}`:'',[live.room?.cameraUrl]);
+    const cameraUrl=live.room?.cameraUrl;
+    const qr=useMemo(()=>cameraUrl?`data:image/svg+xml;charset=utf-8,${encodeURIComponent(liveQrSvg(cameraUrl))}`:'',[cameraUrl]);
     const themes={'--sv-bg':colors.background,'--sv-panel':colors.card,'--sv-input':colors.inputBg,'--sv-text':colors.text,'--sv-muted':colors.muted,'--sv-line':colors.border,'--sv-green':colors.primaryBg,'--sv-primary-text':colors.primaryText,'--sv-amber':colors.warning} as CSSProperties;
     const setPoints=live.session?.points.filter(point=>point.setNumber===live.session?.setNumber)??[];
     const score=setPoints.at(-1), points=live.session?.points??[];
@@ -47,11 +54,11 @@ export default function ScoutingLive(props:ScoutingLiveProps) {
     const interrupted=live.connection==='disconnected'&&!terminal;
     const capturePending=!!live.session&&!terminal||live.recording?.state==='recording'&&!terminal;
     const certificate=live.config?.cameraReady?<details className="sv-live-certificate"><summary>Configurar certificado no Android</summary><p className="sv-section-meta">O Android precisa reconhecer o certificado local. <a className="sv-live-local-link" href="http://127.0.0.1:8096/certificate.crt" download="go-atleta-live-ca.crt">Baixar certificado local</a></p></details>:null;
-    const leave=useCallback((next?:()=>void)=>{if(live.busy||live.saving)return;pendingLeave.current=next??null;setReview(null);setRemoving(null);if(live.room)setClosing(true);else if(next)next();else props.onClose();},[live.busy,live.saving,live.room,props.onClose]);
+    const leave=useCallback((next?:()=>void)=>{if(live.busy||live.saving)return;pendingLeave.current=next??null;setReview(null);setRemoving(null);if(live.room)setClosing(true);else if(next)next();else onClose();},[live.busy,live.saving,live.room,onClose]);
     const leaveRequest=useRef(leave);
     useLayoutEffect(()=>{leaveRequest.current=leave;},[leave]);
     const registeredLeave=useCallback((next:()=>void)=>leaveRequest.current(next),[]);
-    useEffect(()=>{if(!props.embedded||!props.onLeaveGuard)return;props.onLeaveGuard(registeredLeave);return()=>props.onLeaveGuard?.(null);},[props.embedded,props.onLeaveGuard,registeredLeave]);
+    useEffect(()=>{if(!embedded||!onLeaveGuard)return;onLeaveGuard(registeredLeave);return()=>onLeaveGuard(null);},[embedded,onLeaveGuard,registeredLeave]);
     const cancelLeave=()=>{pendingLeave.current=null;setClosing(false);};
     const confirmLeave=async()=>{if(!await live.disconnect())return;setClosing(false);const next=pendingLeave.current;pendingLeave.current=null;if(next)next();else props.onClose();};
     const copy=async()=>{if(!live.room?.cameraUrl)return;try{await navigator.clipboard.writeText(live.room.cameraUrl);setCopied(true);}catch{setCopied(false);}};

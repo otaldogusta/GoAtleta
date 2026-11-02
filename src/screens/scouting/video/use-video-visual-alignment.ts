@@ -5,25 +5,34 @@ import { parseVisualAlignmentCache, parseVisualAlignmentResult, planVisualAlignm
 import { analysisCheckpointScope } from './video-analysis-checkpoints';
 import { compareAndPersistVideoDraft, getVideoDraft } from './video-draft-storage';
 
+const emptyEntries: Entry[] = [];
+
 /** Paid visual verification is explicit, capped at eight new minutes per run and resumable. */
 export function useVideoVisualAlignment(user: string, org: string, session: string, media: VideoMedia, sides?: Record<string, '' | 'near' | 'far'>) {
     const scope = `${analysisCheckpointScope(user, org, session, media.fingerprint)}:visual-alignment:v1`;
-    const identity = JSON.stringify([scope, media.youtubeId, media.duration]);
-    const [entries, setEntries] = useState<Entry[]>([]), [loading, setLoading] = useState(false), [error, setError] = useState('');
+    const { youtubeId, duration } = media;
+    const identity = JSON.stringify([scope, youtubeId, duration]);
+    const [entryState, setEntryState] = useState<{ identity: string; entries: Entry[] }>({ identity, entries: [] });
+    const entries = entryState.identity === identity ? entryState.entries : emptyEntries;
+    const [loading, setLoading] = useState(false), [error, setError] = useState('');
     const [processedSeconds, setProcessedSeconds] = useState(0);
     const [message, setMessage] = useState('');
     const state = useRef<{ identity: string; alive: boolean; raw: string | null; entries: Entry[]; ready: boolean } | null>(null);
     const controller = useRef<AbortController | null>(null);
     useEffect(() => {
         const context = { identity, alive: true, raw: null as string | null, entries: [] as Entry[], ready: false };
-        state.current = context; setEntries([]); setError(''); setMessage(''); setLoading(false); setProcessedSeconds(0);
-        void getVideoDraft(scope).then(raw => {
-            const saved = parseVisualAlignmentCache(raw, media);
+        state.current = context;
+        void Promise.resolve().then(() => {
             if (!context.alive) return;
-            context.raw = raw; context.entries = saved; context.ready = true; setEntries(saved);
+            setEntryState({ identity, entries: [] }); setError(''); setMessage(''); setLoading(false); setProcessedSeconds(0);
+        });
+        void getVideoDraft(scope).then(raw => {
+            const saved = parseVisualAlignmentCache(raw, { youtubeId, duration });
+            if (!context.alive) return;
+            context.raw = raw; context.entries = saved; context.ready = true; setEntryState({ identity, entries: saved });
         }).catch(() => { if (context.alive) setError('Não foi possível recuperar a revisão visual. Vínculos e recortes foram preservados.'); });
         return () => { context.alive = false; controller.current?.abort(); };
-    }, [scope, identity, media.youtubeId, media.duration]);
+    }, [scope, identity, youtubeId, duration]);
     const run = async (input: VisualAlignmentInput) => {
         const context = state.current;
         if (!context?.alive || context.identity !== identity || controller.current) return;
@@ -33,7 +42,7 @@ export function useVideoVisualAlignment(user: string, org: string, session: stri
             if (!context.ready) {
                 const raw = await getVideoDraft(scope), restored = parseVisualAlignmentCache(raw, media);
                 if (!context.alive || requestController.signal.aborted) return;
-                context.raw = raw; context.entries = restored; context.ready = true; setEntries(restored);
+                context.raw = raw; context.entries = restored; context.ready = true; setEntryState({ identity, entries: restored });
             }
             const windows = planVisualAlignment(media, input);
             const saved = context.entries.filter(entry => entry.sessionId === input.sessionId && entry.setNumber === input.setNumber && (!input.retryFailed || entry.result !== null)).map(entry => entry.request);
@@ -55,7 +64,7 @@ export function useVideoVisualAlignment(user: string, org: string, session: stri
                 const raw = JSON.stringify({ version: 1, entries: next });
                 await compareAndPersistVideoDraft(scope, context.raw, raw);
                 if (!context.alive) break;
-                context.raw = raw; context.entries = next; setEntries(next);
+                context.raw = raw; context.entries = next; setEntryState({ identity, entries: next });
                 if (result) setProcessedSeconds(seconds => seconds + request.end-request.start);
             }
             if (context.alive && !requestController.signal.aborted && pending.length > 8) setMessage('Oito trechos revisados e salvos. Inicie novamente para continuar os trechos restantes.');
@@ -71,10 +80,10 @@ export function useVideoVisualAlignment(user: string, org: string, session: stri
             if (context.alive) { setLoading(false); if (requestController.signal.aborted) setMessage('Conferência pausada. Trechos concluídos preservados.'); }
         }
     };
-    const visualRallies = useMemo(() => state.current?.identity === identity ? entries.flatMap(entry => {
+    const visualRallies = useMemo(() => entries.flatMap(entry => {
         const side = sides ? sides[JSON.stringify([entry.sessionId,entry.setNumber])] : entry.request.ourSide;
         return side && entry.result ? visualRalliesForTeam(entry.result,side) : [];
-    }) : [], [entries,identity,sides]);
+    }), [entries,sides]);
     const failedWindows = entries.filter(entry => !entry.result).length;
     return { visualRallies, failedWindows, loading, error, message, processedSeconds, run, cancel: () => controller.current?.abort() };
 }

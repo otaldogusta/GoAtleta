@@ -15,7 +15,11 @@ export function YouTubeAnalysis({ doc, scope, onApply, onCuts, onTracking, onSee
     const [trackingOpen, setTrackingOpen] = useState(false);
     const [expanded, setExpanded] = useState(true);
     const [activeStart, setActiveStart] = useState(0);
-    useEffect(() => { if (trackingRequested) setTrackingOpen(true); }, [trackingRequested]);
+    useEffect(() => {
+        let current = true;
+        void Promise.resolve().then(() => { if (current && trackingRequested) setTrackingOpen(true); });
+        return () => { current = false; };
+    }, [trackingRequested]);
     const controller = useRef<AbortController | null>(null);
     useEffect(() => () => controller.current?.abort(), []);
     useEffect(() => {

@@ -37,7 +37,11 @@ export function VideoScoutingReview({ user, org, classId, sessionId, opponent, d
     const [message, setMessage] = useState(''), [settingsOpen, setSettingsOpen] = useState(false), [associating, setAssociating] = useState(false);
     const format = preferences.format;
     const regulation = useMemo(() => format === '21-23' ? { pointsToWin: 21, cap: 23 } : undefined, [format]);
-    useEffect(() => { setSelected(review.links.sessionIds); }, [review.links.sessionIds]);
+    useEffect(() => {
+        let current = true;
+        void Promise.resolve().then(() => { if (current) setSelected(review.links.sessionIds); });
+        return () => { current = false; };
+    }, [review.links.sessionIds]);
     const suggestions = useMemo(() => review.available.filter(s => {
         const rival = normalized(opponent ?? '');
         return rival.length >= 4 && !!date && s.date === date && (normalized(s.opponent ?? '') === rival || normalized(s.title).includes(rival));

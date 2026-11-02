@@ -5,7 +5,7 @@ import { ScoutingPerformanceOverview, scoutingPerformanceContexts } from '../Sco
 
 jest.mock('react-native-svg', () => {
     const React = jest.requireActual<typeof import('react')>('react');
-    const component = (name: string) => (props: object) => React.createElement(name, props);
+    const component = (name: string) => function MockSvg(props: object) { return React.createElement(name, props); };
     return { __esModule: true, default: component('chart'), Circle: component('circle'), Line: component('line'), Polyline: component('polyline'), Text: component('chart-text') };
 });
 jest.mock('../../../ui/app-theme', () => ({ useAppTheme: () => ({ colors: { card: '#172234', border: '#283548', text: '#fff', muted: '#8fa1ba', primaryBg: '#30d786' } }) }));

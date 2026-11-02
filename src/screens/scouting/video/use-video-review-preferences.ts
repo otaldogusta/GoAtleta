@@ -9,21 +9,22 @@ type Context = { key: string; alive: boolean; ready: boolean; blocked: boolean; 
 /** Small scoped settings, stored separately from reviewed links and official scouting. */
 export function useVideoReviewPreferences(linksKey: string) {
     const key = `${linksKey}:preferences:v1`;
-    const [state, setState] = useState({ key: '', prefs: empty(), loading: true, error: '' });
+    const [state, setState] = useState({ key: '', attempt: -1, prefs: empty(), loading: true, error: '' });
     const [attempt, setAttempt] = useState(0);
     const current = useRef<Context | null>(null);
     useEffect(() => {
         const context: Context = { key, alive: true, ready: false, blocked: false, raw: null, prefs: empty(), writes: Promise.resolve(true), revision: 0 };
-        current.current = context; setState({ key, prefs: context.prefs, loading: true, error: '' });
+        current.current = context;
+        void Promise.resolve().then(() => { if (context.alive) setState({ key, attempt, prefs: context.prefs, loading: true, error: '' }); });
         void getVideoDraft(key).then(raw => {
             const prefs = raw === null ? empty() : parseVideoReviewPreferences(JSON.parse(raw));
             if (!context.alive) return;
             context.raw = raw; context.prefs = prefs; context.ready = true;
-            setState({ key, prefs, loading: false, error: '' });
+            setState({ key, attempt, prefs, loading: false, error: '' });
         }).catch(() => {
             if (!context.alive) return;
             context.ready = true; context.blocked = true;
-            setState({ key, prefs: context.prefs, loading: false, error: 'Preferências indisponíveis. A seleção manual continua disponível.' });
+            setState({ key, attempt, prefs: context.prefs, loading: false, error: 'Preferências indisponíveis. A seleção manual continua disponível.' });
         });
         return () => { context.alive = false; };
     }, [key, attempt]);
@@ -53,7 +54,7 @@ export function useVideoReviewPreferences(linksKey: string) {
         });
         context.writes = write; return write;
     };
-    const displayed = state.key === key ? state : { prefs: empty(), loading: true, error: '' };
+    const displayed = state.key === key && state.attempt === attempt ? state : { prefs: empty(), loading: true, error: '' };
     return {
         ...displayed.prefs, loading: displayed.loading, error: displayed.error,
         setFormat: (format: VideoReviewPreferences['format']) => update(prefs => ({ ...prefs, format })),

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { calibrateLiveClock, createLivePoint, parseLiveClockMessage, resolveLiveVideoTime, type LiveClockCalibration, type LiveClockMessage, type LivePoint } from '../../../core/scouting-live';
 import { closeLiveRoom, createLiveRoom, getLiveServiceConfig, heartbeatLiveRoom, pollLiveSignals, sendLiveSignal, type LiveRoom, type LiveServiceConfig, type LiveSignal } from './live-api';
 import { deleteLiveHostSession, loadLiveHostSessions, parseLiveHostSession, restoreLiveHostSession, saveLiveHostSession, type LiveHostScope, type LiveHostSession, type LiveCameraOperation as Operation } from './live-storage';
+import { measureAsync } from '../../../observability/perf';
 
 type Recording = { recordingId: string; startEpochMs: number; state: 'recording' | 'stopped' | 'error'; mimeType: string; durationMs?:number };
 const uid = () => crypto.randomUUID();
@@ -12,7 +13,8 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
     const [config,setConfig]=useState<LiveServiceConfig|null>(null), [room,setRoom]=useState<LiveRoom|null>(null), [error,setError]=useState('');
     const [connection,setConnection]=useState<'idle'|'waiting'|'connecting'|'connected'|'disconnected'|'closed'>('idle');
     const [stream,setStream]=useState<MediaStream|null>(null), [session,setSession]=useState<LiveHostSession|null>(null), [history,setHistory]=useState<LiveHostSession[]>([]);
-    const [recording,setRecording]=useState<Recording|null>(null), [busy,setBusy]=useState(false), [saving,setSaving]=useState(false), [pendingCopies,setPendingCopies]=useState(0), [tick,setTick]=useState(0);
+    const [recording,setRecording]=useState<Recording|null>(null), [busy,setBusy]=useState(false), [saving,setSaving]=useState(false), [pendingCopies,setPendingCopies]=useState(0);
+    const [previewTiming,setPreviewTiming]=useState<Parameters<typeof resolveLiveVideoTime>[0]|null>(null);
     const [deleted,setDeleted]=useState<LiveHostSession|null>(null);
     const alive=useRef(true), epoch=useRef(0), peer=useRef<RTCPeerConnection|null>(null), channel=useRef<RTCDataChannel|null>(null), video=useRef<HTMLVideoElement|null>(null);
     const currentRoom=useRef<LiveRoom|null>(null), currentSession=useRef<LiveHostSession|null>(null), currentRecording=useRef<Recording|null>(null), writing=useRef(false);
@@ -54,14 +56,16 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         }
         setPendingCopies(pending.current.size);
     };
-    const refreshConfig=useCallback(async()=>{const controller=new AbortController();try{const result=await getLiveServiceConfig(controller.signal);if(alive.current){setConfig(result);setError('');}}catch(failure){if(alive.current)setError(friendly(failure));}},[]);
+    const refreshConfig=useCallback(async()=>{const controller=new AbortController();try{const result=await measureAsync('screen.scoutingLive.load.config',()=>getLiveServiceConfig(controller.signal));if(alive.current){setConfig(result);setError('');}}catch(failure){if(alive.current)setError(friendly(failure));}},[]);
 
     useEffect(()=>{
         alive.current=true;const token=++epoch.current;
-        void refreshConfig();
-        historyLoaded.current=loadLiveHostSessions(scope,true).then(values=>{if(alive.current&&epoch.current===token){historyRef.current=values.filter(item=>!item.deletedAt);trash.current=values.filter(item=>item.deletedAt).sort((a,b)=>b.deletedAt!.localeCompare(a.deletedAt!));setHistory(historyRef.current);setDeleted(trash.current[0]??null);return true;}return false;}).catch(failure=>{if(alive.current&&epoch.current===token)setError(friendly(failure));return false;});
-        const ticker=setInterval(()=>setTick(value=>value+1),500);
-        return()=>{alive.current=false;epoch.current++;clearInterval(ticker);cancel.current?.abort();channel.current?.close();peer.current?.close();if(video.current&&frameHandle.current!==null)video.current.cancelVideoFrameCallback?.(frameHandle.current);};
+        const [userId,org,classId]=JSON.parse(scopeIdentity) as [string,string,string];
+        void Promise.resolve().then(()=>{if(alive.current&&epoch.current===token)return refreshConfig();});
+        historyLoaded.current=measureAsync('screen.scoutingLive.load.history',()=>loadLiveHostSessions({userId,org,classId},true)).then(values=>{if(alive.current&&epoch.current===token){historyRef.current=values.filter(item=>!item.deletedAt);trash.current=values.filter(item=>item.deletedAt).sort((a,b)=>b.deletedAt!.localeCompare(a.deletedAt!));setHistory(historyRef.current);setDeleted(trash.current[0]??null);return true;}return false;}).catch(failure=>{if(alive.current&&epoch.current===token)setError(friendly(failure));return false;});
+        // Snapshot the external clocks on the existing cadence; render stays pure.
+        const ticker=setInterval(()=>setPreviewTiming(clock.current&&currentRecording.current?.state==='recording'&&!currentSession.current?.ended&&sessionReady.current?{clock:clock.current,calibration:calibration.current,hostNowEpochMs:Date.now(),lastFrameHostEpochMs:frame.current.hostEpochMs,captureHostEpochMs:frame.current.captureHostEpochMs,playoutDelayMs:playoutDelay.current}:null),500);
+        return()=>{alive.current=false;epoch.current=token+1;clearInterval(ticker);cancel.current?.abort();channel.current?.close();peer.current?.close();if(video.current&&frameHandle.current!==null)video.current.cancelVideoFrameCallback?.(frameHandle.current);};
         // The component is keyed by this identity; stale async reads never cross it.
     },[scopeIdentity,refreshConfig]);
 
@@ -190,7 +194,7 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         finally{if(alive.current)setBusy(false);}
     };
     const resolveStamp=()=>clock.current&&currentRecording.current?.state==='recording'&&!currentSession.current?.ended&&connection==='connected'&&sessionReady.current?resolveLiveVideoTime({clock:clock.current,calibration:calibration.current,hostNowEpochMs:Date.now(),lastFrameHostEpochMs:frame.current.hostEpochMs,captureHostEpochMs:frame.current.captureHostEpochMs,playoutDelayMs:playoutDelay.current}):null;
-    const stamp=resolveStamp();
+    const stamp=previewTiming&&connection==='connected'&&recording?.state==='recording'&&!session?.ended&&previewTiming.clock?.recordingId===recording.recordingId?resolveLiveVideoTime(previewTiming):null;
     const mark=async(won:boolean)=>{
         const current=currentSession.current, source=clock.current, pointStamp=resolveStamp();
         if(writing.current||!current||!source||!pointStamp||current.ended||currentRecording.current?.state!=='recording')return;
@@ -243,6 +247,5 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         catch(failure){if(alive.current&&epoch.current===token)setError(friendly(failure));return false;}
         finally{writing.current=false;if(alive.current&&epoch.current===token)setSaving(false);}
     };
-    void tick;
     return {config,room,error,connection,stream,session,history,recording,busy,saving,pendingCopies,stamp,deleted,attachVideo,refreshConfig,start,mark,undo,nextSet,disconnect,deleteSaved,restoreDeleted,canDeleteSession,canMark:!!stamp&&recording?.state==='recording'&&!saving&&!session?.ended};
 }

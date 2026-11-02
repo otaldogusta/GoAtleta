@@ -11,7 +11,7 @@ export function useVideoAlignmentEvidence(user: string, org: string, session: st
     const { youtubeId, duration } = media;
     useEffect(() => {
         let alive = true;
-        setState({ scope, observations: [], loading: true, error: '' });
+        void Promise.resolve().then(() => { if (alive) setState({ scope, observations: [], loading: true, error: '' }); });
         void (youtubeId ? loadAiCheckpoints(scope, youtubeId, duration) : Promise.resolve([])).then(observations => {
             if (alive) setState({ scope, observations, loading: false, error: '' });
         }).catch(() => {

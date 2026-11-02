@@ -10,7 +10,7 @@ let mockNextInstance = 0;
 let mockVideoGuard: jest.Mock<void, [() => void]>;
 let mockCameraGuard: jest.Mock<void, [() => void]>;
 const mockMounts: string[] = [], mockUnmounts: string[] = [];
-const mockPane = (kind: string, props: Record<string, unknown>) => {
+function MockPane({ kind, ...props }: { kind: string } & Record<string, unknown>) {
     const React = jest.requireActual<typeof import('react')>('react');
     const [instance] = React.useState(() => `${kind}-${++mockNextInstance}`);
     const [draft, setDraft] = React.useState('');
@@ -19,7 +19,7 @@ const mockPane = (kind: string, props: Record<string, unknown>) => {
         return () => { mockUnmounts.push(instance); };
     }, [instance]);
     return React.createElement(kind, { ...props, instance, draft, editDraft: setDraft });
-};
+}
 
 // Jest's native preset leaves import() to Node. Keep real Suspense/lazy timing,
 // but resolve the two workspace imports to deferred fixture modules.
@@ -29,7 +29,7 @@ jest.mock('react', () => {
     return { ...React, lazy: () => {
         const index = importIndex++;
         return React.lazy(() => Promise.resolve().then(() => index === 0
-            ? require('../video/ScoutingVideoStudio.web') : require('../live/ScoutingLive.web')));
+            ? jest.requireMock('../video/ScoutingVideoStudio.web') : jest.requireMock('../live/ScoutingLive.web')));
     } };
 });
 jest.mock('react-dom', () => ({ createPortal: jest.fn((children: unknown) => children) }));
@@ -40,29 +40,29 @@ jest.mock('../live/live-api', () => ({ liveLocalAvailable: () => mockCameraAvail
 jest.mock('../video/studio-styles', () => ({ studioStyles: '' }));
 jest.mock('../ScoutingNavigation', () => ({ ScoutingTabs: (props: object) => jest.requireActual('react').createElement('workspace-tabs', props) }));
 jest.mock('../NewScoutingModal', () => ({ NewScoutingModal: (props: object) => jest.requireActual('react').createElement('new-analysis', props) }));
-jest.mock('../ScoutingCollector', () => ({ ScoutingCollector: (props: Record<string, unknown>) => mockPane('collector', props) }));
+jest.mock('../ScoutingCollector', () => ({ ScoutingCollector: (props: Record<string, unknown>) => jest.requireActual('react').createElement(MockPane, { ...props, kind: 'collector' }) }));
 jest.mock('../video/StudioSelect.web', () => ({ StudioSelect: (props: object) => jest.requireActual('react').createElement('workspace-select', props) }));
 jest.mock('../video/StudioUI.web', () => ({
     StudioAction: (props: object) => jest.requireActual('react').createElement('button', props),
     StudioDialog: (props: Record<string, unknown>) => jest.requireActual('react').createElement('workspace-dialog', props, props.children),
 }));
-jest.mock('../video/ScoutingVideoStudio.web', () => ({ __esModule: true, default: (props: Record<string, unknown>) => {
+jest.mock('../video/ScoutingVideoStudio.web', () => ({ __esModule: true, default: function MockVideoStudio(props: Record<string, unknown>) {
     const React = jest.requireActual<typeof import('react')>('react');
     React.useEffect(() => {
         const setter = props.onLeaveGuard as (mockGuard: ((next: () => void) => void) | null) => void;
         setter(next => mockVideoGuard(next));
         return () => setter(null);
     }, [props.onLeaveGuard]);
-    return mockPane('video-studio', props);
+    return React.createElement(MockPane, { ...props, kind: 'video-studio' });
 } }));
-jest.mock('../live/ScoutingLive.web', () => ({ __esModule: true, default: (props: Record<string, unknown>) => {
+jest.mock('../live/ScoutingLive.web', () => ({ __esModule: true, default: function MockLiveCamera(props: Record<string, unknown>) {
     const React = jest.requireActual<typeof import('react')>('react');
     React.useEffect(() => {
         const setter = props.onLeaveGuard as (mockGuard: ((next: () => void) => void) | null) => void;
         setter(next => mockCameraGuard(next));
         return () => setter(null);
     }, [props.onLeaveGuard]);
-    return mockPane('live-camera', props);
+    return React.createElement(MockPane, { ...props, kind: 'live-camera' });
 } }));
 
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');

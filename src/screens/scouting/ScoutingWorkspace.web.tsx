@@ -1,9 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppTheme } from '../../ui/app-theme';
 import { useResponsiveLayout } from '../../ui/use-responsive-layout';
 import { compactUiMetrics, radius } from '../../theme/tokens';
 import { registerPendingEditsNavigation } from '../../navigation/pending-edits-navigation';
+import { markRender, measureAsync } from '../../observability/perf';
 import { ScoutingCollector } from './ScoutingCollector';
 import { ScoutingTabs } from './ScoutingNavigation';
 import { NewScoutingModal } from './NewScoutingModal';
@@ -14,13 +15,14 @@ import { StudioSelect } from './video/StudioSelect.web';
 import { studioStyles } from './video/studio-styles';
 import type { ScoutingWorkspaceMode, ScoutingWorkspaceProps } from './ScoutingWorkspace.types';
 
-const VideoStudio=lazy(()=>import('./video/ScoutingVideoStudio.web'));
-const LiveCamera=lazy(()=>import('./live/ScoutingLive.web'));
+const VideoStudio=lazy(()=>measureAsync('screen.scouting.workspace.load.video',()=>import('./video/ScoutingVideoStudio.web')));
+const LiveCamera=lazy(()=>measureAsync('screen.scouting.workspace.load.camera',()=>import('./live/ScoutingLive.web')));
 type LeaveGuard=(next:()=>void)=>void;
 type LinkedSource={id:string;title:string;date:string};
 
 /** A single owner for navigation and focus. Hidden tools stay mounted. */
 export default function ScoutingWorkspace(props:ScoutingWorkspaceProps) {
+    markRender('screen.scouting.workspace.render.web');
     const {colors}=useAppTheme(),layout=useResponsiveLayout();
     const active=props.active!==false,canUseCamera=liveLocalAvailable();
     const initialMode=props.initialMode==='camera'&&!canUseCamera?'video':props.initialMode??'video';
@@ -33,7 +35,7 @@ export default function ScoutingWorkspace(props:ScoutingWorkspaceProps) {
     const [toolbarTarget,setToolbarTarget]=useState<HTMLDivElement|null>(null);
     const [manualDirty,setManualDirty]=useState(false),[manualBusy,setManualBusy]=useState(false);
     const manualExplicit=useRef(false),dirtyRef=useRef(manualDirty),busyRef=useRef(manualBusy),videoIdRef=useRef(videoSessionId);
-    dirtyRef.current=manualDirty;busyRef.current=manualBusy;videoIdRef.current=videoSessionId;
+    useLayoutEffect(()=>{dirtyRef.current=manualDirty;busyRef.current=manualBusy;videoIdRef.current=videoSessionId;},[manualDirty,manualBusy,videoSessionId]);
     const manualDirtyChanged=useCallback((value:boolean)=>{dirtyRef.current=value;setManualDirty(value);},[]);
     const manualBusyChanged=useCallback((value:boolean)=>{busyRef.current=value;setManualBusy(value);},[]);
     const linkedChanged=useCallback((sources:LinkedSource[])=>{
@@ -66,7 +68,7 @@ export default function ScoutingWorkspace(props:ScoutingWorkspaceProps) {
     const leave=(next:()=>void)=>guardContent(()=>{
         if(cameraGuard.current){setMode('camera');cameraGuard.current(next);}else next();
     });
-    requestNavigation.current=leave;
+    useLayoutEffect(()=>{requestNavigation.current=leave;});
     useEffect(()=>{
         if(!active||typeof document==='undefined')return;
         const app=document.getElementById('root'),previousInert=app?.inert,previousFocus=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow;
