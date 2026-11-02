@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { resizeVideoRally, videoRange, type VideoDocument } from '../../../core/scouting-video';
+import { resizeVideoRally, videoRange, videoTime, type VideoDocument } from '../../../core/scouting-video';
 import { Thumbnail } from './VideoGallery.web';
 import { StudioAction } from './StudioUI.web';
 
@@ -37,7 +37,7 @@ export function VideoRallyRange({ doc, id, disabled, onApply, source, offset = 0
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, height: 64, pointerEvents: 'none', background: `linear-gradient(to right, #0008 ${left}%, transparent ${left}%, transparent ${right}%, #0008 ${right}%)` }}/>
         <div className="sv-trim-selection" style={{ left: `${left}%`, width: `${Math.max(0, right - left)}%` }}/>
         {(['start', 'end'] as const).map(edge => {
-            const locked = disabled || (edge === 'start' ? index === 0 : index === doc.rallies.length - 1);
+            const locked = disabled || (edge === 'end' && index === doc.rallies.length - 1);
             const value = Number(edge === 'start' ? start : end);
             return <div key={edge} role="slider" tabIndex={locked ? -1 : 0} aria-disabled={locked} aria-label={edge === 'start' ? 'Arrastar início do recorte' : 'Arrastar fim do recorte'} aria-valuemin={lower} aria-valuemax={upper} aria-valuenow={value} aria-valuetext={`${value.toFixed(3)} segundos`} className="sv-trim-handle" style={{ left: `${edge === 'start' ? left : right}%` }}
               onPointerDown={e => { if (locked || e.button !== 0) return; e.preventDefault(); e.currentTarget.focus(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { edge, x: e.clientX, time: value, value, width: strip.current!.getBoundingClientRect().width }; }}
@@ -56,13 +56,13 @@ export function VideoRallyRange({ doc, id, disabled, onApply, source, offset = 0
       </div>
       {!source ? <div className="sv-trim-connect"><StudioAction label="Conectar vídeo para carregar miniaturas" onPress={onConnect}>Conectar vídeo para ver miniaturas</StudioAction></div> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
-        <label className="sv-field">Início (s)<span><input aria-label="Início do rally em segundos" type="number" step="0.001" min="0" disabled={disabled || index === 0} value={start} onChange={e => { setStart(e.target.value); setError(''); }}/></span></label>
-        <label className="sv-field">Fim (s)<span><input aria-label="Fim do rally em segundos" type="number" step="0.001" min="0" disabled={disabled || index === doc.rallies.length - 1} value={end} onChange={e => { setEnd(e.target.value); setError(''); }}/></span></label>
+        <label className="sv-field">Início (s) · {Number.isFinite(Number(start)) ? videoTime(Number(start), true) : "—"}<span><input aria-label="Início do rally em segundos" type="number" step="0.001" min="0" disabled={disabled} value={start} onChange={e => { setStart(e.target.value); setError(''); }}/></span></label>
+        <label className="sv-field">Fim (s) · {Number.isFinite(Number(end)) ? videoTime(Number(end), true) : "—"}<span><input aria-label="Fim do rally em segundos" type="number" step="0.001" min="0" disabled={disabled || index === doc.rallies.length - 1} value={end} onChange={e => { setEnd(e.target.value); setError(''); }}/></span></label>
       </div>
       {error ? <p role="alert">{error}</p> : null}
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, flexWrap: 'wrap', marginTop: 4, marginBottom: 8 }}><StudioAction label={playing ? 'Pausar trecho' : 'Ver trecho selecionado'} disabled={disabled || !valid} onPress={preview}>{playing ? 'Pausar' : 'Ver trecho'}</StudioAction><StudioAction label="Resetar recorte" disabled={disabled || (Number(start) === from && Number(end) === to)} onPress={() => { setStart(from.toFixed(3)); setEnd(to.toFixed(3)); setError(''); onPreview(from); }}>Resetar</StudioAction><StudioAction label="Aplicar recorte do rally" disabled={disabled || !start.trim() || !end.trim() || (Number(start) === from && Number(end) === to)} onPress={() => {
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, flexWrap: 'wrap', marginTop: 4, marginBottom: 8 }}><StudioAction label={playing ? 'Pausar trecho' : 'Ver trecho selecionado'} disabled={disabled || !valid} onPress={preview}>{playing ? 'Pausar' : 'Ver trecho'}</StudioAction><StudioAction label="Resetar recorte" disabled={disabled || (Number(start) === from && Number(end) === to)} onPress={() => { setStart(from.toFixed(3)); setEnd(to.toFixed(3)); setError(''); onPreview(from); }}>Resetar</StudioAction><StudioAction label="Aplicar recorte do rally" primary disabled={disabled || !valid || (Number(start) === from && Number(end) === to)} onPress={() => {
           try { onApply(resizeVideoRally(doc, id, Number(start), Number(end))); setError(''); }
           catch (failure) { setError((failure as Error).message); }
-      }}>Aplicar recorte</StudioAction></div>
+      }}>Salvar recorte</StudioAction></div>
     </div>;
 }

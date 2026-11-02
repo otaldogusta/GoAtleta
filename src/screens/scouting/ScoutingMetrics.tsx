@@ -11,15 +11,16 @@ export function ScoutingMetrics({ counts }: { counts: ScoutingCount[] }) {
   const [skill, setSkill] = useState<ScoutingActionFundamental>("recepcao");
   const { colors } = useAppTheme();
   const metric = scoutingWeightedMetric(counts, skill);
-  const options = getCaptureResultOptions(skill);
   const selected = counts.filter(c => c.fundamental === skill);
+  const options = getCaptureResultOptions(skill, selected.some(c => ['freeball_devolvida', 'bloqueio_continua'].includes(c.result_key)) ? 3 : 2);
+  const fundamentals = [...captureFundamentals, ...[...new Set(counts.filter(c => c.count > 0 && !captureFundamentals.includes(c.fundamental)).map(c => c.fundamental))]];
   const old = selected.filter(c => !options.some(o => o.key === c.result_key));
   const distribution = options.map(option => ({ ...option,
     count: selected.filter(c => c.result_key === option.key).reduce((total, c) => total + c.count, 0),
     color: option.level === 0 ? colors.danger : option.level === 1 ? colors.warning : option.level === 2 ? colors.info : colors.success,
   }));
   return <View style={{ gap: 12 }}>
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>{captureFundamentals.map(f => <Choice compact key={f} label={skillLabel(f)} selected={skill === f} onPress={() => setSkill(f)} />)}</View>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>{fundamentals.map(f => <Choice compact key={f} label={skillLabel(f)} selected={skill === f} onPress={() => setSkill(f)} />)}</View>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
       <Text style={{ fontSize: 30, fontWeight: "700", color: colors.text }}>{metric.value == null ? "—" : `${metric.value}%`}</Text>
       <View style={{ flex: 1, gap: 4 }}><Copy>{skill === "ataque" ? "eficiência de ataque" : skill === "saque" ? "saques que dificultaram ou pontuaram" : skill === "recepcao" ? "recepções boas ou completas" : "resultados de nível 2 ou 3"}</Copy>
@@ -31,6 +32,7 @@ export function ScoutingMetrics({ counts }: { counts: ScoutingCount[] }) {
       <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: option.color }} /><View style={{ flex: 1 }}><Copy muted>{option.label}</Copy></View><Copy>{option.count}</Copy>
     </View>)}</View>
     {old.length ? <Copy muted>{amount(old.reduce((n, c) => n + c.count, 0), "ação antiga", "ações antigas")} com classificação preservada. Bloqueios sem desfecho conhecido ficam fora da eficiência.</Copy> : null}
+    {skill === 'ataque' && selected.some(c => c.result_key === 'freeball_devolvida' && c.count > 0) ? <Copy muted>Bolas de graça ficam fora da eficiência de ataque.</Copy> : null}
     <Copy muted>{metric.total ? `${amount(metric.total, "ação observada", "ações observadas")}. Amostra parcial; não representa todos os contatos da equipe.` : "Sem ações deste fundamento no recorte."}</Copy>
   </View>;
 }

@@ -1,0 +1,104 @@
+--- a/src/screens/scouting/video/VideoScoutingReview.web.tsx
++++ b/src/screens/scouting/video/VideoScoutingReview.web.tsx
+@@ -44,8 +44,12 @@
+         if (match?.time != null && !match.missing) onSeek(match.time);
+     };
+     const pointIndex = point ? points.indexOf(point) : -1;
++    const sourceLinks = review.links.links.filter(l => points.some(p => p.id === l.rallyId && p.sessionId === l.sessionId));
++    const associated = sourceLinks.filter(l => !l.missing).length, missing = sourceLinks.filter(l => l.missing).length;
++    const pending = points.filter(p => !sourceLinks.some(l => l.rallyId === p.id && l.sessionId === p.sessionId));
++    const nextPending = pending.find(p => points.indexOf(p) > pointIndex) ?? pending[0];
+     return <section className="sv-scouting-review" aria-label="Scouting registrado durante o jogo">
+-        <div className="sv-row sv-review-heading"><span className="sv-section-meta">{review.sources.length ? `${review.sources.reduce((n,s) => n+s.rallies.length,0)} registros · ${review.links.links.filter(l => !l.missing).length} com vídeo` : 'Registros feitos durante o jogo'}</span><StudioAction label={settingsOpen ? 'Fechar seleção de análises' : 'Escolher análises dos sets'} icon="management" active={settingsOpen} onPress={() => setSettingsOpen(value => !value)}/></div>
++        <div className="sv-row sv-review-heading"><span className="sv-section-meta">{review.sources.length ? `${review.sources.reduce((n,s) => n+s.rallies.length,0)} registros do jogo` : 'Registros feitos durante o jogo'}</span><StudioAction label={settingsOpen ? 'Fechar seleção de análises' : 'Escolher análises dos sets'} icon="management" active={settingsOpen} onPress={() => setSettingsOpen(value => !value)}/></div>
+         {review.loading ? <p role="status">Carregando registros…</p> : null}
+         {review.error || localError ? <p className="sv-alert" role="alert">{review.error || localError}</p> : null}
+         {review.error ? <StudioAction label="Recarregar registros do scouting" onPress={review.retry}>Tentar novamente</StudioAction> : null}
+@@ -58,18 +62,19 @@
+         </div> : null}
+         {review.sources.length ? <>
+           <div className="sv-review-sets" aria-label="Sets registrados">{orderedSources.map(s => <StudioAction key={s.session.id} label={`Revisar ${s.rallies.length ? `set ${s.rallies[0].setNumber}` : s.session.title}`} active={source?.session.id === s.session.id} onPress={() => { setSourceId(s.session.id); setPointId(''); setMessage(''); }}>{s.rallies.length ? `Set ${s.rallies[0].setNumber}` : s.session.title}</StudioAction>)}</div>
++          <div className="sv-review-progress"><small>{associated} com vídeo{missing ? ` · ${missing} sem imagem` : ''} · {pending.length} {pending.length === 1 ? 'pendente' : 'pendentes'}</small><StudioAction label="Próximo ponto sem vínculo no vídeo" disabled={busy || !nextPending} onPress={() => { if (nextPending) choosePoint(nextPending.id); }}>Próximo pendente</StudioAction></div>
+           {sameVideoLinks.length && (sameVideoLinks[0].rallyId !== point?.id || sameVideoLinks[0].sessionId !== point?.sessionId) ? <StudioAction label="Abrir registro associado ao recorte atual" onPress={() => { setSourceId(sameVideoLinks[0].sessionId); setPointId(sameVideoLinks[0].rallyId); }}>Ver registro deste recorte</StudioAction> : null}
+           {point ? <>
+             <div className="sv-review-point-nav"><StudioAction label="Ponto registrado anterior" icon="chevronBack" disabled={pointIndex <= 0} onPress={() => choosePoint(points[pointIndex-1].id)}/><label className="sv-field"><span><select aria-label="Ponto registrado" value={point.id} onChange={e => choosePoint(e.target.value)}>{points.map((p,i) => <option key={p.id} value={p.id}>Registro {i+1} de {points.length} · {p.scoreUs} × {p.scoreThem}</option>)}</select></span></label><StudioAction label="Próximo ponto registrado" icon="chevronForward" disabled={pointIndex >= points.length-1} onPress={() => choosePoint(points[pointIndex+1].id)}/></div>
+             <div className="sv-review-score" aria-label={`Placar registrado: nós ${point.scoreUs}, adversário ${point.scoreThem}`}><div><small>Nosso time</small><strong>{point.scoreUs}</strong></div><span>×</span><div><small>Adversário</small><strong>{point.scoreThem}</strong></div></div>
+             <p className="sv-review-winner">{point.won ? 'Ponto do nosso time' : 'Ponto do adversário'}</p>
+-            <section className="sv-review-contacts"><h3>Contatos deste ponto</h3>{point.contacts.length ? <ul className="sv-scouting-contacts">{point.contacts.map((contact,i) => <li key={i}><b>{contact.athleteName || 'Sem atleta'}</b><span>{scoutingActionFundamentals.find(f => f.id === contact.fundamental)?.label ?? contact.fundamental}<em>{getScoutingResultOptions(contact.fundamental).find(r => r.key === contact.resultKey)?.label ?? contact.resultKey}</em></span></li>)}</ul> : <p className="sv-section-meta">Somente placar registrado</p>}</section>
+             <section className="sv-review-video"><div className="sv-row"><h3>Vídeo deste ponto</h3><small>{link?.missing ? 'Sem imagem' : stale ? 'Conferir recorte' : link ? videoTime(link.time!) : 'Não associado'}</small></div>
+               {link?.time != null ? <StudioAction label="Ver ponto vinculado no vídeo" primary onPress={() => onSeek(link.time!)}>Assistir lance · {videoTime(link.time)}</StudioAction> : null}
+               {!link || stale ? <><p className="sv-section-meta">Encontre o lance no vídeo e associe o instante.</p>{suggestion !== null ? <StudioAction label="Ver sugestão de correspondência" onPress={() => onSeek(suggestion)}>Conferir sugestão · {videoTime(suggestion)}</StudioAction> : null}<StudioAction label="Vincular ponto ao instante atual do vídeo" primary disabled={busy || !selectedRally} onPress={() => { void save(false); }}>Associar em {videoTime(time)}</StudioAction></> : null}
+               {link?.missing ? <p className="sv-section-meta">Este lance não aparece na gravação.</p> : null}
+               <details className="sv-disclosure"><summary>{link ? 'Alterar associação' : 'Outras opções'}</summary>{link && !stale ? <><StudioAction label="Vincular ponto ao instante atual do vídeo" disabled={busy || !selectedRally} onPress={() => { void save(false); }}>Usar instante {videoTime(time)}</StudioAction><StudioAction label="Remover vínculo deste ponto" disabled={busy} onPress={() => { setMessage(''); void review.save({ ...review.links, links: review.links.links.filter(l => pointLinkKey(l.sessionId, l.rallyId) !== pointLinkKey(point.sessionId, point.id)) }); }}>Remover associação</StudioAction></> : null}<StudioAction label="Marcar ponto sem imagem no vídeo" disabled={busy} onPress={() => { void save(true); }}>Lance não aparece no vídeo</StudioAction></details>
+             </section>
++            <section className="sv-review-contacts"><h3>Contatos deste ponto</h3>{point.contacts.length ? <ul className="sv-scouting-contacts">{point.contacts.map((contact,i) => <li key={i}><b>{contact.athleteName || 'Sem atleta'}</b><span>{scoutingActionFundamentals.find(f => f.id === contact.fundamental)?.label ?? contact.fundamental}<em>{getScoutingResultOptions(contact.fundamental).find(r => r.key === contact.resultKey)?.label ?? contact.resultKey}</em></span></li>)}</ul> : <p className="sv-section-meta">Somente placar registrado</p>}</section>
+           </> : <p className="sv-section-meta">Este set não tem registros por jogada.</p>}
+         </> : null}
+         {message ? <p role="status" className="sv-section-meta">{message}</p> : null}
+--- a/src/screens/scouting/video/studio-styles.ts
++++ b/src/screens/scouting/video/studio-styles.ts
+@@ -184,6 +184,7 @@
+ .sv-scouting-modes{display:flex;gap:4px;padding:4px;margin-bottom:12px;background:var(--sv-input);border-radius:10px}
+ .sv-scouting-modes>.sv-action{flex:1;min-width:0}.sv-scouting-modes [role=button]{width:100%;border:0!important;border-radius:7px!important;font-size:11px}
+ .sv-review-heading{margin-bottom:8px}.sv-review-heading>.sv-action{flex:none}.sv-review-heading .sv-section-meta{font-size:10px}
++.sv-review-progress{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin:0 0 10px}.sv-review-progress>small{font-size:10px;color:var(--sv-muted);line-height:1.5}.sv-review-progress>.sv-action{font-size:10px}.sv-review-progress [role=button]{min-height:32px!important;padding:4px 8px!important}
+ .sv-review-sets{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 12px}.sv-review-sets>.sv-action{flex:1;min-width:54px}.sv-review-sets [role=button]{width:100%;border-radius:8px!important}
+ .sv-review-point-nav{display:flex;gap:5px;align-items:center}.sv-review-point-nav .sv-field{flex:1;min-width:0;margin:0}.sv-review-point-nav .sv-field>span{padding:0 8px}.sv-review-point-nav select{font-size:11px}
+ .sv-review-score{display:grid;grid-template-columns:1fr 20px 1fr;gap:6px;align-items:center;text-align:center;padding:14px 0 6px}
+--- a/src/screens/scouting/__tests__/video-scouting-review.test.ts
++++ b/src/screens/scouting/__tests__/video-scouting-review.test.ts
+@@ -56,3 +56,54 @@
+     act(() => view.root.findByProps({ label: 'Escolher análises dos sets' }).props.onPress());
+     expect(view.root.findByProps({ label: 'Salvar análises vinculadas ao vídeo' })).toBeTruthy();
+ });
++
++test('video association actions precede contacts in the review reading order', () => {
++    mount();
++    const sections = view.root.findAllByType('section').map(node => node.props.className);
++    expect(sections.indexOf('sv-review-video')).toBeLessThan(sections.indexOf('sv-review-contacts'));
++});
++
++test('next pending skips confirmed footage and explicit missing footage without writing', () => {
++    const original = mockSource.rallies;
++    mockSource.rallies = [...original, { ...mockPoint('p3', 60), number: 3 }];
++    try {
++        mockLinks = savePointVideoLink(mockLinks, mockSource.rallies[0], doc, null);
++        mockLinks = savePointVideoLink(mockLinks, mockSource.rallies[1], doc, 50);
++        const sourceBefore = JSON.stringify(mockSource);
++        const onSeek = mount();
++        expect(view.root.findByProps({ className: 'sv-review-progress' }).findByType('small').children.join('')).toBe('1 com vídeo · 1 sem imagem · 1 pendente');
++        act(() => view.root.findByProps({ label: 'Próximo ponto sem vínculo no vídeo' }).props.onPress());
++        expect(view.root.findByProps({ 'aria-label': 'Ponto registrado' }).props.value).toBe('p3');
++        expect(onSeek).not.toHaveBeenCalled();
++        expect(mockSave).not.toHaveBeenCalled();
++        expect(JSON.stringify(mockSource)).toBe(sourceBefore);
++    } finally { mockSource.rallies = original; }
++});
++
++test('next pending wraps to the first unresolved point in the selected set', () => {
++    const original = mockSource.rallies;
++    mockSource.rallies = [...original, { ...mockPoint('p3', 60), number: 3 }];
++    try {
++        mockLinks = savePointVideoLink(mockLinks, mockSource.rallies[0], doc, null);
++        mount();
++        act(() => view.root.findByProps({ 'aria-label': 'Ponto registrado' }).props.onChange({ target: { value: 'p3' } }));
++        act(() => view.root.findByProps({ label: 'Próximo ponto sem vínculo no vídeo' }).props.onPress());
++        expect(view.root.findByProps({ 'aria-label': 'Ponto registrado' }).props.value).toBe('p2');
++        expect(mockSave).not.toHaveBeenCalled();
++    } finally { mockSource.rallies = original; }
++});
++
++test('missing footage resolves the point and disables pending navigation when all are resolved', () => {
++    mockLinks = savePointVideoLink(mockLinks, mockSource.rallies[0], doc, null);
++    mockLinks = savePointVideoLink(mockLinks, mockSource.rallies[1], doc, null);
++    mount();
++    expect(view.root.findByProps({ label: 'Próximo ponto sem vínculo no vídeo' }).props.disabled).toBe(true);
++    expect(mockSave).not.toHaveBeenCalled();
++});
++
++test('a reference from another set cannot hide a pending point or inflate current-set progress', () => {
++    mockLinks.links = [{ sessionId: 'other', rallyId: 'p1', videoRallyId: 'v1', time: 20, missing: false }];
++    mount();
++    expect(view.root.findByProps({ className: 'sv-review-progress' }).findByType('small').children.join('')).toBe('0 com vídeo · 2 pendentes');
++    expect(mockSave).not.toHaveBeenCalled();
++});

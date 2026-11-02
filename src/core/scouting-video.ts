@@ -80,7 +80,7 @@ export function newVideoDocument(media: VideoMedia, rallyId: string): VideoDocum
 }
 /** Explicit acceptance may initialize a blank timeline, never replace human edits. */
 export function acceptVideoAnalysis(doc: VideoDocument, analysis: VideoAnalysis): VideoDocument {
-    const blank = doc.rallies.length === 1 && !doc.rallies[0].winner && doc.rallies[0].pointTime === undefined && !doc.rallies[0].reviewed && !doc.contacts.length && !doc.corrections.length;
+    const blank = doc.rallies.length === 1 && doc.rallies[0].start === 0 && !doc.rallies[0].winner && doc.rallies[0].pointTime === undefined && !doc.rallies[0].reviewed && !doc.contacts.length && !doc.corrections.length;
     if (blank && analysis.cuts.length >= 2000) throw new Error('A análise excede o limite de 2.000 rallies.');
     return { ...doc, analysis, rallies: blank ? [doc.rallies[0], ...analysis.cuts.map((start, i) => {
         const id = `suggested-cut-${i}`;
@@ -102,7 +102,7 @@ export function videoRange(doc: VideoDocument, id: string | null): [
 export function resizeVideoRally(doc: VideoDocument, id: string, start: number, end: number): VideoDocument {
     const index = doc.rallies.findIndex(r => r.id === id);
     if (index < 0 || !Number.isFinite(start) || !Number.isFinite(end) || start >= end
-        || (index === 0 ? start !== 0 : start <= doc.rallies[index - 1].start)
+        || (index === 0 ? start < 0 : start <= doc.rallies[index - 1].start)
         || (index === doc.rallies.length - 1 ? end !== doc.media.duration : end >= (doc.rallies[index + 2]?.start ?? doc.media.duration)))
         throw new Error('O recorte deve respeitar os rallies vizinhos e a duração do vídeo.');
     const rallies = doc.rallies.map((r, i) => i === index ? { ...r, start } : i === index + 1 ? { ...r, start: end } : { ...r });
@@ -191,7 +191,7 @@ export function parseVideoDocument(value: unknown, media?: VideoMedia): VideoDoc
         throw new Error('Limites da análise inválidos.');
     const ids = new Set<string>();
     const validId = (id: string) => typeof id === 'string' && id.length > 0 && id.length <= 120 && !ids.has(id) && !!ids.add(id);
-    if (d.rallies.some((r, i) => !r || !validId(r.id) || !finite(r.start) || (i === 0 ? r.start !== 0 : r.start <= d.rallies[i - 1].start) || r.start >= d.media.duration || ![null, 'us', 'them'].includes(r.winner) || (r.winnerContactId !== undefined && (typeof r.winnerContactId !== 'string' || !r.winnerContactId.length || r.winnerContactId.length > 120)) || typeof r.reviewed !== 'boolean'))
+    if (d.rallies.some((r, i) => !r || !validId(r.id) || !finite(r.start) || (i === 0 ? r.start < 0 : r.start <= d.rallies[i - 1].start) || r.start >= d.media.duration || ![null, 'us', 'them'].includes(r.winner) || (r.winnerContactId !== undefined && (typeof r.winnerContactId !== 'string' || !r.winnerContactId.length || r.winnerContactId.length > 120)) || typeof r.reviewed !== 'boolean'))
         throw new Error('Rallies inválidos.');
     if (d.rallies.some((r, i) => r.pointTime !== undefined && (!finite(r.pointTime) || r.pointTime < r.start || r.pointTime >= (d.rallies[i + 1]?.start ?? d.media.duration))))
         throw new Error('Instante do ponto inválido.');

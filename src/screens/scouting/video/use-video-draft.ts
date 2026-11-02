@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { assertSessionIdentity, getSessionIdentity } from '../../../auth/session';
-import { getScoutingVideoDocument, saveScoutingVideoDocument, VideoDocumentSyncError, type VideoDocumentRecord } from '../../../api/scouting-video-documents';
+import { getScoutingVideoDocument, saveScoutingVideoDocument, VideoDocumentSyncError, type VideoDocumentRecord, type VideoDocumentSyncErrorCode } from '../../../api/scouting-video-documents';
 import { editVideo, newVideoDocument, parseVideoDocument, undoVideo, videoDraftKey, type VideoDocument, type VideoHistory, type VideoMedia } from '../../../core/scouting-video';
 import { reconcileVideoDocuments, videoDocumentSignature, type VideoSyncBaseline } from '../../../core/scouting-video-sync';
 import { createClientId } from '../../../core/client-id';
@@ -13,12 +13,13 @@ type Pending = { id: string; expectedRevision: number; document: VideoDocument; 
 type Context = {
     scope: string; active: boolean; epoch: number; history: VideoHistory | null; saved: string; loadedSignature: string;
     known: boolean; baseline: VideoSyncBaseline | null; pending: Pending | null; storedSync?: VideoDraftSync;
-    loading: boolean; initialized: boolean; status: SyncStatus; error: string; conflict: Conflict | null; task: Promise<boolean> | null;
+    loading: boolean; initialized: boolean; status: SyncStatus; error: string; syncErrorCode: VideoDocumentSyncErrorCode | null;
+    autoRetryBlocked: boolean; conflict: Conflict | null; task: Promise<boolean> | null;
 };
-type View = { scope: string; history: VideoHistory | null; saved: string; loading: boolean; status: SyncStatus; error: string; conflict: Conflict | null; saving: boolean };
+type View = { scope: string; history: VideoHistory | null; saved: string; loading: boolean; status: SyncStatus; error: string; syncErrorCode: VideoDocumentSyncErrorCode | null; conflict: Conflict | null; saving: boolean };
 const LOCAL_SAVE_ERROR = 'Não foi possível salvar neste aparelho. Mantenha o estúdio aberto e tente novamente.';
-const emptyView = (scope: string): View => ({ scope, history: null, saved: '', loading: true, status: 'loading', error: '', conflict: null, saving: false });
-const emptyContext = (scope: string): Context => ({ ...emptyView(scope), active: true, initialized: false, epoch: 0, loadedSignature: '', known: false, baseline: null, pending: null, task: null });
+const emptyView = (scope: string): View => ({ scope, history: null, saved: '', loading: true, status: 'loading', error: '', syncErrorCode: null, conflict: null, saving: false });
+const emptyContext = (scope: string): Context => ({ ...emptyView(scope), active: true, initialized: false, epoch: 0, loadedSignature: '', known: false, baseline: null, pending: null, task: null, autoRetryBlocked: false });
 
 // Both snapshots have passed the parser. Annotation-only edits can share the
 // normalized immutable track without retaining another full set of points in undo.
@@ -50,11 +51,13 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
     }, [user]);
     const publish = useCallback((ctx: Context) => {
         if (valid(ctx)) setView({ scope: ctx.scope, history: ctx.history, saved: ctx.saved, loading: ctx.loading,
-            status: ctx.status, error: ctx.error, conflict: ctx.conflict, saving: !!ctx.task });
+            status: ctx.status, error: ctx.error, syncErrorCode: ctx.error ? ctx.syncErrorCode : null, conflict: ctx.conflict, saving: !!ctx.task });
     }, [valid]);
     const failure = useCallback((ctx: Context, error: unknown) => {
         if (!valid(ctx)) return;
         const code = error instanceof VideoDocumentSyncError ? error.code : 'unavailable';
+        ctx.syncErrorCode = code;
+        ctx.autoRetryBlocked = code === 'invalid' || code === 'server-rejected';
         ctx.status = code === 'missing-backend' ? 'unavailable' : code === 'permission' ? 'forbidden' : code === 'offline' ? 'offline' : 'error';
         ctx.error = error instanceof VideoDocumentSyncError ? error.message : 'Não foi possível sincronizar agora. Seu rascunho foi preservado neste aparelho.';
         publish(ctx);
@@ -85,7 +88,7 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
         if (metadata?.pending && remote?.mutationId === metadata.pending.id && remote.revision === metadata.pending.expectedRevision + 1)
             baseline = { revision: remote.revision, signature: videoDocumentSignature(remote.document) };
         const resolution = reconcileVideoDocuments({ local, remote, baseline });
-        ctx.known = true; ctx.storedSync = metadata; ctx.pending = null; ctx.conflict = null;
+        ctx.known = true; ctx.storedSync = metadata; ctx.pending = null; ctx.conflict = null; ctx.autoRetryBlocked = false;
         if (resolution.source === 'conflict') {
             ctx.history = stored?.history ?? ctx.history;
             if (local && remote) { ctx.conflict = { local, remote }; ctx.status = 'conflict'; ctx.error = ''; }
@@ -121,8 +124,14 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
                 await persist(ctx, ctx.history!);
                 if (valid(ctx, epoch) && ctx.error === LOCAL_SAVE_ERROR) { ctx.status = 'pending'; ctx.error = ''; publish(ctx); }
             }
-            catch { if (valid(ctx, epoch)) { ctx.status = 'error'; ctx.error = LOCAL_SAVE_ERROR; publish(ctx); } return false; }
+            catch { if (valid(ctx, epoch)) { ctx.status = 'error'; ctx.error = LOCAL_SAVE_ERROR; ctx.syncErrorCode = null; publish(ctx); } return false; }
             if (!writable || !valid(ctx, epoch) || ctx.conflict) return true;
+            // Keep saving edits locally, but a schema rejection or invalid response
+            // needs an explicit retry instead of repeating on focus/annotation edits.
+            if (ctx.autoRetryBlocked) {
+                if (passive) { ctx.status = 'error'; publish(ctx); return true; }
+                ctx.autoRetryBlocked = false; ctx.status = 'pending'; ctx.error = ''; publish(ctx);
+            }
             try {
                 if (passive && !activity.current.active) return false;
                 if (!ctx.known && !await refresh(ctx, passive)) return false;
@@ -163,7 +172,7 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
             assertSessionIdentity(auth); if (!valid(ctx, epoch)) return;
             stored = raw ? parseStoredVideoDraft(raw, media) : null;
         } catch (error) { if (valid(ctx, epoch)) { ctx.loading = false; publish(ctx); } throw error; }
-        ctx.baseline = null; ctx.pending = null; ctx.storedSync = stored?.sync; ctx.known = false; ctx.conflict = null;
+        ctx.baseline = null; ctx.pending = null; ctx.storedSync = stored?.sync; ctx.known = false; ctx.conflict = null; ctx.autoRetryBlocked = false;
         ctx.history = stored?.history ?? { present: newVideoDocument(media, createClientId()), past: [], future: [] };
         ctx.saved = stored ? videoDocumentSignature(stored.history.present) : ''; ctx.error = ''; ctx.loading = true; publish(ctx);
         ctx.loadedSignature = ctx.saved;
@@ -192,7 +201,7 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
     }, [publish, readOnlyDocument, valid, writable]);
     const retrySync = useCallback(async (passive = false) => {
         const ctx = state.current;
-        if (readOnlyDocument || !valid(ctx) || ctx.loading || ctx.task || ctx.conflict || (passive && !activity.current.active)) return false;
+        if (readOnlyDocument || !valid(ctx) || ctx.loading || ctx.task || ctx.conflict || (passive && (!activity.current.active || ctx.autoRetryBlocked))) return false;
         try { if (!await refresh(ctx, passive)) return false; } catch (error) { if (!passive || activity.current.active) failure(ctx, error); return false; }
         return save(passive);
     }, [failure, readOnlyDocument, refresh, save, valid]);
@@ -228,7 +237,7 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
                     if (ctx.history) await persist(ctx, ctx.history);
                 } catch (error) { if (current()) failure(ctx, error); }
             } catch {
-                if (current()) { ctx.status = 'error'; ctx.error = 'Não foi possível recuperar o vídeo salvo neste aparelho. Tente abrir o vídeo novamente.'; }
+                if (current()) { ctx.status = 'error'; ctx.syncErrorCode = null; ctx.error = 'Não foi possível recuperar o vídeo salvo neste aparelho. Tente abrir o vídeo novamente.'; }
             } finally { if (current()) { ctx.initialized = true; ctx.loading = false; publish(ctx); } }
         })();
         return () => { cancelled = true; };
@@ -250,7 +259,7 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
             ctx.conflict = null; ctx.error = ''; ctx.status = choice === 'remote' ? 'synced' : 'pending'; publish(ctx);
             return true;
         } catch {
-            if (valid(ctx, epoch)) { Object.assign(ctx, previous); ctx.error = 'Não foi possível preservar as duas versões. Mantenha o estúdio aberto e tente novamente.'; publish(ctx); }
+            if (valid(ctx, epoch)) { Object.assign(ctx, previous); ctx.syncErrorCode = null; ctx.error = 'Não foi possível preservar as duas versões. Mantenha o estúdio aberto e tente novamente.'; publish(ctx); }
             return false;
         } };
         const task = work(); ctx.task = task; publish(ctx);
@@ -270,7 +279,7 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
         window.addEventListener('online', resume); window.addEventListener('focus', resume);
         return () => { window.removeEventListener('online', resume); window.removeEventListener('focus', resume); };
     }, [active, readOnlyDocument, retrySync]);
-    const setError = useCallback((value: string) => { const ctx = state.current; if (valid(ctx)) { ctx.error = value; publish(ctx); } }, [publish, valid]);
+    const setError = useCallback((value: string) => { const ctx = state.current; if (valid(ctx)) { ctx.error = value; ctx.syncErrorCode = null; publish(ctx); } }, [publish, valid]);
     const visible = view.scope === scope ? view : emptyView(scope);
     const history = readOnlyHistory ?? visible.history;
     const document = history?.present ?? null;
@@ -281,6 +290,6 @@ export function useVideoDraft(org: string, user: string, session: string, readOn
     return { history, doc: document, open, change, undo, save: saveManually, retrySync: retryManually, resolveConflict,
         saving: !readOnlyDocument && visible.saving, loading: !readOnlyDocument && visible.loading,
         syncStatus: readOnlyDocument ? 'synced' as const : visible.status, conflict: readOnlyDocument ? null : visible.conflict,
-        error: readOnlyDocument ? '' : visible.error, setError,
+        error: readOnlyDocument ? '' : visible.error, syncErrorCode: readOnlyDocument ? null : visible.syncErrorCode, setError,
         dirty: !readOnlyDocument && !!document && signature !== visible.saved };
 }

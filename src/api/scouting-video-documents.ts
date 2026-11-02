@@ -12,7 +12,7 @@ export type VideoDocumentRecord = {
     updatedAt: string;
     mutationId: string;
 };
-export type VideoDocumentSyncErrorCode = 'conflict' | 'missing-backend' | 'offline' | 'permission' | 'invalid' | 'unavailable';
+export type VideoDocumentSyncErrorCode = 'conflict' | 'missing-backend' | 'offline' | 'permission' | 'invalid' | 'server-rejected' | 'unavailable';
 export class VideoDocumentSyncError extends Error {
     constructor(public code: VideoDocumentSyncErrorCode) {
         const messages: Record<VideoDocumentSyncErrorCode, string> = {
@@ -21,6 +21,7 @@ export class VideoDocumentSyncError extends Error {
             offline: 'Sem conexão para sincronizar. Seu rascunho foi preservado neste aparelho.',
             permission: 'Sua conta não pode sincronizar esta análise.',
             invalid: 'A análise recebida não corresponde a esta sessão ou vídeo. Seu rascunho foi preservado.',
+            'server-rejected': 'O servidor não aceitou esta versão da análise. Seu rascunho foi preservado neste aparelho.',
             unavailable: 'Não foi possível sincronizar agora. Seu rascunho foi preservado neste aparelho.',
         };
         super(messages[code]);
@@ -40,13 +41,13 @@ function requestContext(scope: VideoDocumentScope) {
     return identity;
 }
 
-function syncFailure(failure: unknown): never {
+function syncFailure(failure: unknown, writing = false): never {
     if (failure instanceof VideoDocumentSyncError || (failure instanceof Error && failure.name === 'SessionIdentityChangedError')) throw failure;
     const message = failure instanceof Error ? failure.message : '';
     if (/\b40001\b/.test(message)) throw new VideoDocumentSyncError('conflict');
     if (/\b(?:PGRST202|PGRST205|42P01|42883)\b/.test(message)) throw new VideoDocumentSyncError('missing-backend');
     if (/\b(?:42501|28000|55000|PGRST301)\b|(?:error:\s*)(?:401|403)\b/.test(message)) throw new VideoDocumentSyncError('permission');
-    if (/\b(?:22023|23514)\b/.test(message)) throw new VideoDocumentSyncError('invalid');
+    if (/\b(?:22023|23514)\b/.test(message)) throw new VideoDocumentSyncError(writing ? 'server-rejected' : 'invalid');
     if (failure instanceof TypeError || (failure instanceof Error && failure.name === 'SupabaseRequestTimeoutError') || /Network request failed|Failed to fetch|fetch failed|NetworkError|offline|Timed out/i.test(message))
         throw new VideoDocumentSyncError('offline');
     throw new VideoDocumentSyncError('unavailable');
@@ -97,5 +98,5 @@ export async function saveScoutingVideoDocument(scope: VideoDocumentScope, docum
         if (record.revision !== expectedRevision + 1 || record.mutationId !== mutationId || JSON.stringify(record.document) !== JSON.stringify(normalized))
             throw new VideoDocumentSyncError('invalid');
         return record;
-    } catch (failure) { return syncFailure(failure); }
+    } catch (failure) { return syncFailure(failure, true); }
 }

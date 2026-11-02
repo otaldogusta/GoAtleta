@@ -51,7 +51,7 @@ test('invalid cuts and mismatched media are refused', () => {
   for (const time of [-1, 0, 60, NaN]) expect(() => splitVideoRally(make(), time, 'r2')).toThrow();
   expect(() => parseVideoDocument(make(), { ...media, fingerprint: 'video-b' })).toThrow('outro vídeo');
   expect(() => parseVideoDocument({ ...make(), contacts: [{ ...make().contacts[0], time: 61 }] })).toThrow();
-  expect(() => parseVideoDocument({ ...make(), rallies: [{ ...make().rallies[0], start: 2 }] })).toThrow();
+  expect(() => parseVideoDocument({ ...make(), rallies: [{ ...make().rallies[0], start: -1 }] })).toThrow();
   expect(() => parseVideoDocument({ ...make(), contacts: [make().contacts[0], make().contacts[0]] })).toThrow();
 });
 test('free ball and coverage are accepted without changing the official scouting taxonomy', () => {
@@ -82,3 +82,24 @@ test('import strips extra fields so embedded URLs or grants cannot affect playba
    expect(() => resizeVideoRally(doc, 'r2', 29, 28)).toThrow();
    expect(() => resizeVideoRally(markVideoPoint(doc, 'r1', 16), 'r2', 13, 28)).toThrow('marca do ponto');
  });
+
+
+test('first rally can exclude preparation with millisecond precision and roundtrip without changing tracking or IDs', () => {
+  const media = { fingerprint: 'full-match', name: 'match.mp4', duration: 120, width: 1280, height: 720 };
+  const doc = markVideoPoint(splitVideoRally(newVideoDocument(media, 'r1'), 82, 'r2'), 'r1', 62);
+  doc.analysis = {model: 'vballnet-v2b-browser-1', sampledFps: 30, positions: [{time: 1, x: .5, y: .4}, {time: 62, x: .3, y: .2}], cuts: [82]};
+  const next = resizeVideoRally(doc, 'r1', 47.640, 82);
+  expect(videoRange(next, 'r1')).toEqual([47.640, 82]);
+  expect(next.rallies.map(r => r.id)).toEqual(['r1', 'r2']);
+  expect(next.rallies[0].pointTime).toBe(62);
+  expect(next.rallies[1]).toEqual(doc.rallies[1]);
+  expect(next.analysis).toBe(doc.analysis);
+  expect(next.contacts).toBe(doc.contacts);
+  expect(parseVideoDocument(JSON.parse(JSON.stringify(next)))).toEqual(next);
+  expect(parseVideoDocument(doc).rallies[0].start).toBe(0);
+  const history = editVideo({ present: doc, past: [], future: [] }, next, 'Recorte');
+  expect(undoVideo(history).present).toEqual(doc);
+  expect(undoVideo(undoVideo(history), true).present).toEqual(next);
+  for (const start of [-1, NaN, 82]) expect(() => resizeVideoRally(doc, 'r1', start, 82)).toThrow();
+  expect(() => resizeVideoRally(doc, 'r1', 63, 82)).toThrow('marca do ponto');
+});

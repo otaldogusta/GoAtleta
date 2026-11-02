@@ -57,7 +57,20 @@ describe("scouting session helpers", () => {
       "Bloqueado",
       "Continuidade",
       "Ponto",
+      "Freeball devolvida",
+      "Bloqueado, continuou",
     ]);
+  });
+
+  test("freeball does not become a legacy attack while continued blocks remain recorded attempts", () => {
+    const counts = aggregateScoutingActionsToCounts([
+      action("1", { fundamental: "ataque", resultKey: "freeball_devolvida", resultLevel: 1 }),
+      action("2", { fundamental: "ataque", resultKey: "bloqueio_continua", resultLevel: 2 }),
+      action("3", { fundamental: "ataque", resultKey: "continuidade", resultLevel: 2 }),
+      action("4", { fundamental: "ataque", resultKey: "bloqueado", resultLevel: 1 }),
+    ]);
+    expect(counts.attack_send).toEqual({ 0: 0, 1: 3, 2: 0 });
+    expect(counts.receive).toEqual({ 0: 0, 1: 0, 2: 0 });
   });
 
   test("keeps signals and priorities empty with insufficient sample", () => {

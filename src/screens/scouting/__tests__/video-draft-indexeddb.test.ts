@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { Platform } from 'react-native';
-import { getVideoDraft, getVideoDraftKeys, parseStoredVideoDraft, persistVideoDraft, serializeVideoDraft } from '../video/video-draft-storage';
+import { compareAndPersistVideoDraft, getVideoDraft, getVideoDraftKeys, parseStoredVideoDraft, persistVideoDraft, serializeVideoDraft } from '../video/video-draft-storage';
 import { useVideoDraft } from '../video/use-video-draft';
 import { newVideoDocument, splitVideoRally, videoDraftKey } from '../../../core/scouting-video';
 
@@ -110,6 +110,28 @@ afterEach(() => {
     if (originalIndexedDb) Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
     else Reflect.deleteProperty(globalThis, 'indexedDB');
     Object.defineProperty(Platform, 'OS', originalPlatform);
+});
+
+test('conditional link writes preserve a newer snapshot from another tab and migrate legacy only on matching baseline', async () => {
+    idb.records.set('links', 'reviewed-99');
+    await expect(compareAndPersistVideoDraft('links', 'older', 'stale')).rejects.toThrow('outra aba');
+    expect(idb.records.get('links')).toBe('reviewed-99');
+    await compareAndPersistVideoDraft('links', 'reviewed-99', 'reviewed-99-plus-one');
+    expect(idb.records.get('links')).toBe('reviewed-99-plus-one');
+    mockLegacy.set('legacy-links', 'legacy-99');
+    await compareAndPersistVideoDraft('legacy-links', 'legacy-99', 'migrated-99');
+    expect(idb.records.get('legacy-links')).toBe('migrated-99');
+    expect(mockLegacy.get('legacy-links')).toBe('legacy-99');
+});
+
+test('failed conditional IDB commit keeps the reviewed baseline and remains retryable', async () => {
+    idb.records.set('links', 'reviewed-99');
+    idb.state.fail = 'put';
+    await expect(compareAndPersistVideoDraft('links', 'reviewed-99', 'next')).rejects.toThrow('QuotaExceededError');
+    expect(idb.records.get('links')).toBe('reviewed-99');
+    idb.state.fail = '';
+    await compareAndPersistVideoDraft('links', 'reviewed-99', 'next');
+    expect(idb.records.get('links')).toBe('next');
 });
 
 test('complete current tracking saves and reopens in IDB while legacy localStorage writes are unavailable', async () => {

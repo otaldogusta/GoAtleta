@@ -22,3 +22,8 @@ test('preserves scored rallies and human contacts', () => {
     expect(next.rallies).toEqual(doc.rallies);
     expect(() => applyVideoAi({ ...doc, media: { ...media, youtubeId: 'M7lc1UVf-VE' } }, [result], 'us', () => 'id')).toThrow();
 });
+
+test('cached suggestions do not recreate preparation excluded by the first crop', () => {
+    const doc = newVideoDocument(media, 'r0'); doc.rallies[0].start = 47.640;
+    expect(applyVideoAi(doc, [result], 'us', () => 'id')).toEqual(doc);
+});

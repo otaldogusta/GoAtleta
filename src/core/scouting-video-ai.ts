@@ -25,14 +25,14 @@ export function applyVideoAi(doc: VideoDocument, results: VideoAiResult[], near:
         if (result.end > doc.media.duration || result.start < 0 || result.end <= result.start) throw new Error('Trecho fora deste vídeo.');
         const r = parseVideoAiResult(result, doc.media.youtubeId ?? '', result.start, result.end);
         for (const cut of r.rallies) {
-            if (cut.start <= 0 || rallies.some(x => Math.abs(x.start - cut.start) < 1)) continue;
+            if (cut.start <= doc.rallies[0].start || rallies.some(x => Math.abs(x.start - cut.start) < 1)) continue;
             // Do not divide an already scored/reviewed rally automatically.
             const current = [...rallies].sort((a,b) => a.start-b.start).findLast(x => x.start < cut.start);
             if (current && (current.reviewed || current.winner || current.pointTime !== undefined)) continue;
             rallies.push({ id: id(), start: cut.start, winner: null, reviewed: false });
         }
         for (const c of r.contacts) {
-            if (c.side === 'unknown') continue;
+            if (c.side === 'unknown' || c.time < doc.rallies[0].start) continue;
             const team = c.side === 'near' ? near : near === 'us' ? 'them' : 'us';
             if (!contacts.some(x => x.team === team && x.skill === c.skill && Math.abs(x.time - c.time) < 1))
                 contacts.push({ id: id(), time: c.time, skill: c.skill, team, athlete: '', studentId: null, outcome: '' });

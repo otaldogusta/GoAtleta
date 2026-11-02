@@ -4,13 +4,18 @@ export function localVideoAiAvailable() {
     return __DEV__ && typeof window !== 'undefined' && window.location.origin === 'http://localhost:8081';
 }
 export async function analyzeYouTube(videoId: string, start: number, end: number, signal: AbortSignal) {
+    return parseVideoAiResult(await requestLocalVideoAi('analyze', { videoId, start, end }, signal), videoId, start, end);
+}
+
+/** Both operations share the same loopback-only transport, cancellation and deadline. */
+export async function requestLocalVideoAi(operation: 'analyze' | 'align', payload: object, signal: AbortSignal): Promise<unknown> {
     if (!localVideoAiAvailable()) throw new Error('A análise pelo link está disponível neste computador de desenvolvimento.');
     let response: Response, jobId: string | undefined;
     const headers = { 'Content-Type': 'application/json', 'X-GoAtleta-Analysis': '1' };
     const cancel = () => { if (jobId) void fetch(`http://127.0.0.1:8094/jobs/${jobId}`, { method: 'DELETE', headers }).catch(() => undefined); };
     signal.addEventListener('abort', cancel, { once: true });
     try {
-        response = await fetch('http://127.0.0.1:8094/analyze', { method: 'POST', signal, headers, body: JSON.stringify({ videoId, start, end }) });
+        response = await fetch(`http://127.0.0.1:8094/${operation}`, { method: 'POST', signal, headers, body: JSON.stringify(payload) });
         let result = await response.json();
         const deadline = Date.now() + 90000;
         while (response.status === 202) {
@@ -27,7 +32,7 @@ export async function analyzeYouTube(videoId: string, start: number, end: number
             result = await response.json();
         }
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Não foi possível analisar o vídeo.');
-        return parseVideoAiResult(result, videoId, start, end);
+        return result;
     } catch (error) {
         if (signal.aborted) throw error;
         if (error instanceof Error && error.name !== 'TypeError') throw error;

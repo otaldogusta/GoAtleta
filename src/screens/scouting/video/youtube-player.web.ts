@@ -28,6 +28,7 @@ function loadAPI(): Promise<YouTubeAPI> {
 }
 export function youtubePlayback(player: YouTubePlayer): VideoPlayback {
     let pending: { time: number; from: number; until: number } | null = null;
+    const isPlaying = () => [1, 3].includes(player.getPlayerState());
     return {
         get currentTime() {
             const actual = player.getCurrentTime();
@@ -37,12 +38,12 @@ export function youtubePlayback(player: YouTubePlayer): VideoPlayback {
         },
         set currentTime(time) {
             if (!Number.isFinite(time)) return;
-            const paused = player.getPlayerState() !== 1;
+            const paused = !isPlaying();
             pending = { time, from: player.getCurrentTime(), until: Date.now() + 2000 };
             player.seekTo(time, true);
             if (paused) player.pauseVideo();
         },
-        get paused() { return player.getPlayerState() !== 1; },
+        get paused() { return !isPlaying(); },
         get playbackRate() { return player.getPlaybackRate(); },
         set playbackRate(rate) { player.setPlaybackRate(rate); },
         async play() { player.playVideo(); }, pause() { player.pauseVideo(); },
@@ -67,7 +68,7 @@ export function mountYouTube(container: HTMLElement, id: string, callbacks: {
             playerVars: { playsinline: 1, controls: 1, origin: window.location.origin },
             events: {
                 onReady: () => { if (!disposed && player) { callbacks.ready(youtubePlayback(player)); update(); timer = setInterval(update, 200); } },
-                onStateChange: () => { if (!disposed && player) { callbacks.state(player.getPlayerState() === 1); update(); } },
+                onStateChange: () => { if (!disposed && player) { callbacks.state([1, 3].includes(player.getPlayerState())); update(); } },
                 onError: event => { if (!disposed) { failed = true; clearTimeout(watchdog); callbacks.state(false); callbacks.error(youtubePlayerError(event.data)); } },
             },
         });

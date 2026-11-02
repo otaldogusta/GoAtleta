@@ -1312,6 +1312,9 @@ export type ScoutingSession = {
 
 export type ScoutingFormat = "2x2" | "3x3" | "4x4" | "6x6" | "outro";
 export type ScoutingSide = "us" | "them";
+export type ScoutingRallyOutcome =
+  | { kind: "falta"; team: ScoutingSide; reason: "rede" | "dois_toques" | "linha_saque" | "invasao" | "quatro_toques" | "rodizio" | "outra" }
+  | { kind: "ace"; team: ScoutingSide };
 export type ScoutingContact = {
   studentId?: string | null;
   athleteName?: string | null;
@@ -1327,6 +1330,7 @@ export type ScoutingMatchState = {
   serve: ScoutingSide;
   rotation: number | null;
   recoveredDraft: ScoutingContact[];
+  recoveredOutcome?: ScoutingRallyOutcome | null;
 };
 export type ScoutingRally = {
   id: string;
@@ -1339,6 +1343,7 @@ export type ScoutingRally = {
   scoreUs: number;
   scoreThem: number;
   contacts: ScoutingContact[];
+  outcome?: ScoutingRallyOutcome | null;
   createdAt: string;
 };
 

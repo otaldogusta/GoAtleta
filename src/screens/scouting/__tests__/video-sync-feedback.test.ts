@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { VideoSyncConflict, VideoSyncFooter, videoDraftNeedsSyncRetry, type VideoSyncStatus } from '../video/VideoSyncFeedback.web';
+import { VideoSyncConflict, VideoSyncFooter, VideoSyncNotice, videoDraftNeedsSyncRetry, type VideoSyncStatus } from '../video/VideoSyncFeedback.web';
 
 jest.mock('../video/StudioUI.web', () => ({
     StudioAction: (props: object) => jest.requireActual('react').createElement('button', props),
@@ -54,4 +54,22 @@ test('read-only viewing cannot choose or mutate a conflicting version', () => {
 test('the save action remains available for retryable sync states even after local saving', () => {
     expect((['pending', 'offline', 'error', 'unavailable'] as VideoSyncStatus[]).every(videoDraftNeedsSyncRetry)).toBe(true);
     expect((['synced', 'loading', 'conflict', 'forbidden'] as VideoSyncStatus[]).some(videoDraftNeedsSyncRetry)).toBe(false);
+});
+
+test('schema feedback stays compact without repeated alerts and exposes explicit export/retry actions', async () => {
+    const onRetry = jest.fn(async () => false), onExport = jest.fn();
+    const props = { code: 'server-rejected' as const, error: 'O servidor recusou a análise.', dirty: false, saving: false, firstStart: 47.640, onRetry, onExport };
+    act(() => { view = create(createElement(VideoSyncNotice, props)); });
+    expect(view!.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+    expect(view!.root.findAllByProps({ label: 'Tentar sincronizar a análise' })).toHaveLength(0);
+    expect(view!.root.findByType('small').children.join('')).toContain('Salvo neste aparelho');
+    act(() => view!.root.findByProps({ label: 'Ver detalhes da sincronização' }).props.onPress());
+    expect(view!.root.findAllByType('small').some(node => node.children.join('').includes('00:47.640'))).toBe(true);
+    expect(onRetry).not.toHaveBeenCalled(); expect(onExport).not.toHaveBeenCalled();
+    act(() => view!.root.findByProps({ label: 'Exportar cópia da análise' }).props.onPress());
+    await act(async () => view!.root.findByProps({ label: 'Tentar sincronizar a análise' }).props.onPress());
+    expect(onRetry).toHaveBeenCalledTimes(1); expect(onExport).toHaveBeenCalledTimes(1);
+    act(() => view!.update(createElement(VideoSyncNotice, { ...props, saving: true, dirty: true })));
+    expect(view!.root.findByProps({ label: 'Tentar sincronizar a análise' }).props.disabled).toBe(true);
+    expect(view!.root.findAllByType('small')[0].children.join('')).toContain('Alterações ainda na tela');
 });

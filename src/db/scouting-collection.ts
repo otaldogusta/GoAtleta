@@ -1,21 +1,23 @@
 import { assertSessionIdentity, getSessionIdentity } from "../auth/session";
-import type { ScoutingAction, ScoutingContact, ScoutingFormat, ScoutingMatchState, ScoutingRally, ScoutingSession, ScoutingSide } from "../core/models";
+import type { ScoutingAction, ScoutingContact, ScoutingFormat, ScoutingMatchState, ScoutingRally, ScoutingRallyOutcome, ScoutingSession, ScoutingSide } from "../core/models";
+import { parseScoutingRallyOutcome } from "../core/scouting-rallies";
 import { supabaseGet, supabasePost } from "./client";
 import type { ScoutingActionRow, ScoutingSessionRow } from "./row-types";
 import { scoutingActionRowToModel, scoutingSessionRowToModel } from "./scouting-sessions";
 
-export type ScoutingDetail = { session: ScoutingSession; actions: ScoutingAction[]; rallies: ScoutingRally[]; captureReady: boolean };
+export type ScoutingDetail = { session: ScoutingSession; actions: ScoutingAction[]; rallies: ScoutingRally[]; captureReady: boolean; captureVersion?: number };
 type RallyRow = { id: string; session_id: string; set_number: number; number: number; won: boolean; serve: ScoutingSide; rotation: number | null;
-  score_us: number; score_them: number; contacts: ScoutingContact[]; createdat: string };
-type DetailRow = { session: ScoutingSessionRow; actions: ScoutingActionRow[]; rallies: RallyRow[] };
+  score_us: number; score_them: number; contacts: ScoutingContact[]; outcome?: unknown; createdat: string };
+type DetailRow = { session: ScoutingSessionRow; actions: ScoutingActionRow[]; rallies: RallyRow[]; captureVersion?: number };
 export type ScoutingCount = { fundamental: ScoutingAction["fundamental"]; result_key: string; result_level: number; count: number };
 export type ScoutingOverview = { session: ScoutingSession; counts: ScoutingCount[];
   rallyStats: { total: number; receiving: number; receivingWon: number; serving: number; servingWon: number } };
 type OverviewRow = Omit<ScoutingOverview, "session"> & { session: ScoutingSessionRow };
 const mapDetail = (row: DetailRow): ScoutingDetail => ({
-  session: scoutingSessionRowToModel(row.session), actions: row.actions.map(scoutingActionRowToModel), captureReady: true,
+  session: scoutingSessionRowToModel(row.session), actions: row.actions.map(scoutingActionRowToModel), captureReady: true, captureVersion: row.captureVersion === 3 ? 3 : 2,
   rallies: row.rallies.map(r => ({ id: r.id, sessionId: r.session_id, setNumber: r.set_number, number: r.number, won: r.won,
-    serve: r.serve, rotation: r.rotation, scoreUs: r.score_us, scoreThem: r.score_them, contacts: r.contacts, createdAt: r.createdat })),
+    serve: r.serve, rotation: r.rotation, scoreUs: r.score_us, scoreThem: r.score_them, contacts: r.contacts,
+    ...(r.outcome != null ? { outcome: parseScoutingRallyOutcome(r.outcome) } : {}), createdAt: r.createdat })),
 });
 const missingRpc = (error: unknown) => /PGRST202/.test(String(error));
 
@@ -54,14 +56,19 @@ export async function loadScoutingDetail(organizationId: string, sessionId: stri
 }
 
 export type ScoutingCommand =
-  | { name: "point"; payload: { contacts: ScoutingContact[]; winner: ScoutingSide } }
+  | { name: "point"; payload: { contacts: ScoutingContact[]; winner: ScoutingSide; outcome?: ScoutingRallyOutcome | null } }
   | { name: "action"; payload: { contacts: ScoutingContact[] } }
-  | { name: "start_set"; payload: Omit<ScoutingMatchState, "recoveredDraft"> }
+  | { name: "start_set"; payload: Omit<ScoutingMatchState, "recoveredDraft" | "recoveredOutcome"> }
   | { name: "reopen_point"; payload: { rallyId: string } }
   | { name: "undo_action"; payload: { actionId: string } }
   | { name: "complete" | "discard_draft"; payload: Record<string, never> };
 export type PendingScoutingCommand = { requestId: string; revision: number; command: ScoutingCommand };
-export async function applyScoutingCommand(organizationId: string, sessionId: string, pending: PendingScoutingCommand) {
+export async function applyScoutingCommand(organizationId: string, sessionId: string, pending: PendingScoutingCommand, captureVersion = 2) {
+  const payload = pending.command.payload;
+  if (captureVersion < 3 && ((pending.command.name === "point" && Object.prototype.hasOwnProperty.call(pending.command.payload, "outcome")) ||
+    ("contacts" in payload && payload.contacts.some(contact => ["freeball_devolvida", "bloqueio_continua"].includes(contact.resultKey))))) {
+    throw new Error("SCOUTING_CAPTURE_UPDATE_REQUIRED");
+  }
   const identity = getSessionIdentity();
   const row = await supabasePost<DetailRow>("/rpc/apply_scouting_command", {
     p_session_id: sessionId, p_organization_id: organizationId, p_expected_revision: pending.revision,

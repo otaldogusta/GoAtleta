@@ -520,3 +520,101 @@ em celular físico pendente por falta de aparelho conectado. Entrega via main.
 Autosave e interface compacta: release completo aprovado com 702 suítes/
 4840 testes e export web. Gravação real da 8081 documentada no contrato;
 agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.
+
+- Elenco do coletor manual (01/11/2026): seleção e camisas por análise salvas
+  localmente por usuário/organização/sessão; filtra e ordena os botões por camisa.
+  Não modifica alunos, matrículas ou contatos anteriores. Sem sincronização
+  entre aparelhos ou estúdio de vídeo. [Contrato](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#elenco-local-por-jogo--01112026).
+
+- Informações do vídeo permite salvar o lado inicial da equipe neste aparelho,
+  por conta/organização/sessão/vídeo; não atribui contatos após trocas de lado.
+  Sem sincronização dessa preferência. YouTube e tracking ONNX mantêm o limite
+  anterior de 30 minutos, substituído pela adaptação abaixo. [Limites](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#lado-inicial-no-vídeo--01112026).
+
+- Jogo completo em 01/11: YouTube e original ONNX aceitam até 2 horas por janelas
+  de 60 s; cache/sugestões e tracking persistidos por trecho neste aparelho.
+  Recortes gerados preservam marcações humanas. Íntegra do tracking local; prévia
+  remota limitada a 54.000 posições, com recuperação local da íntegra correspondente.
+  [Contrato atual](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#jogo-completo-e-retomada-por-minuto--01112026).
+
+- Acompanhamento da análise no inspetor do estúdio, sem modal bloqueante: progresso,
+  recortes recentes com seek e prévia local dos quadros/posições candidatas do
+  detector. Recolher controles não pausa; checkpoints e saída preservados.
+  [Interface](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#acompanhamento-no-estúdio--01112026).
+
+- Scouting no vídeo: seleção explícita de análises da mesma turma, leitura dos
+  placares/contatos originais e vínculos locais por ponto/instante (ou Sem imagem).
+  Sidecar isolado por conta/org/turma/revisão/vídeo; sem escrita nas sessões
+  oficiais ou publicação desses vínculos. Sugestão temporal exige referência
+  confirmada próxima, no mesmo set, e permanece pendente de revisão.
+  O inspetor tem Rallies, Scouting e Informações. Scouting reúne registros do
+  jogo e contatos do vídeo; Informações reúne processamento e ajustes recolhidos.
+  Alternar abas mantém processamento montado.
+  [Contrato](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#scouting-ao-lado-do-vídeo-e-aba-acompanhamento--01112026).
+
+- Conclusão dos recortes tem confirmação de sucesso e Revisar recortes → Rallies,
+  sem manter barra de 100% como processamento ativo. Erro/loading não exibem
+  sucesso; rastreio tem estado independente.
+
+- Snapshot físico local sem interromper tracking: ferramenta de leitura em
+  `scripts/scouting-storage-snapshot.py`, hashes/estabilidade conferidos; recuperação física, parsers e roundtrip
+  em IndexedDB isolado aprovados. Helper externo a cada 30 s, sem reload. Medição da origem inteira: 2,79 MiB; não mede RAM nem cache.
+  [Evidência e limites](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#armazenamento-medido-sem-interromper-tracking--01112026).
+
+  [Backup ativo, recuperação e otimização local](../../operations/scouting-backup-local-2026-11-01.md).
+
+- Revisão local após rastreio concluído (01/11): primeiro recorte aceita início
+  não negativo com precisão de milissegundos; mantém IDs, contatos, pontos e
+  posições. Normalizador da migration aditiva
+  `20261101234500_scouting_video_first_rally_start.sql` aplicado remotamente com
+  autorização em 02/11, preflight restrito à guarda inicial e hashes/ACLs
+  conferidos, sem editar dados. Scouting prioriza a associação ao vídeo e navega pelos
+  pontos pendentes por set, tratando Sem imagem como resolvido. Informações
+  distingue concluído de associado; prévia ao vivo só durante o processamento.
+  Otimização de worker/cópias ativada após salvar o resultado.
+  [Evidência e limites](../../operations/scouting-backup-local-2026-11-01.md#ativação-local-após-a-conclusão--01112026).
+
+- Sincronização assistida local (01/11): `scouting-video-alignment.ts` cruza
+  referências revisadas, ordem, horários e observações visuais; sugestões são
+  separadas das estatísticas oficiais. Aceite só adiciona pendentes, revalida
+  contexto e usa comparação/gravação atômica em IndexedDB. Segunda passagem
+  visual explícita (`/align`, Gemini Flash-Lite, 2 FPS) analisa até oito janelas
+  de um minuto por execução, com cache separado; resultados incertos exigem
+  conferência. Formato e lado são escolhas explícitas salvas por revisão.
+  [Contrato e limites](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#sincronização-assistida-entre-scouting-e-vídeo--01112026).
+
+- Modo ao vivo local (02/11): câmera Android por QR/HTTPS, prévia WebRTC e
+  gravação em trechos no navegador do celular; pontos e correções por gravação
+  em bases separadas, sem escrever nas análises anteriores. Preparar conecta sem
+  gravar; Gravar aguarda onstart real; Encerrar aguarda trechos/commit e libera
+  áudio/vídeo. Append falho retém Blob/índice em RAM até retry, com tela aberta.
+  Reconectar preserva captura; nova gravação após encerrar exige novo QR.
+  Celular exclui somente o recordingId confirmado atomicamente; notebook usa
+  lixeira durável/restaurável escopada, bloqueando ativos/cópias pendentes.
+  Barra única de player, preparo/reconexão central e QR lateral no notebook.
+  Horizontal/Vertical antes da captura, tela cheia/orientação best-effort.
+  Testes, tipos e QA da interface em 1055×487/390×844 aprovados, com hashes
+  dos 118 recortes e 99 vínculos preservados; novos controles físicos pendentes. Há
+  relato do usuário de Android/Wi-Fi funcionando, sem medição de atraso.
+  Importação no estúdio e ativação pública pendentes; frontend somente local.
+  [Operação e recuperação](../../operations/scouting-live-local.md).
+
+- Estúdio unificado web (02/11): uma entrada na visão geral reúne Registrar,
+  Vídeo e Câmera. Ferramentas são retidas entre áreas; visibilidade não cancela
+  processamento ou conexão. Rendimento separa contextos e mantém coleta parcial
+  explícita. IDs, rascunhos e vínculos preservados. Nativo mantém coletor modal.
+  [Contrato, mockups e validação](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md).
+  [Pesquisa de seis produtos](../../ui/SCOUTING_PESQUISA_COMPARADA_2026-11-02.md)
+  e [mockup v2](../../ui/mockups/scouting-unified-2026-11-02-v2.html) são referências,
+  sem certificar motor 5 × 1. Coleta v3 condicionada a `captureVersion: 3` do
+  backend; migração aditiva de desfechos aplicada remotamente com autorização,
+  schema e históricos conferidos. Sem backfill nem reescrita dos 99 vínculos.
+  Testes focados/SQL sintético e QA real em 1063 × 704/390 × 844 aprovados;
+  iframe, timeline e hashes preservados. Nova escrita RPC pela UI não atestada.
+  Frontend somente localhost, sem deploy. [Coleta v3](../../ui/SCOUTING_COLETA_V3_2026-11-02.md).
+  Correção posterior: cabeçalho fixo/toolbar retida, câmera na mesma grade e
+  revisão de pontos concluídos em Registrar sem exigir vídeo. Busca absoluta,
+  reprodução pendente/BUFFERING e avisos de sync corrigidos; testes focados,
+  SQL, tipos e org-scope passaram. QA em 1063 × 704/390 × 844 confirmou
+  navegação, cabeçalho, margens e Assistir em 01:02 com imagem; Nova análise
+  abre acima do estúdio com altura ajustada. Sincronizado e hashes preservados. [Estado atual](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#correção-posterior-de-ui-e-reprodução--02112026).

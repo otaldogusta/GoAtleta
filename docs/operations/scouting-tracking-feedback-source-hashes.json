@@ -1,0 +1,5 @@
+{
+  "src/screens/scouting/video/YouTubeTrackingSetup.web.tsx": "05387669e6a02ebac2146eba11ff58dfb4923f8bf38d7dfd78e3f6f22d89b2e4",
+  "src/screens/scouting/video/YouTubeAnalysis.web.tsx": "7e56cd21065baf6145b61a42c87c68d1ebf30bdd18c16126b2537b0f4ea7fca0",
+  "src/screens/scouting/__tests__/youtube-tracking.test.ts": "a9ebef0dba89e3fd6052bacb7324c6ba6b0fcb297e74fd44574315b06f40c6a9"
+}

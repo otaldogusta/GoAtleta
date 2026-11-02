@@ -1,4 +1,4 @@
-import { processScoutingVideo, processScoutingVideoUrl } from '../video/video-processing.web';
+import { TrackingWorkerSession, processScoutingVideo, processScoutingVideoUrl } from '../video/video-processing.web';
 
 const driveUrl = 'https://drive.usercontent.google.com/download?id=drive_file_123456&export=download&confirm=t';
 const gatewayUrl = `http://127.0.0.1:8095/media/12345678-1234-1234-1234-123456789abc?token=${'a'.repeat(64)}`;
@@ -64,6 +64,24 @@ afterAll(() => {
     Object.assign(globalThis, { document: originalDocument, Worker: originalWorker });
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: originalCreateUrl });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: originalRevokeUrl });
+});
+
+test('a bounded window after 30 minutes reads original timestamps and never seeks outside it', async () => {
+    reportedDuration = 3700;
+    const analysis = await processScoutingVideo({} as File, 3700, new AbortController().signal, jest.fn(), { range: { start: 3600, end: 3600.1 } });
+    expect(videos[0].seeks).toHaveLength(3);
+    expect(videos[0].seeks.every(time => time >= 3600 && time < 3600.1)).toBe(true);
+    expect(analysis.positions.every(p => p.time >= 3600 && p.time < 3600.1)).toBe(true);
+    expect(analysis.positions).toHaveLength(3);
+});
+
+test('live preview reports the last inferred frame without adding previews to saved tracking', async () => {
+    const onPreview = jest.fn();
+    const result = await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { onPreview });
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onPreview.mock.calls[0][0]).toMatchObject({ time: 2 / 30, x: .1, y: .2, score: .9 });
+    expect(onPreview.mock.calls[0][0].frame).toBe(canvases[0]);
+    expect(result).not.toHaveProperty('frame');
 });
 
 test('Drive streaming reuses the default V2b worker without creating or saving a File/Blob', async () => {
@@ -260,4 +278,26 @@ test('three network failures stop with a useful error; abort and non-network fai
     await expect(processScoutingVideoUrl(gatewayUrl, .6, new AbortController().signal, jest.fn(), { resumeKey: 'b'.repeat(64) }))
         .rejects.toThrow('ler os quadros');
     expect(workers).toHaveLength(8); // Initial access/CORS failure is never retried.
+});
+
+test('one long-job worker initializes once across ranges and is explicitly released', async () => {
+ const session = new TrackingWorkerSession();
+ await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session });
+ await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session });
+ expect(workers).toHaveLength(1);
+ expect(workers[0].messages.filter(m => m.type === 'init')).toHaveLength(1);
+ expect(workers[0].terminate).not.toHaveBeenCalled();
+ session.dispose();
+ expect(workers[0].terminate).toHaveBeenCalledTimes(1);
+ expect(session.ready).toBeNull();
+});
+test('failed shared-worker run releases its model and retry initializes again', async () => {
+ const session = new TrackingWorkerSession();
+ reportedDuration = 1;
+ await expect(processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session })).rejects.toThrow();
+ expect(workers[0].terminate).toHaveBeenCalledTimes(1);
+ reportedDuration = .1;
+ await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session });
+ expect(workers).toHaveLength(2);
+ session.dispose();
 });

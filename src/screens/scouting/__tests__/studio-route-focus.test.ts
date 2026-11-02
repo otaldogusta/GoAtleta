@@ -1,4 +1,5 @@
 import { createElement } from "react";
+import { createPortal } from "react-dom";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { newVideoDocument, videoTime, type VideoDocument } from "../../../core/scouting-video";
 import ScoutingVideoStudio, { Studio } from "../video/ScoutingVideoStudio.web";
@@ -8,7 +9,7 @@ import { mountYouTube } from "../video/youtube-player.web";
 import { loadScoutingDetail } from "../../../db/scouting-collection";
 import { requestPendingEditsNavigation } from "../../../navigation/pending-edits-navigation";
 
-jest.mock("react-dom", () => ({ createPortal: (children: unknown) => children }));
+jest.mock("react-dom", () => ({ createPortal: jest.fn((children: unknown) => children) }));
 jest.mock("../video/use-video-draft", () => ({ useVideoDraft: jest.fn() }));
 jest.mock("../video/video-media.web", () => ({ inspectVideo: jest.fn() }));
 jest.mock("../video/youtube-player.web", () => ({ mountYouTube: jest.fn() }));
@@ -31,13 +32,15 @@ jest.mock("../video/StudioSelect.web", () => ({
   StudioSelect: (props: object) => jest.requireActual("react").createElement("studio-select", props),
 }));
 jest.mock("../video/VideoGallery.web", () => ({ VideoGallery: () => null }));
-jest.mock("../video/VideoTimeline.web", () => ({ VideoTimeline: () => null }));
+jest.mock("../video/VideoTimeline.web", () => ({ VideoTimeline: (props:object) => jest.requireActual('react').createElement('video-timeline',props) }));
 jest.mock("../video/VideoBufferStatus.web", () => ({ VideoBufferStatus: () => null }));
 jest.mock("../video/VideoTrackingOverlay.web", () => ({ VideoTrackingOverlay: () => null }));
 jest.mock("../video/VideoCorrectionLens.web", () => ({ VideoCorrectionLens: () => null }));
 jest.mock("../video/VideoLinkField.web", () => ({ VideoLinkField: () => null }));
+jest.mock("../video/VideoScoutingReview.web", () => ({ VideoScoutingReview: (props:object) => jest.requireActual('react').createElement('review-scouting',props) }));
 jest.mock("../video/VideoRallyRange.web", () => ({ VideoRallyRange: () => null }));
-jest.mock("../video/YouTubeAnalysis.web", () => ({ YouTubeAnalysis: () => null }));
+let mockAnalysisMounts = 0, mockAnalysisDisposals = 0;
+jest.mock("../video/YouTubeAnalysis.web", () => ({ YouTubeAnalysis: () => { jest.requireActual('react').useEffect(() => { mockAnalysisMounts++; return () => { mockAnalysisDisposals++; }; }, []); return null; } }));
 jest.mock("../video/YouTubeTrackingSetup.web", () => ({ YouTubeTrackingSetup: () => null }));
 jest.mock("../video/DriveTrackingSetup.web", () => ({ DriveTrackingSetup: () => null }));
 jest.mock("../video/YouTubeTrackingPanel.web", () => ({ YouTubeTrackingPanel: () => null }));
@@ -117,7 +120,7 @@ const attach = async () => {
 };
 
 beforeEach(() => {
-  jest.clearAllMocks(); handlers = new Map(); observers = []; videos = [];
+  jest.clearAllMocks(); handlers = new Map(); observers = []; videos = []; mockAnalysisMounts=0; mockAnalysisDisposals=0;
   rootElement = { inert: false }; body = { style: { overflow: "scroll" } }; previousFocus = { focus: jest.fn() };
   Object.defineProperty(globalThis, "document", { configurable: true, value: {
     getElementById: () => rootElement, activeElement: previousFocus, body, hidden: false,
@@ -168,7 +171,8 @@ test("route blur pauses native playback and removes media, frames, listeners and
 
 test("an uncommitted contact edit and dirty document survive blur/refocus without being saved or discarded", () => {
   draft.dirty = true; mount();
-  act(() => action("Contatos").props.onPress());
+  act(() => action("Scouting").props.onPress());
+  act(() => action("Ver contatos anotados no vídeo").props.onPress());
   act(() => action(`Ataque ${videoTime(2, true)}`).props.onPress());
   const before = view!.root.findByType("contact-editor" as never).props.contact;
   act(() => view!.root.findByType("contact-editor" as never).props.onChange({ ...before, athlete: "Edição local" }));
@@ -227,4 +231,128 @@ test("a save-and-leave completion cannot navigate after the retained route loses
   await act(async () => resolve(true));
   expect(draft.save).toHaveBeenCalledTimes(1); expect(navigate).not.toHaveBeenCalled();
   expect(studioProps.onClose).not.toHaveBeenCalled(); expect(draft.change).not.toHaveBeenCalled();
+});
+
+test("embedded authorization renders inline without a portal, page lock or duplicate title", async () => {
+  jest.mocked(loadScoutingDetail).mockResolvedValueOnce({session:{...studioProps.session,id:studioProps.sessionId,classId:studioProps.classId,organizationId:studioProps.org}} as never);
+  await act(async()=>{view=create(createElement(ScoutingVideoStudio,{...studioProps,embedded:true}),{createNodeMock:nodeMock});});
+  expect(createPortal).not.toHaveBeenCalled();expect(rootElement.inert).toBe(false);expect(body.style.overflow).toBe('scroll');
+  expect(action('Voltar ao scouting')).toBeUndefined();expect(view!.root.findAllByType('h1')).toHaveLength(0);
+  expect(action('Salvar rascunho')).toBeDefined();expect(action('Adicionar vídeo')).toBeDefined();
+  expect(view!.root.findByProps({'aria-label':'Estúdio de scouting'}).props.role).toBe('region');
+  expect(action('Scouting').props.active).toBe(true);expect(action('Rallies').props.active).toBe(false);
+  expect(action('Rallies').children.join('')).toContain('Recortes');
+  expect(action('Ver scouting registrado no jogo').children.join('')).toBe('Pontos do jogo');
+  expect(action('Ver contatos anotados no vídeo').children.join('')).toBe('Contatos do vídeo');
+});
+
+test('standalone and shared players retain the cuts tab as their initial pane',()=>{
+  mount();expect(action('Rallies').props.active).toBe(true);expect(action('Scouting').props.active).toBe(false);
+  act(()=>view!.unmount());
+  act(()=>{view=create(createElement(Studio,{...studioProps,embedded:true,shared:{document:documentFixture,source:'',onMediaError:jest.fn()}}),{createNodeMock:nodeMock});});
+  expect(action('Rallies').props.active).toBe(true);expect(action('Scouting').props.active).toBe(false);
+  expect(action('Ver scouting registrado no jogo')).toBeUndefined();
+});
+
+test('embedded actions use the host toolbar target without relocating the editor or reopening its draft',()=>{
+  const target={} as HTMLElement,props={...studioProps,embedded:true,visible:true,toolbarTarget:target};
+  act(()=>{view=create(createElement(Studio,props),{createNodeMock:nodeMock});});
+  expect(createPortal).toHaveBeenCalled();expect(jest.mocked(createPortal).mock.calls.every(call=>call[1]===target)).toBe(true);
+  const [toolbar,owner]=jest.mocked(createPortal).mock.calls[0];expect(owner).toBe(target);
+  expect((toolbar as any).type).toBe('header');expect((toolbar as any).props.className).toContain('sv-embedded-toolbar');
+  expect(action('Salvar rascunho')).toBeDefined();expect(action('Compartilhar análise')).toBeDefined();expect(action('Adicionar vídeo')).toBeDefined();
+  expect(view!.root.findByProps({'aria-label':'Estúdio de scouting'}).props.role).toBe('region');
+  act(()=>view!.update(createElement(Studio,{...props,visible:false})));
+  expect(jest.mocked(createPortal).mock.calls.at(-1)![1]).toBe(target);
+  expect(draft.open).not.toHaveBeenCalled();expect(draft.save).not.toHaveBeenCalled();
+  expect(useVideoDraft).toHaveBeenLastCalledWith('org-a','user-a','session-a',undefined,true,true);
+});
+
+test('watching a reviewed point clears an earlier clip and starts at the absolute linked timestamp',async()=>{
+  const youtubeDoc=newVideoDocument({...media,duration:180,youtubeId:'M7lc1UVf-VE',fingerprint:'youtube:M7lc1UVf-VE'},'clip-1');
+  youtubeDoc.rallies=[{...youtubeDoc.rallies[0],id:'clip-1',start:0},{...youtubeDoc.rallies[0],id:'clip-2',start:30},{...youtubeDoc.rallies[0],id:'clip-3',start:60}];
+  draft.doc=youtubeDoc;draft.history.present=youtubeDoc;const before=JSON.stringify(youtubeDoc),player=makePlayback();
+  jest.mocked(mountYouTube).mockImplementation((_node,_id,callbacks)=>{callbacks.ready(player);return jest.fn();});
+  act(()=>{view=create(createElement(Studio,{...studioProps,embedded:true}),{createNodeMock:nodeMock});});
+  act(()=>view!.root.findByType('video-timeline' as never).props.onFocus('clip-1'));
+  expect(view!.root.findByType('review-scouting' as never).props.focus).toBe('clip-1');
+  await act(async()=>{view!.root.findByType('review-scouting' as never).props.onPlay(62.64);await Promise.resolve();});
+  expect(player.currentTime).toBe(62.64);expect(player.play).toHaveBeenCalledTimes(1);expect(player.paused).toBe(false);
+  expect(view!.root.findByType('review-scouting' as never).props.focus).toBeNull();
+  expect(draft.change).not.toHaveBeenCalled();expect(draft.save).not.toHaveBeenCalled();expect(JSON.stringify(youtubeDoc)).toBe(before);
+});
+
+test('plain review navigation seeks absolutely without autoplay and queues a watch requested before player readiness',async()=>{
+  const youtubeDoc=newVideoDocument({...media,duration:180,youtubeId:'M7lc1UVf-VE',fingerprint:'youtube:M7lc1UVf-VE'},'clip-1');
+  draft.doc=youtubeDoc;draft.history.present=youtubeDoc;
+  let ready!:(player:ReturnType<typeof makePlayback>)=>void;
+  jest.mocked(mountYouTube).mockImplementation((_node,_id,callbacks)=>{ready=callbacks.ready;return jest.fn();});
+  act(()=>{view=create(createElement(Studio,{...studioProps,embedded:true}),{createNodeMock:nodeMock});});
+  act(()=>view!.root.findByType('review-scouting' as never).props.onPlay(62.64));
+  const player=makePlayback();await act(async()=>{ready(player);await Promise.resolve();});
+  expect(player.currentTime).toBe(62.64);expect(player.play).toHaveBeenCalledTimes(1);
+  act(()=>view!.root.findByType('review-scouting' as never).props.onSeek(75.5));
+  expect(player.currentTime).toBe(75.5);expect(player.paused).toBe(true);expect(player.play).toHaveBeenCalledTimes(1);
+  expect(draft.open).not.toHaveBeenCalled();expect(draft.change).not.toHaveBeenCalled();
+});
+
+test('a reviewed point outside the attached original switches to YouTube without losing its requested timestamp',async()=>{
+  const youtubeDoc=newVideoDocument({...media,duration:180,youtubeId:'M7lc1UVf-VE',fingerprint:'youtube:M7lc1UVf-VE'},'clip-1');
+  youtubeDoc.analysis={model:'vballnet-v2b-browser-1',sampledFps:30,positions:[],cuts:[],source:{...media,offsetSeconds:10}};
+  draft.doc=youtubeDoc;draft.history.present=youtubeDoc;const before=JSON.stringify(youtubeDoc),players:ReturnType<typeof makePlayback>[]=[];
+  jest.mocked(mountYouTube).mockImplementation((_node,_id,callbacks)=>{const player=makePlayback();players.push(player);callbacks.ready(player);return jest.fn();});
+  act(()=>{view=create(createElement(Studio,{...studioProps,embedded:true}),{createNodeMock:nodeMock});});
+  await attach();act(()=>view!.root.findByType('video').props.onLoadedMetadata());
+  videos.at(-1)!.currentTime=15.5;
+  await act(async()=>{view!.root.findByType('review-scouting' as never).props.onPlay(5.3);await Promise.resolve();});
+  expect(view!.root.findAllByType('video')).toHaveLength(0);expect(players).toHaveLength(2);
+  expect(players.at(-1)!.currentTime).toBe(5.3);expect(players.at(-1)!.play).toHaveBeenCalledTimes(1);
+  expect(draft.open).not.toHaveBeenCalled();expect(draft.change).not.toHaveBeenCalled();expect(draft.save).not.toHaveBeenCalled();
+  expect(JSON.stringify(youtubeDoc)).toBe(before);
+});
+
+test("hiding an embedded pane pauses playback without dropping the source or unsaved contact", async () => {
+  const props={...studioProps,embedded:true,visible:true};draft.dirty=true;
+  act(()=>{view=create(createElement(Studio,props),{createNodeMock:nodeMock});});await attach();
+  const native=videos.at(-1)!;
+  act(()=>action('Scouting').props.onPress());act(()=>action('Ver contatos anotados no vídeo').props.onPress());
+  act(()=>action(`Ataque ${videoTime(2,true)}`).props.onPress());
+  const before=view!.root.findByType('contact-editor' as never).props.contact;
+  act(()=>view!.root.findByType('contact-editor' as never).props.onChange({...before,athlete:'Edição retida'}));
+  draft.save.mockClear();draft.change.mockClear();
+  native.paused=false;native.currentTime=12.25;
+  act(()=>view!.update(createElement(Studio,{...props,visible:false})));
+  expect(native.pause).toHaveBeenCalled();expect(view!.root.findAllByType('video')).toHaveLength(1);
+  expect(videos).toHaveLength(1);expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  expect(handlers.get('keydown')?.size??0).toBe(0);
+  expect(useVideoDraft).toHaveBeenLastCalledWith('org-a','user-a','session-a',undefined,true,true);
+  act(()=>view!.update(createElement(Studio,props)));
+  expect(view!.root.findByType('contact-editor' as never).props.contact.athlete).toBe('Edição retida');
+  expect(draft.save).not.toHaveBeenCalled();expect(draft.change).not.toHaveBeenCalled();
+});
+
+test("an embedded analysis job remains mounted across pane visibility changes",()=>{
+  const youtubeDoc=newVideoDocument({...media,youtubeId:'M7lc1UVf-VE',fingerprint:'youtube:M7lc1UVf-VE'},'youtube-rally');
+  draft.doc=youtubeDoc;draft.history.present=youtubeDoc;
+  jest.mocked(mountYouTube).mockImplementation((_node,_id,callbacks)=>{callbacks.ready(makePlayback());return jest.fn();});
+  const props={...studioProps,embedded:true,visible:true};
+  act(()=>{view=create(createElement(Studio,props),{createNodeMock:nodeMock});});
+  act(()=>action('Informações').props.onPress());expect(mockAnalysisMounts).toBe(1);
+  act(()=>view!.update(createElement(Studio,{...props,visible:false})));
+  act(()=>view!.update(createElement(Studio,props)));
+  expect(mockAnalysisMounts).toBe(1);expect(mockAnalysisDisposals).toBe(0);
+});
+
+test("embedded leave uses a stable registered guard and advances only its approved continuation",()=>{
+  draft.dirty=true;let guard:((next:()=>void)=>void)|null=null;
+  const setter=jest.fn((value:typeof guard)=>{guard=value;});
+  const props={...studioProps,embedded:true,visible:true,onLeaveGuard:setter};
+  act(()=>{view=create(createElement(Studio,props),{createNodeMock:nodeMock});});
+  const registered=guard,unrelated=jest.fn();act(()=>requestPendingEditsNavigation(unrelated));expect(unrelated).toHaveBeenCalledTimes(1);
+  act(()=>view!.update(createElement(Studio,{...props,visible:false})));expect(guard).toBe(registered);expect(setter).toHaveBeenCalledTimes(1);
+  act(()=>view!.update(createElement(Studio,props)));
+  const cancelled=jest.fn();act(()=>guard!(cancelled));act(()=>action('Continuar editando').props.onPress());expect(cancelled).not.toHaveBeenCalled();
+  const proceed=jest.fn();act(()=>guard!(proceed));expect(proceed).not.toHaveBeenCalled();
+  act(()=>action('Sair sem salvar').props.onPress());expect(proceed).toHaveBeenCalledTimes(1);expect(studioProps.onClose).not.toHaveBeenCalled();
+  act(()=>view!.unmount());view=undefined;expect(setter).toHaveBeenLastCalledWith(null);
 });

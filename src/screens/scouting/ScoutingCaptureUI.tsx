@@ -1,12 +1,29 @@
 import type { PropsWithChildren } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ScoutingActionFundamental, ScoutingContact, Student } from "../../core/models";
 import { captureFundamentals, captureResult, getCaptureResultOptions } from "../../core/scouting-rallies";
 import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { radius, spacing } from "../../theme/tokens";
 import { Copy, Link, skillLabel } from "./ScoutingUI";
+
+/** Same collector composition inside the studio, without a second modal or focus trap. */
+export function ScoutingCapturePanel({ title, summary, footer, children, active = true, compact = false }: PropsWithChildren<{
+  title: string; summary?: React.ReactNode; footer?: React.ReactNode; active?: boolean; compact?: boolean;
+}>) {
+  const { colors } = useAppTheme();
+  return <View role="region" accessibilityLabel="Coletor de scouting" aria-hidden={!active} pointerEvents={active ? "auto" : "none"}
+    style={{ flexGrow: compact ? 0 : 1, flexShrink: 1, flexBasis: compact ? "auto" : 0, alignSelf: compact ? "flex-start" : "stretch", maxWidth: compact ? 480 : 1040, maxHeight: "100%", minHeight: 0, minWidth: 0, width: "100%", backgroundColor: colors.surface, borderRadius: radius.card, overflow: "hidden", display: active ? "flex" : "none" }}>
+    <View style={{ flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 10, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
+      <View style={{ flex: 1, minWidth: 0 }}><Copy title>{title}</Copy></View>
+    </View>
+    {summary ? <View style={{ paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 10 }}>{summary}</View> : null}
+    <ScrollView style={{ flexGrow: compact ? 0 : 1, flexShrink: 1, flexBasis: compact ? "auto" : 0, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, gap: spacing.xs }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+    {footer ? <View style={{ paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.xs, gap: 4, borderTopWidth: 1, borderTopColor: colors.border }}>{footer}</View> : null}
+  </View>;
+}
 
 export const contactLabel = (skill: ScoutingActionFundamental) => skill === "recepcao" ? "Passe" : skill === "levantamento" ? "Levant." : skillLabel(skill);
 const compactName = (name: string, names: string[]) => {
@@ -17,7 +34,7 @@ const compactName = (name: string, names: string[]) => {
   }
   return name;
 };
-const questions: Partial<Record<ScoutingActionFundamental, string>> = { recepcao: "Quem passou?", levantamento: "Quem levantou?", ataque: "Quem atacou?", saque: "Quem sacou?", defesa: "Quem defendeu?", bloqueio: "Quem bloqueou?" };
+const questions: Partial<Record<ScoutingActionFundamental, string>> = { recepcao: "Quem passou?", levantamento: "Quem levantou?", ataque: "Quem atacou ou devolveu?", saque: "Quem sacou?", defesa: "Quem defendeu?", bloqueio: "Quem bloqueou?", cobertura: "Quem cobriu?" };
 export function CaptureText({ children, muted, strong }: PropsWithChildren<{ muted?: boolean; strong?: boolean }>) {
   const { colors } = useAppTheme();
   return <Text style={{ color: muted ? colors.muted : colors.text, fontSize: 12, lineHeight: 18, fontWeight: strong ? "600" : "400" }}>{children}</Text>;
@@ -28,7 +45,7 @@ function ResultDot({ level }: { level: number }) {
 }
 export function ContactSequence({ contacts, editing, disabled, onEdit, onUndo }: { contacts: ScoutingContact[]; editing: number | null; disabled: boolean; onEdit: (contact: ScoutingContact, index: number) => void; onUndo: () => void }) {
   const { colors } = useAppTheme();
-  return <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 14, gap: 5 }}>
+  return <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: contacts.length ? 14 : 4, gap: 5 }}>
     <View style={{ minHeight: 36, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
       <CaptureText>Esta jogada <Text style={{ color: colors.muted }}>· {contacts.length} {contacts.length === 1 ? "contato" : "contatos"}</Text></CaptureText>
       {contacts.length ? <Link label="Desfazer contato" disabled={disabled} onPress={onUndo} /> : null}
@@ -36,22 +53,24 @@ export function ContactSequence({ contacts, editing, disabled, onEdit, onUndo }:
     {contacts.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{contacts.map((c, index) => <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "100%" }}>
       {index > 0 ? <GoAtletaIcon name="chevronRight" size={12} color={colors.muted} /> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={`Editar contato ${index + 1}: ${c.athleteName || "Equipe"}, ${skillLabel(c.fundamental)}, ${captureResult(c)?.label ?? c.resultKey}`} accessibilityState={{ selected: editing === index, disabled }} disabled={disabled} onPress={() => onEdit(c, index)}
-        style={{ minHeight: 56, flexShrink: 1, paddingVertical: 8, paddingHorizontal: 10, gap: 3, borderWidth: 1, borderColor: editing === index ? colors.primaryBg : colors.border, borderRadius: 10, backgroundColor: colors.backgroundSubtle, opacity: disabled ? .55 : 1 }}>
+        style={{ minHeight: 44, flexShrink: 1, paddingVertical: 4, paddingHorizontal: 8, gap: 2, borderWidth: 1, borderColor: editing === index ? colors.primaryBg : colors.border, borderRadius: 8, backgroundColor: colors.backgroundSubtle, opacity: disabled ? .55 : 1 }}>
         <CaptureText>{c.athleteName ? compactName(c.athleteName, contacts.map(contact => contact.athleteName || "")) : "Equipe"}</CaptureText>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><CaptureText muted>{contactLabel(c.fundamental)}</CaptureText><ResultDot level={captureResult(c)?.level ?? 0} /><CaptureText muted>{captureResult(c)?.label ?? c.resultKey}{c.zone ? ` · Z${c.zone}` : ""}</CaptureText></View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}><CaptureText muted>{c.resultKey === 'freeball_devolvida' ? 'Bola de graça' : contactLabel(c.fundamental)}</CaptureText><ResultDot level={captureResult(c)?.level ?? 0} /><CaptureText muted>{c.resultKey === 'freeball_devolvida' ? 'Devolvida' : captureResult(c)?.label ?? c.resultKey}{c.zone ? ` · Z${c.zone}` : ""}</CaptureText></View>
       </Pressable>
-    </View>)}</View> : <View style={{ paddingVertical: 10 }}><CaptureText muted>Marque os contatos que observou ou registre só o ponto.</CaptureText></View>}
+    </View>)}</View> : null}
   </View>;
 }
-export function ContactPad({ skill, students, studentId, athleteChosen, editing, disabled, wide, onSkill, onAthlete, onResult }: {
-  skill: ScoutingActionFundamental; students: Student[]; studentId: string | null; athleteChosen: boolean; editing: number | null; disabled: boolean; wide: boolean;
+export function ContactPad({ skill, students, jerseys, studentId, athleteChosen, editing, disabled, wide, captureVersion = 2, onSkill, onAthlete, onResult }: {
+  jerseys?: ReadonlyMap<string, string>;
+  skill: ScoutingActionFundamental; students: Student[]; studentId: string | null; athleteChosen: boolean; editing: number | null; disabled: boolean; wide: boolean; captureVersion?: number;
   onSkill: (skill: ScoutingActionFundamental) => void; onAthlete: (id: string | null) => void; onResult: (key: string) => void;
 }) {
   const { colors } = useAppTheme();
   const playerName = (s: Student) => compactName(s.name, students.map(other => other.name));
-  const options = getCaptureResultOptions(skill);
+  const options = getCaptureResultOptions(skill, captureVersion);
+  const fundamentals = captureFundamentals.includes(skill) ? captureFundamentals : [...captureFundamentals, skill];
   return <View style={{ gap: 12 }}>
-    <View accessibilityLabel="Fundamento do contato" style={{ flexDirection: "row", gap: 2 }}>{captureFundamentals.map(f => <Pressable key={f} accessibilityRole="button" accessibilityLabel={skillLabel(f)} accessibilityState={{ selected: f === skill, disabled }} disabled={disabled} onPress={() => onSkill(f)}
+    <View accessibilityLabel="Fundamento do contato" style={{ flexDirection: "row", gap: 2 }}>{fundamentals.map(f => <Pressable key={f} accessibilityRole="button" accessibilityLabel={skillLabel(f)} accessibilityState={{ selected: f === skill, disabled }} disabled={disabled} onPress={() => onSkill(f)}
       style={{ flex: 1, minWidth: 0, minHeight: 40, borderWidth: 1, borderColor: f === skill ? colors.borderStrong : "transparent", backgroundColor: f === skill ? colors.surfaceElevated : "transparent", borderRadius: 8, alignItems: "center", justifyContent: "center", opacity: disabled ? .55 : 1 }}>
       <Text style={{ fontSize: 12, color: f === skill ? colors.text : colors.muted }}>{contactLabel(f)}</Text>
     </Pressable>)}</View>
@@ -62,9 +81,9 @@ export function ContactPad({ skill, students, studentId, athleteChosen, editing,
     <View style={{ flexDirection: wide ? "row" : "column", gap: wide ? 16 : 12, alignItems: "stretch" }}>
       <View style={{ flex: wide ? 1.6 : undefined, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
         {students.map(s => <View key={s.id} style={{ width: "23.5%", flexGrow: 1, maxWidth: "25%" }}>
-          <Pressable accessibilityRole="button" accessibilityLabel={s.name} accessibilityState={{ selected: athleteChosen && studentId === s.id, disabled }} disabled={disabled} onPress={() => onAthlete(s.id)}
+          <Pressable accessibilityRole="button" accessibilityLabel={jerseys?.get(s.id) ? `Camisa ${jerseys.get(s.id)}: ${s.name}` : s.name} accessibilityState={{ selected: athleteChosen && studentId === s.id, disabled }} disabled={disabled} onPress={() => onAthlete(s.id)}
             style={{ minHeight: 44, padding: 6, borderWidth: 1, borderRadius: 10, borderColor: athleteChosen && studentId === s.id ? colors.primaryBg : colors.border, backgroundColor: athleteChosen && studentId === s.id ? colors.surfaceElevated : colors.backgroundSubtle, alignItems: "center", justifyContent: "center", opacity: disabled ? .55 : 1 }}>
-            <CaptureText>{playerName(s)}</CaptureText>
+            <CaptureText>{jerseys?.get(s.id) ? `${jerseys.get(s.id)} · ` : ""}{playerName(s)}</CaptureText>
           </Pressable>
         </View>)}
         {!students.length ? <CaptureText muted>Nenhum atleta nesta turma. Use “Sem atleta”.</CaptureText> : null}

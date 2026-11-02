@@ -1,0 +1,123 @@
+--- a/src/screens/scouting/video/video-processing.web.ts
++++ b/src/screens/scouting/video/video-processing.web.ts
+@@ -7 +7,9 @@
+-export type TrackingOptions = { model?: ScoutingTrackingModel; resumeKey?: string; range?: { start: number; end: number }; onPreview?: (preview: TrackingPreview) => void };
++export type TrackingOptions = { model?: ScoutingTrackingModel; resumeKey?: string; range?: { start: number; end: number }; onPreview?: (preview: TrackingPreview) => void; workerSession?: TrackingWorkerSession };
++/** One owner per long-video run; never shared across jobs or accounts. */
++export class TrackingWorkerSession {
++  worker: Worker | null = null;
++  ready: { type: string; backend?: string; model?: string; width?: number; height?: number; frames?: number } | null = null;
++  acquire() { return this.worker ??= new Worker('/scouting-ai/worker.js', { type: 'module' }); }
++  dispose() { this.worker?.terminate(); this.worker = null; this.ready = null; }
++}
++
+@@ -86 +94 @@
+-  const worker = new Worker('/scouting-ai/worker.js', { type: 'module' });
++  const worker = options.workerSession?.acquire() ?? new Worker('/scouting-ai/worker.js', { type: 'module' });
+@@ -120 +128 @@
+-    const ready = await call({ type: 'init', model }); check();
++    const ready = options.workerSession?.ready?.model === model ? options.workerSession.ready : await call({ type: 'init', model }); check();
+@@ -121,0 +130 @@
++    if (options.workerSession) options.workerSession.ready = ready;
+@@ -180 +189,2 @@
+-  } finally { worker.terminate(); video.removeAttribute('src'); video.load(); canvas.width = canvas.height = scene.width = scene.height = 0; }
++  } catch (error) { options.workerSession?.dispose(); throw error; }
++  finally { if (!options.workerSession) worker.terminate(); worker.onmessage = null; worker.onerror = null; video.removeAttribute('src'); video.load(); canvas.width = canvas.height = scene.width = scene.height = 0; }
+--- a/src/screens/scouting/video/long-video-tracking.ts
++++ b/src/screens/scouting/video/long-video-tracking.ts
+@@ -1 +1 @@
+-import { newVideoDocument, parseVideoDocument, type VideoAnalysis, type VideoMedia } from '../../../core/scouting-video';
++import { newVideoDocument, parseVideoDocument, type BallPosition, type VideoAnalysis, type VideoMedia } from '../../../core/scouting-video';
+@@ -3 +3 @@
+-import { processScoutingVideo, type ScoutingTrackingModel, type TrackingPreview } from './video-processing.web';
++import { TrackingWorkerSession, processScoutingVideo, type ScoutingTrackingModel, type TrackingPreview } from './video-processing.web';
+@@ -37,0 +38,2 @@
++    const workerSession = new TrackingWorkerSession();
++    try {
+@@ -44 +46 @@
+-            analysis = await processScoutingVideo(file, media.duration, signal, (done, _total, text) => progress(Math.max(Math.ceil(start * 30), done), Math.ceil(media.duration * 30), text), { model, range: { start, end }, onPreview });
++            analysis = await processScoutingVideo(file, media.duration, signal, (done, _total, text) => progress(Math.max(Math.ceil(start * 30), done), Math.ceil(media.duration * 30), text), { model, range: { start, end }, onPreview, workerSession });
+@@ -51,0 +54 @@
++    } finally { workerSession.dispose(); }
+@@ -52,0 +56,20 @@
++
++/** Verify the synchronized preview before exposing full local precision. */
++export function matchingFullTracking(full: VideoAnalysis, expected: readonly BallPosition[], offset: number, duration: number): BallPosition[] | null {
++ const step = full.positions.length <= 54000 ? 1 : Math.ceil(full.positions.length / 54000);
++ let at = 0;
++ for (let i = 0; i < full.positions.length; i += step) {
++  const point = full.positions[i], time = point.time + offset;
++  if (time < 0 || time >= duration) continue;
++  const row = expected[at++];
++  if (!row || row.time !== time || row.x !== point.x || row.y !== point.y) return null;
++ }
++ if (at !== expected.length) return null;
++ if (offset === 0 && full.positions.every(p => p.time >= 0 && p.time < duration)) return full.positions;
++ const normalized: BallPosition[] = [];
++ for (const point of full.positions) {
++  const time = point.time + offset;
++  if (time >= 0 && time < duration) normalized.push(offset === 0 ? point : { ...point, time });
++ }
++ return normalized;
++}
+--- a/src/screens/scouting/video/use-full-video-tracking.ts
++++ b/src/screens/scouting/video/use-full-video-tracking.ts
+@@ -3 +3 @@
+-import { loadFullTracking, trackingSyncPreview } from './long-video-tracking';
++import { loadFullTracking, matchingFullTracking } from './long-video-tracking';
+@@ -15,3 +15,2 @@
+-            const normalized = full.positions.map(p => ({ ...p, time: p.time + offsetSeconds })).filter(p => p.time >= 0 && p.time < doc!.media.duration);
+-            const preview = trackingSyncPreview(full).positions.map(p => ({ ...p, time: p.time + offsetSeconds })).filter(p => p.time >= 0 && p.time < doc!.media.duration);
+-            if (preview.length !== analysis.positions.length || preview.some((p,i) => p.time !== analysis.positions[i].time || p.x !== analysis.positions[i].x || p.y !== analysis.positions[i].y)) return;
++            const normalized = matchingFullTracking(full, analysis.positions, offsetSeconds, doc!.media.duration);
++            if (!normalized) return;
+--- a/src/screens/scouting/__tests__/video-processing.test.ts
++++ b/src/screens/scouting/__tests__/video-processing.test.ts
+@@ -1 +1 @@
+-import { processScoutingVideo, processScoutingVideoUrl } from '../video/video-processing.web';
++import { TrackingWorkerSession, processScoutingVideo, processScoutingVideoUrl } from '../video/video-processing.web';
+@@ -281,0 +282,22 @@
++
++test('one long-job worker initializes once across ranges and is explicitly released', async () => {
++ const session = new TrackingWorkerSession();
++ await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session });
++ await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session });
++ expect(workers).toHaveLength(1);
++ expect(workers[0].messages.filter(m => m.type === 'init')).toHaveLength(1);
++ expect(workers[0].terminate).not.toHaveBeenCalled();
++ session.dispose();
++ expect(workers[0].terminate).toHaveBeenCalledTimes(1);
++ expect(session.ready).toBeNull();
++});
++test('failed shared-worker run releases its model and retry initializes again', async () => {
++ const session = new TrackingWorkerSession();
++ reportedDuration = 1;
++ await expect(processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session })).rejects.toThrow();
++ expect(workers[0].terminate).toHaveBeenCalledTimes(1);
++ reportedDuration = .1;
++ await processScoutingVideo({} as File, .1, new AbortController().signal, jest.fn(), { workerSession: session });
++ expect(workers).toHaveLength(2);
++ session.dispose();
++});
+--- a/src/screens/scouting/__tests__/long-video-tracking.test.ts
++++ b/src/screens/scouting/__tests__/long-video-tracking.test.ts
+@@ -1 +1 @@
+-import { loadFullTracking, processLongVideo, trackingRanges, trackingSyncPreview } from '../video/long-video-tracking';
++import { loadFullTracking, matchingFullTracking, processLongVideo, trackingRanges, trackingSyncPreview } from '../video/long-video-tracking';
+@@ -9 +9 @@
+-jest.mock('../video/video-processing.web', () => ({ processScoutingVideo: jest.fn() }));
++jest.mock('../video/video-processing.web', () => ({ processScoutingVideo: jest.fn(), TrackingWorkerSession: jest.fn(() => ({ dispose: jest.fn() })) }));
+@@ -41,0 +42,13 @@
++
++test('full matching track reuses positions at zero offset and rejects different edits', () => {
++ const full: VideoAnalysis = { model: 'vballnet-v2b-browser-1', sampledFps: 30, positions: Array.from({ length: 111000 }, (_, i) => ({ time: i / 30, x: .2, y: .3 })), cuts: [] };
++ const preview = trackingSyncPreview(full);
++ expect(matchingFullTracking(full, preview.positions, 0, 4000)).toBe(full.positions);
++ expect(matchingFullTracking(full, [{ ...preview.positions[0], x: .8 }, ...preview.positions.slice(1)], 0, 4000)).toBeNull();
++});
++test('offset and clipped boundaries retain exact full precision without mutating originals', () => {
++ const full: VideoAnalysis = { model: 'vballnet-v2b-browser-1', sampledFps: 30, positions: [{time:0,x:.2,y:.3},{time:1,x:.4,y:.5},{time:2,x:.6,y:.7}], cuts: [] };
++ const expected = [{time:0,x:.4,y:.5},{time:1,x:.6,y:.7}];
++ expect(matchingFullTracking(full, expected, -1, 2)).toEqual(expected);
++ expect(full.positions[1].time).toBe(1);
++});

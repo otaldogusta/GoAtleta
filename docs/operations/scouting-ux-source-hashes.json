@@ -1,0 +1,14 @@
+{
+  "src/screens/scouting/video/VideoScoutingReview.web.tsx": {
+    "sourceSha256": "8c5f661ff926e61d37a513e9af0a5c262d1c37fe2b9d82110c8a7720dba9e7b1",
+    "candidateSha256": "67b2865b6544b527cf73d948b336afa2faecbd9d5d79411228fa040f9ec87317"
+  },
+  "src/screens/scouting/video/studio-styles.ts": {
+    "sourceSha256": "d248b8d8f07735243fddef2877b4e700da8d820d8de9cb40ef9c77039c097d42",
+    "candidateSha256": "1032a71e80ab81f1bc9af2addbcaf7eb4a207473df60b8d45c294f128f366674"
+  },
+  "src/screens/scouting/__tests__/video-scouting-review.test.ts": {
+    "sourceSha256": "17162ee710de3bbea9ce27e5935ae930c8e035eac61059be1f3f64671f1a65c5",
+    "candidateSha256": "bb7e49b8cff9c02d8e0aa1a34e6a272f011016b19f53909d24bd52c76a9fbd96"
+  }
+}

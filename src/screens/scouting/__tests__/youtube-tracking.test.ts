@@ -1,14 +1,14 @@
 import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { newVideoDocument, type VideoAnalysis, type VideoDocument } from '../../../core/scouting-video';
+import { newVideoDocument, parseVideoDocument, type VideoAnalysis, type VideoDocument } from '../../../core/scouting-video';
 import { attachYoutubeTracking } from '../../../core/scouting-video-tracking';
 import { YouTubeTrackingSetup } from '../video/YouTubeTrackingSetup.web';
 import { YouTubeTrackingPanel } from '../video/YouTubeTrackingPanel.web';
 import { inspectVideo } from '../video/video-media.web';
-import { processScoutingVideo } from '../video/video-processing.web';
+import { processLongVideo as processScoutingVideo } from '../video/long-video-tracking';
 
 jest.mock('../video/video-media.web', () => ({ inspectVideo: jest.fn() }));
-jest.mock('../video/video-processing.web', () => ({ processScoutingVideo: jest.fn() }));
+jest.mock('../video/long-video-tracking', () => ({ processLongVideo: jest.fn(), trackingSyncPreview: (value: unknown) => value }));
 jest.mock('../video/StudioUI.web', () => ({
     StudioDialog: ({ children }: { children: unknown }) => children,
     StudioAction: (props: object) => jest.requireActual('react').createElement('button', props),
@@ -39,7 +39,7 @@ afterAll(() => {
 
 function mountSetup() {
     const doc = youtube(), onApply = jest.fn();
-    act(() => { view = create(createElement(YouTubeTrackingSetup, { doc, onApply, onClose: jest.fn() })); });
+    act(() => { view = create(createElement(YouTubeTrackingSetup, { doc, scope: 'test-scope', onApply, onClose: jest.fn() })); });
     return { doc, onApply };
 }
 function button(label: string) { return view!.root.findByProps({ label }); }
@@ -78,7 +78,7 @@ test('processed tracking requires same-edit confirmation and a finite explicit o
     expect(applied.analysis?.source).toEqual({ ...media, offsetSeconds: 0 });
     expect(applied.contacts).toEqual(doc.contacts);
     expect(applied.rallies).toEqual(doc.rallies);
-    expect(onApply).toHaveBeenCalledWith(applied, undefined);
+    expect(onApply).toHaveBeenCalledWith(applied, undefined, analysis);
     expect(doc.analysis).toBeUndefined();
     expect(processScoutingVideo).not.toHaveBeenCalled();
 });
@@ -115,7 +115,7 @@ test('processing stays local and produces a candidate requiring a separate Apply
     expect(button('Processar tracking neste aparelho').props.disabled).toBe(true);
     confirm(); offset('1.5');
     await act(async () => { button('Processar tracking neste aparelho').props.onPress(); });
-    expect(processScoutingVideo).toHaveBeenCalledWith(video, 60, expect.any(AbortSignal), expect.any(Function), { model: 'v2b' });
+    expect(processScoutingVideo).toHaveBeenCalledWith(video, media, 'test-scope', 'v2b', expect.any(AbortSignal), expect.any(Function), expect.any(Function));
     expect(onApply).not.toHaveBeenCalled();
     act(() => button('Aplicar tracking ao YouTube').props.onPress());
     expect((onApply.mock.calls[0][0] as VideoDocument).analysis?.positions[0].time).toBe(2.5);
@@ -150,7 +150,7 @@ test('selecting V4c uses that model for local processing and keeps its provenanc
     act(() => view!.root.findByProps({ 'aria-label': 'Modelo de tracking' }).props.onChange({ target: { value: 'v4c' } }));
     confirm();
     await act(async () => { button('Processar tracking neste aparelho').props.onPress(); });
-    expect(processScoutingVideo).toHaveBeenCalledWith(video, 60, expect.any(AbortSignal), expect.any(Function), { model: 'v4c' });
+    expect(processScoutingVideo).toHaveBeenCalledWith(video, media, 'test-scope', 'v4c', expect.any(AbortSignal), expect.any(Function), expect.any(Function));
     expect(onApply).not.toHaveBeenCalled();
     act(() => button('Aplicar tracking ao YouTube').props.onPress());
     expect((onApply.mock.calls[0][0] as VideoDocument).analysis?.model).toBe('vballnet-v4c-browser-1');
@@ -162,10 +162,10 @@ test('cancel aborts processing and a late successful result cannot become applic
     const { onApply } = mountSetup();
     await select({ name: 'match.mp4', type: 'video/mp4', size: 1 } as File, false); confirm();
     act(() => button('Processar tracking neste aparelho').props.onPress());
-    const signal = (processScoutingVideo as jest.Mock).mock.calls[0][2] as AbortSignal;
+    const signal = (processScoutingVideo as jest.Mock).mock.calls[0][4] as AbortSignal;
     act(() => button('Cancelar tracking').props.onPress());
     expect(signal.aborted).toBe(true);
-    const progress = (processScoutingVideo as jest.Mock).mock.calls[0][3] as (done: number, total: number, status: string) => void;
+    const progress = (processScoutingVideo as jest.Mock).mock.calls[0][5] as (done: number, total: number, status: string) => void;
     act(() => progress(9, 10, 'Progresso atrasado'));
     expect(view!.root.findAllByProps({ role: 'status' })).toHaveLength(0);
     await act(async () => pending.resolve(analysis));
@@ -201,7 +201,7 @@ test('unmount aborts processing and ignores deferred file inspection/results', a
     const { onApply } = mountSetup();
     await select({ name: 'match.mp4', type: 'video/mp4', size: 1 } as File, false); confirm();
     act(() => button('Processar tracking neste aparelho').props.onPress());
-    const signal = (processScoutingVideo as jest.Mock).mock.calls[0][2] as AbortSignal;
+    const signal = (processScoutingVideo as jest.Mock).mock.calls[0][4] as AbortSignal;
     act(() => { view!.unmount(); view = undefined; });
     expect(signal.aborted).toBe(true);
     await act(async () => processing.resolve(analysis));
@@ -257,4 +257,38 @@ test('hidden or zero-size panels cannot create non-finite corrections', () => {
     mountPanel(attachYoutubeTracking(youtube(), original(), 0), 1, true, onCorrect);
     act(() => view!.root.findByType('svg').props.onClick(bounds(0, 0)));
     expect(onCorrect).not.toHaveBeenCalled();
+});
+
+
+test('completed tracking explains the pending association and only confirms it after the document updates', async () => {
+    const { onApply } = mountSetup();
+    await select(file()); confirm(); offset('-1.5');
+    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio concluído');
+    act(() => button('Aplicar tracking ao YouTube').props.onPress());
+    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio concluído');
+    const applied = onApply.mock.calls[0][0] as VideoDocument;
+    act(() => view!.update(createElement(YouTubeTrackingSetup, { doc: parseVideoDocument(JSON.parse(JSON.stringify(applied))), scope: 'test-scope', onApply, onClose: jest.fn() })));
+    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio associado ao vídeo');
+    expect(view!.root.findAllByProps({ label: 'Aplicar tracking ao YouTube' })).toHaveLength(0);
+});
+
+test('reopening an associated track shows its terminal state without requiring a new original', () => {
+    const doc = attachYoutubeTracking(youtube(), original(), 0);
+    act(() => { view = create(createElement(YouTubeTrackingSetup, { doc, scope: 'test-scope', inline: true, onApply: jest.fn(), onClose: jest.fn() })); });
+    expect(view!.root.findByProps({ 'aria-label': 'Rastreio da bola associado ao vídeo' })).toBeTruthy();
+    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio associado ao vídeo');
+    expect(view!.root.findAllByProps({ label: 'Aplicar tracking ao YouTube' })).toHaveLength(0);
+});
+
+
+test('an existing track cannot mark a different candidate as already associated', async () => {
+    const doc = attachYoutubeTracking(youtube(), original(), 0);
+    const onApply = jest.fn();
+    act(() => { view = create(createElement(YouTubeTrackingSetup, { doc, scope: 'test-scope', onApply, onClose: jest.fn() })); });
+    const different = original();
+    different.analysis = { ...different.analysis!, positions: different.analysis!.positions.map(p => ({ ...p, x: p.x + .01 })) };
+    await select(file(different)); confirm();
+    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio concluído');
+    expect(button('Aplicar tracking ao YouTube').props.disabled).toBe(false);
+    expect(onApply).not.toHaveBeenCalled();
 });

@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react-native';
 import { useVideoDraft } from '../video/use-video-draft';
 import { newVideoDocument, splitVideoRally, videoDraftKey, type VideoDocument } from '../../../core/scouting-video';
 import { serializeVideoDraft } from '../video/video-draft-storage';
+import { VideoDocumentSyncError } from '../../../api/scouting-video-documents';
 
 const mockStored = new Map<string, string>();
 const mockKeys = jest.fn(async (prefix: string) => [...mockStored.keys()].filter(key => key.startsWith(prefix)));
@@ -280,4 +281,38 @@ test('a track length change is never shared and invalid tracking still fails par
   const valid = hook.result.current.doc;
   expect(() => hook.result.current.change({ ...next, analysis: { ...next.analysis!, positions: [{ time: 1, x: 2, y: 0.5 }] } }, 'Inválido')).toThrow();
   expect(hook.result.current.doc).toBe(valid); hook.unmount();
+});
+
+test.each(['server-rejected', 'invalid'] as const)('%s pauses passive retries while preserving local edits, reviewed starts and point links', async code => {
+  const longMedia = { ...media, duration: 80 };
+  const cloud = newVideoDocument(longMedia, 'reviewed-first');
+  const reviewed: VideoDocument = { ...cloud, rallies: [{ ...cloud.rallies[0], start: 47.640 }],
+    analysis: { model: 'vballnet-v4c-browser-1', sampledFps: 30, positions: [{ time: 2, x: .4, y: .6 }], cuts: [] } };
+  const draftKey = videoDraftKey('user', 'org', 'session', longMedia.fingerprint);
+  mockStored.set(draftKey, serializeVideoDraft({ present: reviewed, past: [], future: [] }, { revision: 1, dirty: true }));
+  const linksKey = 'goatleta:scouting-video-links:v1:synthetic-protected';
+  const links = JSON.stringify(Array.from({ length: 99 }, (_, index) => ({ sessionId: 'original-set', rallyId: `point-${index}`, videoRallyId: `video-${index}` })));
+  mockStored.set(linksKey, links);
+  mockCloudGet.mockResolvedValue(record(cloud, 1));
+  mockCloudSave.mockRejectedValueOnce(new VideoDocumentSyncError(code));
+  const hook = mount(); await act(flush);
+  await act(async () => { await hook.result.current.save(); await flush(); });
+  expect(hook.result.current.syncErrorCode).toBe(code); expect(mockCloudSave).toHaveBeenCalledTimes(1);
+  const originalRequest = mockCloudSave.mock.calls[0];
+  act(() => { emit('focus'); emit('online'); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(2000); await flush(); });
+  expect(mockCloudGet).toHaveBeenCalledTimes(1); expect(mockCloudSave).toHaveBeenCalledTimes(1);
+  act(() => hook.result.current.change({ ...hook.result.current.doc!, corrections: [{ time: 1, x: .3, y: .4 }] }, 'Correção local'));
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); await flush(); });
+  expect(mockCloudSave).toHaveBeenCalledTimes(1); expect(hook.result.current.dirty).toBe(false);
+  const local = JSON.parse(mockStored.get(draftKey)!);
+  expect(local.document.rallies[0].start).toBe(47.640); expect(local.document.corrections).toHaveLength(1);
+  expect(local.document.analysis.positions).toEqual(reviewed.analysis!.positions);
+  expect(local.sync.pending.id).toBe(originalRequest[3]); expect(local.sync.pending.matchesCurrent).toBe(false);
+  expect(mockStored.get(linksKey)).toBe(links);
+  await act(async () => { expect(await hook.result.current.retrySync()).toBe(true); await flush(); });
+  expect(mockCloudSave).toHaveBeenCalledTimes(2); expect(hook.result.current.syncStatus).toBe('synced');
+  expect(hook.result.current.doc!.rallies[0].start).toBe(47.640); expect(hook.result.current.doc!.corrections).toHaveLength(1);
+  expect(originalRequest[1].corrections).toEqual([]); expect(mockStored.get(linksKey)).toBe(links);
+  hook.unmount();
 });

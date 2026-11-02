@@ -51,6 +51,17 @@ test('idempotent retry uses the same request and accepts the original receipt', 
     expect((supabasePost as jest.Mock).mock.calls[1]).toEqual((supabasePost as jest.Mock).mock.calls[0]);
 });
 
+test('a server schema rejection is distinct from receiving another video and never resets the reviewed first rally', async () => {
+    const reviewed = newVideoDocument(media, 'reviewed-first');
+    reviewed.rallies[0].start = 47.640;
+    const original = JSON.stringify(reviewed);
+    (supabasePost as jest.Mock).mockRejectedValueOnce(new Error('Supabase POST error: 400 22023'));
+    await expect(saveScoutingVideoDocument(scope, reviewed, 1, 'reviewed-mutation')).rejects.toMatchObject({ code: 'server-rejected' });
+    expect((supabasePost as jest.Mock).mock.calls[0][1]).toMatchObject({ p_document: reviewed, p_expected_revision: 1, p_mutation_id: 'reviewed-mutation' });
+    expect(JSON.stringify(reviewed)).toBe(original);
+    expect(reviewed.rallies[0].start).toBe(47.640);
+});
+
 test.each([
     ['Supabase POST error: 400 40001', 'conflict'],
     ['Supabase POST error: 400 22023', 'invalid'],

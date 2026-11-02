@@ -148,4 +148,70 @@ export const studioStyles = `
  .sv .sv-stage{border-radius:8px}.sv .sv-player{padding:6px 2px 0}.sv .sv-transport{gap:3px}.sv .sv-transport .sv-action>[role=button]{min-height:40px!important;min-width:40px!important}.sv .sv-transport time{margin:0 3px;font-size:10px}
  .sv .sv-panel{padding:10px}.sv .sv-source-dialog .sv-fields{grid-template-columns:1fr}
 }
+
+/* Analysis stays in the existing inspector; video and timeline remain interactive. */
+.sv-analysis-job{padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--sv-line);font-size:12px}
+.sv-analysis-job .sv-job-status{margin:8px 0;color:var(--sv-text);font-size:12px;line-height:1.4}
+.sv-job-progress{display:flex;align-items:center;gap:10px;margin:7px 0}
+.sv-job-progress progress{flex:1;width:100%;min-width:0;height:6px;accent-color:var(--sv-green)}
+.sv-job-progress>span{font:11px ui-monospace,monospace;color:var(--sv-muted);min-width:38px;text-align:right}
+.sv-job-actions{margin:10px 0}.sv-job-recent{display:grid;gap:3px;margin:14px 0}
+.sv-job-recent h3{margin-bottom:4px}.sv-job-recent>.sv-action{display:block}
+.sv-job-recent [role=button]{width:100%;justify-content:flex-start!important;border:0!important;padding:6px 8px!important;border-radius:8px!important}
+.sv-job-recent [role=button]>span{display:flex;width:100%;justify-content:space-between;gap:8px;align-items:center;font-size:11px}
+.sv-job-recent time{color:var(--sv-green);font-family:ui-monospace,monospace}
+.sv-tracking-job{margin-top:16px;padding-top:14px;border-top:1px solid var(--sv-line)}
+.sv-job-preview{margin:10px 0}.sv-job-preview canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;background:var(--sv-input);border-radius:8px}
+.sv-job-preview p{margin-top:6px;font-size:10px}
+.sv-job-file{margin:10px 0;overflow-wrap:anywhere}.sv-job-file b,.sv-job-file small{display:block}.sv-job-file b{font-size:11px}.sv-job-file small{margin-top:4px}
+.sv-analysis-job .sv-section-meta{line-height:1.5}.sv-analysis-job .sv-disclosure{font-size:11px}
+
+.sv .sv-tabs-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr) 28px;gap:0 6px;flex-shrink:0}
+.sv .sv-tabs-review>.sv-action:last-child{justify-self:end}.sv .sv-inspector.closed .sv-tabs-review{display:flex}
+.sv-scouting-review{font-size:12px}.sv-scouting-review>.sv-section-meta{margin:8px 0;line-height:1.5}
+.sv-scouting-sources{display:grid;gap:6px;max-height:240px;overflow:auto;margin:12px 0}
+.sv-scouting-sources>label{display:flex;align-items:flex-start;gap:8px;padding:8px 4px;min-height:44px;cursor:pointer;line-height:1.4}
+.sv-scouting-sources input{accent-color:var(--sv-green);flex:none}.sv-scouting-sources small{display:block;margin-top:3px}
+.sv-scouting-contacts{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
+.sv-scouting-contacts li{display:grid;gap:4px;padding-bottom:8px;border-bottom:1px solid var(--sv-line)}.sv-scouting-contacts span{font-size:11px;color:var(--sv-muted)}
+.sv-scouting-text-link{border:0;background:none;color:var(--sv-green);font:inherit;cursor:pointer;text-decoration:underline;padding:6px 0}
+.sv-scouting-suggestion{border-left:2px solid var(--sv-amber);padding-left:10px;margin:10px 0}.sv-scouting-suggestion p{margin-bottom:8px}
+
+.sv-job-complete{position:relative;margin:8px 0;padding:10px;border:1px solid var(--sv-line);border-radius:12px;background:var(--sv-panel);color:var(--sv-point-text);box-shadow:inset 3px 0 var(--sv-point-solid)}
+.sv-tracking-result{padding:10px 0}.sv-tracking-result strong{font-size:12px;color:var(--sv-point-text)}.sv-tracking-result p{margin:6px 0 10px;line-height:1.5}.sv-tracking-result>.sv-action{display:block}
+.sv-job-complete .sv-row{align-items:center;gap:8px}.sv-job-complete .sv-row>:first-child{flex:none}.sv-job-complete strong{font-size:12px;line-height:1.4}
+.sv-job-complete p{font-size:11px;line-height:1.5;margin:8px 0 12px}.sv-job-complete>.sv-action{display:block}.sv-job-complete>.sv-action>[role=button]{width:100%}
+
+.sv-scouting-modes{display:flex;gap:4px;padding:2px;margin-bottom:8px;background:var(--sv-input);border-radius:8px}
+.sv-scouting-modes>.sv-action{flex:1;min-width:0}.sv-scouting-modes [role=button]{width:100%;border:0!important;border-radius:7px!important;font-size:11px}
+.sv-review-heading{margin-bottom:8px}.sv-review-heading>.sv-action{flex:none}.sv-review-heading .sv-section-meta{font-size:10px}
+.sv-review-progress{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin:0 0 10px}.sv-review-progress>small{font-size:10px;color:var(--sv-muted);line-height:1.5}.sv-review-progress>.sv-action{font-size:10px}.sv-review-progress [role=button]{min-height:32px!important;padding:4px 8px!important}
+.sv-review-sets{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 8px}.sv-review-sets>.sv-action{flex:1;min-width:54px}.sv-review-sets [role=button]{width:100%;border-radius:8px!important}
+.sv-review-point-nav{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;gap:8px;align-items:center}.sv-review-point-nav .sv-field{flex:1;min-width:0;margin:0}.sv-review-point-nav .sv-field>span{padding:0 8px}.sv-review-point-nav select{font-size:11px}
+.sv-review-score{display:flex;gap:8px;align-items:baseline;justify-content:center;text-align:center;padding:8px 0 4px}
+.sv-review-score>div{display:flex;align-items:baseline;gap:5px}.sv-review-score small{font-size:10px}.sv-review-score strong{font-size:22px;line-height:1.2;font-weight:600}.sv-review-score>span{color:var(--sv-muted)}
+.sv-review-winner{text-align:center;font-size:11px;color:var(--sv-muted);padding-bottom:6px}
+.sv-review-contacts{padding:8px 0;border-top:1px solid var(--sv-line)}.sv-review-contacts h3,.sv-review-video h3{font-size:12px}
+.sv-review-contacts .sv-scouting-contacts{margin:6px 0 0;gap:6px}.sv-review-contacts .sv-scouting-contacts li{border:0;padding-bottom:2px}.sv-review-contacts .sv-scouting-contacts b{font-size:12px;font-weight:500}
+.sv-review-contacts .sv-scouting-contacts span{display:flex;align-items:center;gap:8px}.sv-review-contacts em{font-size:10px;font-style:normal;padding:3px 6px;border-radius:5px;background:var(--sv-input);color:var(--sv-text)}
+.sv-review-video{padding:8px 0;border-top:1px solid var(--sv-line)}.sv-review-video .sv-row small{font-size:10px}.sv-review-video>p{margin:6px 0;line-height:1.5}
+.sv-review-video>.sv-action{display:inline-flex;max-width:100%;margin-top:4px}.sv-review-video>.sv-disclosure{margin-top:6px}
+.sv-review-settings{padding:12px;margin-bottom:12px;border:1px solid var(--sv-line);border-radius:10px}.sv-review-settings>p{margin-top:10px;line-height:1.5}
+.sv-review-alignment{padding:0 0 12px;margin-bottom:12px;border-bottom:1px solid var(--sv-line)}.sv-review-alignment>.sv-row{display:grid;gap:5px}.sv-review-alignment h3{font-size:12px}.sv-review-alignment small{font-size:10px;color:var(--sv-muted);line-height:1.5}
+.sv-review-alignment>p{margin-top:8px;font-size:10px;line-height:1.5}.sv-review-alignment>.sv-action{display:block;margin-top:8px;font-size:11px}.sv-review-alignment>.sv-action>[role=button]{width:100%}
+.sv-review-video .sv-scouting-suggestion{font-size:11px}.sv-review-video .sv-scouting-suggestion strong{font-weight:500}.sv-review-video .sv-scouting-suggestion time{font:10px ui-monospace,monospace;color:var(--sv-muted)}.sv-review-video .sv-scouting-suggestion ul{margin:8px 0;padding-left:14px;color:var(--sv-muted);font-size:10px;line-height:1.5}.sv-review-video .sv-scouting-suggestion .sv-wrap{gap:6px}.sv-review-video .sv-scouting-suggestion .sv-wrap>.sv-action{flex:1;min-width:80px;font-size:10px}
+.sv-review-visual{margin:0 0 12px;font-size:11px}.sv-review-visual .sv-field{margin:10px 0;font-size:10px}.sv-review-visual .sv-field select{font-size:11px}.sv-review-visual>p,.sv-review-visual-progress>p{margin:8px 0;line-height:1.5;font-size:10px}.sv-review-visual>.sv-action{display:block}.sv-review-visual-progress{display:flex;align-items:center;gap:8px;justify-content:space-between}.sv-review-visual-progress>.sv-action{flex:none;font-size:10px}
+.sv-video-details{margin-top:10px}.sv-video-details .sv-row{margin-top:12px}
+
+/* One rhythm for the game-review controls; the transport/timeline stay intact. */
+.sv-scouting-review{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sv-review-heading,.sv-review-sets,.sv-review-progress,.sv-review-point-nav{margin:0}
+.sv-review-point-nav>.sv-action{min-width:0}.sv-review-point-nav>.sv-action>[role=button]{min-width:40px!important;min-height:40px!important;padding:6px!important}
+.sv-review-point-nav .sv-field>span{min-height:40px}.sv-review-score{padding:0;gap:8px}
+.sv-review-video,.sv-review-contacts{padding:12px 0 0;display:flex;flex-direction:column;gap:8px}
+.sv-review-video>.sv-action{align-self:flex-start;margin:0}.sv-review-video>.sv-disclosure{margin:0}
+.sv-review-contacts .sv-scouting-contacts{margin:0;gap:8px}.sv-review-sync{margin-top:0}
+.sv-sync-notice{border-top:1px solid var(--sv-line);padding:10px 0;font-size:11px;color:var(--sv-muted)}
+.sv-sync-notice>.sv-row{gap:8px}.sv-sync-notice-details{font-size:11px;line-height:16px}
+.sv-sync-notice-details summary{cursor:pointer}.sv-sync-notice-details p{margin:8px 0}.sv-sync-notice-details .sv-wrap{gap:8px;margin-top:10px}
 `;

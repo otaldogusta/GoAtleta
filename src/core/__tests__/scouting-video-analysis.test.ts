@@ -14,6 +14,14 @@ test('invalid or unbounded results and wrong-media imports are refused', () => {
   expect(() => parseVideoDocument({...doc, analysis:result}, {...media, fingerprint:'another'})).toThrow();
 });
 test('legacy drafts remain readable without analysis', () => { expect(parseVideoDocument(newVideoDocument(media,'r1')).analysis).toBeUndefined(); });
+
+test('accepting tracking preserves an explicitly trimmed first rally', () => {
+  const doc = newVideoDocument(media, 'r1'); doc.rallies[0].start = 12.640;
+  const next = acceptVideoAnalysis(doc, result);
+  expect(next.rallies).toEqual(doc.rallies);
+  expect(next.analysis).toBe(result);
+  expect(parseVideoDocument(next).rallies[0].start).toBe(12.640);
+});
 test('explicit acceptance initializes suggested cuts only on a blank document', () => {
   const empty = newVideoDocument(media, 'r1');
   expect(acceptVideoAnalysis(empty, result).rallies.map(r => r.start)).toEqual([0, 10]);

@@ -7,7 +7,7 @@ import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
 import { Copy, Choice, ErrorNotice, Input, ScoutingModal } from "./ScoutingUI";
 
-export function NewScoutingModal({ org, classId, mode, onClose, onCreated }: { org: string; classId: string; mode: "treino" | "jogo"; onClose: () => void; onCreated: (id: string) => void }) {
+export function NewScoutingModal({ org, classId, mode, onClose, onCreated, overlayZIndex }: { org: string; classId: string; mode: "treino" | "jogo"; onClose: () => void; onCreated: (id: string) => void; overlayZIndex?: number }) {
   const [type, setType] = useState<ScoutingSessionType>(mode);
   const [format, setFormat] = useState<ScoutingFormat>(mode === "treino" ? "3x3" : "6x6");
   const [date, setDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
@@ -29,7 +29,7 @@ export function NewScoutingModal({ org, classId, mode, onClose, onCreated }: { o
     catch { setError("Criação não confirmada. Tente novamente para recuperar a mesma análise."); }
     finally { lock.current = false; setBusy(false); }
   };
-  return <ScoutingModal title="Nova análise" onClose={() => { if (!busy) onClose(); }} footer={<Button label={error ? "Tentar novamente" : "Iniciar análise"} loading={busy} disabled={!validDate} onPress={() => { void save(); }} />}>
+  return <ScoutingModal title="Nova análise" compact={overlayZIndex != null} overlayZIndex={overlayZIndex} onClose={() => { if (!busy) onClose(); }} footer={<Button label={error ? "Tentar novamente" : "Iniciar análise"} loading={busy} disabled={!validDate} onPress={() => { void save(); }} />}>
     <ErrorNotice text={error} />
     <View style={{ gap: 10 }}><Copy>Tipo de análise</Copy><View style={{ flexDirection: "row", gap: 8 }}>{(["treino", "jogo", "amistoso"] as const).map(t => <Choice key={t} label={t === "treino" ? "Treino" : t === "jogo" ? "Jogo" : "Amistoso"} selected={type === t} disabled={frozen} onPress={() => setType(t)} />)}</View></View>
     <View style={{ gap: 8, opacity: frozen ? .55 : 1 }} pointerEvents={frozen ? "none" : "auto"}><Copy>Data</Copy><DateInput value={date} onChange={setDate} /></View>

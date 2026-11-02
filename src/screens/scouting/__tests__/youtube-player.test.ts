@@ -1,12 +1,12 @@
 import { mountYouTube, youtubePlayback } from '../video/youtube-player.web';
-test.each([1, 2, 5])('seeking preserves playing/paused state %s', state => {
+test.each([1, 2, 3, 5])('seeking preserves playing/paused state %s', state => {
     const player = { getCurrentTime: () => 14, getDuration: () => 60, getPlayerState: () => state, getPlaybackRate: () => 1, setPlaybackRate: jest.fn(), seekTo: jest.fn(), playVideo: jest.fn(), pauseVideo: jest.fn(), destroy: jest.fn() };
     const transport = youtubePlayback(player);
     transport.currentTime = 20;
     expect(player.seekTo).toHaveBeenCalledWith(20, true);
-    expect(player.pauseVideo).toHaveBeenCalledTimes(state === 1 ? 0 : 1);
+    expect(player.pauseVideo).toHaveBeenCalledTimes([1,3].includes(state) ? 0 : 1);
     expect(transport.currentTime).toBe(20);
-    expect(transport.paused).toBe(state !== 1);
+    expect(transport.paused).toBe(![1,3].includes(state));
     transport.playbackRate = .5;
     expect(player.setPlaybackRate).toHaveBeenCalledWith(.5);
 });
@@ -14,8 +14,8 @@ test.each([1, 2, 5])('seeking preserves playing/paused state %s', state => {
 test('embedded player polls time, reports metadata, and disposes without late callbacks', async () => {
     jest.useFakeTimers();
     const previousWindow = globalThis.window, previousDocument = globalThis.document;
-    let events: { onReady(): void; onError(event: { data: number }): void };
-    const player = { getCurrentTime: () => 14, getDuration: () => 60, getPlayerState: () => 2, getPlaybackRate: () => 1, setPlaybackRate: jest.fn(), seekTo: jest.fn(), playVideo: jest.fn(), pauseVideo: jest.fn(), destroy: jest.fn() };
+    let events: { onReady(): void; onStateChange(): void; onError(event: { data: number }): void };
+    const player = { getCurrentTime: () => 14, getDuration: () => 60, getPlayerState: jest.fn(() => 2), getPlaybackRate: () => 1, setPlaybackRate: jest.fn(), seekTo: jest.fn(), playVideo: jest.fn(), pauseVideo: jest.fn(), destroy: jest.fn() };
     const Player = jest.fn().mockImplementation((_element, options) => { events = options.events; return player; });
     Object.assign(globalThis, { window: { YT: { Player }, location: { origin: 'http://localhost:8081' } }, document: { createElement: () => ({}) } });
     const callbacks = { ready: jest.fn(), metadata: jest.fn(), tick: jest.fn(), state: jest.fn(), error: jest.fn() };
@@ -26,10 +26,12 @@ test('embedded player polls time, reports metadata, and disposes without late ca
         expect(callbacks.metadata).toHaveBeenCalledWith(60);
         jest.advanceTimersByTime(400);
         expect(callbacks.tick).toHaveBeenCalledTimes(3);
+        player.getPlayerState.mockReturnValue(3);events!.onStateChange();
+        expect(callbacks.state).toHaveBeenLastCalledWith(true);
         events!.onError({ data: 150 });
         expect(callbacks.error).toHaveBeenCalledWith(expect.stringContaining('incorporar'));
         jest.advanceTimersByTime(400);
-        expect(callbacks.tick).toHaveBeenCalledTimes(3);
+        expect(callbacks.tick).toHaveBeenCalledTimes(4);
         dispose(); expect(player.destroy).toHaveBeenCalledTimes(1);
         jest.advanceTimersByTime(30000);
         expect(callbacks.error).toHaveBeenCalledTimes(1);

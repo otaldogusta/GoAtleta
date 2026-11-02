@@ -137,3 +137,51 @@ export async function persistVideoDraft(key: string, data: string): Promise<void
     writes.set(key, write);
     try { await write; } finally { if (writes.get(key) === write) writes.delete(key); }
 }
+
+/** Compare and write in one IDB transaction so another tab cannot lose reviewed links. */
+export async function compareAndPersistVideoDraft(key: string, expected: string | null, data: string): Promise<void> {
+    const previous = writes.get(key) ?? Promise.resolve();
+    const conflict = () => new Error('Os vínculos foram atualizados em outra aba. Recarregue os registros antes de associar.');
+    const write = previous.catch(() => undefined).then(async () => {
+        if (Platform.OS !== 'web') {
+            if (await AsyncStorage.getItem(key) !== expected) throw conflict();
+            await AsyncStorage.setItem(key, data);
+            return;
+        }
+        // Legacy is consulted only when the authoritative IDB key is absent.
+        const legacy = await AsyncStorage.getItem(key);
+        const connection = await openDraftDatabase();
+        await new Promise<void>((resolve, reject) => {
+            let transaction: IDBTransaction | undefined, settled = false, written = false;
+            const fail = (error: unknown) => {
+                if (settled) return;
+                settled = true; clearTimeout(timer);
+                try { transaction?.abort(); } catch { /* Already completed. */ }
+                reject(error);
+            };
+            const timer = setTimeout(() => fail(new Error('Tempo esgotado ao salvar os vínculos.')), STORAGE_TIMEOUT_MS);
+            try {
+                transaction = connection.transaction(STORE, 'readwrite');
+                transaction.onerror = () => fail(transaction?.error ?? new Error('Falha ao salvar os vínculos.'));
+                transaction.onabort = () => fail(transaction?.error ?? new Error('Gravação dos vínculos cancelada.'));
+                transaction.oncomplete = () => {
+                    if (settled) return;
+                    if (!written) { fail(new Error('Gravação dos vínculos incompleta.')); return; }
+                    settled = true; clearTimeout(timer); resolve();
+                };
+                const store = transaction.objectStore(STORE);
+                const read = store.getAll(key, 1);
+                read.onerror = () => fail(read.error ?? new Error('Falha ao conferir os vínculos salvos.'));
+                read.onsuccess = () => {
+                    const current = read.result.length ? read.result[0] : legacy;
+                    if (current !== expected) { fail(conflict()); return; }
+                    const put = store.put(data, key);
+                    put.onerror = () => fail(put.error ?? new Error('Falha ao salvar os vínculos.'));
+                    put.onsuccess = () => { written = true; };
+                };
+            } catch (error) { fail(error); }
+        });
+    });
+    writes.set(key, write);
+    try { await write; } finally { if (writes.get(key) === write) writes.delete(key); }
+}

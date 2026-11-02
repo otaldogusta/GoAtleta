@@ -6,13 +6,14 @@ import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
+import { compactUiMetrics } from "../../theme/tokens";
 
 export function ScoutingTabs({ value, onChange, items, segmented = false }: { value: string; onChange: (value: string) => void; items: { value: string; label: string; id?: string }[]; segmented?: boolean }) {
   const { colors } = useAppTheme();
   return <View accessibilityRole={segmented ? undefined : "tablist"} style={{ flexDirection: "row", gap: segmented ? 2 : 20, alignSelf: "flex-start", padding: segmented ? 3 : 0, borderWidth: segmented ? 1 : 0, borderRadius: 12, borderColor: colors.border }}>
     {items.map(item => <Pressable key={item.value} nativeID={item.id} accessibilityRole={segmented ? "button" : "tab"} accessibilityState={{ selected: value === item.value }} onPress={() => onChange(item.value)}
       style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: segmented ? 20 : 0, borderRadius: segmented ? 9 : 0, backgroundColor: segmented && value === item.value ? colors.surfaceElevated : "transparent", borderBottomWidth: segmented ? 0 : 2, borderBottomColor: !segmented && value === item.value ? colors.text : "transparent" }}>
-      <Text style={{ fontSize: 14, fontWeight: value === item.value ? "600" : "400", color: value === item.value ? colors.text : colors.muted }}>{item.label}</Text>
+      <Text style={{ fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: value === item.value ? "600" : "400", color: value === item.value ? colors.text : colors.muted }}>{item.label}</Text>
     </Pressable>)}
   </View>;
 }

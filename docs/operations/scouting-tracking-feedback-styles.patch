@@ -1,0 +1,12 @@
+--- a/src/screens/scouting/video/studio-styles.ts
++++ b/src/screens/scouting/video/studio-styles.ts
+@@ -177,7 +177,8 @@
+ .sv-scouting-text-link{border:0;background:none;color:var(--sv-green);font:inherit;cursor:pointer;text-decoration:underline;padding:6px 0}
+ .sv-scouting-suggestion{border-left:2px solid var(--sv-amber);padding-left:10px;margin:10px 0}.sv-scouting-suggestion p{margin-bottom:8px}
+ 
+-.sv-job-complete{position:sticky;top:0;z-index:6;margin:10px 0;padding:12px;border:1px solid var(--sv-line);border-radius:12px;background:var(--sv-panel);color:var(--sv-point-text);box-shadow:inset 3px 0 var(--sv-point-solid)}
++.sv-job-complete{position:relative;margin:8px 0;padding:10px;border:1px solid var(--sv-line);border-radius:12px;background:var(--sv-panel);color:var(--sv-point-text);box-shadow:inset 3px 0 var(--sv-point-solid)}
++.sv-tracking-result{padding:10px 0}.sv-tracking-result strong{font-size:12px;color:var(--sv-point-text)}.sv-tracking-result p{margin:6px 0 10px;line-height:1.5}.sv-tracking-result>.sv-action{display:block}
+ .sv-job-complete .sv-row{align-items:center;gap:8px}.sv-job-complete .sv-row>:first-child{flex:none}.sv-job-complete strong{font-size:12px;line-height:1.4}
+ .sv-job-complete p{font-size:11px;line-height:1.5;margin:8px 0 12px}.sv-job-complete>.sv-action{display:block}.sv-job-complete>.sv-action>[role=button]{width:100%}
+ 

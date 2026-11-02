@@ -3,7 +3,16 @@ import { sceneCuts } from '../../../core/scouting-video-playback';
 import { selectBallTracking, type BallTrackingCandidate } from '../../../core/scouting-ball-tracking';
 
 export type ScoutingTrackingModel = 'v2b' | 'v4c';
-type TrackingOptions = { model?: ScoutingTrackingModel; resumeKey?: string };
+export type TrackingPreview = { time: number; x: number; y: number; score: number; frame: HTMLCanvasElement };
+export type TrackingOptions = { model?: ScoutingTrackingModel; resumeKey?: string; range?: { start: number; end: number }; onPreview?: (preview: TrackingPreview) => void; workerSession?: TrackingWorkerSession };
+/** One owner per long-video run; never shared across jobs or accounts. */
+export class TrackingWorkerSession {
+  worker: Worker | null = null;
+  ready: { type: string; backend?: string; model?: string; width?: number; height?: number; frames?: number } | null = null;
+  acquire() { return this.worker ??= new Worker('/scouting-ai/worker.js', { type: 'module' }); }
+  dispose() { this.worker?.terminate(); this.worker = null; this.ready = null; }
+}
+
 type TrackingProgress = (done: number, total: number, stage: string) => void;
 type StreamCheckpoint = {
   duration: number; model: ScoutingTrackingModel; width: number; height: number;
@@ -74,17 +83,20 @@ export async function processScoutingVideoUrl(url: string, duration: number, sig
 }
 
 async function processVideoSource(url: string, duration: number, signal: AbortSignal, progress: TrackingProgress, options: TrackingOptions, resumeKey?: string, streamed = false): Promise<VideoAnalysis> {
-  if (!Number.isFinite(duration) || duration <= 0 || duration > 1800) throw new Error('Analise um vídeo de até 30 minutos por vez.');
+  const start = options.range?.start ?? 0, end = options.range?.end ?? duration;
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 7200 || !Number.isFinite(start) || !Number.isFinite(end)
+      || start < 0 || end > duration || start >= end || end - start > 1800 || (options.range && resumeKey))
+    throw new Error('Analise um trecho de até 30 minutos em um vídeo de até 2 horas.');
   signal.throwIfAborted();
   const model = options.model ?? 'v2b';
   if (model !== 'v2b' && model !== 'v4c') throw new Error('Modelo de tracking não suportado.');
   const width = model === 'v4c' ? 512 : 768, height = model === 'v4c' ? 288 : 432, frameSize = width * height;
-  const worker = new Worker('/scouting-ai/worker.js', { type: 'module' });
+  const worker = options.workerSession?.acquire() ?? new Worker('/scouting-ai/worker.js', { type: 'module' });
   const video = document.createElement('video');
   video.crossOrigin = 'anonymous'; video.preload = 'metadata';
   const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
   const context = canvas.getContext('2d', { willReadFrequently: true });
-  const total = Math.ceil(duration * 30), candidates: BallTrackingCandidate[] = [], scores: number[] = [];
+  const first = Math.ceil(start * 30), total = Math.ceil(end * 30), candidates: BallTrackingCandidate[] = [], scores: number[] = [];
   const scene = document.createElement('canvas'); scene.width = 160; scene.height = 90;
   const sceneContext = scene.getContext('2d', { willReadFrequently: true });
   const check = () => { if (signal.aborted) throw new DOMException('Cancelado', 'AbortError'); };
@@ -113,15 +125,16 @@ async function processVideoSource(url: string, duration: number, signal: AbortSi
   try {
     check(); if (!context || !sceneContext) throw new Error('Este navegador não permite analisar imagens.');
     progress(0, total, 'Carregando modelo neste aparelho…');
-    const ready = await call({ type: 'init', model }); check();
+    const ready = options.workerSession?.ready?.model === model ? options.workerSession.ready : await call({ type: 'init', model }); check();
     if (ready.model !== model || ready.width !== width || ready.height !== height || ready.frames !== 9) throw new Error('O modelo não corresponde à configuração de tracking.');
+    if (options.workerSession) options.workerSession.ready = ready;
     video.muted = true; video.playsInline = true;
     await waitVideo('loadeddata', () => { video.src = url; });
     if (!Number.isFinite(video.duration) || Math.abs(video.duration - duration) > .1 || !video.videoWidth || !video.videoHeight) {
       if (resumeKey) streamCheckpoints.delete(resumeKey);
       throw new Error('O vídeo mudou desde a conferência. Abra a mídia novamente antes de analisar.');
     }
-    let firstFrame = 0;
+    let firstFrame = first;
     if (resumeKey) {
       const saved = streamCheckpoints.get(resumeKey);
       if (saved && saved.expiresAt <= Date.now()) streamCheckpoints.delete(resumeKey);
@@ -157,6 +170,8 @@ async function processVideoSource(url: string, duration: number, signal: AbortSi
       for (let f = count; f < 9; f++) input.copyWithin(f * frameSize, (count - 1) * frameSize, count * frameSize);
       const reply = await call({ type: 'run', input }, [input.buffer]); check();
       if (!reply.predictions || reply.predictions.length !== 9) throw new Error('O modelo retornou um lote incompleto.');
+      const lastPrediction = reply.predictions[count - 1];
+      options.onPreview?.({ ...lastPrediction, time: Math.min((base + count - 1) / 30, duration - .001), frame: canvas });
       reply.predictions.slice(0, count).forEach((p, f) => { const time = (base + f) / 30;
         if (time < duration) candidates.push({ time, x: p.x, y: p.y, score: p.score }); });
       scores.push(...batchScores);
@@ -164,12 +179,13 @@ async function processVideoSource(url: string, duration: number, signal: AbortSi
         completed: base + count, candidates, scores, previous: previous!.slice(), expiresAt: Date.now() + checkpointLifetime });
       progress(Math.min(base + count, total), total, `Analisando vídeo · ${ready.backend === 'webgpu' ? 'GPU' : 'CPU'}`);
     }
-    const cuts = sceneCuts(scores);
+    const cuts = sceneCuts(scores).map(time => time + first / 30);
     const { positions, metrics } = selectBallTracking(candidates, { cuts, sampledFps: 30 });
     check();
     progress(total, total, `Trajetória revisável · ${metrics.accepted} posições · ${metrics.isolatedSpikes} saltos isolados removidos · ${metrics.belowConfidence + metrics.invalid} candidatos sem evidência suficiente`);
     check();
     if (resumeKey) streamCheckpoints.delete(resumeKey);
     return { model: model === 'v4c' ? 'vballnet-v4c-browser-1' : 'vballnet-v2b-browser-1', positions, cuts, sampledFps: 30 };
-  } finally { worker.terminate(); video.removeAttribute('src'); video.load(); canvas.width = canvas.height = scene.width = scene.height = 0; }
+  } catch (error) { options.workerSession?.dispose(); throw error; }
+  finally { if (!options.workerSession) worker.terminate(); worker.onmessage = null; worker.onerror = null; video.removeAttribute('src'); video.load(); canvas.width = canvas.height = scene.width = scene.height = 0; }
 }

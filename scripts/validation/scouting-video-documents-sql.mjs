@@ -46,7 +46,22 @@ try {
   const permissions = await migration('20260921114136_class_staff_history_and_transitions.sql');
   await db.exec(fn(permissions, 'can_manage_class')); await db.exec(fn(permissions, 'is_class_staff'));
   await db.exec(fn(await migration('20261007112922_scouting_rallies.sql'), 'scouting_can_access'));
-  await db.exec(await migration('20261017004249_scouting_video_documents.sql'));
+  const originalMigration = await migration('20261017004249_scouting_video_documents.sql');
+  await db.exec(originalMigration);
+  const firstRallyMigration = await migration('20261101234500_scouting_video_first_rally_start.sql');
+  assert.equal(fn(firstRallyMigration, 'scouting_video_normalize_document').replace(/\r\n/g, '\n'),
+    fn(originalMigration, 'scouting_video_normalize_document').replace(/\r\n/g, '\n').replace('(previous=-1 and n<>0)', 'n<0'),
+    'additive migration only relaxes the first start from zero to non-negative');
+  const securitySnapshot = async () => ({
+    functions: (await db.query(`select p.proname,p.prosecdef,p.provolatile,p.proconfig,p.proacl::text acl
+      from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and
+      p.proname in ('scouting_video_normalize_document','get_scouting_video_document','save_scouting_video_document') order by p.proname`)).rows,
+    tables: (await db.query(`select relname,relrowsecurity,relacl::text acl from pg_class where relname in
+      ('scouting_video_documents','scouting_video_document_mutations') order by relname`)).rows,
+  });
+  const securityBefore = await securitySnapshot();
+  await db.exec(firstRallyMigration);
+  assert.deepEqual(await securitySnapshot(), securityBefore, 'RLS, function modes/search_path and grants remain unchanged');
   await asUser(null, 'anon'); await assert.rejects(get(), /permission denied/); await assert.rejects(save(), /permission denied/);
   await asUser(null); await assert.rejects(get(), errorCode('42501', 'ACCESS_DENIED'));
   await asUser(outsider); await assert.rejects(get(), errorCode('42501', 'ACCESS_DENIED')); await assert.rejects(save(), errorCode('42501', 'ACCESS_DENIED'));
@@ -83,7 +98,7 @@ try {
   const beforeInvalid = await get();
   const invalid = [
     { ...doc, version: 2 }, { ...doc, media: { ...doc.media, duration: 0 } },
-    { ...doc, rallies: [] }, { ...doc, rallies: [{ ...doc.rallies[0], start: 1 }] },
+    { ...doc, rallies: [] }, { ...doc, rallies: [{ ...doc.rallies[0], start: -0.001 }] },
     { ...doc, rallies: [{ ...doc.rallies[0], pointTime: 20 }] }, { ...doc, contacts: [{ ...doc.contacts[0], studentId: 'foreign' }] },
     { ...doc, contacts: [{ ...doc.contacts[0], studentId: 'different-class-player' }] },
     { ...doc, contacts: [{ ...doc.contacts[0], time: -1 }] }, { ...doc, contacts: [{ ...doc.contacts[0], skill: 'invalid' }] },
@@ -113,6 +128,23 @@ try {
       [org, 'game', fingerprint, raw, 3, `invalid-number-${i}`]), errorCode('22023', 'VIDEO_DOCUMENT_INVALID'));
   }
   assert.deepEqual(await get(), beforeInvalid, 'invalid writes roll back without revision or data changes');
+  const trimmed = { ...doc, media: { ...doc.media, fingerprint: 'trimmed-first-rally', duration: 120 },
+    rallies: [{ ...doc.rallies[0], start: 47.640, pointTime: 62 }, { id: 'r2', start: 82, winner: 'them', reviewed: false, pointTime: 90 }] };
+  const trimmedSaved = await save(trimmed, 0, 'trimmed-first-rally');
+  assert.deepEqual(trimmedSaved.document, trimmed, '47.640s persists exactly without altering IDs, points, contacts or global tracking');
+  assert.deepEqual((await get('trimmed-first-rally')).document, trimmed, 'non-zero first start restores through the normal scoped RPC');
+  assert.deepEqual(await save(trimmed, 0, 'trimmed-first-rally'), trimmedSaved, 'retry remains idempotent for trimmed first rally');
+  const invalidTrimmed = [
+    { ...trimmed, rallies: [{ ...trimmed.rallies[0], start: -0.001 }, trimmed.rallies[1]] },
+    { ...trimmed, rallies: [{ ...trimmed.rallies[0], start: 82 }, trimmed.rallies[1]] },
+    { ...trimmed, rallies: [{ ...trimmed.rallies[0], start: 83 }, trimmed.rallies[1]] },
+    { ...trimmed, rallies: [{ ...trimmed.rallies[0], start: 120, pointTime: 120 }] },
+    { ...trimmed, rallies: [{ ...trimmed.rallies[0], pointTime: 47.639 }, trimmed.rallies[1]] },
+    { ...trimmed, rallies: [{ ...trimmed.rallies[0], pointTime: 82 }, trimmed.rallies[1]] },
+    { ...trimmed, rallies: [trimmed.rallies[0], { ...trimmed.rallies[1], id: 'r1' }] },
+  ];
+  for (const [i, malformed] of invalidTrimmed.entries()) await assert.rejects(save(malformed, 1, `invalid-trimmed-${i}`), errorCode('22023', 'VIDEO_DOCUMENT_INVALID'));
+  assert.deepEqual(await get('trimmed-first-rally'), trimmedSaved, 'invalid trimmed writes leave the saved document and revision intact');
   const fractionalDimensions = { ...doc, media: { ...doc.media, fingerprint: 'fractional-dimensions', width: 1280.5, height: 720.25 } };
   assert.deepEqual((await save(fractionalDimensions, 0, 'fractional-dimensions')).document, fractionalDimensions,
     'finite positive fractional dimensions remain supported by the existing core contract');
@@ -143,5 +175,5 @@ try {
   assert.equal((await db.query('select count(*)::int n from scouting_video_documents')).rows[0].n, 0);
   assert.equal((await db.query('select count(*)::int n from scouting_video_document_mutations')).rows[0].n, 0);
   await asUser(staff); await assert.rejects(get(), errorCode('42501', 'ACCESS_DENIED'));
-  console.log('scouting-video-documents-sql: passed (staff/class/org scope, private RLS/grants, canonical bounds, historical athletes, cross-device discovery, CAS/idempotency, completion and cascade; isolated serialized PostgreSQL)');
+  console.log('scouting-video-documents-sql: passed (47.640s first rally roundtrip, unchanged RLS/grants, staff/class/org scope, canonical bounds, historical athletes, cross-device discovery, CAS/idempotency, completion and cascade; isolated serialized PostgreSQL)');
 } finally { await db.close(); }

@@ -100,6 +100,8 @@ export const scoutingResultOptionsByFundamental: Record<
     { key: "bloqueado", label: "Bloqueado", level: 1 },
     { key: "continuidade", label: "Continuidade", level: 2 },
     { key: "ponto", label: "Ponto", level: 3 },
+    { key: "freeball_devolvida", label: "Freeball devolvida", level: 1 },
+    { key: "bloqueio_continua", label: "Bloqueado, continuou", level: 2 },
   ],
   bloqueio: [
     { key: "erro", label: "Erro", level: 0 },
@@ -372,6 +374,7 @@ export const aggregateScoutingActionsToCounts = (
 ): ScoutingCounts => {
   const counts = createEmptyCounts();
   actions.forEach((action) => {
+    if (action.fundamental === "ataque" && action.resultKey === "freeball_devolvida") return;
     const legacySkill = legacySkillByFundamental[action.fundamental];
     if (!legacySkill) return;
     const score = scoreFromScoutingResultLevel(action.resultLevel);

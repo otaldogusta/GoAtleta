@@ -1,0 +1,136 @@
+--- a/src/screens/scouting/video/YouTubeTrackingSetup.web.tsx
++++ b/src/screens/scouting/video/YouTubeTrackingSetup.web.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useRef, useState } from 'react';
++import { useEffect, useMemo, useRef, useState } from 'react';
+ import { parseVideoDocument, videoTime, type VideoAnalysis, type VideoDocument, type VideoMedia } from '../../../core/scouting-video';
+ import { attachYoutubeTracking } from '../../../core/scouting-video-tracking';
+ import { inspectVideo } from './video-media.web';
+@@ -19,6 +19,33 @@
+     const [expanded, setExpanded] = useState(true), [previewTime, setPreviewTime] = useState<number | null>(null);
+     const [processing, setProcessing] = useState(false);
+     const preview = useRef<HTMLCanvasElement>(null), previewAt = useRef(0);
++    const attached = useMemo(() => {
++        const saved = doc.analysis, provenance = saved?.source;
++        if (!saved || !provenance) return false;
++        if (!candidate) return true;
++        if (!candidate.analysis || !offset.trim() || !Number.isFinite(Number(offset))) return false;
++        if (provenance.fingerprint !== candidate.media.fingerprint || provenance.name !== candidate.media.name
++            || provenance.duration !== candidate.media.duration || provenance.width !== candidate.media.width
++            || provenance.height !== candidate.media.height || provenance.offsetSeconds !== Number(offset)) return false;
++        const expected = trackingSyncPreview(candidate.analysis), shift = Number(offset);
++        if (saved.model !== expected.model || saved.sampledFps !== expected.sampledFps) return false;
++        if (shift === 0 && saved.positions === expected.positions && saved.cuts === expected.cuts) return true;
++        let index = 0;
++        for (const position of expected.positions) {
++            const time = position.time + shift;
++            if (time < 0 || time >= doc.media.duration) continue;
++            const actual = saved.positions[index++];
++            if (!actual || actual.time !== time || actual.x !== position.x || actual.y !== position.y) return false;
++        }
++        if (index !== saved.positions.length) return false;
++        index = 0;
++        for (const cut of expected.cuts) {
++            const time = cut + shift;
++            if (time > 0 && time < doc.media.duration && saved.cuts[index++] !== time) return false;
++        }
++        return index === saved.cuts.length;
++    }, [candidate, doc.analysis, doc.media.duration, offset]);
++    const ready = !!candidate?.analysis && !status && !attached;
+     const drawPreview = ({ time, x, y, score, frame }: TrackingPreview) => {
+         const target = preview.current, now = performance.now();
+         if (!target || now - previewAt.current < 200) return;
+@@ -67,13 +94,16 @@
+     const validOffset = offset.trim() !== '' && Number.isFinite(Number(offset)) && Math.abs(Number(offset)) <= 1800;
+     const apply = () => {
+         if (!candidate?.analysis || !confirmed || !validOffset || status) return;
+-        try { onApply(attachYoutubeTracking(doc, { media: candidate.media, analysis: trackingSyncPreview(candidate.analysis) }, Number(offset)), candidate.file, candidate.analysis); }
++        try {
++            const next = attachYoutubeTracking(doc, { media: candidate.media, analysis: trackingSyncPreview(candidate.analysis) }, Number(offset));
++            onApply(next, candidate.file, candidate.analysis);
++        }
+         catch (failure) { setError((failure as Error).message); }
+     };
+     const content = <>
+       <input ref={videoInput} type="file" accept="video/*,.mp4,.mov,.webm" hidden onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void select(file, false); }}/>
+       <input ref={analysisInput} type="file" accept="application/json,.json" hidden onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void select(file, true); }}/>
+-      <details className="sv-disclosure" open={!candidate || !confirmed}><summary>{candidate ? 'Original e ajustes' : 'Selecionar original'}</summary>
++      <details className="sv-disclosure" open={!attached && (!candidate || !confirmed)}><summary>{candidate ? 'Original e ajustes' : 'Selecionar original'}</summary>
+       <div className="sv-wrap">
+         <StudioAction label="Escolher original para tracking" disabled={!!status} onPress={() => videoInput.current?.click()}>Escolher original</StudioAction>
+         <StudioAction label="Reutilizar tracking processado" disabled={!!status} onPress={() => analysisInput.current?.click()}>Importar análise do original</StudioAction>
+@@ -90,11 +120,12 @@
+       </> : null}
+       </details>
+       {candidate && !candidate.analysis && !status ? <StudioAction label="Processar tracking neste aparelho" primary disabled={processing || !confirmed || !validOffset} onPress={() => { void analyze(); }}>Rastrear bola</StudioAction> : null}
+-      {candidate?.analysis && !status ? <><p><small>Estimativas revisáveis · marcações preservadas. {candidate.analysis.positions.length > 54000 ? 'Tracking completo neste aparelho; cópia sincronizada com menos amostras.' : ''}</small></p><StudioAction label="Aplicar tracking ao YouTube" primary disabled={!confirmed || !validOffset} onPress={apply}>Aplicar tracking</StudioAction></> : null}
++      {ready ? <div className="sv-tracking-result" role="status"><strong>Rastreio concluído</strong><p className="sv-section-meta">{candidate!.analysis!.positions.length.toLocaleString('pt-BR')} posições estimadas · pronto para associar ao vídeo</p><StudioAction label="Aplicar tracking ao YouTube" primary disabled={!confirmed || !validOffset} onPress={apply}>Salvar rastreio no vídeo</StudioAction></div> : null}
++      {attached ? <div className="sv-tracking-result" role="status"><strong>Rastreio associado ao vídeo</strong><p className="sv-section-meta">{doc.analysis!.positions.length.toLocaleString('pt-BR')} posições na prévia · marcações preservadas</p></div> : null}
+       {error ? <p role="alert">{error}</p> : null}
+     </>;
+-    const live = <div className="sv-job-preview" hidden={previewTime === null}><canvas ref={preview} width={768} height={432} role="img" aria-label="Quadro sendo analisado pelo detector de bola"/><p className="sv-section-meta">Prévia do detector · {videoTime(previewTime ?? 0)} · posição candidata</p></div>;
++    const live = <div className="sv-job-preview" hidden={previewTime === null || !processing}><canvas ref={preview} width={768} height={432} role="img" aria-label="Quadro sendo analisado pelo detector de bola"/><p className="sv-section-meta">Prévia do detector · {videoTime(previewTime ?? 0)} · posição candidata</p></div>;
+     const progressView = <>{status ? <p className="sv-job-status" role="status">{status}</p> : null}{progress !== null ? <div className="sv-job-progress"><progress value={progress} max={1} aria-label="Progresso do tracking"/><span>{(progress * 100).toFixed(1)}%</span></div> : null}{progress !== null ? <div className="sv-job-actions"><StudioAction label="Cancelar tracking" onPress={() => { controller.current?.abort(); setStatus(''); setProgress(null); }}>Pausar rastreio</StudioAction></div> : null}</>;
+-    return inline ? <section className="sv-tracking-job" aria-label="Rastreio da bola em andamento"><div className="sv-row"><h3>Rastreio da bola</h3><StudioAction label={expanded ? 'Recolher rastreio' : 'Expandir rastreio'} icon={expanded ? 'chevronUp' : 'chevronDown'} onPress={() => setExpanded(value => !value)}/></div>{progressView}<div hidden={!expanded}>{live}{content}</div></section>
++    return inline ? <section className="sv-tracking-job" aria-label={processing ? 'Rastreio da bola em andamento' : ready ? 'Rastreio da bola concluído' : attached ? 'Rastreio da bola associado ao vídeo' : 'Rastreio da bola'}><div className="sv-row"><h3>Rastreio da bola</h3><StudioAction label={expanded ? 'Recolher rastreio' : 'Expandir rastreio'} icon={expanded ? 'chevronUp' : 'chevronDown'} onPress={() => setExpanded(value => !value)}/></div>{progressView}<div hidden={!expanded}>{live}{content}</div></section>
+       : <StudioDialog title="Trajetória da bola" className="sv-tracking-setup sv-source-dialog" onClose={onClose}>{progressView}{live}{content}</StudioDialog>;
+ }
+--- a/src/screens/scouting/video/YouTubeAnalysis.web.tsx
++++ b/src/screens/scouting/video/YouTubeAnalysis.web.tsx
+@@ -51,7 +51,7 @@
+     const recent = results.flatMap(result => result.rallies).slice(-4).reverse();
+     return <section className="sv-analysis-job" aria-label="Análise automática do jogo">
+         <div className="sv-row"><h2>Recortes do jogo</h2><StudioAction label={expanded ? 'Recolher análise automática' : 'Expandir análise automática'} icon={expanded ? 'chevronUp' : 'chevronDown'} onPress={() => setExpanded(value => !value)}/></div>
+-        {complete ? <div className="sv-job-complete" role="status"><div className="sv-row"><GoAtletaIcon name="checkmarkCircle" size={20} color="currentColor"/><strong>{rallyCount ? 'Recortes prontos para revisar' : 'Análise finalizada'}</strong></div><p>{rallyCount ? `${rallyCount} sugestões geradas · ${videoTime(total)} analisados` : 'Nenhum recorte sugerido. Confira o vídeo manualmente.'}</p><StudioAction label={rallyCount ? 'Revisar recortes gerados' : 'Revisar vídeo analisado'} primary onPress={() => onReview?.()}>{rallyCount ? 'Revisar recortes' : 'Revisar vídeo'}</StudioAction></div> : <>
++        {complete ? <div className="sv-job-complete" role="status"><div className="sv-row"><GoAtletaIcon name="checkmarkCircle" size={20} color="currentColor"/><strong>{rallyCount ? 'Recortes prontos para revisar' : 'Análise finalizada'}</strong></div><p>{rallyCount ? `${rallyCount} sugestões · ${videoTime(total)} analisados` : 'Nenhum recorte sugerido. Confira o vídeo manualmente.'}</p><StudioAction label={rallyCount ? 'Revisar recortes gerados' : 'Revisar vídeo analisado'} primary onPress={() => onReview?.()}>{rallyCount ? 'Revisar recortes' : 'Revisar vídeo'}</StudioAction></div> : <>
+         <p className="sv-job-status" role="status">{job || (loading ? 'Recuperando progresso…' : results.length ? 'Análise pausada' : 'Pronto para analisar')}</p>
+         <div className="sv-job-progress"><progress aria-label="Progresso da análise do YouTube" value={done} max={total}/><span>{Math.floor(done / total * 100)}%</span></div>
+         <p className="sv-section-meta">{videoTime(done)} / {videoTime(total)} · {rallyCount} rallies · {contactCount} contatos sugeridos</p>
+--- a/src/screens/scouting/__tests__/youtube-tracking.test.ts
++++ b/src/screens/scouting/__tests__/youtube-tracking.test.ts
+@@ -1,6 +1,6 @@
+ import { createElement } from 'react';
+ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+-import { newVideoDocument, type VideoAnalysis, type VideoDocument } from '../../../core/scouting-video';
++import { newVideoDocument, parseVideoDocument, type VideoAnalysis, type VideoDocument } from '../../../core/scouting-video';
+ import { attachYoutubeTracking } from '../../../core/scouting-video-tracking';
+ import { YouTubeTrackingSetup } from '../video/YouTubeTrackingSetup.web';
+ import { YouTubeTrackingPanel } from '../video/YouTubeTrackingPanel.web';
+@@ -258,3 +258,37 @@
+     act(() => view!.root.findByType('svg').props.onClick(bounds(0, 0)));
+     expect(onCorrect).not.toHaveBeenCalled();
+ });
++
++
++test('completed tracking explains the pending association and only confirms it after the document updates', async () => {
++    const { onApply } = mountSetup();
++    await select(file()); confirm(); offset('-1.5');
++    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio concluído');
++    act(() => button('Aplicar tracking ao YouTube').props.onPress());
++    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio concluído');
++    const applied = onApply.mock.calls[0][0] as VideoDocument;
++    act(() => view!.update(createElement(YouTubeTrackingSetup, { doc: parseVideoDocument(JSON.parse(JSON.stringify(applied))), scope: 'test-scope', onApply, onClose: jest.fn() })));
++    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio associado ao vídeo');
++    expect(view!.root.findAllByProps({ label: 'Aplicar tracking ao YouTube' })).toHaveLength(0);
++});
++
++test('reopening an associated track shows its terminal state without requiring a new original', () => {
++    const doc = attachYoutubeTracking(youtube(), original(), 0);
++    act(() => { view = create(createElement(YouTubeTrackingSetup, { doc, scope: 'test-scope', inline: true, onApply: jest.fn(), onClose: jest.fn() })); });
++    expect(view!.root.findByProps({ 'aria-label': 'Rastreio da bola associado ao vídeo' })).toBeTruthy();
++    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio associado ao vídeo');
++    expect(view!.root.findAllByProps({ label: 'Aplicar tracking ao YouTube' })).toHaveLength(0);
++});
++
++
++test('an existing track cannot mark a different candidate as already associated', async () => {
++    const doc = attachYoutubeTracking(youtube(), original(), 0);
++    const onApply = jest.fn();
++    act(() => { view = create(createElement(YouTubeTrackingSetup, { doc, scope: 'test-scope', onApply, onClose: jest.fn() })); });
++    const different = original();
++    different.analysis = { ...different.analysis!, positions: different.analysis!.positions.map(p => ({ ...p, x: p.x + .01 })) };
++    await select(file(different)); confirm();
++    expect(view!.root.findByProps({ className: 'sv-tracking-result' }).children[0].children).toContain('Rastreio concluído');
++    expect(button('Aplicar tracking ao YouTube').props.disabled).toBe(false);
++    expect(onApply).not.toHaveBeenCalled();
++});

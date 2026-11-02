@@ -34,14 +34,14 @@ export function Link({ label, onPress, disabled, selected, icon }: { label: stri
 export function Input({ label, ...props }: TextInputProps & { label: string }) {
   const { colors } = useAppTheme();
   return <View style={{ gap: 8, flex: 1 }}><Copy>{label}</Copy><View style={{ minHeight: 50, borderRadius: 12, paddingHorizontal: 14, justifyContent: "center", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg }}>
-    <TextInput {...props} accessibilityLabel={label} placeholderTextColor={colors.muted} style={{ borderRadius: 0, minHeight: 48, color: colors.text, fontSize: 14, outlineWidth: 0 } as TextInputProps["style"]} />
+    <TextInput {...props} accessibilityLabel={props.accessibilityLabel ?? label} placeholderTextColor={colors.muted} style={{ borderRadius: 0, minHeight: 48, color: colors.text, fontSize: 14, outlineWidth: 0 } as TextInputProps["style"]} />
   </View></View>;
 }
 export function ErrorNotice({ text }: { text: string }) {
   const { colors } = useAppTheme();
   return text ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ color: colors.dangerText, fontSize: 13, lineHeight: 20 }}>{text}</Text> : null;
 }
-export function ScoutingModal({ title, subtitle, onClose, children, footer, summary, compact = false }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode; compact?: boolean }>) {
+export function ScoutingModal({ title, subtitle, onClose, children, footer, summary, compact = false, overlayZIndex }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode; compact?: boolean; overlayZIndex?: number }>) {
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
   const card = useModalCardStyle({ maxWidth: compact ? 480 : 640, padding: 0, gap: 0 });
@@ -67,7 +67,7 @@ export function ScoutingModal({ title, subtitle, onClose, children, footer, summ
     document.addEventListener("keydown", keydown, true);
     return () => { document.removeEventListener("keydown", keydown, true); if (previous?.isConnected) previous.focus(); };
   }, []);
-  return <ModalSheet visible onClose={onClose} position="center" containerPadding={width < 600 ? 8 : 16}
+  return <ModalSheet visible onClose={onClose} position="center" overlayZIndex={overlayZIndex} containerPadding={width < 600 ? 8 : 16}
     cardStyle={[card, { height: compact ? undefined : width < 600 ? height - 16 : Math.min(684, height - 32), maxHeight: height - (width < 600 ? 16 : 32), backgroundColor: colors.surface, paddingBottom: 0, marginBottom: 0, overflow: "hidden" }, Platform.OS === "web" ? { backgroundImage: "none" } as never : null]}>
     <View ref={root} role="dialog" aria-modal={true} accessibilityLabel={title} style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }}>
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: inset, paddingVertical: 10, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
