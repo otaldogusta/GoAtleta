@@ -72,7 +72,7 @@ export function ScoutingModal({ title, subtitle, onClose, children, footer, summ
     <View ref={root} role="dialog" aria-modal={true} accessibilityLabel={title} style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }}>
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: inset, paddingVertical: 10, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <View style={{ flex: 1, gap: 3 }}><Copy title>{title}</Copy>{subtitle ? <Copy muted>{subtitle}</Copy> : null}</View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Fechar análise" onPress={onClose} style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, justifyContent: "center", alignItems: "center" }}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Fechar ${title.toLocaleLowerCase('pt-BR')}`} onPress={onClose} style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, justifyContent: "center", alignItems: "center" }}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable>
       </View>
       {summary ? <View style={{ paddingHorizontal: inset, paddingTop: 12, paddingBottom: 10 }}>{summary}</View> : null}
       <ScrollView style={{ flexGrow: compact ? 0 : 1, flexBasis: compact ? "auto" : 0, flexShrink: 1, minHeight: 0 }} contentContainerStyle={{ paddingHorizontal: inset, paddingVertical: 12, gap: 8 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>

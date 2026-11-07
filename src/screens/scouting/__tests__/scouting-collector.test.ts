@@ -1,8 +1,10 @@
 import React from "react";
 import { act, fireEvent, render } from "@testing-library/react-native";
+import { Platform, StyleSheet } from "react-native";
 import type { ScoutingContact, ScoutingRallyOutcome, ScoutingSide, Student } from "../../../core/models";
 import type { ScoutingDetail } from "../../../db/scouting-collection";
-import { ScoutingCollector } from "../ScoutingCollector";
+import { ScoutingCollector, type ScoutingCollectorActions } from "../ScoutingCollector";
+import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
 import { ScoutingModal } from "../ScoutingUI";
 import { ContactPad } from "../ScoutingCaptureUI";
 import { Button } from "../../../ui/Button";
@@ -10,11 +12,17 @@ import { Button } from "../../../ui/Button";
 const mockExecute = jest.fn(async () => true);
 const mockError = jest.fn();
 const mockShortcuts = jest.fn();
+const mockCollectionArgs = jest.fn(), mockContactChanges = jest.fn();
+const mockConfirm=jest.fn(async (_options:ConfirmDialogOptions)=>false);
+jest.mock("../../../ui/confirm-dialog",()=>({useConfirmDialog:()=>({confirm:mockConfirm})}));
 let mockBusy = false;
+let mockReadError="",mockReadBlocked=false;
 let mockRosterSaving = false;
 let mockPending: object | null = null;
 let mockContacts: ScoutingContact[] = [];
 let mockTraining = false;
+let mockNoMatchState = false;
+let mockCompleted = false;
 let mockHasPoint = false;
 let mockRevision = 0;
 let mockRoster: { studentId: string; jersey: string }[] | null = null;
@@ -27,20 +35,25 @@ jest.mock("../use-scouting-roster", () => ({
   useScoutingRoster: () => ({ players: mockRoster, loading: false, saving: mockRosterSaving, error: "", save: jest.fn() }),
 }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
-jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
+jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null, KeyboardIcon: () => null }));
+jest.mock("../../../components/visual-court/CourtEditorScene",()=>({CourtEditorScene:()=>null}));
+jest.mock("../use-scouting-lineup",()=>({useScoutingLineup:()=>({lineup:[null,null,null,null,null,null],loading:false,saving:false,error:"",save:jest.fn(async()=>true)})}));
 jest.mock("../../../ui/ModalSheet", () => ({ ModalSheet: ({ children }: { children: React.ReactNode }) => children }));
+jest.mock("../../../ui/AnchoredDropdown",()=>({AnchoredDropdown:({children,visible}:{children:React.ReactNode;visible:boolean})=>visible?children:null}));
 jest.mock("../use-scouting-shortcuts", () => ({ useScoutingShortcuts: (options: unknown) => mockShortcuts(options) }));
-jest.mock("../use-scouting-collection", () => ({ useScoutingCollection: () => {
-  const [contacts, changeContacts] = jest.requireActual<typeof React>("react").useState(mockContacts);
+jest.mock("../use-scouting-collection", () => ({ useScoutingCollection: (...args: unknown[]) => {
+  mockCollectionArgs(...args);
+  const [contacts, setContacts] = jest.requireActual<typeof React>("react").useState(mockContacts);
+  const changeContacts = (next: ScoutingContact[], change: unknown) => { mockContactChanges(next, change); setContacts(next); };
   const [outcome,changeOutcome] = jest.requireActual<typeof React>("react").useState(mockOutcome);mockSetOutcome=changeOutcome;
-  return { contacts, changeContacts, outcome, changeOutcome, execute: mockExecute, setError: mockError, error: "", loading: false, busy: mockBusy, pending: mockPending, conflict: false,
-    detail: { captureReady: true, captureVersion: mockCaptureVersion, session: { id: "game", revision: mockRevision, title: "Jogo", date: "2026-10-07", type: mockTraining ? "treino" : "jogo", status: "em_andamento", format: "6x6", matchState: mockTraining ? null : { setNumber: 1, scoreUs: 12, scoreThem: 10, serve: mockServe, rotation: 3, recoveredDraft: [], recoveredOutcome: outcome } }, actions: mockTraining ? [{ id: "action-1", fundamental: "recepcao", resultLabel: "Boa", phase: "side_out" }] : [], rallies: mockHasPoint ? [{ id: "point-1", setNumber: 1, won: false, contacts: [], outcome: mockPointOutcome }] : [] } as unknown as ScoutingDetail,
+  return { contacts, changeContacts, outcome, changeOutcome, execute: mockExecute, setError: mockError, error: mockReadError, readBlocked:mockReadBlocked, loading: false, busy: mockBusy, pending: mockPending, conflict: false,
+    detail: { captureReady: true, captureVersion: mockCaptureVersion, session: { id: "game", revision: mockRevision, title: "Jogo", date: "2026-10-07", type: mockTraining ? "treino" : "jogo", status: mockCompleted ? "concluido" : "em_andamento", format: "6x6", matchState: mockTraining || mockNoMatchState ? null : { setNumber: 1, scoreUs: 12, scoreThem: 10, serve: mockServe, rotation: 3, recoveredDraft: [], recoveredOutcome: outcome } }, actions: mockTraining ? [{ id: "action-1", fundamental: "recepcao", resultLabel: "Boa", phase: "side_out" }] : [], rallies: mockHasPoint ? [{ id: "point-1", setNumber: 1, won: false, contacts: [], outcome: mockPointOutcome }] : [] } as unknown as ScoutingDetail,
   };
 } }));
 const students = [{ id: "ana", name: "Ana Martins" }, { id: "maria1", name: "Maria Júlia Rodrigues" }, { id: "maria2", name: "Maria Gabriely Campos" }] as Student[];
 const collectorProps = () => ({ org: "org", sessionId: "game", userId: "user", students, onClose: jest.fn(), onSaved: jest.fn() });
 const setup = (options: Partial<React.ComponentProps<typeof ScoutingCollector>> = {}) => render(React.createElement(ScoutingCollector, { ...collectorProps(), ...options }));
-beforeEach(() => { jest.clearAllMocks(); mockContacts = []; mockTraining = false; mockRoster = null; mockHasPoint = false; mockRevision = 0; mockBusy = false; mockRosterSaving = false; mockPending = null; mockCaptureVersion=2;mockOutcome=null;mockPointOutcome=null;mockServe='them'; });
+beforeEach(() => { jest.clearAllMocks(); mockReadError="";mockReadBlocked=false;mockConfirm.mockImplementation(async()=>false);mockContacts = []; mockTraining = false; mockNoMatchState = false; mockCompleted = false; mockRoster = null; mockHasPoint = false; mockRevision = 0; mockBusy = false; mockRosterSaving = false; mockPending = null; mockCaptureVersion=2;mockOutcome=null;mockPointOutcome=null;mockServe='them'; });
 
 test("redo restores the reopened point with the original winner and rejects a later revision", async () => {
   mockHasPoint = true;
@@ -80,6 +93,24 @@ test("requires an explicit athlete or team choice before adding a contact, and k
   expect(mockExecute).toHaveBeenCalledWith({ name: "point", payload: { winner: "us", contacts: [expect.objectContaining({ studentId: "ana", resultKey: "b_medio" })] } });
 });
 
+test('the optional capture bridge is forwarded and contact edits use explicit stable-slot intents', () => {
+  const bridge = { captureStamp: jest.fn(() => null), captureReference: jest.fn(() => null), applied: jest.fn(async () => undefined) };
+  const screen = setup({ captureBridge: bridge });
+  expect(mockCollectionArgs).toHaveBeenLastCalledWith('org', 'game', 'user', expect.any(Function), bridge);
+  fireEvent.press(screen.getByRole('button', { name: 'Ana Martins' })); fireEvent.press(screen.getByRole('button', { name: 'Boa' }));
+  expect(mockContactChanges).toHaveBeenLastCalledWith(expect.any(Array), { kind: 'append', index: 0 });
+  fireEvent.press(screen.getByRole('button', { name: 'Editar contato 1: Ana Martins, Recepção, Boa' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Remover contato' }));
+  expect(mockContactChanges).toHaveBeenLastCalledWith([], { kind: 'remove', index: 0 });
+});
+
+test('a confirmed completed analysis keeps the existing retry action accessible until local synchronization finishes', async () => {
+  mockCompleted = true; mockPending = { requestId: 'confirmed-pending-video' };
+  const screen = setup({ presentation: 'embedded' });
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Tentar novamente' })));
+  expect(mockExecute).toHaveBeenLastCalledWith();
+});
+
 test("permits unattributed observations explicitly and distinguishes athletes with the same first name", () => {
   const screen = setup();
   expect(screen.getByText("Maria Júlia")).toBeTruthy();
@@ -95,8 +126,10 @@ test("editing a contact locks the point until the correction is applied; undo re
   fireEvent.press(screen.getByRole("button", { name: "Editar contato 1: Ana Martins, Recepção, Boa" }));
   expect(screen.getByRole("button", { name: "＋ Nosso ponto" })).toBeDisabled();
   fireEvent.press(screen.getByRole("button", { name: "Completa" }));
+  expect(mockContactChanges).toHaveBeenLastCalledWith(expect.any(Array), { kind: 'replace', index: 0 });
   expect(screen.getByRole("button", { name: "Editar contato 1: Ana Martins, Recepção, Completa" })).toBeTruthy();
   fireEvent.press(screen.getByRole("button", { name: "Desfazer contato" }));
+  expect(mockContactChanges).toHaveBeenLastCalledWith(expect.any(Array), { kind: 'remove', index: 1 });
   expect(screen.queryByRole("button", { name: /Editar contato 2/ })).toBeNull();
   expect(screen.getByRole("button", { name: "Editar contato 1: Ana Martins, Recepção, Completa" })).toBeTruthy();
 });
@@ -265,4 +298,142 @@ test('redo preserves recovered ending and becomes invalid when that ending chang
   act(()=>mockSetOutcome(mockPointOutcome));
   await act(async()=>fireEvent.press(screen.getByRole('button',{name:'Refazer ponto'})));
   expect(mockExecute).toHaveBeenLastCalledWith({name:'point',payload:{contacts:[],winner:'them',outcome:{kind:'ace',team:'them'}}});
+});
+
+test('header finishing opens canonical confirmation and executes complete only after approval, even while Registrar is hidden',async()=>{
+  mockConfirm.mockImplementation(()=>new Promise(()=>undefined));
+  const publish=jest.fn<void,[ScoutingCollectorActions|null]>();setup({presentation:'embedded',active:false,onActionsChange:publish});
+  const actions=publish.mock.calls.at(-1)![0]!;expect(actions.canFinish).toBe(true);expect(actions.status).toBe('saved');
+  await act(async()=>actions.requestFinish());expect(mockConfirm).toHaveBeenCalledTimes(1);expect(mockExecute).not.toHaveBeenCalled();
+  const options=mockConfirm.mock.calls[0][0];await act(async()=>options.onConfirm());expect(mockExecute).toHaveBeenLastCalledWith({name:'complete',payload:{}});
+});
+
+test('header finish revalidates an unfinished contact and scope after the confirmation was opened',async()=>{
+  mockConfirm.mockImplementation(()=>new Promise(()=>undefined));
+  const publish=jest.fn<void,[ScoutingCollectorActions|null]>(),props={...collectorProps(),presentation:'embedded' as const,onActionsChange:publish};
+  const screen=render(React.createElement(ScoutingCollector,props));await act(async()=>publish.mock.calls.at(-1)![0]!.requestFinish());
+  const first=mockConfirm.mock.calls[0][0];fireEvent.press(screen.getByRole('button',{name:'Ana Martins'}));
+  expect(publish.mock.calls.at(-1)![0]!.canFinish).toBe(false);expect(publish.mock.calls.at(-1)![0]!.status).toBe('dirty');
+  await expect(first.onConfirm()).rejects.toThrow('A análise mudou');expect(mockExecute).not.toHaveBeenCalled();
+  screen.rerender(React.createElement(ScoutingCollector,{...props,org:'another-org'}));await expect(first.onConfirm()).rejects.toThrow('A análise mudou');expect(mockExecute).not.toHaveBeenCalled();
+  screen.unmount();expect(publish).toHaveBeenLastCalledWith(null);
+});
+
+test('a clean confirmation cannot finish another scope or an unmounted collector',async()=>{
+  mockConfirm.mockImplementation(()=>new Promise(()=>undefined));
+  const publish=jest.fn<void,[ScoutingCollectorActions|null]>(),props={...collectorProps(),onActionsChange:publish};const screen=render(React.createElement(ScoutingCollector,props));
+  await act(async()=>publish.mock.calls.at(-1)![0]!.requestFinish());const options=mockConfirm.mock.calls[0][0];
+  screen.rerender(React.createElement(ScoutingCollector,{...props,sessionId:'another-session'}));await expect(options.onConfirm()).rejects.toThrow('A análise mudou');
+  screen.unmount();await expect(options.onConfirm()).rejects.toThrow('A análise mudou');expect(mockExecute).not.toHaveBeenCalled();
+});
+
+test('a failed read is not published as saved and cannot finish',()=>{
+  mockReadBlocked=true;mockReadError='Não foi possível carregar';const publish=jest.fn<void,[ScoutingCollectorActions|null]>();setup({onActionsChange:publish});
+  expect(publish.mock.calls.at(-1)![0]).toMatchObject({canFinish:false,status:'error'});
+});
+
+test('compact embedded web keeps training as repeated confirmed actions, without a game point',async()=>{
+  const platform=Object.getOwnPropertyDescriptor(Platform,'OS')!;Object.defineProperty(Platform,'OS',{configurable:true,value:'web'});
+  try{
+    mockTraining=true;const screen=setup({presentation:'embedded'});expect(screen.UNSAFE_getByType(ContactPad).props.compact).toBe(true);
+    fireEvent.press(screen.getByRole('button',{name:'Ana Martins'}));await act(async()=>fireEvent.press(screen.getByRole('button',{name:'Boa'})));
+    expect(mockExecute).toHaveBeenLastCalledWith({name:'action',payload:{contacts:[expect.objectContaining({studentId:'ana',fundamental:'recepcao',resultKey:'b_medio'})]}});
+    expect(screen.getByRole('button',{name:'Boa'})).toBeEnabled();expect(screen.queryByRole('button',{name:'＋ Nosso ponto'})).toBeNull();
+    screen.unmount();
+  }finally{Object.defineProperty(Platform,'OS',platform);}
+});
+
+test('compact collection exposes a short title with general help and gives both point actions equal width',()=>{
+  const platform=Object.getOwnPropertyDescriptor(Platform,'OS')!;Object.defineProperty(Platform,'OS',{configurable:true,value:'web'});
+  try{
+    const screen=setup({presentation:'embedded',containerWidth:882});
+    expect(screen.getByText('Registrar jogada')).toBeTruthy();expect(screen.getByRole('button',{name:'Como registrar uma jogada'})).toBeTruthy();
+    expect(screen.UNSAFE_getByType(ContactPad).props.availableWidth).toBe(858);
+    const points=screen.UNSAFE_getAllByType(Button).filter(node=>['＋ Nosso ponto','＋ Ponto adversário'].includes(node.props.label));expect(points).toHaveLength(2);
+    points.forEach(node=>expect(StyleSheet.flatten(node.parent!.props.style)).toMatchObject({flex:1,minWidth:0}));screen.unmount();
+  }finally{Object.defineProperty(Platform,'OS',platform);}
+});
+
+test.each(['pending','busy','contacts','outcome','completed'] as const)('header finish is unavailable for %s and cannot bypass the collector guards',async state=>{
+  if(state==='pending')mockPending={requestId:'pending'};if(state==='busy')mockBusy=true;if(state==='contacts')mockContacts=[{fundamental:'defesa',resultKey:'defesa_boa',phase:'transicao'}];if(state==='outcome')mockOutcome={kind:'falta',team:'us',reason:'rede'};if(state==='completed')mockCompleted=true;
+  const publish=jest.fn<void,[ScoutingCollectorActions|null]>();setup({presentation:'embedded',onActionsChange:publish});const actions=publish.mock.calls.at(-1)![0]!;
+  expect(actions.canFinish).toBe(false);await act(async()=>actions.requestFinish());expect(mockConfirm).not.toHaveBeenCalled();expect(mockExecute).not.toHaveBeenCalled();
+});
+
+test('bench code entry stages a timed contact using its real jersey; only the point button submits the official point',async()=>{
+  const platform=Object.getOwnPropertyDescriptor(Platform,'OS')!;Object.defineProperty(Platform,'OS',{configurable:true,value:'web'});
+  try{
+    mockRoster=[{studentId:'ana',jersey:'7'}];mockServe='us';const publish=jest.fn(),screen=setup({bench:true,presentation:'embedded',keyboardActive:false,onActionsChange:publish});
+    expect(mockShortcuts.mock.calls.at(-1)?.[0].enabled).toBe(false);
+    const code=screen.getByLabelText('Registrar contato por código');fireEvent.changeText(code,'7S+');
+    expect(screen.getByRole('button',{name:'Nosso ponto'})).toBeDisabled();expect(publish.mock.calls.at(-1)[0].canFinish).toBe(false);
+    await act(async()=>fireEvent(code,'submitEditing'));
+    expect(mockContactChanges).toHaveBeenLastCalledWith([expect.objectContaining({studentId:'ana',fundamental:'saque',resultKey:'dificultou',phase:'saque'})],{kind:'append',index:0});
+    expect(mockExecute).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Nosso ponto'})).toBeEnabled();
+    await act(async()=>fireEvent.press(screen.getByRole('button',{name:'Nosso ponto'})));
+    expect(mockExecute).toHaveBeenCalledTimes(1);expect(mockExecute).toHaveBeenCalledWith({name:'point',payload:{winner:'us',contacts:[expect.objectContaining({studentId:'ana',resultKey:'dificultou'})]}});screen.unmount();
+  }finally{Object.defineProperty(Platform,'OS',platform);}
+});
+
+test('bench preserves a code draft when opening history and rejects an unregistered shirt without adding a contact',async()=>{
+  const platform=Object.getOwnPropertyDescriptor(Platform,'OS')!;Object.defineProperty(Platform,'OS',{configurable:true,value:'web'});
+  try{
+    mockRoster=[{studentId:'ana',jersey:'7'}];const screen=setup({bench:true,presentation:'embedded'}),code=screen.getByLabelText('Registrar contato por código');fireEvent.changeText(code,'12S+');
+    await act(async()=>fireEvent(code,'submitEditing'));expect(screen.getByText(/Camisa 12 não cadastrada/)).toBeTruthy();expect(mockContactChanges).not.toHaveBeenCalled();expect(mockExecute).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole('button',{name:'Opções da coleta'}));fireEvent.press(screen.getByRole('button',{name:'Ver pontos'}));
+    fireEvent.press(screen.getByRole('button',{name:'Opções da coleta'}));fireEvent.press(screen.getByRole('button',{name:'Voltar à jogada'}));
+    expect(screen.getByDisplayValue('12S+')).toBeTruthy();screen.unmount();
+  }finally{Object.defineProperty(Platform,'OS',platform);}
+});
+
+test('opening lineup editor preserves saved status and closing retains changed selections with their dirty guard',()=>{
+  const platform=Object.getOwnPropertyDescriptor(Platform,'OS')!;Object.defineProperty(Platform,'OS',{configurable:true,value:'web'});
+  try{
+    const publish=jest.fn(),screen=setup({bench:true,presentation:'embedded',onActionsChange:publish});
+    fireEvent.press(screen.getByRole('button',{name:'Definir em quadra'}));
+    expect(publish.mock.calls.at(-1)[0]).toMatchObject({status:'saved',canFinish:false});expect(mockShortcuts.mock.calls.at(-1)[0].enabled).toBe(false);
+    fireEvent.press(screen.getByRole('button',{name:'Ana Martins'}));expect(publish.mock.calls.at(-1)[0].status).toBe('dirty');
+    fireEvent.press(screen.getByRole('button',{name:'Fechar atletas em quadra'}));expect(publish.mock.calls.at(-1)[0]).toMatchObject({status:'dirty',canFinish:false});
+    fireEvent.press(screen.getByRole('button',{name:'Definir em quadra'}));expect(screen.getByText('Z4 · Ana')).toBeTruthy();expect(mockExecute).not.toHaveBeenCalled();screen.unmount();
+  }finally{Object.defineProperty(Platform,'OS',platform);}
+});
+
+
+test('initial bench preparation stays draft-only, preserves hidden options and submits the existing start payload', async () => {
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    mockNoMatchState = true;
+    const dirty = jest.fn(), publish = jest.fn(), screen = setup({ bench: true, presentation: 'embedded', onDirtyChange: dirty, onActionsChange: publish });
+    expect(screen.getByTestId('scouting-bench-setup')).toBeTruthy();
+    expect(screen.getByTestId('scouting-lineup-court')).toBeTruthy();
+    expect(screen.queryByText('Informe o placar de agora. Se o jogo ainda não começou, mantenha 0 a 0.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'P6' })).toBeNull();
+    expect(screen.queryByLabelText('Registrar contato por código')).toBeNull();
+    expect(publish.mock.calls.at(-1)[0].canFinish).toBe(false);
+    expect(mockExecute).not.toHaveBeenCalled(); expect(dirty).toHaveBeenLastCalledWith(false);
+    fireEvent.changeText(screen.getByLabelText('Placar da nossa equipe'), '8');
+    expect(dirty).toHaveBeenLastCalledWith(true);
+    fireEvent.press(screen.getByRole('button', { name: 'Adversário saca' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Opções do set' }));
+    fireEvent.changeText(screen.getByLabelText('Set inicial'), '3');
+    fireEvent.press(screen.getByRole('button', { name: 'P6' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Opções do set' }));
+    expect(screen.queryByRole('button', { name: 'P6' })).toBeNull();
+    expect(mockExecute).not.toHaveBeenCalled();
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Começar coleta' })));
+    expect(mockExecute).toHaveBeenCalledWith({ name: 'start_set', payload: { setNumber: 3, scoreUs: 8, scoreThem: 0, serve: 'them', rotation: 6 } });
+  } finally { Object.defineProperty(Platform, 'OS', platform); }
+});
+
+test('invalid preparation score cannot start the bench collection', () => {
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    mockNoMatchState = true;
+    const screen = setup({ bench: true, presentation: 'embedded' });
+    fireEvent.changeText(screen.getByLabelText('Placar da nossa equipe'), 'x');
+    expect(screen.getByRole('button', { name: 'Começar coleta' })).toBeDisabled();
+    expect(mockExecute).not.toHaveBeenCalled();
+  } finally { Object.defineProperty(Platform, 'OS', platform); }
 });

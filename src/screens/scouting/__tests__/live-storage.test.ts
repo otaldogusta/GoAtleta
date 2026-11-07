@@ -1,4 +1,4 @@
-import {deleteLiveHostSession,liveHostSessionKey,loadLiveHostSessions,parseLiveHostSession,restoreLiveHostSession,saveLiveHostSession,type LiveHostSession} from '../live/live-storage';
+import {deleteLiveHostSession,liveHostSessionKey,loadLiveHostSession,loadLiveHostSessions,parseLiveHostSession,restoreLiveHostSession,saveLiveHostSession,saveLiveHostThumbnail,type LiveHostSession} from '../live/live-storage';
 const scope={userId:'user',org:'org',classId:'class'};
 const session:LiveHostSession={version:1,id:'live-session',scope,recordingId:'recording-1',createdAt:'2026-11-01T12:00:00Z',updatedAt:'2026-11-01T12:00:00Z',setNumber:1,className:'Sub19',mimeType:'video/webm',ended:false,gaps:[],points:[{id:'point-1',recordingId:'recording-1',timeMs:5000,won:true,setNumber:1,scoreUs:1,scoreThem:0,uncertaintyMs:500,clockMode:'estimated',createdAtHostEpochMs:1762000000000}]};
 test('live manifests have separate scoped identity and preserve originals during parsing',()=>{
@@ -13,6 +13,15 @@ test('durable camera delivery rejects replay across recordings and keeps acknowl
     expect(parseLiveHostSession({...session,points:[],delivery},scope).delivery).toEqual(delivery);
     expect(()=>parseLiveHostSession({...session,delivery:{...delivery,pending:[{...delivery.pending[0],recordingId:'foreign'}]}},scope)).toThrow('outra gravação');
     expect(()=>parseLiveHostSession({...session,delivery:{...delivery,pending:[delivery.pending[0],delivery.pending[0]]}},scope)).toThrow('duplicada');
+});
+
+test('optional local thumbnail remains compatible with old manifests and scoped persistence',async()=>{
+    const thumbnailDataUrl='data:image/jpeg;base64,/9j/AAAA';
+    expect(parseLiveHostSession(session,scope)).not.toHaveProperty('thumbnailDataUrl');
+    const withPoster={...session,thumbnailDataUrl};await saveLiveHostSession(withPoster,scope);
+    expect((await loadLiveHostSessions(scope))[0].thumbnailDataUrl).toBe(thumbnailDataUrl);
+    expect(await loadLiveHostSessions({...scope,org:'other'})).toEqual([]);
+    for(const thumbnailDataUrl of ['https://example.com/poster.jpg','data:image/svg+xml;base64,PHN2Zz4=','data:image/jpeg;base64,broken!',`data:image/jpeg;base64,/9j/${'AAAA'.repeat(20000)}`])expect(()=>parseLiveHostSession({...session,thumbnailDataUrl},scope)).toThrow('Miniatura');
 });
 test('foreign account, organization and class cannot expose a saved live manifest',()=>{
     for(const different of [{...scope,userId:'other'},{...scope,org:'other'},{...scope,classId:'other'}])expect(()=>parseLiveHostSession(session,different)).toThrow('turma');
@@ -60,6 +69,26 @@ test('finished duration and terminal state remain additive and reject malformed 
     expect(()=>parseLiveHostSession({...finished(),recordingState:'recording'},scope)).toThrow();
 });
 
+test('a saved video poster patches the latest transaction without overwriting points, receipts or metadata',async()=>{
+    const prior=finished(),thumbnailDataUrl='data:image/jpeg;base64,/9j/AAAA';await saveLiveHostSession(prior,scope);
+    const latest={...prior,setNumber:2,durationMs:18000,updatedAt:'2026-11-01T12:01:00Z',delivery:{pending:[],acknowledged:[{kind:'point' as const,id:session.points[0].id},{kind:'undo-point' as const,id:'other'}]}};
+    await Promise.all([saveLiveHostSession(latest,scope),saveLiveHostThumbnail(scope,prior.id,prior.recordingId,thumbnailDataUrl)]);
+    expect((await loadLiveHostSessions(scope))[0]).toEqual({...latest,thumbnailDataUrl});
+    expect(prior).not.toHaveProperty('thumbnailDataUrl');
+});
+
+test('saved poster patch rejects active, deleted, foreign and mismatched recordings',async()=>{
+    const thumbnailDataUrl='data:image/jpeg;base64,/9j/AAAA';await saveLiveHostSession(session,scope);
+    await expect(saveLiveHostThumbnail(scope,session.id,session.recordingId,thumbnailDataUrl)).rejects.toThrow('encerrada');
+    await saveLiveHostSession(finished(),scope);
+    await expect(saveLiveHostThumbnail(scope,session.id,'other',thumbnailDataUrl)).rejects.toThrow('turma');
+    await expect(saveLiveHostThumbnail({...scope,org:'other'},session.id,session.recordingId,thumbnailDataUrl)).rejects.toThrow('turma');
+    await expect(saveLiveHostThumbnail(scope,session.id,session.recordingId,'data:image/svg+xml;base64,PHN2Zz4=')).rejects.toThrow('Miniatura');
+    await deleteLiveHostSession(scope,session.id,session.recordingId);
+    await expect(saveLiveHostThumbnail(scope,session.id,session.recordingId,thumbnailDataUrl)).rejects.toThrow('turma');
+    expect((await loadLiveHostSessions(scope,true))[0]).not.toHaveProperty('thumbnailDataUrl');
+});
+
 test('notebook deletion is recoverable and touches only the exact scoped ended manifest',async()=>{
     const value=finished(),before=JSON.stringify(value);
     await saveLiveHostSession(value,scope);
@@ -86,6 +115,31 @@ test('deletion rejects active, pending, foreign scope and mismatched recording I
     expect(await loadLiveHostSessions(scope)).toHaveLength(1);
 });
 
+test('explicitly abandoned local entries retain unfinished state, markers and pending operations through trash and restore',async()=>{
+    const old=parseLiveHostSession(session,scope),before=JSON.stringify(old);
+    await saveLiveHostSession(old,scope);
+    await expect(deleteLiveHostSession(scope,old.id,old.recordingId,{allowAbandoned:false})).rejects.toThrow('encerrada');
+    const removed=await deleteLiveHostSession(scope,old.id,old.recordingId,{allowAbandoned:true});
+    expect(removed).toEqual({...old,deletedAt:expect.any(String)});expect(removed.ended).toBe(false);expect(removed).not.toHaveProperty('recordingState');
+    expect(await loadLiveHostSessions(scope)).toEqual([]);expect(await loadLiveHostSessions(scope,true)).toEqual([removed]);
+    await expect(saveLiveHostSession(old,scope)).rejects.toThrow('excluída');
+    const restored=await restoreLiveHostSession(scope,old.id,old.recordingId);
+    expect(restored).toEqual(old);expect((await loadLiveHostSessions(scope))[0]).toEqual(old);expect(JSON.stringify(old)).toBe(before);
+    expect(()=>parseLiveHostSession({...removed,deletedAt:'invalid-date'},scope)).toThrow();
+    expect(()=>parseLiveHostSession({...removed,recordingState:'stopped'},scope)).toThrow();
+});
+
+test('the abandoned option preserves pending terminal records and cannot cross scope or recording identity',async()=>{
+    const old={...finished(),delivery:{pending:[{kind:'point' as const,point:session.points[0]}],acknowledged:[]}};
+    await saveLiveHostSession(old,scope);
+    for(const foreign of [{...scope,userId:'foreign'},{...scope,org:'foreign'},{...scope,classId:'foreign'}])await expect(deleteLiveHostSession(foreign,old.id,old.recordingId,{allowAbandoned:true})).rejects.toThrow();
+    await expect(deleteLiveHostSession(scope,old.id,'foreign-recording',{allowAbandoned:true})).rejects.toThrow();
+    isolated.state.failPut=true;await expect(deleteLiveHostSession(scope,old.id,old.recordingId,{allowAbandoned:true})).rejects.toThrow();
+    expect((await loadLiveHostSessions(scope))[0]).toEqual(old);
+    isolated.state.failPut=false;const removed=await deleteLiveHostSession(scope,old.id,old.recordingId,{allowAbandoned:true});
+    expect(removed).toEqual({...old,deletedAt:expect.any(String)});expect(await restoreLiveHostSession(scope,old.id,old.recordingId)).toEqual(old);
+});
+
 test('an aborted deletion preserves the visible manifest and stale writes cannot resurrect a deleted copy',async()=>{
     await saveLiveHostSession(finished(),scope);isolated.state.failPut=true;
     await expect(deleteLiveHostSession(scope,session.id,session.recordingId)).rejects.toThrow();
@@ -93,4 +147,16 @@ test('an aborted deletion preserves the visible manifest and stale writes cannot
     isolated.state.failPut=false;await deleteLiveHostSession(scope,session.id,session.recordingId);
     await expect(saveLiveHostSession(finished(),scope)).rejects.toThrow('excluída');
     expect(await loadLiveHostSessions(scope)).toEqual([]);
+});
+
+
+test('repeated ownership reads reuse the connection but still observe the current persisted tombstone',async()=>{
+    const value=finished();await saveLiveHostSession(value,scope);
+    const open=jest.spyOn(isolated.indexedDB,'open');
+    for(let index=0;index<3;index++)expect(await loadLiveHostSession(scope,value.id)).toEqual(value);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(await loadLiveHostSession({...scope,org:'foreign'},value.id)).toBeNull();
+    await deleteLiveHostSession(scope,value.id,value.recordingId);
+    expect((await loadLiveHostSession(scope,value.id))?.deletedAt).toEqual(expect.any(String));
+    expect(open).toHaveBeenCalledTimes(2); // Only the existing write path opened an extra connection.
 });

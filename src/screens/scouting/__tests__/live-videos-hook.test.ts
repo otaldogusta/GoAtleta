@@ -1,0 +1,117 @@
+import {act,renderHook} from '@testing-library/react-native';
+import {useLiveVideos} from '../live/use-live-videos';
+import {createLiveVideoReceiver} from '../live/live-video-transfer';
+import {importLocalVideo,listVideoStatuses,loadVideoBlob} from '../live/live-video-storage';
+import type {LiveHostSession} from '../live/live-storage';
+jest.mock('../live/live-video-transfer',()=>({createLiveVideoReceiver:jest.fn()}));
+jest.mock('../live/live-video-storage',()=>({listVideoStatuses:jest.fn(),loadVideoBlob:jest.fn(),importLocalVideo:jest.fn()}));
+const scope={userId:'user',org:'org',classId:'class'};
+const session={id:'session',recordingId:'recording',scope,ended:true} as LiveHostSession;
+const ready={sessionId:'session',recordingId:'recording',state:'ready',receivedBytes:4,totalBytes:4,mimeType:'video/webm',nextPart:1,partCount:1};
+const partial={...ready,state:'receiving',receivedBytes:13*8192,totalBytes:100*8192,nextPart:13,partCount:100};
+const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
+beforeEach(()=>{
+    jest.clearAllMocks();(listVideoStatuses as jest.Mock).mockResolvedValue([ready]);(loadVideoBlob as jest.Mock).mockResolvedValue(new Blob(['data'],{type:'video/webm'}));
+    (importLocalVideo as jest.Mock).mockResolvedValue(ready);(createLiveVideoReceiver as jest.Mock).mockImplementation(()=>({dispose:jest.fn(),handle:jest.fn(async()=>{})}));
+});
+test('saved videos load from this scope after reload and deleted or mismatched manifests cannot expose their bytes',async()=>{
+    const resolveSession=jest.fn(async()=>session),send=jest.fn(()=>true);
+    const view=renderHook(()=>useLiveVideos(scope,{resolveSession,send}));await act(flush);
+    expect(view.result.current.videoStatuses.session.state).toBe('ready');
+    let blob:Blob|null=null;await act(async()=>{blob=await view.result.current.loadSavedVideo(session);});expect(blob).not.toBeNull();
+    resolveSession.mockResolvedValueOnce({...session,deletedAt:'2026-11-03T10:00:00Z'});
+    await act(async()=>{blob=await view.result.current.loadSavedVideo(session);});expect(blob).toBeNull();
+    resolveSession.mockResolvedValueOnce(session).mockResolvedValueOnce({...session,deletedAt:'2026-11-03T10:00:00Z'});
+    await act(async()=>{blob=await view.result.current.loadSavedVideo(session);});expect(blob).toBeNull();view.unmount();
+});
+test('replacing a channel disposes its receiver and suppresses late progress and ACKs',async()=>{
+    const send=jest.fn(()=>true),view=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send}));await act(flush);
+    act(()=>view.result.current.bindVideoChannel());const first=(createLiveVideoReceiver as jest.Mock).mock.calls[0][0];
+    const old=(createLiveVideoReceiver as jest.Mock).mock.results[0].value;
+    act(()=>view.result.current.bindVideoChannel());expect(old.dispose).toHaveBeenCalled();
+    act(()=>{first.send({kind:'old-ack'});first.onProgress({...ready,state:'error',error:'stale'});});
+    expect(send).not.toHaveBeenCalled();expect(view.result.current.videoStatuses.session.state).toBe('ready');
+    const current=(createLiveVideoReceiver as jest.Mock).mock.results[1].value;
+    act(()=>view.result.current.receiveVideoMessage({kind:'video-offer'}));expect(current.handle).toHaveBeenCalledWith({kind:'video-offer'});
+    view.unmount();expect(current.dispose).toHaveBeenCalled();
+});
+test('a persisted thirteen-percent prefix reloads as a resumable pause until an offer reports real activity',async()=>{
+    const stored=Object.freeze({...partial});(listVideoStatuses as jest.Mock).mockResolvedValue([stored]);
+    const view=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send:()=>true}));await act(flush);
+    expect(view.result.current.videoStatuses.session).toMatchObject({...partial,state:'error',error:'Cópia pausada. Reconecte o celular para continuar.'});
+    expect(stored.state).toBe('receiving');
+    act(()=>view.result.current.bindVideoChannel());
+    expect(view.result.current.videoStatuses.session.state).toBe('error');
+    const receiver=(createLiveVideoReceiver as jest.Mock).mock.calls[0][0];
+    act(()=>receiver.onProgress(partial));
+    expect(view.result.current.videoStatuses.session).toMatchObject(partial);
+    expect(importLocalVideo).not.toHaveBeenCalled();view.unmount();
+});
+test('an unavailable phone source preserves every committed progress field even while history is still loading',async()=>{
+    let finishHistory!:(values:unknown[])=>void;
+    (listVideoStatuses as jest.Mock).mockImplementation(()=>new Promise(resolve=>{finishHistory=resolve;}));
+    const resolveSession=jest.fn(async()=>session),view=renderHook(()=>useLiveVideos(scope,{resolveSession,send:()=>true}));
+    act(()=>{view.result.current.bindVideoChannel();view.result.current.receiveVideoMessage({kind:'video-unavailable',recordingId:'recording',error:'Reconecte o celular original.'});});
+    await act(flush);expect(resolveSession).not.toHaveBeenCalled();
+    await act(async()=>{finishHistory([partial]);await flush();});
+    expect(view.result.current.videoStatuses.session).toMatchObject({...partial,state:'error',error:'Reconecte o celular original.'});
+    expect(loadVideoBlob).not.toHaveBeenCalled();expect(importLocalVideo).not.toHaveBeenCalled();view.unmount();
+});
+test('stopping a channel pauses the latest prefix and suppresses its late progress and ACKs',async()=>{
+    (listVideoStatuses as jest.Mock).mockResolvedValue([partial]);
+    const send=jest.fn(()=>true),view=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send}));await act(flush);
+    act(()=>view.result.current.bindVideoChannel());
+    const first=(createLiveVideoReceiver as jest.Mock).mock.calls[0][0],old=(createLiveVideoReceiver as jest.Mock).mock.results[0].value;
+    const advanced={...partial,receivedBytes:14*8192,nextPart:14};act(()=>first.onProgress(advanced));
+    act(()=>view.result.current.stopVideoChannel());expect(old.dispose).toHaveBeenCalledTimes(1);
+    expect(view.result.current.videoStatuses.session).toMatchObject({...advanced,state:'error'});
+    act(()=>{first.send({kind:'video-ack'});first.onProgress(ready);view.result.current.receiveVideoMessage({kind:'video-part'});});
+    expect(send).not.toHaveBeenCalled();expect(old.handle).not.toHaveBeenCalled();
+    expect(view.result.current.videoStatuses.session).toMatchObject({...advanced,state:'error'});
+    act(()=>view.result.current.bindVideoChannel());expect(view.result.current.videoStatuses.session.state).toBe('error');
+    const current=(createLiveVideoReceiver as jest.Mock).mock.calls[1][0];act(()=>current.onProgress(advanced));
+    expect(view.result.current.videoStatuses.session).toMatchObject(advanced);view.unmount();
+});
+test('an unavailable response awaiting authorization cannot change a replacement channel',async()=>{
+    (listVideoStatuses as jest.Mock).mockResolvedValue([partial]);let finish!:(value:LiveHostSession)=>void;
+    const resolveSession=jest.fn(()=>new Promise<LiveHostSession>(resolve=>{finish=resolve;}));
+    const view=renderHook(()=>useLiveVideos(scope,{resolveSession,send:()=>true}));await act(flush);
+    act(()=>{view.result.current.bindVideoChannel();view.result.current.receiveVideoMessage({kind:'video-unavailable',recordingId:'recording',error:'Resposta anterior.'});});
+    await act(flush);expect(resolveSession).toHaveBeenCalledTimes(1);
+    act(()=>{view.result.current.stopVideoChannel();view.result.current.bindVideoChannel();});
+    const current=(createLiveVideoReceiver as jest.Mock).mock.calls[1][0],advanced={...partial,receivedBytes:17*8192,nextPart:17};act(()=>current.onProgress(advanced));
+    await act(async()=>{finish(session);await flush();});expect(view.result.current.videoStatuses.session).toMatchObject(advanced);view.unmount();
+});
+test('ready local copies stay ready when channels stop or the phone reports an unavailable source',async()=>{
+    const view=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send:()=>true}));await act(flush);
+    act(()=>{view.result.current.bindVideoChannel();view.result.current.receiveVideoMessage({kind:'video-unavailable',recordingId:'recording',error:'Sem fonte.'});});
+    await act(flush);act(()=>view.result.current.stopVideoChannel());
+    expect(view.result.current.videoStatuses.session).toEqual(ready);view.unmount();
+});
+test('stopping or replacing the phone channel leaves a local file import active until it finishes',async()=>{
+    (listVideoStatuses as jest.Mock).mockResolvedValue([partial]);
+    const importedSession={...session,id:'imported',recordingId:'local-file'},importedReady={...ready,sessionId:importedSession.id,recordingId:importedSession.recordingId};
+    let finish!:(value:typeof importedReady)=>void;(importLocalVideo as jest.Mock).mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+    const resolveSession=jest.fn(async(recordingId:string)=>recordingId===importedSession.recordingId?importedSession:session);
+    const view=renderHook(()=>useLiveVideos(scope,{resolveSession,send:()=>true}));await act(flush);
+    act(()=>view.result.current.bindVideoChannel());const channel=(createLiveVideoReceiver as jest.Mock).mock.calls[0][0];act(()=>channel.onProgress(partial));
+    let importing!:Promise<boolean>;await act(async()=>{importing=view.result.current.saveImportedVideo(importedSession,new Blob(['data'],{type:'video/webm'}));await flush();});
+    expect(view.result.current.videoStatuses.imported.state).toBe('receiving');
+    act(()=>view.result.current.stopVideoChannel());expect(view.result.current.videoStatuses.session).toMatchObject({...partial,state:'error'});
+    expect(view.result.current.videoStatuses.imported).toMatchObject({state:'receiving',totalBytes:4});
+    act(()=>{view.result.current.bindVideoChannel();view.result.current.receiveVideoMessage({kind:'video-unavailable',recordingId:importedSession.recordingId,error:'O celular não tem este arquivo.'});});
+    await act(flush);expect(view.result.current.videoStatuses.imported.state).toBe('receiving');
+    await act(async()=>{finish(importedReady);expect(await importing).toBe(true);});
+    expect(view.result.current.videoStatuses.imported).toEqual(importedReady);view.unmount();
+});
+test('an imported legacy file is saved once and a failed write never becomes a ready copy',async()=>{
+    (listVideoStatuses as jest.Mock).mockResolvedValue([]);const file=new Blob(['data'],{type:'video/webm'});
+    const view=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send:()=>true}));await act(flush);
+    let saved=false;await act(async()=>{saved=await view.result.current.saveImportedVideo(session,file);});
+    expect(saved).toBe(true);expect(view.result.current.videoStatuses.session.state).toBe('ready');
+    await act(async()=>{await view.result.current.saveImportedVideo(session,file);});expect(importLocalVideo).toHaveBeenCalledTimes(1);view.unmount();
+    (importLocalVideo as jest.Mock).mockRejectedValueOnce(new Error('Sem espaço'));
+    const failure=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send:()=>true}));await act(flush);
+    await act(async()=>{await expect(failure.result.current.saveImportedVideo(session,file)).rejects.toThrow('Sem espaço');});
+    expect(failure.result.current.videoStatuses.session).toMatchObject({state:'error',receivedBytes:0,error:'Sem espaço'});failure.unmount();
+});

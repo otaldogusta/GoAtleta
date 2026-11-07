@@ -52,6 +52,14 @@ test.each([NaN, Infinity, -Infinity, 1800.01, -1800.01])('rejects invalid alignm
     expect(() => originalPlayback(original(), offset)).toThrow(RangeError);
 });
 
+test('local DVR opts into a bounded two-hour clock without relaxing the legacy alignment', () => {
+    const video=original(),playback=originalPlayback(video,3600,7200);
+    playback.currentTime=3615;expect(video.currentTime).toBe(15);
+    expect(()=>originalPlayback(video,3600)).toThrow(RangeError);
+    expect(()=>originalPlayback(video,7201,7200)).toThrow(RangeError);
+    expect(()=>originalPlayback(video,3600,Infinity)).toThrow(RangeError);
+});
+
 describe('tracking original identity', () => {
     const media: VideoMedia = { fingerprint: 'original:abc123', name: 'jogo.mp4', duration: 60, width: 1280, height: 720 };
     const source: VideoAnalysisSource = { ...media, offsetSeconds: 10 };

@@ -615,9 +615,9 @@ export function WebSidebar({
     navigateTo(profilePath);
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     closeProfileMenu();
-    await signOut();
+    requestPendingEditsNavigation(() => { void signOut(); });
   };
 
   const renderProfileSwitcher = (placement: "compact" | "expanded") => (

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import { useAppTheme } from "../../ui/app-theme";
@@ -8,12 +8,29 @@ import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { compactUiMetrics } from "../../theme/tokens";
 
-export function ScoutingTabs({ value, onChange, items, segmented = false }: { value: string; onChange: (value: string) => void; items: { value: string; label: string; id?: string }[]; segmented?: boolean }) {
+export function ScoutingTabs({ value, onChange, items, segmented = false }: { value: string; onChange: (value: string) => void; items: { value: string; label: string; id?: string; panelId?: string }[]; segmented?: boolean }) {
   const { colors } = useAppTheme();
-  return <View accessibilityRole={segmented ? undefined : "tablist"} style={{ flexDirection: "row", gap: segmented ? 2 : 20, alignSelf: "flex-start", padding: segmented ? 3 : 0, borderWidth: segmented ? 1 : 0, borderRadius: 12, borderColor: colors.border }}>
-    {items.map(item => <Pressable key={item.value} nativeID={item.id} accessibilityRole={segmented ? "button" : "tab"} accessibilityState={{ selected: value === item.value }} onPress={() => onChange(item.value)}
-      style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: segmented ? 20 : 0, borderRadius: segmented ? 9 : 0, backgroundColor: segmented && value === item.value ? colors.surfaceElevated : "transparent", borderBottomWidth: segmented ? 0 : 2, borderBottomColor: !segmented && value === item.value ? colors.text : "transparent" }}>
-      <Text style={{ fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: value === item.value ? "600" : "400", color: value === item.value ? colors.text : colors.muted }}>{item.label}</Text>
+  const list = useRef<View>(null);
+  useEffect(() => {
+    if (segmented || typeof document === "undefined") return;
+    const node = list.current as unknown as HTMLElement | null;
+    if (!node?.addEventListener) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const tabs = [...node.querySelectorAll<HTMLElement>('[role="tab"]')];
+      const index = tabs.indexOf((event.target as HTMLElement).closest<HTMLElement>('[role="tab"]')!);
+      if (index < 0 || !tabs.length) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+      onChange(items[next].value); tabs[next]?.focus();
+    };
+    node.addEventListener("keydown", key);
+    return () => node.removeEventListener("keydown", key);
+  }, [segmented, items, onChange]);
+  return <View ref={list} accessibilityRole={segmented ? undefined : "tablist"} style={{ flexDirection: "row", gap: segmented ? 2 : 20, alignSelf: "flex-start", padding: segmented ? 3 : 0, borderWidth: segmented ? 1 : 0, borderRadius: 12, borderColor: colors.border }}>
+    {items.map(item => <Pressable key={item.value} nativeID={item.id} accessibilityRole={segmented ? "button" : "tab"} accessibilityLabel={item.label} aria-selected={segmented ? undefined : value === item.value} aria-controls={item.panelId} aria-pressed={segmented ? value === item.value : undefined} tabIndex={segmented ? undefined : value === item.value ? 0 : -1} accessibilityState={{ selected: value === item.value }} onPress={() => onChange(item.value)} suppressWebHoverFeedback={!segmented} disableWebPressScale={!segmented}
+      style={{ minHeight: compactUiMetrics.touchTarget, justifyContent: "center", paddingHorizontal: segmented ? 20 : 0, borderRadius: segmented ? 9 : 0, backgroundColor: segmented && value === item.value ? colors.surfaceElevated : "transparent", borderBottomWidth: segmented ? 0 : 2, borderBottomColor: !segmented && value === item.value ? colors.primaryBg : "transparent" }}>
+      {state => { const hovered = !segmented && Boolean((state as typeof state & { hovered?: boolean }).hovered); return <Text style={{ fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: value === item.value ? "600" : "400", color: value === item.value || hovered ? colors.text : colors.muted, textDecorationLine: hovered && value !== item.value ? "underline" : "none" }}>{item.label}</Text>; }}
     </Pressable>)}
   </View>;
 }

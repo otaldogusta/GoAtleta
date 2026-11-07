@@ -2,6 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { useScoutingCollection } from "../use-scouting-collection";
 import type { ScoutingDetail } from "../../../db/scouting-collection";
 import type { ScoutingRallyOutcome } from '../../../core/models';
+import type { LiveCaptureStamp } from '../../../core/scouting-live';
+import type { CaptureTimingDraft, ScoutingCaptureBridge } from '../live/live-scouting-contract';
 
 const mockStored = new Map<string, string>();
 const mockGet = jest.fn(async (key: string) => mockStored.get(key) ?? null);
@@ -20,7 +22,7 @@ const base: ScoutingDetail = { captureReady: true, actions: [], rallies: [], ses
   matchState: { setNumber: 1, scoreUs: 12, scoreThem: 10, serve: "them", rotation: 1, recoveredDraft: [] },
 } };
 const saved: ScoutingDetail = { ...base, session: { ...base.session, revision: 2, matchState: { ...base.session.matchState!, scoreUs: 13 } } };
-beforeEach(() => { jest.clearAllMocks(); mockStored.clear(); mockLoad.mockResolvedValue(base); mockApply.mockResolvedValue(saved); });
+beforeEach(() => { jest.clearAllMocks(); mockStored.clear(); mockSet.mockImplementation(async (key, value) => { mockStored.set(key, value); }); mockLoad.mockResolvedValue(base); mockApply.mockResolvedValue(saved); });
 
 test("failed send retains contacts and retries the exact same persisted request", async () => {
   mockApply.mockRejectedValueOnce(new Error("timeout"));
@@ -224,3 +226,156 @@ test('reload blocks immediate writes and an older completed read cannot replace 
   await act(async()=>{oldRead(extended);await oldTask;});expect(result.current.detail?.session.revision).toBe(2);expect(result.current.readBlocked).toBe(false);
   expect(mockApply).not.toHaveBeenCalled();expect(mockSet).not.toHaveBeenCalled();
 });
+
+const reference = { hostSessionId: 'host-session', recordingId: 'camera-recording' };
+const videoStamp = (timeMs: number): LiveCaptureStamp => ({ ...reference, scope: { userId: 'user', org: 'org', classId: 'class' }, segmentId: 'segment-1', epoch: 2, peerGeneration: 3, timeMs, uncertaintyMs: 501, mode: 'estimated' });
+const videoBridge = (clock: () => LiveCaptureStamp | null): ScoutingCaptureBridge => ({ captureStamp: jest.fn(clock), captureReference: jest.fn(() => reference), applied: jest.fn(async () => undefined) });
+
+test('contact gesture times and IDs survive editing and removal while point confirmation uses its own frozen instant', async () => {
+  let now = 1000.125, finish!: (value: ScoutingDetail) => void;
+  const bridge = videoBridge(() => videoStamp(now)); mockApply.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const { result } = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => result.current.changeContacts([contact], { kind: 'append', index: 0 }));
+  await waitFor(() => expect(JSON.parse(mockStored.get(draftKey)!).timing.contacts).toHaveLength(1));
+  const first = JSON.parse(mockStored.get(draftKey)!).timing.contacts[0];
+  now = 2200; const edited = { ...contact, resultKey: 'a_alto' };
+  act(() => result.current.changeContacts([edited], { kind: 'replace', index: 0 }));
+  await waitFor(() => expect(JSON.parse(mockStored.get(draftKey)!).contacts[0].resultKey).toBe('a_alto'));
+  expect(JSON.parse(mockStored.get(draftKey)!).timing.contacts[0]).toEqual(first);
+  now = 3000.75; const set = { fundamental: 'levantamento' as const, resultKey: 'organizou', phase: 'side_out' as const };
+  act(() => result.current.changeContacts([edited, set], { kind: 'append', index: 1 }));
+  await waitFor(() => expect(JSON.parse(mockStored.get(draftKey)!).timing.contacts).toHaveLength(2));
+  const second = JSON.parse(mockStored.get(draftKey)!).timing.contacts[1];
+  act(() => result.current.changeContacts([set], { kind: 'remove', index: 0 }));
+  now = 9000.5; let task!: Promise<boolean>;
+  act(() => { task = result.current.execute({ name: 'point', payload: { contacts: [set], winner: 'us' } }); });
+  await waitFor(() => expect(mockApply).toHaveBeenCalledTimes(1));
+  expect(bridge.applied).not.toHaveBeenCalled(); now = 17000;
+  await act(async () => { finish(saved); await task; });
+  const event = jest.mocked(bridge.applied).mock.calls[0][0];
+  expect(event.timing).toEqual({ contacts: [second], pointStamp: videoStamp(9000.5), reference });
+  expect(second.stamp).toEqual(videoStamp(3000.75)); expect(bridge.captureStamp).toHaveBeenCalledTimes(3);
+  expect(mockApply.mock.calls[0][2].command).toEqual({ name: 'point', payload: { contacts: [set], winner: 'us' } });
+  expect(event.before.actions).toEqual([]); expect(event.before.rallies).toEqual([]);
+});
+
+test('an unknown RPC outcome retains the same contact timing and pending ID through reload and retry', async () => {
+  let now = 100; const bridge = videoBridge(() => videoStamp(now)); mockApply.mockRejectedValueOnce(new Error('timeout'));
+  const first = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(first.result.current.loading).toBe(false));
+  act(() => first.result.current.changeContacts([contact], { kind: 'append', index: 0 })); now = 250;
+  await act(async () => { await first.result.current.execute({ name: 'point', payload: { contacts: [contact], winner: 'us' } }); });
+  const request = cloneValue(first.result.current.pending), receipt = JSON.parse(mockStored.get(draftKey)!).pendingCapture;
+  expect(bridge.applied).not.toHaveBeenCalled(); first.unmount(); now = 50000;
+  const second = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(second.result.current.loading).toBe(false));
+  await act(async () => { expect(await second.result.current.execute()).toBe(true); });
+  expect(mockApply.mock.calls[1][2]).toEqual(request); expect(jest.mocked(bridge.applied).mock.calls[0][0].timing).toEqual(receipt.timing);
+  expect(bridge.captureStamp).toHaveBeenCalledTimes(2);
+});
+
+test('a confirmed RPC with failed projection survives reload and retries only local video synchronization', async () => {
+  const bridge = videoBridge(() => videoStamp(1200)); jest.mocked(bridge.applied).mockRejectedValueOnce(new Error('Local video storage unavailable'));
+  const first = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(first.result.current.loading).toBe(false));
+  await act(async () => { expect(await first.result.current.execute({ name: 'point', payload: { contacts: [], winner: 'us' } })).toBe(false); });
+  expect(first.result.current.detail?.session.matchState?.scoreUs).toBe(13); expect(first.result.current.pending).not.toBeNull();
+  expect(first.result.current.error).toBe('Registro confirmado. Tente novamente para sincronizar o vídeo.');
+  const original = cloneValue(jest.mocked(bridge.applied).mock.calls[0][0]); first.unmount();
+  const second = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(second.result.current.loading).toBe(false));
+  expect(second.result.current.error).toContain('Registro confirmado');
+  await act(async () => { expect(await second.result.current.execute()).toBe(true); });
+  expect(mockApply).toHaveBeenCalledTimes(1); expect(jest.mocked(bridge.applied).mock.calls[1][0]).toEqual(original); expect(second.result.current.pending).toBeNull();
+});
+
+test('a failed final local receipt keeps the projected command retryable without another official mutation', async () => {
+  let failClear = true; const bridge = videoBridge(() => videoStamp(1500));
+  mockSet.mockImplementation(async (key, value) => { if (failClear && JSON.parse(value).pending === null) { failClear = false; throw new Error('Storage full'); } mockStored.set(key, value); });
+  const { result } = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  await act(async () => { expect(await result.current.execute({ name: 'point', payload: { contacts: [], winner: 'them' } })).toBe(false); });
+  expect(result.current.pending).not.toBeNull(); const event = cloneValue(jest.mocked(bridge.applied).mock.calls[0][0]);
+  await act(async () => { expect(await result.current.execute()).toBe(true); });
+  expect(mockApply).toHaveBeenCalledTimes(1); expect(jest.mocked(bridge.applied).mock.calls[1][0]).toEqual(event);
+});
+
+test('reopening and redoing a point reuse archived contact IDs and times instead of sampling the current recording', async () => {
+  const timing: CaptureTimingDraft = { contacts: [{ id: 'original-contact', stamp: videoStamp(1300.25) }], pointStamp: videoStamp(1900.5), reference };
+  const bridge = videoBridge(() => videoStamp(90000)); jest.mocked(bridge.applied).mockImplementation(async event => event.pending.command.name === 'reopen_point' ? { recoveredTiming: timing } : undefined);
+  const reopened = { ...base, session: { ...base.session, revision: 2, matchState: { ...base.session.matchState!, recoveredDraft: [contact] } } };
+  mockApply.mockResolvedValueOnce(reopened).mockResolvedValueOnce(saved);
+  const { result } = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  await act(async () => { expect(await result.current.execute({ name: 'reopen_point', payload: { rallyId: 'sr_original' } })).toBe(true); });
+  expect(result.current.contacts).toEqual([contact]);
+  await act(async () => { expect(await result.current.execute({ name: 'point', payload: { contacts: [contact], winner: 'us' } })).toBe(true); });
+  expect(jest.mocked(bridge.applied).mock.calls[1][0].timing).toEqual(timing); expect(bridge.captureStamp).not.toHaveBeenCalled();
+  expect(mockApply.mock.calls[0][2].requestId).not.toBe(mockApply.mock.calls[1][2].requestId);
+});
+
+test('unsynchronized contacts retain a frozen recording reference and never invent a timestamp for legacy retries', async () => {
+  const bridge = videoBridge(() => null);
+  const first = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(first.result.current.loading).toBe(false)); act(() => first.result.current.changeContacts([contact], { kind: 'append', index: 0 }));
+  await act(async () => { await first.result.current.execute({ name: 'point', payload: { contacts: [contact], winner: 'us' } }); });
+  expect(jest.mocked(bridge.applied).mock.calls[0][0].timing).toMatchObject({ reference, pointStamp: null, contacts: [{ stamp: null }] }); first.unmount();
+  const pending = { requestId: 'legacy-untimed', revision: 1, command: { name: 'point', payload: { contacts: [contact], winner: 'us' } } };
+  mockStored.set(draftKey, JSON.stringify({ version: 2, revision: 1, contacts: [contact], pending })); jest.clearAllMocks();
+  const second = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(second.result.current.loading).toBe(false));
+  await act(async () => { await second.result.current.execute(); });
+  expect(bridge.captureStamp).not.toHaveBeenCalled(); expect(bridge.captureReference).not.toHaveBeenCalled();
+  expect(jest.mocked(bridge.applied).mock.calls[0][0].timing).toEqual({ contacts: [{ id: 'cc_legacy-untimed_0', stamp: null }], pointStamp: null });
+});
+
+test('training samples the result gesture once and sends no video metadata to the official command', async () => {
+  mockLoad.mockResolvedValue({ ...base, session: { ...base.session, type: 'treino', matchState: null } });
+  const bridge = videoBridge(() => videoStamp(1700.75));
+  const { result } = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  await act(async () => { await result.current.execute({ name: 'action', payload: { contacts: [contact] } }); });
+  expect(jest.mocked(bridge.applied).mock.calls[0][0].timing).toMatchObject({ reference, contacts: [{ stamp: videoStamp(1700.75) }], pointStamp: null });
+  expect(bridge.captureStamp).toHaveBeenCalledTimes(1); expect(mockApply.mock.calls[0][2].command).toEqual({ name: 'action', payload: { contacts: [contact] } });
+});
+
+test('an official response arriving after a scope switch cannot project or replace the new collector state', async () => {
+  let finish!: (value: ScoutingDetail) => void; mockApply.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const bridge = videoBridge(() => videoStamp(1000));
+  const { result, rerender } = renderHook(({ org, sessionId, userId }) => useScoutingCollection(org, sessionId, userId, jest.fn(), bridge), { initialProps: { org: 'org', sessionId: 'game', userId: 'user' } });
+  await waitFor(() => expect(result.current.loading).toBe(false)); let task!: Promise<boolean>;
+  act(() => { task = result.current.execute({ name: 'point', payload: { contacts: [], winner: 'us' } }); });
+  await waitFor(() => expect(mockApply).toHaveBeenCalledTimes(1));
+  mockLoad.mockResolvedValue({ ...base, session: { ...base.session, id: 'other-game', organizationId: 'other-org' } });
+  rerender({ org: 'other-org', sessionId: 'other-game', userId: 'other-user' });
+  await waitFor(() => expect(result.current.detail?.session.id).toBe('other-game'));
+  await act(async () => { finish(saved); expect(await task).toBe(false); });
+  expect(bridge.applied).not.toHaveBeenCalled(); expect(result.current.detail?.session.id).toBe('other-game'); expect(result.current.busy).toBe(false);
+  expect(mockStored.has('goatleta:scouting-draft:v1:other-user:other-org:other-game')).toBe(false);
+});
+
+test('foreign persisted timing is preserved as unreadable rather than projected into another scope', async () => {
+  const foreign = { ...videoStamp(1200), scope: { userId: 'other-user', org: 'other-org', classId: 'other-class' } };
+  const raw = JSON.stringify({ version: 2, revision: 1, contacts: [contact], pending: null, timing: { contacts: [{ id: 'foreign-contact', stamp: foreign }], pointStamp: null } });
+  mockStored.set(draftKey, raw); const bridge = videoBridge(() => videoStamp(9000));
+  const { result } = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.readBlocked).toBe(true);
+  await act(async () => { await result.current.execute({ name: 'point', payload: { contacts: [], winner: 'us' } }); });
+  expect(mockStored.get(draftKey)).toBe(raw); expect(mockApply).not.toHaveBeenCalled(); expect(bridge.applied).not.toHaveBeenCalled();
+});
+
+test('identity changes during the confirmed-receipt write block the video projection', async () => {
+  let changed = false; const bridge = videoBridge(() => videoStamp(1200));
+  mockSet.mockImplementation(async (key, value) => { mockStored.set(key, value); if (JSON.parse(value).pendingCapture?.confirmed) changed = true; });
+  mockIdentity.mockImplementation(() => { if (changed) throw new Error('SessionIdentityChanged'); });
+  try {
+    const { result } = renderHook(() => useScoutingCollection('org', 'game', 'user', jest.fn(), bridge));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { expect(await result.current.execute({ name: 'point', payload: { contacts: [], winner: 'us' } })).toBe(false); });
+    expect(mockApply).toHaveBeenCalledTimes(1); expect(bridge.applied).not.toHaveBeenCalled(); expect(result.current.pending).not.toBeNull();
+  } finally { mockIdentity.mockImplementation(() => undefined); }
+});
+
+const cloneValue = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;

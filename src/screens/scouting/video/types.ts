@@ -1,4 +1,5 @@
 import type { ScoutingSession, Student } from '../../../core/models';
+import type { LocalStudioSource } from './local-studio-types';
 export type LinkedScoutingSession = { id: string; title: string; date: string };
 export type StudioProps = {
     org: string;
@@ -10,7 +11,15 @@ export type StudioProps = {
     active?: boolean;
     embedded?: boolean;
     visible?: boolean;
+    bench?: boolean;
+    benchPreviewActive?: boolean;
+    keyboardActive?: boolean;
+    onReturnToLive?: () => void;
+    onCameraSourceTarget?: (node: HTMLElement | null) => void;
+    onBenchReplayChange?: (replaying: boolean) => void;
+    onBenchStageTarget?: (node: HTMLElement | null) => void;
     toolbarTarget?: HTMLElement | null;
+    localReplay?: LocalStudioSource;
     onLinkedSessionsChange?: (sources: LinkedScoutingSession[]) => void;
     onLeaveGuard?: (request: ((next: () => void) => void) | null) => void;
     onClose: () => void;

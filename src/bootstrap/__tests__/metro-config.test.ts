@@ -2,6 +2,7 @@ import path from "node:path";
 
 jest.mock("@sentry/react-native/metro", () => ({
   getSentryExpoConfig: () => ({
+    cacheStores: [{ get: async () => null, set: async () => undefined, clear: () => undefined }],
     resolver: {
       blockList: [],
       sourceExts: [],
@@ -24,6 +25,7 @@ describe("Metro generated-output exclusions", () => {
     "artifacts/design-qa/comparison.png",
     ".expo-web-build-check2/server/pages.json",
     ".codex-artifacts/reports/result.json",
+    "scripts/validation/android-camera-probe/app/build/outputs/apk/debug/app-debug.apk",
   ])("does not watch generated path %s", (candidate) => {
     expect(isBlocked(path.resolve(process.cwd(), candidate))).toBe(true);
   });

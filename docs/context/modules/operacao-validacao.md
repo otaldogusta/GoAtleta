@@ -12,6 +12,7 @@ atualizar dependências apenas para organizar documentação.
 | Entrada | Responsabilidade |
 | --- | --- |
 | [dev-setup.mjs](../../../scripts/dev-setup.mjs), [.nvmrc](../../../.nvmrc) | Setup e doctor de pré-requisitos |
+| [metro.config.js](../../../metro.config.js), [metro-cache-io.cjs](../../../scripts/metro-cache-io.cjs) | I/O de cache get/set em FIFO, oito slots e retry restrito para EMFILE/ENFILE |
 | [validate.cjs](../../../scripts/release/validate.cjs), [validation-cache.cjs](../../../scripts/release/validation-cache.cjs) | Executor limitado a dois processos por padrão, recibos por conteúdo/ambiente |
 | [core-ci.yml](../../../.github/workflows/core-ci.yml), [eas-update.yml](../../../.github/workflows/eas-update.yml) | Fluxos versionados de CI e atualização nativa |
 | [build_inventory.py](../../product/build_inventory.py), [inventory-template.html](../../product/inventory-template.html) | Dados e apresentação do checklist gerado |
@@ -35,6 +36,12 @@ atualizar dependências apenas para organizar documentação.
   somente o que o executor aceitar; não fabricar registros de aprovação.
 - O loop de UI começa em `localhost:8081`. HTTP 200, export e fila de deploy não
   provam fluxo autenticado nem produção pronta.
+- Cache Metro em 04/11: get/set compartilham oito slots; somente EMFILE/ENFILE
+  têm três retries de 50/150/350 ms, mantendo o slot. `clear` segue síncrono.
+  Nove testes/config/lint e export local passaram; reinício preservou companion
+  e uma cópia física retomou de 39% para 40% e concluiu a 100% antes do reload.
+  Original/nova UI conferidos após reload. O limite cobre I/O de cache, não
+  todos os handles; HMR sem ensaio prolongado. [Operação Windows](../../operations/workstations.md#windows-local-node-e-cache-do-metro--04112026).
 - `npm run test:e2e` chama reset do banco local por padrão; só usar com banco
   descartável autorizado. Esta tarefa documental não executa esse comando.
 - Checklist: preservar títulos/IDs, notas e marcações pessoais; editar o Python
@@ -80,3 +87,7 @@ checkout. Conferir as fontes carregadas antes de aceitar evidência de navegador
 A [preparação permanente posterior](../../operations/worktree-local-ready-2026-10-05.md)
 instalou dependências próprias e configurou o backend local; não alterou o banco
 compartilhado nem publicou o pacote.
+
+- Recuperação de 06/11: módulo numérico 3349 voltou a carregar após restart do
+  Metro/cache de compilação e reload do cliente, preservando companion e dados.
+  Smoke exercitou o lazy de revisão com vídeo/rally reais; [procedimento e limites](../../operations/workstations.md#módulo-numérico-desconhecido-no-metro--recuperação-local-de-06112026).

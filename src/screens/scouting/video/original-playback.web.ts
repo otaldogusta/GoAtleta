@@ -11,9 +11,9 @@ export function matchesTrackingOriginal(media: VideoMedia, source: VideoAnalysis
 }
 
 /** Keep the studio on the YouTube timeline while displaying the associated original. */
-export function originalPlayback(video: HTMLVideoElement, offsetSeconds = 0): VideoPlayback {
-    if (!Number.isFinite(offsetSeconds) || Math.abs(offsetSeconds) > 1800)
-        throw new RangeError('O alinhamento do vídeo original deve estar entre -1.800 e 1.800 segundos.');
+export function originalPlayback(video: HTMLVideoElement, offsetSeconds = 0, maxOffsetSeconds = 1800): VideoPlayback {
+    if (!Number.isFinite(maxOffsetSeconds) || maxOffsetSeconds <= 0 || maxOffsetSeconds > 7200 || !Number.isFinite(offsetSeconds) || Math.abs(offsetSeconds) > maxOffsetSeconds)
+        throw new RangeError(maxOffsetSeconds === 1800 ? 'O alinhamento do vídeo original deve estar entre -1.800 e 1.800 segundos.' : 'O deslocamento da prévia local excede o limite permitido.');
     return {
         get currentTime() { return video.currentTime + offsetSeconds; },
         set currentTime(time) {

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <title>Teste da câmera · Go Atleta</title>
+  <style>
+    body { margin: 0; padding: 4px 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #0b1323; color: #f0f4fb; font: 12px system-ui, sans-serif; }
+    p { margin: 0; }
+    #native-copy { color: #9aaac1; }
+    button { min-height: 44px; padding: 8px 12px; border: 1px solid #ffffff21; border-radius: 12px; background: #121c30; color: inherit; font: inherit; }
+    button:focus-visible { outline: 2px solid #36d986; outline-offset: 3px; }
+    canvas { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); }
+  </style>
+  <script type="module" src="/native-camera.js"></script>
+</head>
+<body>
+  <canvas id="native-frames" width="640" height="360" aria-hidden="true"></canvas>
+  <p id="native-connection" role="status">Aguardando o app de teste.</p>
+  <p id="native-copy" role="status" hidden></p>
+  <button id="native-retry" type="button" hidden>Reconectar</button>
+  <button id="native-retry-copy" type="button" hidden>Tentar copiar</button>
+</body>
+</html>

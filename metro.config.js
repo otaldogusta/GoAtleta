@@ -2,8 +2,10 @@ const {
   getSentryExpoConfig
 } = require("@sentry/react-native/metro");
 const path = require("node:path");
+const { boundMetroCacheStores } = require("./scripts/metro-cache-io.cjs");
 
 const config = getSentryExpoConfig(__dirname);
+config.cacheStores = boundMetroCacheStores(config.cacheStores);
 
 // Allow package exports while keeping legacy deep imports mapped.
 config.resolver.unstable_enablePackageExports = true;
@@ -49,6 +51,8 @@ const generatedOutputPattern = new RegExp(
 config.resolver.blockList = [
   ...(config.resolver.blockList || []),
   generatedOutputPattern,
+  // The standalone CameraX fixture is built by Gradle, outside the Expo app.
+  new RegExp(`^${projectRootPattern}[\\\\/]scripts[\\\\/]validation[\\\\/]android-camera-probe(?:[\\\\/]|$)`),
   // Expo writes development logs continuously; they are not application inputs.
   new RegExp(`^${projectRootPattern}[\\\\/]\\.expo[\\\\/]dev[\\\\/]logs(?:[\\\\/]|$)`),
 ];

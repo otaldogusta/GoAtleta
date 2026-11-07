@@ -1,10 +1,13 @@
 // Development-only WebRTC signaling. Media, recordings and scouting never pass through this service.
 import http from 'node:http';
 import https from 'node:https';
+import { Buffer } from 'node:buffer';
 import { randomBytes, randomUUID, createHash, timingSafeEqual, X509Certificate } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { lstat, open, realpath } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 export const LIVE_HOST_PORT = 8096;
@@ -20,6 +23,45 @@ const error = (status, message) => Object.assign(new Error(message), { status })
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const only = (value, fields) => object(value) && Object.keys(value).every(key => fields.includes(key));
 const empty = value => only(value, []) && Object.keys(value).length === 0;
+const ANDROID_PROBE_NAME = 'go-atleta-camera-probe.apk';
+const ANDROID_PROBE_PATH = `/android/${ANDROID_PROBE_NAME}`;
+const MAX_ANDROID_PROBE_BYTES = 64 * 1024 * 1024;
+const NATIVE_CAMERA_ASSETS = new Map([['/native-camera','native-camera.html'], ['/native-camera.js','native-camera.js']]);
+const NATIVE_CAMERA_ASSET_ROOT = fileURLToPath(new URL('./validation/android-camera-probe/web/',import.meta.url));
+const samePath = (left, right) => process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+
+/** Only the fixed local probe is downloadable; no request value becomes a filesystem path. */
+async function sendAndroidProbe(req, res, directory) {
+  let file, source;
+  try {
+    const root = resolve(directory), directoryInfo = await lstat(root), canonicalRoot = await realpath(root);
+    if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || !samePath(root,canonicalRoot)) throw new Error();
+    const target = resolve(canonicalRoot,ANDROID_PROBE_NAME), before = await lstat(target,{bigint:true});
+    if (!before.isFile() || before.isSymbolicLink() || !samePath(await realpath(target),target)) throw new Error();
+    file = await open(target,'r');
+    const info = await file.stat({bigint:true}), current = await lstat(target,{bigint:true});
+    if (!info.isFile() || info.size <= 0n || info.size > BigInt(MAX_ANDROID_PROBE_BYTES)
+        || info.dev !== before.dev || info.ino !== before.ino || current.dev !== info.dev || current.ino !== info.ino
+        || current.isSymbolicLink() || !samePath(await realpath(root),root) || !samePath(await realpath(target),target)) throw new Error();
+    if (req.aborted || res.destroyed) return;
+    const length = Number(info.size);
+    res.writeHead(200, {
+      'Content-Type':'application/vnd.android.package-archive',
+      'Content-Disposition':`attachment; filename="${ANDROID_PROBE_NAME}"`,
+      'Content-Length':length, 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff',
+      'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'",
+    });
+    if (req.method === 'HEAD') { res.end(); return; }
+    source = file.createReadStream({autoClose:false,start:0,end:length-1});
+    await pipeline(source,res);
+  } catch {
+    if (res.headersSent || res.destroyed) { res.destroy(); return; }
+    throw error(404,'Arquivo indisponível.');
+  } finally {
+    source?.destroy();
+    await file?.close().catch(()=>{});
+  }
+}
 
 export function privateIpv4(value) {
   if (typeof value !== 'string' || isIP(value) !== 4) return false;
@@ -61,7 +103,7 @@ async function body(req) {
 }
 
 /** No listeners or certificates are created by this factory. Tests bind loopback ephemeral ports only. */
-export function createLiveService({ cameraOrigin = null, assetsDirectory = resolve('public/scouting-live'), ttlMs = LIVE_ROOM_TTL_MS,
+export function createLiveService({ cameraOrigin = null, assetsDirectory = resolve('public/scouting-live'), nativeAssetsDirectory = NATIVE_CAMERA_ASSET_ROOT, androidProbeDirectory = resolve('.tmp/work/scouting-native-camera'), ttlMs = LIVE_ROOM_TTL_MS,
   now = Date.now, cameraLeaseMs = CAMERA_LEASE_MS, certificate = null } = {}) {
   if (!Number.isSafeInteger(ttlMs) || ttlMs < 1000 || ttlMs > LIVE_ROOM_TTL_MS || !Number.isSafeInteger(cameraLeaseMs) || cameraLeaseMs < 1000) throw new Error('Limites de sessão inválidos.');
   let publicOrigin = null;
@@ -77,8 +119,13 @@ export function createLiveService({ cameraOrigin = null, assetsDirectory = resol
     if (!parsed.ca) throw new Error('Forneça o certificado público da autoridade local.');
     certificateBytes = parsed.raw;
   }
-  const assets = new Map([['/camera','camera.html'], ['/camera.html','camera.html'], ['/camera.js','camera.js'], ['/camera.css','camera.css']]);
-  const assetsRoot = resolve(assetsDirectory), rooms = new Map(), rates = new Map();
+  const assets = new Map([
+    ['/camera','camera.html'], ['/camera.html','camera.html'], ['/camera.js','camera.js'], ['/camera.css','camera.css'],
+    ['/fonts/Inter-Regular.ttf','fonts/Inter-Regular.ttf'],
+    ['/fonts/Inter-SemiBold.ttf','fonts/Inter-SemiBold.ttf'],
+    ['/fonts/Inter-Bold.ttf','fonts/Inter-Bold.ttf'],
+  ]);
+  const assetsRoot = resolve(assetsDirectory), nativeAssetsRoot = resolve(nativeAssetsDirectory), rooms = new Map(), rates = new Map();
   const prune = () => {
     const stamp = now();
     for (const [id,room] of rooms) if (room.expiresAt <= stamp) rooms.delete(id);
@@ -122,17 +169,25 @@ export function createLiveService({ cameraOrigin = null, assetsDirectory = resol
       const authority = req.headers.host?.toLowerCase();
       if (transport === 'http' ? !new Set([`localhost:${req.socket.localPort}`,`127.0.0.1:${req.socket.localPort}`]).has(authority) : !publicOrigin || authority !== new URL(publicOrigin).host.toLowerCase()) throw error(403, 'Endereço não autorizado.');
       const rawUrl = req.url ?? '';
+      let probePath = rawUrl.split('?')[0];try { probePath = decodeURIComponent(probePath); } catch {}
+      if (probePath.replace(/^\/+/, '/').toLowerCase().startsWith('/android')) {
+        if (transport !== 'https' || !['GET','HEAD'].includes(req.method) || rawUrl !== ANDROID_PROBE_PATH) throw error(404,'Arquivo indisponível.');
+        limited(req,'android-probe',30);
+        await sendAndroidProbe(req,res,androidProbeDirectory);return;
+      }
       if (rawUrl.length > 512 || rawUrl.includes('..') || rawUrl.includes('\\') || /%2e|%2f|%5c/i.test(rawUrl)) throw error(400, 'Caminho inválido.');
       const url = new URL(rawUrl,'http://local.invalid');
-      if (req.method === 'GET' && assets.has(url.pathname)) {
-        if (url.search) throw error(400,'O código de conexão deve permanecer no fragmento do link.');
+      const nativeAsset = NATIVE_CAMERA_ASSETS.get(url.pathname);
+      const asset = nativeAsset ?? assets.get(url.pathname);
+      if (req.method === 'GET' && asset) {
+        if (nativeAsset && transport !== 'https') throw error(404,'Página da câmera indisponível.');
+        if (url.search || nativeAsset && rawUrl !== url.pathname) throw error(400,'O código de conexão deve permanecer no fragmento do link.');
         limited(req,'asset',240);
-        const asset = assets.get(url.pathname);
-        let data; try { data = readFileSync(resolve(assetsRoot,asset)); } catch { throw error(404,'Página da câmera indisponível.'); }
+        let data; try { data = readFileSync(resolve(nativeAsset ? nativeAssetsRoot : assetsRoot,asset)); } catch { throw error(404,'Página da câmera indisponível.'); }
         if (data.length > 512*1024) throw error(503,'Página da câmera indisponível.');
-        res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
-        res.setHeader('Permissions-Policy','camera=(self), microphone=(self), display-capture=()');
-        res.writeHead(200,{'Content-Type':asset.endsWith('.html')?'text/html; charset=utf-8':asset.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8'}); res.end(data); return;
+        res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+        res.setHeader('Permissions-Policy',nativeAsset?'camera=(), microphone=(), display-capture=()':'camera=(self), microphone=(self), display-capture=()');
+        res.writeHead(200,{'Content-Type':asset.endsWith('.ttf')?'font/ttf':asset.endsWith('.html')?'text/html; charset=utf-8':asset.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8'}); res.end(data); return;
       }
       if (transport === 'http' && req.method === 'GET' && url.pathname === '/certificate.crt' && !url.search) {
         if (!certificateBytes) throw error(404,'Certificado local não configurado.');

@@ -71,3 +71,7 @@ Suítes existentes, não executadas nesta organização documental:
 ## Antes de editar
 
 Selecione superfície e contrato cliente/servidor antes das dependências. Use a [escada](../../operations/validation-ladder.md); alterações de escopo exigem `check:org-scope`. Smoke pertinente cobre continuidade, troca de identidade, cancelamento, seleção capturada e aplicação explícita. Não ampliar memória/modelos para resolver mudança visual.
+
+- No estúdio de scouting, o mesmo chat pode abrir pelo menu Assistente. O launcher
+  flutuante é oculto somente enquanto esse acesso existe, evitando sobreposição;
+  conversa, voz, modelo e autorização não mudaram. [Revisão local](../../ui/SCOUTING_REVISAO_UI_UX_2026-11-06.md).

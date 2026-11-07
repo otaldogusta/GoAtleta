@@ -43,6 +43,7 @@ export const CopilotFab = memo(function CopilotFab({
   return (
     <Animated.View
       ref={drag.wrapperRef}
+      nativeID="copilot-launcher"
       {...drag.panHandlers}
       style={[
         styles.fabWrapper,

@@ -1,0 +1,76 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.goatleta.cameraprobe'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+
+    defaultConfig {
+        applicationId 'com.goatleta.cameraprobe'
+        minSdk 29
+        targetSdk 36
+        versionCode 1
+        versionName '0.1-local'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.debug.res.srcDir(layout.buildDirectory.dir('generated/nativeStudioRes'))
+}
+
+def studioHost = providers.gradleProperty('studioHost').orElse('')
+def studioCa = providers.gradleProperty('studioCa').orElse('')
+def studioResources = layout.buildDirectory.dir('generated/nativeStudioRes')
+def prepareNativeStudioTrust = tasks.register('prepareNativeStudioTrust') {
+    inputs.property('studioHost', studioHost)
+    inputs.files(studioCa.map { it ? [file(it)] : [] })
+    outputs.dir(studioResources)
+    doLast {
+        def host = studioHost.get()
+        def ca = studioCa.get()
+        if (host.isEmpty() != ca.isEmpty()) throw new GradleException('Informe studioHost e studioCa juntos.')
+        def config = studioResources.get().file('xml/native_studio_trust.xml').asFile
+        def raw = studioResources.get().file('raw/native_studio_ca.crt').asFile
+        config.parentFile.mkdirs()
+        def localTrust = ''
+        if (host) {
+            def octets = host.tokenize('.')
+            if (!(host ==~ /(?:[0-9]{1,3}\.){3}[0-9]{1,3}/) || octets.any { it.toInteger() > 255 }) {
+                throw new GradleException('Use o IPv4 privado do notebook.')
+            }
+            def first = octets[0].toInteger()
+            def second = octets[1].toInteger()
+            if (!(first == 10 || first == 172 && second in 16..31 || first == 192 && second == 168)) {
+                throw new GradleException('Use o IPv4 privado do notebook.')
+            }
+            def certificate = file(ca).withInputStream { stream ->
+                java.security.cert.CertificateFactory.getInstance('X.509').generateCertificate(stream)
+            }
+            certificate.checkValidity()
+            if (certificate.basicConstraints < 0) throw new GradleException('Use o certificado público da autoridade local.')
+            raw.parentFile.mkdirs()
+            raw.bytes = certificate.encoded
+            localTrust = "<domain-config><domain includeSubdomains=\"false\">${host}</domain><trust-anchors><certificates src=\"@raw/native_studio_ca\"/></trust-anchors></domain-config>"
+        } else {
+            java.nio.file.Files.deleteIfExists(raw.toPath())
+        }
+        config.text = "<network-security-config><base-config cleartextTrafficPermitted=\"false\"/>${localTrust}</network-security-config>"
+    }
+}
+tasks.matching { it.name == 'preDebugBuild' }.configureEach { dependsOn(prepareNativeStudioTrust) }
+
+dependencies {
+    // Match the CameraX version already used by expo-camera in Go Atleta.
+    implementation 'androidx.camera:camera-camera2:1.6.0'
+    implementation 'androidx.camera:camera-lifecycle:1.6.0'
+    implementation 'androidx.camera:camera-video:1.6.0'
+    implementation 'androidx.camera:camera-view:1.6.0'
+    implementation 'androidx.activity:activity:1.10.1'
+    // CameraX exposes ListenableFuture. Make its existing runtime Guava
+    // dependency available at compile time too, without duplicate classes.
+    implementation 'com.google.guava:guava:33.3.1-android'
+}

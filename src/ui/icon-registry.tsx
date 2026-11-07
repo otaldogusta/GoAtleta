@@ -60,6 +60,7 @@ export const GOATLETA_ICON_NAMES = {
   message: "chatbubble-outline",
   search: "search-outline",
   link: "link-outline",
+  qrCode: "qr-code-outline",
   open: "open-outline",
   document: "document-text-outline",
   notes: "reader-outline",
@@ -191,4 +192,8 @@ export function PixLogoIcon(props: PixLogoIconProps) {
       name="pix"
     />
   );
+}
+
+export function KeyboardIcon(props: PixLogoIconProps) {
+  return <MaterialIcons {...decorativeIconProps} {...props} name="keyboard" />;
 }

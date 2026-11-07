@@ -1,5 +1,8 @@
 import { useRef, useState, type PointerEvent } from 'react';
 
+export type TimelineScrubPointerStart = Pick<PointerEvent<HTMLElement>, 'button' | 'pointerId' | 'currentTarget'>;
+export type TimelineScrubPointerEnd = Pick<PointerEvent<HTMLElement>, 'pointerId'>;
+
 /** Keep pointer feedback local; decoding a video frame is committed on release. */
 export function useTimelineScrub({ time, start, end, scope, onSeek }: {
     time: number; start: number; end: number; scope: string; onSeek: (time: number) => void;
@@ -21,13 +24,13 @@ export function useTimelineScrub({ time, start, end, scope, onSeek }: {
     return {
         active, time: active ? preview.time : time,
         onChange,
-        onPointerDown: (event: PointerEvent<HTMLInputElement>) => {
+        onPointerDown: (event: TimelineScrubPointerStart) => {
             if (event.button !== 0 || gesture.current?.context === context) return;
             gesture.current = { context, pointerId: event.pointerId, time };
             setPreview({ context, time });
             event.currentTarget.setPointerCapture(event.pointerId);
         },
-        onPointerUp: (event: PointerEvent<HTMLInputElement>) => {
+        onPointerUp: (event: TimelineScrubPointerEnd) => {
             const current = gesture.current;
             if (!current || current.pointerId !== event.pointerId) return;
             cancel();

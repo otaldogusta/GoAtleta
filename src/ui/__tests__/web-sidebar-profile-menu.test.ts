@@ -12,6 +12,7 @@ const mockHistoryPushState = jest.fn();
 const mockHistoryReplaceState = jest.fn();
 const mockSetActiveRole = jest.fn(async () => true);
 const mockRefreshRole = jest.fn(async () => {});
+const mockSignOut = jest.fn(async () => {});
 let mockNavigationState: { routes: { name: string }[] } = { routes: [] };
 let mockPathname = "/prof/home";
 let mockAvailableRoles = ["trainer", "student"];
@@ -60,7 +61,7 @@ jest.mock("../../auth/auth", () => ({
         user_metadata: { full_name: "Gustavo Ribeiro" },
       },
     },
-    signOut: jest.fn(),
+    signOut: mockSignOut,
   }),
 }));
 
@@ -94,6 +95,7 @@ describe("WebSidebar profile menu", () => {
     mockPush.mockClear();
     mockNavigate.mockClear();
     mockReplace.mockClear();
+    mockSignOut.mockClear();
     mockSetActiveRole.mockClear(); mockRefreshRole.mockClear(); mockOrganizationContext.setDevProfilePreview.mockClear();
     mockNavigationState = { routes: [] };
     mockHistoryPushState.mockClear();
@@ -172,6 +174,38 @@ describe("WebSidebar profile menu", () => {
       expect(mockSetActiveRole.mock.calls.length + mockOrganizationContext.setDevProfilePreview.mock.calls.length).toBeGreaterThan(0);
       expect(mockReplace).toHaveBeenCalledWith("/student/home"); expect(mockHistoryPushState).not.toHaveBeenCalled();
     } finally { cleanup(); }
+  });
+
+  it("waits for the pending-edit continuation before signing out and permits cancellation", async () => {
+    const screen = render(React.createElement(WebSidebar, {
+      role: "prof", showCompact: true, canExpand: true, canPersistExpansion: true,
+    }));
+    const continuations: (() => void)[] = [];
+    const cleanup = registerPendingEditsNavigation(navigate => { continuations.push(navigate); });
+    try {
+      fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
+      fireEvent.press(screen.getByLabelText("Sair da conta"));
+      expect(continuations).toHaveLength(1);
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Menu de perfil")).toBeNull();
+      // Cancelling the guard does not invoke the stored continuation.
+      fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
+      fireEvent.press(screen.getByLabelText("Sair da conta"));
+      expect(continuations).toHaveLength(2);
+      expect(mockSignOut).not.toHaveBeenCalled();
+      await act(async () => { continuations[1](); await Promise.resolve(); });
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
+    } finally { cleanup(); }
+  });
+
+  it("signs out directly when no pending-edit guard is registered", async () => {
+    const screen = render(React.createElement(WebSidebar, {
+      role: "prof", showCompact: true, canExpand: true, canPersistExpansion: true,
+    }));
+    fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
+    await act(async () => { fireEvent.press(screen.getByLabelText("Sair da conta")); });
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Menu de perfil")).toBeNull();
   });
 
   it("keeps only unrestricted professor navigation visible while permissions are loading", () => {

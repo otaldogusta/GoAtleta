@@ -588,15 +588,140 @@ agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.
   em bases separadas, sem escrever nas análises anteriores. Preparar conecta sem
   gravar; Gravar aguarda onstart real; Encerrar aguarda trechos/commit e libera
   áudio/vídeo. Append falho retém Blob/índice em RAM até retry, com tela aberta.
-  Reconectar preserva captura; nova gravação após encerrar exige novo QR.
+  Reconectar preserva captura. Refinamento local em 03/11: pareamento contínuo
+  na mesma sala temporária; Nova gravação no celular/computador exige término
+  salvo e zero cópias pendentes, preserva histórico e isola IDs atrasados.
+  Ligar/desligar prévia libera tracks sem revogar a sala; só fora da captura.
+  Pausar/continuar mantém o vídeo, desconta pausas do relógio e exige quadro novo
+  após retomar. Parar funciona pausado e aguarda commit. Comandos confirmados
+  por eventos reais, sem permitir nova captura em falha de finalização.
+  QR permanece necessário no pareamento inicial/expirado/encerrado; TTL e
+  permissões não ampliados. Celular precisa atualizar o script após exportar
+  qualquer captura anterior. Novos controles físicos pendentes; sem publicação.
+  Salvos locais ganharam linhas compactas com miniatura JPEG limitada, metadados,
+  download do vídeo e X para lixeira confirmada; JSON de marcações na revisão.
+  Miniaturas ficam no manifesto escopado, sem export/upload. Após encerrar,
+  o vídeo original é copiado automaticamente por WebRTC para IndexedDB escopado
+  no computador, com hash/ACK por parte, progresso e retomada. Rever abre a cópia
+  após reload e baixar entrega o arquivo; gravações antigas podem solicitar ao
+  celular pareado ou importar uma vez. Nova captura suspende o envio anterior.
+  Quota/limpeza do navegador afeta a cópia; baixar cria arquivo independente.
+  Rodada inicial: 88 testes Jest e 43 da câmera aprovados. Conferência física
+  posterior: clip real de 18,238813 s/1080p copiado automaticamente, reproduzido,
+  baixado (14.848.001 bytes) e reaberto após reload sem celular conectado.
+  Reuso de conexões IndexedDB aplicado após medir cópia lenta; ganho ainda sem
+  medida física. Troca libera tracks/reabre fonte real anterior em falha. Relato
+  de falha inicial ao Ligar câmera levou à seleção antes de abrir a prévia,
+  retry transitório limitado mantendo fonte/áudio e mensagens em português.
+  80 testes Jest e 49 Node, tipos/lint/escopo passaram. Usuário confirmou abertura
+  após atualizar a mesma aba; estúdio recebeu câmera 0 traseira, 1920×1080/30fps,
+  zoom 1×. Fonte mantida ativa conforme pedido. Hot swap físico e velocidade
+  após reuso não medidos nesta rodada.
+  UX posterior: rótulos de câmera em português; qualidade recolhida; HUD móvel
+  com menos texto e Nova como única primária no encerramento. Guias de terços
+  e centro acompanham só o vídeo, sem gravar as linhas. Orientação e tela cheia
+  separadas; barra reorganiza em 320. 28 testes Jest/52 Node e tipos/lint passaram;
+  QA com vídeo sintético em 844×390, 390×844 e 320×640, sem nova validação física.
+  Refinamento do estúdio: margens do shell responsivo, navegação principal
+  acessível com guardas de saída e resultado visível ao verificar o serviço.
+  X também para histórico não finalizado inativo; lixeira conserva pontos/fila
+  e estado original, protegendo a captura pareada e os vídeos em recebimento.
+  107 testes focados desta rodada e tipos/guardrails aprovados; QA local em
+  1197×884, 1440×1024, 834×1194 e 390×844. Menu mobile abriu/fechou sem perder
+  a prévia; confirmação do X cancelada, sem exclusão ou publicação.
+  Painel de conexão extraído para [LiveCameraConnection](../../../src/screens/scouting/live/LiveCameraConnection.web.tsx):
+  QR/frase curta e ícones acessíveis de copiar, testar e ajuda; balão interativo
+  `AnchoredDropdown` conserva instruções Android/certificado e pareamento.
+  Avisos críticos ficam visíveis. Protocolo/dados preservados. 40 testes Jest,
+  tipos/lint/diff check aprovados; QA pelo agente em 1589×884 e 390×844 conferiu
+  ajuda Inter sem recorte/overflow, Escape/foco e link do certificado preservado.
+  Cópia testada com mock; sem gravação/mídia real ou download do certificado.
+  Configurações da câmera permitem selecionar dispositivo fora da captura e
+  mostram resolução/FPS/zoom reais; preferência por traseira principal quando
+  identificável, sem afirmar lente óptica 1×. Conferência física pendente.
+  Correção posterior: botão de duas setas alterna frontal/traseira sem girar a
+  imagem; Configurações mostra orientação automática/formato real e tela cheia.
+  Seleção só visualiza; Usar como padrão valida traseira/imagem e confirma por
+  releitura a preferência local antes de marcar. Testar outra traseira ou frontal
+  não a substitui. Ligar e voltar da frontal priorizam o padrão salvo sobre a última
+  prévia; escolha manual pendente feita com a câmera desligada é respeitada.
+  A abertura libera trava
+  anterior e confirma quadros reais; orientação/resize acompanham
+  o giro físico sem lock.
+  Sem rotação/recorte simulado por CSS/canvas. Em 03/11, usuário confirmou o giro
+  físico acompanhado no computador. Após identificar Traseira 4 como enquadramento
+  1× neste aparelho e carregar a versão com Usar como padrão, confirmou que
+  desligar/ligar reabriu na câmera correta. Sem regra universal por número;
+  reload posterior à preferência e volta da frontal têm validação sintética,
+  sem nova confirmação física desses caminhos.
+  Cópia de 15 s/14:44 continua em 13%; usuário relatou lista vazia no Chrome da
+  origem local, sem aba original/arquivo em Downloads. Prefixo preservado;
+  causa não determinada e bytes ausentes não reconstruídos pelo fluxo atual.
+  Recebimento WebRTC abandonado vira cópia pausada; fonte indisponível mantém
+  percentual. Importação local ativa independe do celular. Retomar exige conexão
+  e fonte da mesma sala; QR novo não autoriza vídeo antigo. Revisão de sessão
+  encerrada abre marcações/importação; reprodução da cópia e download completo
+  só quando pronta. 89 testes focados, tipos, org-scope e lint passaram.
+  Expo/Node 24 reiniciado isoladamente após EMFILE, sem limpar dados/cache ou
+  reiniciar companion; localhost autenticado e 13% preservados.
+  Usuário depois classificou o clip de 15 s como teste descartável; não houve
+  recuperação/exclusão nesta etapa. Correção de futuras cópias distingue falha
+  HTTP transitória de WebRTC saudável e recupera o host só com poll autorizado,
+  sala/peer/canal atuais; callbacks antigos e erros posteriores são protegidos.
+  Teste real do navegador pelo agente com fonte canvas 1280×720/15fps sem áudio:
+  MP4 de 20,793467 s/17.217.374 bytes copiado a 100% apesar de uma falha de poll
+  e uma de heartbeat, reproduzido e baixado com SHA idêntico ao original.
+  Reaberto/reproduzido após reload sem a fonte. 72 testes Node/47 host e
+  tipos/escopo/perf/lint passaram. Não certifica Wi-Fi físico nem causa dos 13%;
+  [evidência e limites](../../operations/scouting-live-local.md#cópia-com-falhas-transitórias--teste-de-navegador-local-de-03112026).
   Celular exclui somente o recordingId confirmado atomicamente; notebook usa
-  lixeira durável/restaurável escopada, bloqueando ativos/cópias pendentes.
+  lixeira durável/restaurável escopada, protegendo a captura atual e vídeo recebendo.
   Barra única de player, preparo/reconexão central e QR lateral no notebook.
-  Horizontal/Vertical antes da captura, tela cheia/orientação best-effort.
+  Na versão atual, orientação automática e tela cheia independente do formato.
   Testes, tipos e QA da interface em 1055×487/390×844 aprovados, com hashes
   dos 118 recortes e 99 vínculos preservados; novos controles físicos pendentes. Há
   relato do usuário de Android/Wi-Fi funcionando, sem medição de atraso.
-  Importação no estúdio e ativação pública pendentes; frontend somente local.
+  Integração local em 04/11: Registrar associa tempos fracionários da captura
+  aos contatos/pontos após confirmação da coleta existente, em sidecar escopado
+  por usuário/org/turma/análise/gravação. IDs confirmados impedem duplicação;
+  reabrir/desfazer ajusta o recorte e refazer recupera tempos originais.
+  Clock obsoleto/pausa/lacuna não recebe tempo inventado. Vídeo oferece replay
+  de apoio do RTC durante a captura, identificado como prévia recebida, trechos
+  de um segundo e teto de 4 GiB/gravação; original pronto torna-se prioritário.
+  QA nativo do agente com canvas/RPC simulada e mídia/RTC/IDB reais reproduziu
+  prefixo MP4 antes de parar a fonte, exportou recorte e recuperou tempos ao
+  refazer. Original copiado a 100%/98.005.303 bytes com SHA idêntico. DVR 320×180
+  versus original 1280×720 nessa amostra; sem certificar aparelho/Wi-Fi ou RPC
+  reais. Reload preservou dois lances/original; QA em 390×844, 834×1194 e
+  1440×1024 sem overflow. Smoke autenticado somente leitura preservou três
+  gravações/zero erros; não executou escrita oficial. Clique no contato durante
+  captura manteve a posição pausada sob atualizações passivas. Tipos, escopo,
+  arquitetura, perf, lint e 256 testes focados passaram. Integração posterior
+  reutiliza o Estúdio canônico (Rallies/timeline/inspetor), com faixas independentes,
+  contatos oficiais preservados e edição/histórico em namespace somente local;
+  Outros vídeos conserva o rascunho tradicional. 174 testes, tipos/escopo/perf/
+  arquitetura/lint e QA autenticado em 1594×884/iframe 390×844 passaram;
+  DVR sintético, edição/undo/reload e download original com SHA idêntico
+  conferidos. Sem nova RPC física; ativação pública pendente.
+  [Contrato e evidência](../../operations/scouting-live-local.md#rallies-no-estúdio-existente--integração-local-de-04112026).
+  Rodada física posterior autorizada: análise de teste 6×6 criada, um saque ace
+  sem atleta confirmado na RPC real e relido em aba nova (uma ação/placar 1×0).
+  DVR 1920×1080 reproduziu/exportou enquanto o celular gravava. Câmera integrada
+  passa a mostrar lances/Registrar/Ver lances e cartões vinculados usam essa
+  revisão, evitando o placar rápido paralelo; legado/download/exclusão preservados.
+  Após EMFILE/overlay e peer desconectado,
+  prefixo de 39% e fonte física foram preservados, sem causa física determinada.
+  Cache I/O limitado a oito slots/retry restrito, nove testes aprovados e export
+  web local concluído (exit 0, 119,101 s). Expo reiniciado, companion preservado;
+  usuário confirmou reconexão e cópia retomou de 39% para 40% e 100% antes do
+  reload. Original físico de 43,389917 s/33.509.362 bytes, 1920×1080 H.264/AAC,
+  baixado pelo Estúdio; sem comparação de hash integral com o celular. Reload
+  reabriu original/um lance, contato e cartão integrado mostraram a mesma revisão
+  com **1 lance**. Análise de teste em andamento/1×0; sem concluir jogo/excluir
+  originais. 98 testes focados, tipos/escopo/perf/lint/arquitetura passaram;
+  zero novos erros no smoke após restart/reload/replay, sem apagar logs antigos.
+  Limite só de I/O de cache, não de todos os handles; HMR sem ensaio prolongado.
+  [Rodada e limites](../../operations/scouting-live-local.md#teste-físico-e-contagem-unificada--rodada-posterior-de-04112026).
   [Operação e recuperação](../../operations/scouting-live-local.md).
 
 - Estúdio unificado web (02/11): uma entrada na visão geral reúne Registrar,
@@ -618,3 +743,103 @@ agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.
   SQL, tipos e org-scope passaram. QA em 1063 × 704/390 × 844 confirmou
   navegação, cabeçalho, margens e Assistir em 01:02 com imagem; Nova análise
   abre acima do estúdio com altura ajustada. Sincronizado e hashes preservados. [Estado atual](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#correção-posterior-de-ui-e-reprodução--02112026).
+  Microajuste local em 03/11: abas sublinhadas têm hover só no texto/sublinhado,
+  com fundo transparente e sem escala; selecionada mantém borda, segmentada
+  preservada. QA em 1589×884 e Enter para Câmera preservaram a área do Estúdio;
+  aparência conferida pelo agente no localhost. [Contrato](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#hover-das-abas-sublinhadas--ajuste-local-de-03112026).
+
+
+- Organização web aplicada localmente em 05/11: Registrar/Revisar, câmera persistente
+  em popover/sheet e prévia lateral conforme capacidade real do container. Host,
+  coleta e editores permanecem montados; IDs, guardas e fontes separadas preservados.
+  Toolbar contextual, encerramento delegado ao coletor com revalidação, nomes/elenco
+  compactos, galeria grade/lista e filtros reais de set/fundamento. Sem protocolo,
+  RPC ou rubrica novos; voz/técnicas pessoais seguem proposta. [Contrato e limites](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#registrar--revisar-e-câmera-persistente--aplicação-local-de-05112026).
+
+- Bancada integrada local de 05/11 reúne coletor, vídeo e rallies quando a
+  capacidade compartilhada e 800 px úteis permitem split; compacto mantém prévia
+  curta/coleta e revisão por tarefa. Host único com prévia por portal, comandos
+  reais no cabeçalho, escalação manual local escopada e códigos pela rubrica
+  vigente; Enter adiciona contato, sem ponto automático. Ferramentas/histórico
+  seguem em sheet com guardas e namespaces preservados. Sem motor novo 5 × 1,
+  RPC, rubrica ou deploy. [Contrato, validação e limites](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#bancada-integrada--aplicação-local-de-05112026).
+
+- Correção visual de 06/11 reabriu o aceite anterior: bancada usa a perspectiva
+  e largura de quadra do mockup, com hierarquia de seções/controles/metadados.
+  Seleção manual e modelo permanecem; escopo local e evidência no [registro](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#fidelidade-da-quadra-e-hierarquia--correção-local-de-06112026).
+
+- Densidade da bancada conferida com 80/240 rallies simulados: agrupamento
+  visual conjunto de contatos/pontos, IDs e tempos preservados, lista por grupo
+  e alvos de 44 px. Galeria mantém o player ao alternar apresentação. Teste local
+  e limites de mídia no [registro](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#densidade-de-rallies--teste-e-correção-local-de-06112026).
+
+- Fidelidade posterior da timeline: círculos e cursor no eixo da barra, legendas
+  sem colisão em uma linha e contexto de rally/placar da metadata existente.
+  Grupos usam aro discreto, com detalhes no balão; arrasto sobre marcadores usa
+  o scrub existente. [Contrato e QA](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#timeline-no-eixo-da-referência--correção-local-de-06112026).
+  Galeria compacta mantém reserva igual em Lista/Miniaturas: cards de 128 px,
+  download visual de 14 px com alvo de 44 px e conteúdo excedente na própria grade.
+
+- Transporte da bancada: play e relógio ao lado do eixo; ações secundárias
+  refluem em containers estreitos, sem duplicar controles. [Composição e QA](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#transporte-na-mesma-faixa-da-timeline--06112026).
+
+  Texto de rally/placar não se repete sob o eixo; permanece no cartão e no
+  contexto acessível da timeline, com espaço liberado para legendas dos eventos.
+  Marcadores usam etiqueta compacta com ponteiro abaixo do eixo e +N para grupos;
+  o ponto no trilho é discreto, mantendo anticolisão, arrasto e lista completa.
+  Etiqueta abreviada de 18 px: clique busca instante disponível; hover mantém
+  overflow visível e os detalhes completos ficam no popover (ArrowDown/Esc).
+  [Regressão e QA](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#etiqueta-abreviada-hover-e-clique-direto--06112026).
+
+- Preparação da bancada usa ScoutingBenchSetup e quadra compartilhada em leitura,
+  com placar direto, saque e opções recolhidas. Início/payload/guardas permanecem
+  no coletor; vazio de vídeo acompanha o tema. [Contrato e QA](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#preparação-no-padrão-da-bancada--06112026).
+
+- Chip de câmera usa a conexão real (Conectada/Não conectada, verde/neutro),
+  preservando rótulos de captura/cópia ativa e erros detalhados no painel.
+  [Contrato e QA](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#conexão-da-câmera-no-cabeçalho--06112026).
+
+- Adicionar vídeo inclui etapa de câmera no mesmo diálogo, com Voltar e controles
+  do host único por portal; preserva link/fonte/rascunho e não inicia captura.
+  QR aparece direto, sem título/sanfona internos; ajuda restaura foco no ícone.
+  [Contrato e QA](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#conexão-dentro-do-seletor-de-fontes--06112026).
+
+- Descoberta inicial do serviço de câmera é silenciosa: indisponibilidade não
+  representa tentativa de conexão. Verificação/conexão explícitas e erros de
+  histórico/comandos mantêm feedback. [Contrato e validação](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#abertura-da-câmera-sem-alerta-prematuro--06112026).
+
+- Novo QR reabre a seção de conexão enquanto aguarda/reconecta, preservando o
+  recolhimento em atualizações comuns e a câmera já conectada. Serviço local
+  reativado com configuração existente; [evidência e limites](../../operations/scouting-live-local.md#reativação-local-e-qr-visível--06112026).
+
+- Cópia física de 28 s retomou de 3% até salva, com revisão/download locais.
+  Sender ganhou cursor isolado por leitura, recuperação limitada e wake lock
+  durante prévia/cópia; WebM é priorizado por capacidade. Original do celular
+  também tem pixelização; nova validação física permanece distinta dos 201
+  testes locais. [Registro e limites](../../operations/scouting-live-local.md#retomada-de-cópia-estabilidade-e-captura--06112026).
+
+- Preferência da câmera local passou de 1080p/30 a 1080p/60, mantendo fallback
+  e indicador da configuração entregue, sem certificar 60 fps no aparelho.
+  [Validação e limites](../../operations/scouting-live-local.md#preferência-por-1080p-e-60-fps--06112026).
+
+- Revisão local ampla de 06/11 organizou conexão/QR por estado, cópia, foco,
+  galeria e escalação; retomada de efeito conserva a mesma sala/gravação.
+  [Achados, validações e limites físicos](../../ui/SCOUTING_REVISAO_UI_UX_2026-11-06.md).
+
+
+- Prévia local de câmera preenche o stage portaled; bloqueio de autoplay tem
+  recuperação explícita. Início valida foreground/fonte e negociação tem prazo
+  por peer, sem alterar a contagem oficial ou os originais.
+  [Teste físico e limites](../../operations/scouting-live-local.md#início-prévia-e-negociação--teste-físico-de-06112026).
+
+
+- Envio local negocia lotes de 4/janela de 8, preservando partes de 8 KiB, hashes,
+  autorização fresca e retomada. Captura 1080p60 separa prévia RTC e seleção de codec; FPS
+  efetivos exigem medir o arquivo. [Contrato, benchmarks e limites](../../operations/scouting-live-local.md#envio-em-lotes-e-captura-1080p60--06112026).
+
+- Prova Android de 1080p60 usa [harness local CameraX](../../../scripts/validation/android-camera-probe/README.md),
+  com confirmação 1×. O S25 gravou 589 quadros distintos em 1080p a 59,17 fps
+  medidos. O piloto local também confirmou prévia RTC durante a gravação e
+  cópia automática por Wi-Fi no Estúdio. Na repetição, 19,973 s em 1080p a
+  59,13 fps geraram 50,3 MB, disponíveis em cerca de 54 s. O download manteve
+  o hash. Gravações longas e marcações oficiais ficam fora do piloto.

@@ -18,7 +18,7 @@ jest.mock('../video/studio-styles', () => ({ studioStyles: '' }));
 jest.mock('../video/use-studio-interactions', () => ({ useStudioInteractions: jest.fn() }));
 jest.mock('../video/StudioUI.web', () => ({
     StudioAction: (props: object) => jest.requireActual('react').createElement('button', props),
-    StudioDialog: ({ children }: { children: unknown }) => children,
+    StudioDialog: ({ children, headerActions, ...props }: any) => jest.requireActual('react').createElement('dialog', props, headerActions, children),
 }));
 jest.mock('../video/StudioPanel.web', () => ({ StudioPanel: ({ children }: { children: unknown }) => children }));
 jest.mock('../video/StudioSelect.web', () => ({ StudioSelect: () => null }));
@@ -29,7 +29,7 @@ jest.mock('../video/VideoBufferStatus.web', () => ({ VideoBufferStatus: () => nu
 jest.mock('../video/VideoTrackingOverlay.web', () => ({ VideoTrackingOverlay: () => null }));
 jest.mock('../video/VideoCorrectionLens.web', () => ({ VideoCorrectionLens: () => null }));
 jest.mock('../video/YouTubeVideo.web', () => ({ YouTubeVideo: () => null }));
-jest.mock('../video/VideoLinkField.web', () => ({ VideoLinkField: () => null }));
+jest.mock('../video/VideoLinkField.web', () => ({ VideoLinkField: (props: object) => jest.requireActual('react').createElement('video-link', props) }));
 jest.mock('../video/VideoRallyRange.web', () => ({ VideoRallyRange: () => null }));
 jest.mock('../video/YouTubeAnalysis.web', () => ({ YouTubeAnalysis: () => null }));
 jest.mock('../video/YouTubeTrackingSetup.web', () => ({ YouTubeTrackingSetup: () => null }));
@@ -48,6 +48,7 @@ const savedDocument = globalThis.document;
 const savedAddEventListener = window.addEventListener, savedRemoveEventListener = window.removeEventListener;
 const savedCreateUrl = URL.createObjectURL, savedRevokeUrl = URL.revokeObjectURL;
 let view: ReactTestRenderer | undefined;
+const cameraSourceTarget = { focus: jest.fn() }, sourceCameraFocus = jest.fn();
 const studioProps = { org: 'org', userId: 'user', classId: 'class', sessionId: 'session', teamName: 'Equipe', students: [], onClose: jest.fn(), session: { title: 'Análise existente', opponent: 'Outra equipe', status: 'em_andamento' as const } };
 
 beforeEach(() => {
@@ -66,14 +67,14 @@ afterAll(() => {
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: savedRevokeUrl });
 });
 
-function mount(overrides = {}) {
+function mount(overrides = {}, extraProps: Partial<Parameters<typeof Studio>[0]> = {}) {
     const doc = canonical();
     const draft = { doc, history: { present: doc, past: [{ label: 'Revisão preservada' }], future: [] },
         dirty: false, saving: false, loading: false, syncStatus: 'synced', conflict: null, error: '',
         open: jest.fn().mockResolvedValue(undefined), save: jest.fn().mockResolvedValue(true), change: jest.fn(), undo: jest.fn(),
         setError: jest.fn(), retrySync: jest.fn().mockResolvedValue(true), resolveConflict: jest.fn().mockResolvedValue(true), ...overrides };
     (useVideoDraft as jest.Mock).mockReturnValue(draft);
-    act(() => { view = create(createElement(Studio, studioProps)); });
+    act(() => { view = create(createElement(Studio, { ...studioProps, ...extraProps }), { createNodeMock: node => node.props.className === 'sv-source-camera' ? cameraSourceTarget : node.props.className === 'sv-source-camera-trigger' ? { querySelector: () => ({ focus: sourceCameraFocus }) } : null }); });
     return draft;
 }
 
@@ -134,4 +135,38 @@ test('choosing a remote version for a different local video cannot display the p
     expect(view!.root.findAllByType('video')).toHaveLength(0);
     expect(view!.root.findByType('gallery' as never).props.doc).toBe(remote);
     expect(draft.change).not.toHaveBeenCalled();
+});
+
+
+test('camera source stays in the same dialog and returns to the typed link without replacing media', () => {
+    const onCameraSourceTarget = jest.fn(), draft = mount({ dirty: true }, { onCameraSourceTarget });
+    const open = () => act(() => view!.root.findByProps({ label: 'Adicionar vídeo' }).props.onPress());
+    open();
+    const dialog = view!.root.findByType('dialog');
+    act(() => view!.root.findByType('video-link' as never).props.onChange('https://youtu.be/mdfgd1K3HTc'));
+    act(() => view!.root.findByProps({ label: 'Conectar câmera' }).props.onPress());
+    expect(view!.root.findByType('dialog')).toBe(dialog); expect(dialog.props.title).toBe('Conectar câmera');
+    expect(onCameraSourceTarget).toHaveBeenCalledTimes(1); expect(onCameraSourceTarget).toHaveBeenLastCalledWith(cameraSourceTarget);
+    expect(cameraSourceTarget.focus).toHaveBeenCalledTimes(1);
+    expect(view!.root.findAllByProps({ label: 'Conectar câmera' })).toHaveLength(0);
+    expect(draft.open).not.toHaveBeenCalled(); expect(draft.change).not.toHaveBeenCalled(); expect(draft.save).not.toHaveBeenCalled();
+    act(() => view!.root.findByProps({ label: 'Voltar para fontes de vídeo' }).props.onPress());
+    expect(view!.root.findByType('dialog')).toBe(dialog); expect(dialog.props.title).toBe('Adicionar vídeo');
+    expect(onCameraSourceTarget).toHaveBeenLastCalledWith(null); expect(sourceCameraFocus).toHaveBeenCalledTimes(1);
+    expect(view!.root.findByType('video-link' as never).props.value).toBe('https://youtu.be/mdfgd1K3HTc');
+});
+
+test.each(['close', 'unmount'])('the camera source target is released on %s', method => {
+    const onCameraSourceTarget = jest.fn(); mount({}, { onCameraSourceTarget });
+    act(() => view!.root.findByProps({ label: 'Adicionar vídeo' }).props.onPress());
+    act(() => view!.root.findByProps({ label: 'Conectar câmera' }).props.onPress());
+    expect(onCameraSourceTarget).toHaveBeenLastCalledWith(cameraSourceTarget);
+    if (method === 'close') act(() => view!.root.findByType('dialog').props.onClose());
+    else act(() => { view!.unmount(); view = undefined; });
+    expect(onCameraSourceTarget).toHaveBeenLastCalledWith(null);
+});
+
+test('camera source is absent without the workspace capability', () => {
+    mount(); act(() => view!.root.findByProps({ label: 'Adicionar vídeo' }).props.onPress());
+    expect(view!.root.findAllByProps({ label: 'Conectar câmera' })).toHaveLength(0);
 });
