@@ -78,6 +78,8 @@ export const GOATLETA_ICON_NAMES = {
   facebook: "logo-facebook",
   camera: "camera-outline",
   video: "videocam-outline",
+  sound: "volume-high-outline",
+  soundOff: "volume-mute-outline",
   gallery: "images-outline",
   compare: "git-compare",
   align: "reorder-three",

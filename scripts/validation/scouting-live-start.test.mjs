@@ -35,6 +35,17 @@ test('explicit loopback smoke does not prepare or read certificates and never en
   assert.equal(read,false);assert.equal(result.cameraReady,false);assert.equal(args.includes('--cert'),false);assert.equal(args.includes('--public-host'),false);
 });
 
+test('hosted opt-in is passed to a new process and never restarts a running companion',async()=>{
+  let spawns=0,args;
+  const spawnProcess=(_node,value)=>{spawns++;args=value;return {};};
+  await assert.rejects(startOrReuseLiveService({allowGoatletaWeb:true,probe:async()=>({cameraReady:true}),spawnProcess}),/--allow-goatleta-web/);
+  await assert.rejects(startOrReuseLiveService({allowGoatletaWeb:true,probe:async()=>({cameraReady:true,allowGoatletaWeb:false}),spawnProcess}),/--allow-goatleta-web/);
+  const existing=await startOrReuseLiveService({allowGoatletaWeb:true,probe:async()=>({cameraReady:true,allowGoatletaWeb:true}),spawnProcess});
+  assert.equal(existing.reused,true);assert.equal(spawns,0);
+  await startOrReuseLiveService({allowGoatletaWeb:true,probe:async()=>null,readConfig:()=>config,spawnProcess});
+  assert.equal(spawns,1);assert.equal(args.includes('--allow-goatleta-web'),true);assert.equal(args.includes('--cert'),true);
+});
+
 test('an occupied or unresponsive service blocks startup instead of stopping it',async()=>{
   let spawned=false;
   await assert.rejects(startOrReuseLiveService({probe:async()=>{throw new Error('occupied');},spawnProcess:()=>{spawned=true;}}),/occupied/);
@@ -59,5 +70,6 @@ test('probe rejects unrelated service responses without launching a process',asy
 test('start arguments are explicit and do not allow hidden options or repeated flags',()=>{
   assert.deepEqual(liveStartOptions(['--loopback-only']),{loopbackOnly:true});
   assert.equal(liveStartOptions(['--config',configFile]).configFile,configFile);
-  for(const args of [['--trust'],['--config'],['--loopback-only','--loopback-only'],['--config',configFile,'--config',configFile]])assert.throws(()=>liveStartOptions(args));
+  assert.deepEqual(liveStartOptions(['--allow-goatleta-web']),{allowGoatletaWeb:true});
+  for(const args of [['--trust'],['--config'],['--loopback-only','--loopback-only'],['--config',configFile,'--config',configFile],['--allow-goatleta-web','--allow-goatleta-web'],['--allow-goatleta-web','false']])assert.throws(()=>liveStartOptions(args));
 });

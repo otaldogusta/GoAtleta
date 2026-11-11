@@ -7,9 +7,12 @@ import { GoAtletaIcon } from '../../ui/icon-registry';
 import { useAppTheme } from '../../ui/app-theme';
 import { StudioAction } from './video/StudioUI.web';
 import { useOptionalCopilot } from '../../copilot/CopilotProvider';
+import type { StudioMenuAction } from './video/types';
 
-export function ScoutingWorkspaceMenu({ canCreate, disabled, onCreate, onFinish, canFinish, onSources }: {
+export function ScoutingWorkspaceMenu({ canCreate, disabled, onCreate, onFinish, canFinish, onSources, videoActions, onVideoAction }: {
     canCreate: boolean; disabled: boolean; canFinish: boolean; onCreate: () => void; onFinish: () => void; onSources?: () => void;
+    videoActions?: StudioMenuAction[] | null;
+    onVideoAction?: (action: () => void) => void;
 }) {
     const { colors } = useAppTheme();
     const copilot = useOptionalCopilot();
@@ -17,14 +20,28 @@ export function ScoutingWorkspaceMenu({ canCreate, disabled, onCreate, onFinish,
     const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
     const close = () => { setAnchor(null); (trigger.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>('[role="button"],button')?.focus(); };
     const open = () => { if (anchor) close(); else trigger.current?.measureInWindow((x, y, width, height) => setAnchor({ x, y, width, height })); };
-    const itemStyle = { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 } as const;
+    const itemStyle = { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 } as const;
+    const groups = (['Vídeo', 'Rallies', 'Análise'] as const).map(group => {
+        const items: (StudioMenuAction & { text?: string; video?: boolean })[] = (videoActions ?? []).filter(item => item.group === group).map(item => ({ ...item, video: true }));
+        if (group === 'Vídeo' && onSources) items.unshift({ id: 'sources', group, label: 'Fonte do vídeo e gravações', text: 'Fonte e gravações', icon: 'gallery', onPress: onSources });
+        if (group === 'Análise') {
+            if (canCreate) items.push({ id: 'create', group, label: 'Nova análise no estúdio', text: 'Nova análise', icon: 'add', onPress: onCreate });
+            if (copilot) items.push({ id: 'assistant', group, label: 'Abrir chat do estúdio', text: 'Assistente', icon: 'chat', onPress: () => copilot.open() });
+            items.push({ id: 'finish', group, label: 'Encerrar análise pelo menu', text: 'Encerrar análise', icon: 'checkmark', disabled: !canFinish, onPress: onFinish });
+        }
+        return { group, items };
+    }).filter(({ items }) => items.length);
     return <>
-        <View ref={trigger} collapsable={false} nativeID={copilot?'scouting-chat-entry':undefined}><StudioAction label="Opções da análise" icon="ellipsisHorizontal" expanded={!!anchor} disabled={disabled} onPress={open}/></View>
-        <AnchoredDropdown visible={!!anchor} layout={anchor} container={null} animationStyle={{}} zIndex={6200} nestedScrollEnabled fitContent density="menu" preferredWidth={230} maxHeight={240} interactiveRefs={[trigger]} onRequestClose={close}>
-            {onSources?<AnchoredDropdownOption active={false} accessibilityLabel="Fonte do vídeo e gravações" density="compact" disabled={disabled} onPress={()=>{close();onSources();}}><View style={itemStyle}><GoAtletaIcon name="gallery" size={16} color={colors.text}/><Text style={{color:colors.text,fontSize:12}}>Fonte e gravações</Text></View></AnchoredDropdownOption>:null}
-            {canCreate?<AnchoredDropdownOption active={false} accessibilityLabel="Nova análise no estúdio" density="compact" disabled={disabled} onPress={()=>{close();onCreate();}}><View style={itemStyle}><GoAtletaIcon name="add" size={16} color={colors.text}/><Text style={{color:colors.text,fontSize:12}}>Nova análise</Text></View></AnchoredDropdownOption>:null}
-            {copilot?<AnchoredDropdownOption active={false} accessibilityLabel="Abrir chat do estúdio" density="compact" disabled={disabled} onPress={()=>{close();copilot.open();}}><View style={itemStyle}><GoAtletaIcon name="chat" size={16} color={colors.text}/><Text style={{color:colors.text,fontSize:12}}>Assistente</Text></View></AnchoredDropdownOption>:null}
-            <AnchoredDropdownOption active={false} accessibilityLabel="Encerrar análise pelo menu" density="compact" disabled={!canFinish||disabled} onPress={()=>{close();onFinish();}}><View style={itemStyle}><GoAtletaIcon name="checkmark" size={16} color={colors.text}/><Text style={{color:colors.text,fontSize:12}}>Encerrar análise</Text></View></AnchoredDropdownOption>
+        <View ref={trigger} collapsable={false} nativeID={copilot?'scouting-chat-entry':undefined}><StudioAction label="Opções do Estúdio" icon="options" expanded={!!anchor} disabled={disabled} onPress={open}>Opções</StudioAction></View>
+        <AnchoredDropdown visible={!!anchor} layout={anchor} container={null} animationStyle={{}} zIndex={6200} nestedScrollEnabled fitContent density="popover" preferredWidth={250} maxHeight={440} interactiveRefs={[trigger]} onRequestClose={close}>
+            {groups.map(({ group, items }, index) => <View key={group} style={{ borderTopWidth: index ? 1 : 0, borderTopColor: colors.border, paddingTop: index ? 6 : 0, marginTop: index ? 6 : 0 }}>
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', paddingHorizontal: 12, paddingVertical: 4 }}>{group}</Text>
+                {items.map(item => <AnchoredDropdownOption key={item.id} active={false} accessibilityLabel={item.label} density="compact" style={{ borderWidth: 0, backgroundColor: 'transparent' }} disabled={disabled || item.disabled} onPress={() => {
+                    if (disabled || item.disabled) return;
+                    close();
+                    if (item.video && onVideoAction) onVideoAction(item.onPress); else item.onPress();
+                }}><View style={itemStyle}><GoAtletaIcon name={item.icon} size={16} color={colors.text}/><Text style={{ color: colors.text, fontSize: 12 }}>{item.text ?? item.label}</Text></View></AnchoredDropdownOption>)}
+            </View>)}
         </AnchoredDropdown>
     </>;
 }

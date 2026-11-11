@@ -54,7 +54,7 @@ export function probeLiveService({ port = LIVE_HOST_PORT, timeoutMs = 1500 } = {
       response.on('end',()=>{
         try {
           const config=JSON.parse(raw);
-          if(response.statusCode!==200 || typeof config.cameraReady!=='boolean' || config.localCameraOrigin!==`http://localhost:${port}` || !Number.isSafeInteger(config.roomTtlMs) || config.roomTtlMs<1000 || config.roomTtlMs>7200000) throw new Error();
+          if(response.statusCode!==200 || typeof config.cameraReady!=='boolean' || config.localCameraOrigin!==`http://localhost:${port}` || !Number.isSafeInteger(config.roomTtlMs) || config.roomTtlMs<1000 || config.roomTtlMs>7200000 || config.allowGoatletaWeb!==undefined && typeof config.allowGoatletaWeb!=='boolean') throw new Error();
           if(config.cameraReady){const url=new URL(config.cameraOrigin);if(url.protocol!=='https:'||!privateIpv4(url.hostname)||url.port!==String(LIVE_CAMERA_PORT)||url.pathname!=='/'||url.username||url.password||url.search||url.hash)throw new Error();}
           else if(config.cameraOrigin!==null)throw new Error();
           finish(null,config);
@@ -67,10 +67,14 @@ export function probeLiveService({ port = LIVE_HOST_PORT, timeoutMs = 1500 } = {
   });
 }
 
-export async function startOrReuseLiveService({ configFile = defaultLiveConfig, loopbackOnly = false, probe = probeLiveService, readConfig = readLiveLocalConfig, spawnProcess = spawn } = {}) {
+export async function startOrReuseLiveService({ configFile = defaultLiveConfig, loopbackOnly = false, allowGoatletaWeb = false, probe = probeLiveService, readConfig = readLiveLocalConfig, spawnProcess = spawn } = {}) {
   const existing = await probe();
-  if(existing)return {reused:true,cameraReady:existing.cameraReady,child:null};
+  if(existing){
+    if(allowGoatletaWeb && existing.allowGoatletaWeb !== true) throw new Error('O serviço em execução não permite goatleta.com. Quando terminar a conexão atual, encerre o serviço e inicie novamente com --allow-goatleta-web.');
+    return {reused:true,cameraReady:existing.cameraReady,child:null};
+  }
   const args=[join(root,'scripts','scouting-live-service.mjs'),'--assets',join(root,'public','scouting-live')];
+  if(allowGoatletaWeb)args.push('--allow-goatleta-web');
   if(!loopbackOnly){const config=readConfig(configFile);args.push('--public-host',config.host,'--cert',config.cert,'--key',config.key,'--ca',config.ca);}
   const child=spawnProcess(process.execPath,args,{cwd:root,stdio:'inherit',windowsHide:true,shell:false});
   return {reused:false,cameraReady:!loopbackOnly,child};
@@ -80,8 +84,9 @@ export function liveStartOptions(args) {
   const options={};
   for(let i=0;i<args.length;i++) {
     if(args[i]==='--loopback-only'&&!options.loopbackOnly)options.loopbackOnly=true;
+    else if(args[i]==='--allow-goatleta-web'&&!options.allowGoatletaWeb)options.allowGoatletaWeb=true;
     else if(args[i]==='--config'&&!options.configFile&&args[i+1]&&!args[i+1].startsWith('--'))options.configFile=resolve(args[++i]);
-    else throw new Error('Use --config ARQUIVO ou --loopback-only.');
+    else throw new Error('Opções disponíveis: --config ARQUIVO, --loopback-only e --allow-goatleta-web.');
   }
   return options;
 }

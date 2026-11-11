@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import ScoutingWorkspace from '../ScoutingWorkspace.web';
 import type { ScoutingWorkspaceProps } from '../ScoutingWorkspace.types';
 import type { ScoutingCollectorActions } from '../ScoutingCollector';
+import type { StudioMenuAction } from '../video/types';
 import type { ScoutingLiveWorkspaceControls, ScoutingLiveWorkspaceStatus } from '../live/workspace-camera-presentation';
 import { requestPendingEditsNavigation } from '../../../navigation/pending-edits-navigation';
 
@@ -486,15 +487,95 @@ test.each([null,{recordingId:null,connection:'connected',cameraState:'preview'}]
 });
 
 test('other videos retain their draft while the local replay is selected independently',async()=>{
-    await mount({initialMode:'video'});const legacy=one('video-studio').props.instance;
+    await mount({initialMode:'video'});const legacy=one('video-studio').props.instance,host=one('live-camera').props.instance;
+    const cameraSource=one('video-studio').props.onCameraSourceTarget;
+    expect(cameraSource).toEqual(expect.any(Function));
     act(()=>one('video-studio').props.editDraft('recorte existente'));
     mockLiveIntegration.recordings=[{analysisSessionId:'game-a',hostSessionId:'host',recordingId:'recording',clips:[],updatedAt:'2026-11-04T10:00:00Z'}];
     act(()=>view!.update(createElement(ScoutingWorkspace,props)));await settle();
     expect(one('live-replay').props.recordings).toBe(mockLiveIntegration.recordings);
     expect(one('video-studio').props.instance).toBe(legacy);expect(one('video-studio').props.visible).toBe(false);
+    expect(one('video-studio').props.onCameraSourceTarget).toBeUndefined();
+    expect(one('live-camera').props.instance).toBe(host);
     act(()=>one('live-replay').props.onOtherVideos());
     expect(one('video-studio').props.instance).toBe(legacy);expect(one('video-studio').props.draft).toBe('recorte existente');
     expect(one('video-studio').props.visible).toBe(true);
+    expect(one('video-studio').props.onCameraSourceTarget).toBe(cameraSource);
+});
+
+test.each([false, true])('unified options follow the selected source with retained studios and keep the collection draft (%s mobile)', async mobile => {
+    mockWorkspaceMobile = mobile; mockWorkspaceWidth = mobile ? 390 : 1200;
+    await mount();
+    const collector = one('collector').props.instance, legacy = one('video-studio').props.instance, host = one('live-camera').props.instance;
+    const legacyAction = jest.fn(), updatedLegacyAction = jest.fn(), liveAction = jest.fn();
+    const oldActions: StudioMenuAction[] = [{ id: 'tools', group: 'Vídeo', label: 'Ferramentas do vídeo', icon: 'options', onPress: legacyAction }];
+    const newActions: StudioMenuAction[] = [{ ...oldActions[0], onPress: updatedLegacyAction }];
+    const liveActions: StudioMenuAction[] = [{ ...oldActions[0], onPress: liveAction }];
+    act(() => {
+        one('collector').props.editDraft('contato ainda em edição');
+        one('collector').props.onDirtyChange(true);
+        one('video-studio').props.editDraft('recorte existente');
+        one('video-studio').props.onMenuActionsChange(oldActions);
+    });
+    expect(one('workspace-menu').props.videoActions).toBe(oldActions);
+    mockLiveIntegration.recordings = [{ analysisSessionId: 'game-a', hostSessionId: 'host', recordingId: 'recording', clips: [], updatedAt: '2026-11-04T10:00:00Z' }];
+    act(() => view!.update(createElement(ScoutingWorkspace, props))); await settle();
+    const live = one('live-replay').props.instance;
+    act(() => {
+        one('live-replay').props.editDraft('recorte local existente');
+        one('live-replay').props.onMenuActionsChange(liveActions);
+        one('video-studio').props.onMenuActionsChange(newActions);
+    });
+    expect(one('video-studio').props.visible).toBe(false);
+    expect(one('workspace-tabs').props.value).toBe('register');
+    expect(one('workspace-menu').props.videoActions).toBe(liveActions);
+    act(() => one('workspace-menu').props.onVideoAction(one('workspace-menu').props.videoActions[0].onPress));
+    expect(liveAction).toHaveBeenCalledTimes(1);
+    expect(legacyAction).not.toHaveBeenCalled(); expect(updatedLegacyAction).not.toHaveBeenCalled();
+    expect(one('workspace-tabs').props.value).toBe('video');
+    expect(one('collector').props).toMatchObject({ instance: collector, draft: 'contato ainda em edição' });
+    expect(view!.root.findAllByType('workspace-dialog' as never)).toHaveLength(0);
+    expect(mockVideoGuard).not.toHaveBeenCalled(); expect(mockLiveVideoGuard).not.toHaveBeenCalled();
+
+    await show('register');
+    act(() => one('live-replay').props.onOtherVideos()); await settle();
+    expect(one('workspace-menu').props.videoActions).toBe(newActions);
+    // A retained inactive source clearing its registration cannot erase the selected source's actions.
+    act(() => one('live-replay').props.onMenuActionsChange(null));
+    expect(one('workspace-menu').props.videoActions).toBe(newActions);
+    mockLiveVideoGuard.mockClear();
+    act(() => one('workspace-menu').props.onVideoAction(one('workspace-menu').props.videoActions[0].onPress));
+    expect(updatedLegacyAction).toHaveBeenCalledTimes(1); expect(legacyAction).not.toHaveBeenCalled();
+    expect(liveAction).toHaveBeenCalledTimes(1);
+    expect(one('workspace-tabs').props.value).toBe('video');
+    expect(one('collector').props).toMatchObject({ instance: collector, draft: 'contato ainda em edição' });
+    expect(one('video-studio').props).toMatchObject({ instance: legacy, draft: 'recorte existente' });
+    expect(one('live-replay').props).toMatchObject({ instance: live, draft: 'recorte local existente' });
+    expect(one('live-camera').props.instance).toBe(host);
+    expect(mockMounts).toHaveLength(4); expect(mockUnmounts).toEqual([]);
+    expect(mockVideoGuard).not.toHaveBeenCalled(); expect(mockLiveVideoGuard).not.toHaveBeenCalled(); expect(mockCameraGuard).not.toHaveBeenCalled();
+    expect(props.onSaved).not.toHaveBeenCalled();
+});
+
+test('unified options remain bound to the live recording while its replay is hidden behind the live preview', async () => {
+    mockLiveIntegration.recordings = [{ recordingId: 'local-a', clips: [] }];
+    await mount();
+    const liveAction = jest.fn();
+    const liveActions: StudioMenuAction[] = [{ id: 'tools', group: 'Vídeo', label: 'Ferramentas do vídeo', icon: 'options', onPress: liveAction }];
+    const cameraActions = { start: jest.fn(), pause: jest.fn(), resume: jest.fn(), stop: jest.fn() };
+    act(() => {
+        one('live-replay').props.onMenuActionsChange(liveActions);
+        one('live-camera').props.onWorkspaceControlsChange({ canStart: false, canPause: true, canResume: false, canStop: true, busy: false, hasPreview: true, pending: null, actions: cameraActions });
+    });
+    expect(one('live-replay').props.visible).toBe(false);
+    expect(one('live-camera').props.presentation).toBe('main');
+    expect(one('workspace-menu').props.videoActions).toBe(liveActions);
+    act(() => one('workspace-menu').props.onVideoAction(one('workspace-menu').props.videoActions[0].onPress));
+    expect(liveAction).toHaveBeenCalledTimes(1);
+    expect(one('workspace-tabs').props.value).toBe('video');
+    expect(one('live-camera').props.presentation).toBe('main');
+    for (const action of Object.values(cameraActions)) expect(action).not.toHaveBeenCalled();
+    expect(mockUnmounts).toEqual([]);
 });
 
 test('changing account scope remounts retained tools instead of carrying a live binding to another organization',async()=>{

@@ -7,8 +7,12 @@ import { VideoBufferStatus } from './VideoBufferStatus.web';
 import { saveVideoContact } from '../../../core/scouting-video';
 import { StudioPanel } from './StudioPanel.web';
 import { VideoBenchInspector } from './VideoBenchInspector.web';
+import { useStudioMenuActions } from './use-studio-menu-actions';
 import { videoBenchStyles } from './video-bench-styles';
 import { VideoLinkField } from './VideoLinkField.web';
+import { PhoneVideoReception } from './PhoneVideoReception.web';
+import { phoneVideoPointerKey, readPhoneVideoPointer, savePhoneVideoPointer, type PhoneVideoPointer } from './phone-video-pointer.web';
+import { readStoredPhoneVideo, removeStoredPhoneVideo, type PhoneVideoReceived } from './phone-video-transfer.web';
 import { contactChanged, videoLinkKind } from './studio-editing';
 import { StudioSelect } from './StudioSelect.web';
 import { useStudioInteractions } from './use-studio-interactions';
@@ -28,7 +32,7 @@ import { youtubeVideoId } from '../../../core/scouting-video-youtube';
 import { YouTubeVideo } from './YouTubeVideo.web';
 import type { VideoPlayback } from './youtube-player.web';
 import { matchesTrackingOriginal, originalPlayback } from './original-playback.web';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { createPortal } from 'react-dom';
 import { markRender, measureAsync } from '../../../observability/perf';
@@ -116,12 +120,24 @@ function PlaybackControlLayout({ bench, transport, tools, timeline }: { bench?: 
         : <><div className="sv-transport">{transport}<span className="sv-spacer"/>{tools}</div>{timeline}</>;
 }
 
+function hasPlaybackAudio(video: HTMLVideoElement) {
+    const media = video as HTMLVideoElement & {
+        audioTracks?: { length: number };
+        mozHasAudio?: boolean;
+        webkitAudioDecodedByteCount?: number;
+    };
+    return !!media.audioTracks?.length || media.mozHasAudio === true || (media.webkitAudioDecodedByteCount ?? 0) > 0;
+}
+
 export function Studio(props: StudioViewProps) {
 
     const studioActive = props.active !== false;
-    const studioVisible = props.visible !== false;
+    const liveBenchPreview = props.bench && props.benchPreviewActive;
+    const studioVisible = props.visible !== false && !liveBenchPreview;
     const keyboardActive = props.keyboardActive !== false;
     const [benchToolsOpen, setBenchToolsOpen] = useState(false), [benchReplay, setBenchReplay] = useState(false);
+    const [selectingRallies, setSelectingRallies] = useState(false);
+    const benchToolsReturnFocus = useRef<HTMLElement | null>(null);
     const onBenchReplayChange = props.onBenchReplayChange;
     useEffect(() => { if (props.bench) onBenchReplayChange?.(benchReplay); }, [props.bench, benchReplay, onBenchReplayChange]);
     const onBenchStageTarget = props.onBenchStageTarget;
@@ -147,6 +163,19 @@ export function Studio(props: StudioViewProps) {
     const [storedSource, setSource] = useState(props.shared?.source ?? ''), [selectedFile, setFile] = useState<File | null>(null), [localFingerprint, setLocalFingerprint] = useState(''), [time, setTime] = useState(0), [playing, setPlaying] = useState(false), [selectedFocus, setFocus] = useState<string | null>(null);
     const localSource = useActiveObjectUrl(selectedFile, studioActive);
     const originalBlobSource = useActiveObjectUrl(original?.kind === 'blob' ? original.file ?? null : null, studioActive);
+    const phoneFiles = useRef(new Map<File, () => Promise<void>>());
+    const phonePointerKey = phoneVideoPointerKey(props);
+    useEffect(() => {
+        for (const [value, release] of phoneFiles.current) {
+            if (value === selectedFile || value === original?.file) continue;
+            phoneFiles.current.delete(value);
+            void release().catch(() => undefined);
+        }
+    }, [selectedFile, original?.file]);
+    useEffect(() => {
+        const received = phoneFiles.current;
+        return () => { for (const release of received.values()) void release().catch(() => undefined); received.clear(); };
+    }, []);
     const availableOriginal = useMemo(() => original?.kind === 'blob' ? { ...original, url: originalBlobSource } : original, [original, originalBlobSource]);
     const localAttached = !!doc && doc.media.fingerprint === localFingerprint;
     const source = local ? local.source : props.shared ? storedSource : youtubeId ? `youtube:${youtubeId}` : localAttached ? localSource : '';
@@ -155,6 +184,13 @@ export function Studio(props: StudioViewProps) {
     const originalActive = !localMode && !!readyOriginal && useOriginal;
     const iframePlayback = !!youtubeId && !originalActive;
     const playbackSource = originalActive ? readyOriginal!.url : source;
+    const [audioSource, setAudioSource] = useState<string | null>(null);
+    const [playbackMuted, setPlaybackMuted] = useState(false);
+    const discoverPlaybackAudio = () => {
+        const node = video.current;
+        if (!node || audioSource === playbackSource || node.currentSrc && node.currentSrc !== node.src) return;
+        if (hasPlaybackAudio(node)) setAudioSource(playbackSource);
+    };
     const nativeOffset = local ? local.offsetSeconds : originalActive ? doc!.analysis!.source!.offsetSeconds : 0;
     const availableEnd = local ? local.availableUntilSeconds : originalActive ? readyOriginal!.media.duration + nativeOffset : doc?.media.duration ?? 0;
     const clockPosition = useRef({ time: 0, playing: false, rate: 1 });
@@ -175,16 +211,21 @@ export function Studio(props: StudioViewProps) {
     const [analysisOpen, setAnalysisOpen] = useState(false), [trackingRequested, setTrackingRequested] = useState(false), [reviewOpened, setReviewOpened] = useState(!!props.embedded && !props.shared && !localMode);
     const [panel, setPanel] = useState(true), [tab, setTab] = useState<'rallies' | 'contacts' | 'validation' | 'history' | 'processing' | 'review'>(props.embedded && !props.shared && !localMode ? 'review' : 'rallies');
 
-    const [modal, setModal] = useState<'import' | 'camera-source' | 'contact' | 'exit' | 'download' | 'share' | 'youtube-ai' | 'youtube-tracking' | null>(null), [progress, setProgress] = useState<number | null>(null), [job, setJob] = useState(''), [error, setError] = useState('');
+    const [modal, setModal] = useState<'import' | 'camera-source' | 'phone-source' | 'contact' | 'exit' | 'download' | 'share' | 'youtube-ai' | 'youtube-tracking' | null>(null), [progress, setProgress] = useState<number | null>(null), [job, setJob] = useState(''), [error, setError] = useState('');
     const openModal = useCallback((next: Exclude<typeof modal, null>) => { setBenchToolsOpen(false); setModal(next); }, []);
-    const cameraSource = useRef<HTMLDivElement | null>(null), cameraSourceTrigger = useRef<HTMLSpanElement | null>(null), restoreSourceFocus = useRef(false);
+    const cameraSource = useRef<HTMLDivElement | null>(null), cameraSourceTrigger = useRef<HTMLSpanElement | null>(null);
+    const phoneSourceTrigger = useRef<HTMLSpanElement | null>(null), restoreSourceFocus = useRef<'camera' | 'phone' | null>(null);
     const { onCameraSourceTarget } = props;
+    // Release the native modal before the live workspace hides its source pane.
+    if (modal === 'camera-source' && !onCameraSourceTarget) setModal(null);
     const bindCameraSource = useCallback((node: HTMLDivElement | null) => { cameraSource.current = node; onCameraSourceTarget?.(node); }, [onCameraSourceTarget]);
     useLayoutEffect(() => {
-        if (modal === 'camera-source') cameraSource.current?.focus();
+        if (modal === null) restoreSourceFocus.current = null;
+        else if (modal === 'camera-source') cameraSource.current?.focus();
         else if (modal === 'import' && restoreSourceFocus.current) {
-            restoreSourceFocus.current = false;
-            cameraSourceTrigger.current?.querySelector<HTMLElement>('button,[role="button"]')?.focus();
+            const trigger = restoreSourceFocus.current === 'phone' ? phoneSourceTrigger : cameraSourceTrigger;
+            restoreSourceFocus.current = null;
+            trigger.current?.querySelector<HTMLElement>('button,[role="button"]')?.focus();
         }
     }, [modal]);
 
@@ -492,6 +533,42 @@ export function Studio(props: StudioViewProps) {
         rememberPlayback(); setUseOriginal(true);
         setOriginal({ youtubeId: target.media.youtubeId, media: { fingerprint: linked.fingerprint, name: linked.name, duration: linked.duration, width: linked.width, height: linked.height }, url: '', file: value, kind: 'blob' });
     };
+    const restorePhoneOriginal = useEffectEvent(showOriginal);
+    const phoneAnalysisFingerprint = doc?.media.fingerprint, phoneOriginalFingerprint = doc?.analysis?.source?.fingerprint;
+    useEffect(() => {
+        if (!studioActive || syncBlocked || !permissions.importMedia || loadingFile.current) return;
+        const pointer = readPhoneVideoPointer(phonePointerKey);
+        if (!pointer || pointer.analysisFingerprint !== phoneAnalysisFingerprint) return;
+        if (pointer.kind === 'direct' ? localAttached && !!selectedFile : !!readyOriginal || pointer.fileFingerprint !== phoneOriginalFingerprint) return;
+        let current = true;
+        const epoch = activityEpoch.current;
+        const restore = async () => {
+            const value = await readStoredPhoneVideo(pointer.storageId, pointer.name, pointer.bytes);
+            const meta = await inspectVideo(value);
+            const document = latestDoc.current;
+            if (!current || !isCurrentActivity(epoch) || loadingFile.current || document?.media.fingerprint !== pointer.analysisFingerprint
+                || meta.fingerprint !== pointer.fileFingerprint) return;
+            if (pointer.kind === 'youtube-original') {
+                const associated = matchingOriginalDocument(document, meta);
+                if (associated) restorePhoneOriginal(value, associated);
+            } else {
+                setFile(value); setLocalFingerprint(meta.fingerprint);
+            }
+        };
+        void restore().catch(() => undefined);
+        return () => { current = false; };
+    }, [studioActive, syncBlocked, permissions.importMedia, phonePointerKey, phoneAnalysisFingerprint, phoneOriginalFingerprint, localAttached, selectedFile, readyOriginal, isCurrentActivity]);
+
+    const retainPhoneVideo = (received: PhoneVideoReceived, analysisFingerprint: string, fileFingerprint: string, kind: PhoneVideoPointer['kind']) => {
+        const previous = readPhoneVideoPointer(phonePointerKey);
+        if (savePhoneVideoPointer(phonePointerKey, { storageId: received.storageId, name: received.file.name,
+            bytes: received.file.size, analysisFingerprint, fileFingerprint, kind })) {
+            if (previous && previous.storageId !== received.storageId) void removeStoredPhoneVideo(previous.storageId).catch(() => undefined);
+        } else {
+            phoneFiles.current.set(received.file, received.release);
+            setError('Original aberto nesta aba. Este navegador não permitiu guardá-lo.');
+        }
+    };
     const showDriveOriginal = (media: VideoMedia, url: string, linked = doc?.analysis?.source) => {
         if (!canEdit || !youtubeId || !linked) return;
         rememberPlayback(); setUseOriginal(true);
@@ -531,6 +608,7 @@ export function Studio(props: StudioViewProps) {
         restorePlayback(); tick(); return true;
     };
     const loadedMetadata = () => {
+        discoverPlaybackAudio();
         if (!local) { restorePlayback(); tick(); return; }
         if (reportLocalMetadata()) return;
         const node=video.current; if (!node || metadataProbe.current) return;
@@ -541,12 +619,12 @@ export function Studio(props: StudioViewProps) {
         try { node.currentTime=1e10; } catch { clearTimeout(timer); metadataProbe.current=null; restorePlayback(); }
     };
 
-    const loadFile = async (value: File) => {
+    const loadFile = async (value: File, received?: PhoneVideoReceived): Promise<boolean> => {
         const epoch = activityEpoch.current;
 
         if (!permissions.importMedia || syncBlocked || loadingFile.current)
 
-            return;
+            return false;
 
         loadingFile.current = true;
 
@@ -560,26 +638,28 @@ export function Studio(props: StudioViewProps) {
 
             if (!isCurrentActivity(epoch))
 
-                return;
+                return false;
 
             const associated = matchingOriginalDocument(doc, meta);
             if (associated) {
+                if (received) retainPhoneVideo(received, associated.media.fingerprint, meta.fingerprint, 'youtube-original');
                 showOriginal(value, associated);
                 setModal(null); setCorrecting(false); setSuggestion(null);
-                return;
+                return true;
             }
 
-            if (draft.dirty && !(await draft.save())) return;
-            if (!isCurrentActivity(epoch)) return;
+            if (draft.dirty && !(await draft.save())) return false;
+            if (!isCurrentActivity(epoch)) return false;
 
             await draft.open(meta);
-            if (!isCurrentActivity(epoch)) return;
+            if (!isCurrentActivity(epoch)) return false;
             await draft.save();
 
             if (!isCurrentActivity(epoch))
 
-                return;
+                return false;
 
+            if (received) { retainPhoneVideo(received, meta.fingerprint, meta.fingerprint, 'direct'); setModal(null); }
             setFile(value); setLocalFingerprint(meta.fingerprint); setPlaying(false); setCorrecting(false); setTab('rallies'); setPanel(true);
 
             setFocus(null);
@@ -591,6 +671,7 @@ export function Studio(props: StudioViewProps) {
             setEditor(null);
 
             setJob('Vídeo reconhecido');
+            return true;
 
         }
 
@@ -600,6 +681,7 @@ export function Studio(props: StudioViewProps) {
 
                 setError(failure instanceof Error ? failure.message : 'Não foi possível abrir o vídeo.');
 
+            return false;
         }
 
         finally {
@@ -897,7 +979,29 @@ export function Studio(props: StudioViewProps) {
     }, [studioActive, props.shared, props.embedded, requestLeave]);
     const close = () => requestLeave();
 
-    const gallery = doc ? <VideoGallery bench={props.bench} onOpenTools={props.bench ? () => { setTab('validation'); setAnalysisOpen(true); setPanel(true); setBenchToolsOpen(true); } : undefined} rangeResolver={rangeFor} rallyMetadata={local?.rallyMetadata} availableUntilSeconds={local ? availableEnd : Infinity} canDownloadOriginal={!local || local.original} canDownloadRally={local ? id=>!!source&&localStudioMediaRange(doc,id,local,rangeFor).complete : undefined} pendingCount={local?.draft.pendingCount} thumbnailScope={!props.shared ? [props.userId, props.org, props.sessionId].map(encodeURIComponent).join(':') : undefined} playing={playing} doc={doc} source={source} thumbnailSource={!modal ? readyOriginal?.url : undefined} offsetSeconds={local ? nativeOffset : readyOriginal ? doc.analysis?.source?.offsetSeconds ?? 0 : 0} focus={focus} teams={teams} readOnly={!permissions.download} localMedia={!youtubeId} onFocus={chooseRally} onPlay={modal ? undefined : play} onDownload={download} onExport={exportAnalysis} onImport={openAnalysisImport}/> : null;
+    const openBenchTools = () => {
+        benchToolsReturnFocus.current = document.activeElement as HTMLElement | null;
+        setTab('validation'); setAnalysisOpen(true); setPanel(true); setBenchToolsOpen(true);
+    };
+    useEffect(() => {
+        if (benchToolsOpen) return;
+        const target = benchToolsReturnFocus.current;
+        benchToolsReturnFocus.current = null;
+        if (!modal && target?.isConnected) target.focus();
+    }, [benchToolsOpen, modal]);
+    useStudioMenuActions(JSON.stringify([props.userId, props.org, props.sessionId, local?.identity, doc?.media.fingerprint]), [
+        { id: 'tools', group: 'Vídeo', label: 'Ferramentas do vídeo', icon: 'options', onPress: openBenchTools },
+        ...(doc && permissions.download ? [
+            ...(!youtubeId ? [
+                { id: 'original', group: 'Vídeo' as const, label: 'Baixar vídeo completo', icon: 'download' as const, disabled: !file || !source || !!local && !local.original, onPress: () => { void download(null); } },
+                { id: 'select', group: 'Rallies' as const, label: selectingRallies ? 'Cancelar seleção de rallies' : 'Selecionar rallies', icon: 'checkbox' as const, onPress: () => setSelectingRallies(value => !value) },
+            ] : []),
+            { id: 'export', group: 'Análise' as const, label: 'Exportar análise', icon: 'download' as const, onPress: exportAnalysis },
+            { id: 'import', group: 'Análise' as const, label: 'Importar análise', icon: 'upload' as const, disabled: !canEdit || !!editor, onPress: openAnalysisImport },
+        ] : []),
+    ], studioActive && !props.shared ? props.onMenuActionsChange : undefined);
+
+    const gallery = doc ? <VideoGallery bench={props.bench} hideOptions={!!props.onMenuActionsChange} selectionControl={props.onMenuActionsChange ? { active: selectingRallies, onChange: setSelectingRallies } : undefined} onOpenTools={props.bench ? openBenchTools : undefined} rangeResolver={rangeFor} rallyMetadata={local?.rallyMetadata} availableUntilSeconds={local ? availableEnd : Infinity} canDownloadOriginal={!local || local.original} canDownloadRally={local ? id=>!!source&&localStudioMediaRange(doc,id,local,rangeFor).complete : undefined} pendingCount={local?.draft.pendingCount} thumbnailScope={!props.shared ? [props.userId, props.org, props.sessionId].map(encodeURIComponent).join(':') : undefined} playing={playing} doc={doc} source={source} thumbnailSource={!modal ? readyOriginal?.url : undefined} offsetSeconds={local ? nativeOffset : readyOriginal ? doc.analysis?.source?.offsetSeconds ?? 0 : 0} focus={focus} teams={teams} readOnly={!permissions.download} localMedia={!youtubeId} onFocus={chooseRally} onPlay={modal || liveBenchPreview ? undefined : play} onDownload={download} onExport={exportAnalysis} onImport={openAnalysisImport}/> : null;
 
     const scoutingTab = tab === 'review' || tab === 'contacts';
     const infoTab = tab === 'validation' || tab === 'processing';
@@ -925,21 +1029,21 @@ export function Studio(props: StudioViewProps) {
 
         void importTracking(f); }}/>
 
-    <main className="sv-workspace"><section className="sv-main" aria-label="Vídeo e timeline"><div className="sv-stage" ref={stage} onPointerMove={showControls} onPointerDown={showControls}>{props.bench ? <><div className="sv-bench-stage-context">{doc && source ? <span>{focus ? `REPLAY · Rally ${String(activeIndex + 1).padStart(2, '0')}` : 'Vídeo completo'}</span> : null}{props.onReturnToLive ? <StudioAction label="Voltar ao vivo" icon="video" onPress={() => { playback.current?.pause(); setBenchReplay(false); props.onReturnToLive?.(); }}>Voltar ao vivo</StudioAction> : null}</div><div className="sv-bench-stage-target" ref={bindBenchStage}/></> : null}{source && doc && (iframePlayback || playbackSource) ? iframePlayback ? <YouTubeVideo key={youtubeId} id={youtubeId!} playback={playback} onReady={restorePlayback} onTick={tick} onState={setPlaying} onError={setError}/> : <><div className="sv-picture" onClick={e => { if (!correcting || !canEdit || !video.current || video.current.seeking || video.current.readyState < 2)
+    <main className="sv-workspace"><section className="sv-main" aria-label="Vídeo e timeline"><div className="sv-stage" data-live-preview={liveBenchPreview || undefined} ref={stage} onPointerMove={showControls} onPointerDown={showControls}>{props.bench ? <>{!liveBenchPreview ? <div className="sv-bench-stage-context">{doc && source ? <span>{focus ? `REPLAY · Rally ${String(activeIndex + 1).padStart(2, '0')}` : 'Vídeo completo'}</span> : null}{props.onReturnToLive ? <StudioAction label="Voltar ao vivo" icon="video" onPress={() => { playback.current?.pause(); setBenchReplay(false); props.onReturnToLive?.(); }}>Voltar ao vivo</StudioAction> : null}</div> : null}<div className="sv-bench-stage-target" ref={bindBenchStage}/></> : null}{source && doc && (iframePlayback || playbackSource) ? iframePlayback ? <YouTubeVideo key={youtubeId} id={youtubeId!} playback={playback} onReady={restorePlayback} onTick={tick} onState={setPlaying} onError={setError}/> : <><div className="sv-picture" onClick={e => { if (!correcting || !canEdit || !video.current || video.current.seeking || video.current.readyState < 2)
 
             return; const rect = e.currentTarget.getBoundingClientRect(), x = (e.clientX - rect.left - (rect.width - picture.width) / 2) / picture.width, y = (e.clientY - rect.top - (rect.height - picture.height) / 2) / picture.height; if (x < 0 || x > 1 || y < 0 || y > 1)
 
             return; draft.change({ ...doc, corrections: [...doc.corrections.filter(p => Math.abs(p.time - time) >= .025), { time, x, y }].sort((a, b) => a.time - b.time) }, 'Posição da bola'); setCorrecting(false); }}>
 
-      <video key={localMode?playbackSource:undefined} ref={bindLocalVideo} src={playbackSource} crossOrigin="anonymous" playsInline preload="metadata" onTimeUpdate={tick} onSeeked={() => { if (metadataProbe.current) reportLocalMetadata(); else tick(); }} onDurationChange={() => { if (metadataProbe.current) reportLocalMetadata(); }} onPlay={() => { reportPlaying?.(true); clockPosition.current.playing=true; setPlaying(true); }} onPlaying={() => setError(clearPlaybackFailure)} onPause={() => { reportPlaying?.(false); clockPosition.current.playing=false; setPlaying(false); setControls(true); }} onLoadedMetadata={loadedMetadata} onError={() => local ? local.mediaError() : props.shared ? props.shared.onMediaError() : setError(originalActive && readyOriginal?.kind === 'drive' ? 'Falha ao reproduzir o Drive. Confira a conexão e abra o link novamente.' : 'Falha ao reproduzir o vídeo. Escolha o arquivo novamente.')}/>
+      <video key={localMode?playbackSource:undefined} ref={bindLocalVideo} src={playbackSource} crossOrigin="anonymous" playsInline muted={playbackMuted} preload="metadata" onLoadedData={discoverPlaybackAudio} onTimeUpdate={() => { discoverPlaybackAudio(); tick(); }} onSeeked={() => { if (metadataProbe.current) reportLocalMetadata(); else tick(); }} onDurationChange={() => { if (metadataProbe.current) reportLocalMetadata(); }} onPlay={() => { reportPlaying?.(true); clockPosition.current.playing=true; setPlaying(true); }} onPlaying={() => { discoverPlaybackAudio(); setError(clearPlaybackFailure); }} onPause={() => { reportPlaying?.(false); clockPosition.current.playing=false; setPlaying(false); setControls(true); }} onLoadedMetadata={loadedMetadata} onError={() => local ? local.mediaError() : props.shared ? props.shared.onMediaError() : setError(originalActive && readyOriginal?.kind === 'drive' ? 'Falha ao reproduzir o Drive. Confira a conexão e abra o link novamente.' : 'Falha ao reproduzir o vídeo. Escolha o arquivo novamente.')}/>
       <VideoFrame video={video} source={playbackSource} width={picture.width} height={picture.height}/><VideoBufferStatus video={video} source={playbackSource}/>
 
       <VideoTrackingOverlay video={video} source={playbackSource} timeOffset={nativeOffset} cuts={doc.analysis?.cuts} positions={tracking} corrections={doc.corrections} rallies={doc.rallies} width={picture.width} height={picture.height} color={colors.primaryBg} correctionColor={colors.warning} visible={trackVisible}/>
 {correcting && canEdit ? <VideoCorrectionLens video={video} width={picture.width} height={picture.height}/> : null}</div>{correcting ? <p style={{ position: 'absolute', bottom: 20, color: 'white', background: '#0009', padding: 8 }}>Clique na posição da bola</p> : null}</> : <div className={`sv-empty${props.bench && !local && !draft.loading ? ' sv-bench-empty' : ''}`}>{local ? <><h2>Gravação ao vivo</h2><p role="status">{local.loading ? 'Abrindo trecho…' : 'Aguardando trecho da gravação.'}</p><StudioAction label="Atualizar vídeo da gravação" disabled={local.loading} onPress={()=>{playback.current?.pause();local.refresh();}}>Atualizar</StudioAction></> : draft.loading ? <p role="status">Abrindo análise sincronizada…</p> : props.bench ? <><span className="sv-bench-empty-icon" aria-hidden="true"><GoAtletaIcon name="video" size={24} color={colors.muted}/></span><h2>Vídeo do jogo</h2><StudioAction primary label="Adicionar vídeo" icon="add" disabled={syncBlocked} onPress={() => openModal('import')}>Adicionar vídeo</StudioAction></> : <><h2>Seu jogo começa aqui</h2><p>Adicione um vídeo para analisar cada rally.</p><StudioAction primary label="Adicionar vídeo" icon="add" disabled={syncBlocked} onPress={() => openModal('import')}>Adicionar vídeo</StudioAction></>}</div>}</div>
 
-      {doc && source ? <div className={`sv-player${controls || youtubeId ? '' : ' hidden-controls'}`} inert={props.bench && props.benchPreviewActive ? true : undefined} aria-hidden={props.bench && props.benchPreviewActive ? true : undefined}><PlaybackControlLayout bench={props.bench}
+      {doc && source && !liveBenchPreview ? <div className={`sv-player${controls || youtubeId ? '' : ' hidden-controls'}`}><PlaybackControlLayout bench={props.bench}
         transport={<><StudioAction label="Marcação anterior" icon="playBack" disabled={previousMark === null} onPress={() => stepToMark(-1)}/><StudioAction label="Voltar um quadro (aproximado: 1/30 s)" icon="frameBack" disabled={frameEnd <= frameStart || time <= frameStart + .001} onPress={() => stepFrame(-1)}/><StudioAction label={playing ? 'Pausar vídeo' : 'Reproduzir vídeo'} primary icon={playing ? 'pause' : 'play'} onPress={play}/><StudioAction label="Avançar um quadro (aproximado: 1/30 s)" icon="frameForward" disabled={frameEnd <= frameStart || time >= frameEnd - .001} onPress={() => stepFrame(1)}/><StudioAction label="Próxima marcação" icon="playForward" disabled={nextMark === null} onPress={() => stepToMark(1)}/><time title={videoTime(time, true)}>{videoTime(time, !props.bench)}{props.bench && doc ? ` / ${videoTime(rangeFor(doc,focus)[1])}` : ''}</time></>}
-        tools={<>{!iframePlayback && (tracking.length > 0 || doc.corrections.length > 0) ? <StudioAction label={trackVisible ? "Ocultar rastreio no vídeo" : "Mostrar rastreio no vídeo"} icon="view" active={trackVisible} onPress={() => setTrackVisible(value => !value)}/> : null}{canEdit && !props.bench ? <StudioAction label="Marcar contato" disabled={!!editor} icon="add" onPress={() => { playback.current?.pause(); openModal('contact'); }}/> : null}{canEdit && !props.bench ? <StudioAction label="Marcar ponto" icon="flag" disabled={!!editor} onPress={markPoint}/> : null}<StudioSelect compact label="Velocidade de reprodução" value={String(playbackRate)} options={[.25, .5, 1, 1.5, 2].map(n => ({ value: String(n), label: `${n}×` }))} onChange={value => { setPlaybackRate(Number(value)); clockPosition.current.rate=Number(value); if (playback.current) playback.current.playbackRate = Number(value); }}/>{props.bench && permissions.download ? <StudioAction label={focus ? 'Baixar rally selecionado' : 'Baixar vídeo completo'} icon="download" disabled={!source || !!local && !(focus ? localStudioMediaRange(doc,focus,local,rangeFor).complete : local.original)} onPress={() => { void download(focus ? [focus] : null); }}/> : null}{props.bench ? <StudioAction label="Vídeo em tela cheia" icon="expand" onPress={() => { void stage.current?.requestFullscreen?.().catch(() => setError('Não foi possível abrir a tela cheia.')); }}/> : null}</>}
+        tools={<>{!iframePlayback && audioSource === playbackSource ? <StudioAction label={playbackMuted ? "Ativar som da reprodução" : "Silenciar reprodução"} icon={playbackMuted ? "soundOff" : "sound"} onPress={() => setPlaybackMuted(value => !value)}/> : null}{!iframePlayback && (tracking.length > 0 || doc.corrections.length > 0) ? <StudioAction label={trackVisible ? "Ocultar rastreio no vídeo" : "Mostrar rastreio no vídeo"} icon="view" active={trackVisible} onPress={() => setTrackVisible(value => !value)}/> : null}{canEdit && !props.bench ? <StudioAction label="Marcar contato" disabled={!!editor} icon="add" onPress={() => { playback.current?.pause(); openModal('contact'); }}/> : null}{canEdit && !props.bench ? <StudioAction label="Marcar ponto" icon="flag" disabled={!!editor} onPress={markPoint}/> : null}<StudioSelect compact label="Velocidade de reprodução" value={String(playbackRate)} options={[.25, .5, 1, 1.5, 2].map(n => ({ value: String(n), label: `${n}×` }))} onChange={value => { setPlaybackRate(Number(value)); clockPosition.current.rate=Number(value); if (playback.current) playback.current.playbackRate = Number(value); }}/>{props.bench && permissions.download ? <StudioAction label={focus ? 'Baixar rally selecionado' : 'Baixar vídeo completo'} icon="download" disabled={!source || !!local && !(focus ? localStudioMediaRange(doc,focus,local,rangeFor).complete : local.original)} onPress={() => { void download(focus ? [focus] : null); }}/> : null}{props.bench ? <StudioAction label="Vídeo em tela cheia" icon="expand" onPress={() => { void stage.current?.requestFullscreen?.().catch(() => setError('Não foi possível abrir a tela cheia.')); }}/> : null}</>}
         timeline={<VideoTimeline bench={props.bench} rallyMetadata={local?.rallyMetadata} rangeResolver={rangeFor} sourceContacts={local?.draft.sourceContacts} availableWindow={local ? [nativeOffset,availableEnd] : undefined} doc={doc} draftContact={editor} teams={teams} time={time} focus={focus} tracking={tracking} onFocus={chooseRally} onContact={openContact} onPlay={modal ? undefined : play} onPoint={(id, position) => { if (focus) setFocus(id); seek(position); revealPoint(); }} onSeek={position => seek(position, false)}/>}
       /></div> : null}</section>{props.bench ? gallery : null}
 
@@ -1005,8 +1109,8 @@ export function Studio(props: StudioViewProps) {
 
     </main>
 
-    {(modal === 'import' || modal === 'camera-source') && permissions.importMedia && !syncBlocked ? <StudioDialog className="sv-import sv-source-dialog" title={modal === 'camera-source' ? 'Conectar câmera' : 'Adicionar vídeo'} headerActions={modal === 'camera-source' ? <StudioAction label="Voltar para fontes de vídeo" icon="chevronBack" onPress={() => { restoreSourceFocus.current = true; setModal('import'); }}>Voltar</StudioAction> : undefined} onClose={() => { if (!loadingFile.current && !processing.current) { setPreviewId(''); setModal(null); } }}>
-      {modal === 'camera-source' ? <div ref={bindCameraSource} className="sv-source-camera" role="region" aria-label="Conexão da câmera" tabIndex={-1}/> : <>
+    {(modal === 'import' || modal === 'camera-source' || modal === 'phone-source') && permissions.importMedia && !syncBlocked ? <StudioDialog className="sv-import sv-source-dialog" title={modal === 'camera-source' ? 'Conectar câmera' : modal === 'phone-source' ? 'Enviar MP4 do celular' : 'Adicionar vídeo'} headerActions={modal !== 'import' ? <StudioAction label="Voltar para fontes de vídeo" icon="chevronBack" disabled={!!job} onPress={() => { if (!loadingFile.current) { restoreSourceFocus.current = modal === 'camera-source' ? 'camera' : 'phone'; setError(''); setModal('import'); } }}>Voltar</StudioAction> : undefined} onClose={() => { if (!loadingFile.current && !processing.current) { setPreviewId(''); setModal(null); } }}>
+      {modal === 'camera-source' ? <div ref={bindCameraSource} className="sv-source-camera" role="region" aria-label="Conexão da câmera" tabIndex={-1}/> : modal === 'phone-source' ? <PhoneVideoReception key={phonePointerKey} scope={{ org: props.org, classId: props.classId, sessionId: props.sessionId }} onReceive={incoming => loadFile(incoming.file, incoming)} busy={!!job} error={error} clearError={() => setError('')}/> : <>
       <VideoLinkField value={youtubeLink} disabled={!!job || driveBusy} valid={!!youtubeDuration} error={!!error} onChange={value => { setYoutubeLink(value); setPreviewId(''); setYoutubeDuration(0); setError(''); }} onVerify={() => { try { if (linkKind !== 'youtube') throw new Error('Use um link do YouTube ou Google Drive.'); const id = youtubeVideoId(youtubeLink); playback.current?.pause(); setYoutubeDuration(0); setYoutubeAttempt(n => n + 1); setPreviewId(id); setError(''); } catch (failure) { setError((failure as Error).message); } }}/>
       <ConnectedVideoSources youtubeId={youtubeId} originalName={readyOriginal?.media.name} onRemove={kind => {
         if (!doc) return;
@@ -1024,10 +1128,17 @@ export function Studio(props: StudioViewProps) {
         {previewId ? <><YouTubeVideo key={`${previewId}:${youtubeAttempt}`} id={previewId} onMetadata={duration => { if (duration > 86400) setError('Escolha um vídeo de até 24 horas.'); else setYoutubeDuration(duration); }} onError={message => { setYoutubeDuration(0); setError(message); }}/><StudioAction label="Usar vídeo do YouTube" primary disabled={!youtubeDuration || !!job} onPress={() => { void openYouTube(); }}>Usar vídeo</StudioAction><small>Links não listados podem ser repassados fora do Go Atleta.</small></> : null}
       </>}
       {job ? <p role="status">{job}</p> : null}{error ? <p className="sv-alert" role="alert">{error}</p> : null}
-      <div className={`sv-source-file${props.onCameraSourceTarget ? ' sv-source-options' : ''}`}>{!props.onCameraSourceTarget ? <span>ou</span> : null}<StudioAction label="Escolher arquivo de vídeo" icon="add" disabled={!!job || driveBusy} onPress={() => fileInput.current?.click()}>Escolher arquivo</StudioAction>{props.onCameraSourceTarget ? <span ref={cameraSourceTrigger} className="sv-source-camera-trigger"><StudioAction label="Conectar câmera" icon="video" disabled={!!job || driveBusy} onPress={() => {
-        if (!props.onCameraSourceTarget || !permissions.importMedia || syncBlocked || job || driveBusy || loadingFile.current || processing.current) return;
-        setPreviewId(''); setModal('camera-source');
-      }}>Conectar câmera</StudioAction></span> : null}</div>
+      <div className="sv-source-file sv-source-options">
+        {props.onCameraSourceTarget ? <span ref={cameraSourceTrigger} className="sv-source-camera-trigger"><StudioAction label="Conectar câmera" icon="video" disabled={!!job || driveBusy} onPress={() => {
+          if (!props.onCameraSourceTarget || !permissions.importMedia || syncBlocked || job || driveBusy || loadingFile.current || processing.current) return;
+          setPreviewId(''); setError(''); setModal('camera-source');
+        }}>Conectar câmera</StudioAction></span> : null}
+        <StudioAction label="Escolher arquivo de vídeo" icon="add" disabled={!!job || driveBusy} onPress={() => fileInput.current?.click()}>Escolher arquivo</StudioAction>
+        <span ref={phoneSourceTrigger} className="sv-source-phone-trigger"><StudioAction label="Enviar MP4 do celular" icon="qrCode" disabled={!!job || driveBusy} onPress={() => {
+          if (loadingFile.current || processing.current) return;
+          setPreviewId(''); setError(''); setModal('phone-source');
+        }}>Enviar MP4 do celular</StudioAction></span>
+      </div>
       {doc && linkKind !== 'drive' ? <details className="sv-disclosure"><summary>Vídeo atual e ferramentas</summary><p className="sv-media-meta">{doc.media.name}<span>{videoTime(doc.media.duration)} · {doc.rallies.length} rallies · {doc.contacts.length} contatos</span></p>
         {!youtubeId ? <div className="sv-wrap"><StudioAction label="Automático" active={automatic} disabled={!!job || !canEdit} onPress={() => setAutomatic(true)}>Análise automática</StudioAction><StudioAction label="Manual" active={!automatic} disabled={!!job} onPress={() => { setAutomatic(false); setSuggestion(null); }}>Manual</StudioAction></div> : null}
               {automatic && doc && !youtubeId ? <>

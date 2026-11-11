@@ -802,3 +802,185 @@ foram reconciliados com a bancada atual. Inter local na câmera e Assistente no
 menu eliminam dependência de fonte instalada e sobreposição do launcher.
 Contratos, achados, evidência e pendências físicas ficam no
 [relatório da rodada](SCOUTING_REVISAO_UI_UX_2026-11-06.md). Sem publicação.
+
+### Lista de rallies e escolha por posição — 10/11/2026
+
+Na conferência do site, os topos de seis cartões de 61 px ficavam a cerca de
+22 px uns dos outros na lista compacta de 126 px de altura. O ajuste local
+deixa cada linha assumir a altura do conteúdo e mantém a rolagem na galeria.
+Passaram 14 testes existentes da galeria. Em uma página local de teste com
+o CSS do Estúdio e seis cartões sintéticos, as linhas mediram 61 px, os
+topos ficaram a 69 px de distância e a rolagem mostrou o último cartão
+inteiro.
+
+Na quadra do Estúdio, tocar no `+` de uma zona vazia abre o seletor na posição
+tocada. O menu chama a configuração existente de **Editar elenco e camisas**.
+Com o número preenchido, a camisa aparece no círculo e o nome do atleta fica
+abaixo. Passaram 55 testes focados da quadra e a verificação de tipos.
+
+Em produção, numa análise reservada para teste, o relógio do vídeo marcou
+05:29 na primeira seleção e 10:37 no último ponto, um intervalo de 5 min 08 s.
+Foram registrados seis rallies e sete contatos de três atletas. O registro
+oficial indicou **Salvo**, e a consulta separada ao histórico confirmou os
+sete contatos. A galeria passou de dois para oito recortes e o placar de 3 × 0
+para 7 × 2.
+
+Durante a gravação iniciada pelo usuário, a reprodução de um rally com mais de
+um contato avançou de 06:54 a 06:59. **Voltar ao vivo** retornou à imagem atual.
+A gravação seguiu em andamento ao fim da conferência.
+
+### Ajustes do Estúdio conferidos no localhost — 10/11/2026
+
+O Estúdio e o coletor em `localhost:8081` usaram atletas e câmera sintéticos,
+backend em memória e rede externa bloqueada. A posição Z1 mostrou a camisa 7.
+Limpar o campo de código liberou a seleção manual, e selecionar o convidado
+bloqueou o campo de código. O convidado pode ser escolhido entre os contatos
+recentes da análise e é identificado só pelo nome, sem camisa nem matrícula.
+O ponto salvo no ensaio incluiu o nome do convidado e `studentId: null`.
+O SQL existente para convidado foi conferido em PGlite. A entrada única
+**Elenco** em formatos sem quadra foi conferida nos testes da bancada.
+
+Com WebRTC sintético, a prévia ao vivo ocultou o relógio e o Play da revisão
+e manteve a galeria acessível. O ensaio abriu um replay, acionou o controle de
+som e confirmou `muted=true` no elemento de vídeo. **Voltar ao vivo** trouxe
+de volta a prévia. Um segundo rally mostrou **Aguardando vídeo** até a chegada
+do trecho e depois exibiu a miniatura. A indicação **Sem áudio** na prévia
+nativa foi coberta pelos testes focados. O ensaio de navegador usou uma
+câmera sintética, e a conferência dessa indicação em aparelho físico segue
+pendente.
+
+Passaram as rodadas focadas de galeria (15 testes), bancada (17), convidados
+(86) e reprodução (142), com sobreposição entre as suítes. Também passaram
+as verificações de tipos, lint e escopo. Os ajustes seguem locais e aguardam
+publicação.
+
+### Opções unificadas no cabeçalho — 10/11/2026
+
+No workspace, **Opções** reúne as ações nos grupos **Vídeo**, **Rallies** e
+**Análise**. Os gatilhos Ferramentas do vídeo e Opções dos rallies deixam a
+galeria; filtros, apresentação e controles de reprodução permanecem próximos
+ao conteúdo. O Estúdio independente mantém seus menus existentes.
+
+As ações acompanham a fonte selecionada entre gravação ao vivo e vídeo
+importado, mesmo com ambos os estúdios montados. Abrir ferramentas ou selecionar
+rallies preserva a coleta em edição, a gravação e os rascunhos. Continuam as
+guardas de leitura, conflito, contato em edição e cobertura do original/recorte;
+cancelar a seleção limpa os rallies escolhidos.
+
+Passaram 106 testes em cinco suítes focadas, tipos e lint nesta rodada local.
+No navegador sintético em `localhost:8081`, a conferência desktop abriu as
+ferramentas e ativou/cancelou a seleção pelo menu, mantendo o placar 1 × 0 e o
+contato da Bia em edição. Essa evidência não cobre navegador autenticado,
+dispositivo físico nem publicação; a conferência visual mobile permanece pendente.
+
+### Espaçamento da escalação — 10/11/2026
+
+O campo de busca em **Atletas em quadra** ocupa uma linha própria, preservando
+a altura do input. A lista usa a altura do conteúdo até seu limite de rolagem,
+sem crescer sobre o campo. Mantidos seleção, rascunho e salvamento existentes.
+
+Conferido no localhost sintético desktop: busca inteira visível, lista abaixo
+e filtro por nome. Passaram os 17 testes da bancada. Ajuste apenas local.
+
+Conferência posterior no aplicativo completo: o servidor sintético que ocupava
+8081 foi encerrado e o Expo/Node 24 foi iniciado em modo de desenvolvimento.
+A sessão local estava em Rede Esportes Pinhais; o seletor existente no perfil
+permitiu escolher Gustavo Workspace, onde a análise do ElCartel foi aberta.
+O modal real mostrou os 21 atletas, busca separada da lista e filtro por nome.
+Placar 7 × 2, registro Salvo e escalação preservados; sem iniciar câmera, salvar
+atletas ou publicar. A página QA não é a rota normal do aplicativo.
+
+Nas listas de elenco/escalação com nome completo, hover e foco não abrem
+um segundo balão com o mesmo nome. Cartões de nomes abreviados preservam
+a ajuda existente e todos mantêm o nome acessível completo. Vinte testes
+focados (bancada e tooltips) passaram; foco sem duplicação conferido no
+modal real do localhost. Sem seleção/salvamento de atletas nesta revisão.
+
+### Posições e atletas disponíveis — 10/11/2026
+
+**Atletas em quadra** organiza as zonas em duas linhas, Z4/Z3/Z2 e Z5/Z6/Z1.
+Selecionar um atleta ocupa a zona ativa e o retira da lista disponível, sem
+avançar automaticamente. Escolher outro substitui o atual, que retorna à
+lista; o × de cada zona remove seu atleta e seleciona essa posição.
+A busca continua por nome/camisa entre os disponíveis. Alvos separados para
+seleção e remoção mantêm rótulos acessíveis e bloqueio durante salvamento.
+Rascunho, descarte e salvamento explícito permanecem no contrato local existente.
+
+Conferido no aplicativo real autenticado em localhost:8081, viewport 1346×884:
+atribuição, substituição e remoção por Enter numa zona vazia, restaurada ao
+final. Os quatro atletas do rascunho do usuário e sua zona ativa foram
+preservados, sem salvar nem descartar. Passaram 22 testes focados de bancada/
+tooltip e typecheck:app. Escopo desktop local; sem publicação.
+
+As posições e a lista desse modal apresentam a camisa antes do nome, como
+**7 · Ana** / **7 · Ana Martins**, sem repetir o número em outro badge.
+A fonte continua sendo o elenco local da análise; atleta sem camisa definida
+aparece só pelo nome. A análise real conferida está sem números cadastrados:
+seu rascunho foi mantido e nenhum número foi atribuído pelo agente.
+Os 22 testes focados passaram novamente, incluindo camisa na posição/lista,
+ausência de badge duplicada e o caso sem camisa. Diff sem erros de formato.
+
+### Camisa editável no mesmo modal — 10/11/2026
+
+O atleta da posição selecionada oferece **Editar camisa**; atletas disponíveis
+possuem lápis ao lado do nome. Ambos abrem o campo e **Salvar camisa** dentro
+de **Atletas em quadra**. A confirmação atualiza a camisa e mantém o modal e
+a escalação em edição. Cancelar deixa a preferência anterior. É possível limpar
+a camisa; valores aceitos continuam 0–99, com rejeição de duplicados normalizados.
+
+A escrita reutiliza `useScoutingRoster.save` por usuário/organização/análise no
+aparelho, preservando os participantes do elenco. Se ainda não configurado,
+parte dos atletas já disponíveis na análise com camisa vazia. Não altera
+cadastros, matrículas, registros históricos nem a escalação. Guardas da coleta
+continuam aplicáveis. Falha conserva o valor para tentar novamente; envio
+pendente bloqueia repetição, troca/remoção de posições e fechamento.
+
+Passaram 77 testes focados em quatro suítes (bancada, coletor, elenco e tooltip).
+Tipos e org-scope aprovados. Smoke autenticado real no localhost em 1346×884:
+entrada pela lista e pelo atleta em quadra, digitação, habilitação de salvar e
+cancelamento. Nenhuma camisa de teste foi persistida; a escrita/erro/retry foi
+conferida por testes com mocks. O rascunho de três posições foi reposto após o
+refresh de desenvolvimento, sem salvar; editor ficou aberto com campo vazio.
+Escopo apenas local, sem publicação. Mobile não foi conferido nesta rodada.
+
+### Camisa direta no card compacto — 10/11/2026
+
+Esta revisão substitui o editor separado descrito acima. O card segue o desenho
+do usuário: zona acima do nome à esquerda, camisa à direita e × no canto superior.
+Após nova solicitação de densidade, usa altura útil de 44 px (46 px com borda),
+com campo e alvo de remoção sem sobreposição. O fundo visível da camisa tem
+32 px de altura e o input mantém área de foco/toque de 44 px; é um controle
+operacional inline, compacto por solicitação explícita, sem mudar o campo de busca.
+Na web, a camisa tem setas nativas visíveis e intervalo de 0 a 99. O modal permite
+até 520 px de largura para manter nomes legíveis; continua limitado ao viewport.
+São duas linhas de três posições no desktop; em largura estreita, os cards
+refluem para duas colunas, mantendo a ordem das zonas. A lista também permite
+digitar a camisa junto do atleta.
+
+Um único **Salvar em quadra** confirma o rascunho. As camisas alteradas são
+validadas em conjunto e gravadas em uma chamada do elenco local, permitindo
+trocas 7↔11 e mantendo os demais atletas. Depois, se necessário, são salvas
+as posições. Essas preferências têm escritas separadas: se a segunda falhar,
+o rascunho permanece e a tentativa seguinte salva somente o que falta.
+Fechar/reabrir preserva o draft; descartar restaura camisas e posições.
+Duplicados, falha de gravação e envios repetidos continuam protegidos.
+
+Passaram 79 testes focados em quatro suítes, tipos, org-scope e diff-check.
+No aplicativo real autenticado em 1346×884, foram conferidos os cards compactos,
+nomes, digitação direta de dois dígitos e bloqueio de números repetidos.
+Valores de teste foram limpos sem gravação; as três posições do rascunho foram
+repostas após Fast Refresh. Salvar/retry/isolamento foram cobertos pelos testes,
+sem atribuir camisas fictícias aos atletas reais. Apenas localhost; mobile não
+conferido naquela rodada.
+
+Após o ajuste ao desenho, passaram novamente os 23 testes da bancada e tipos.
+No localhost real em 1346×884, foram conferidos 7→8→7 por teclado, limites 0/99,
+remoção pelo × e retorno à posição, sem sobreposição entre campo e alvo de 44 px.
+O reflow foi inspecionado em 390×844, com retorno à largura original. Números de
+teste foram limpos e o rascunho mantido sem salvar. Validação de layout web;
+interação nativa Android/iOS não foi exercitada. Continua apenas local.
+
+A redução posterior de 62 para 46 px foi conferida no mesmo localhost em
+1346×884: três cards por linha, camisa visível de 32 px, setas funcionando e
+alvos sem sobreposição. O número 23 já digitado pelo usuário foi preservado,
+sem salvar o rascunho. Passaram os 23 testes da bancada; ciclo visual local.

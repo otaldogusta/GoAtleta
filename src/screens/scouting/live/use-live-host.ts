@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { calibrateLiveClock, createLivePoint, parseLiveClockMessage, resolveLiveCaptureTime, resolveLiveVideoTime, type LiveCaptureStamp, type LiveClockCalibration, type LiveClockMessage, type LivePoint } from '../../../core/scouting-live';
-import { closeLiveRoom, createLiveRoom, getLiveServiceConfig, heartbeatLiveRoom, pollLiveSignals, sendLiveSignal, type LiveRoom, type LiveServiceConfig, type LiveSignal } from './live-api';
+import { closeLiveRoom, createLiveRoom, extendNativeLiveRoom, getLiveServiceConfig, heartbeatLiveRoom, liveHostedStudio, pollLiveSignals, sendLiveSignal, type LiveRoom, type LiveServiceConfig, type LiveSignal } from './live-api';
 import { deleteLiveHostSession, loadLiveHostSession, loadLiveHostSessions, parseLiveHostSession, restoreLiveHostSession, saveLiveHostSession, saveLiveHostThumbnail, type LiveHostScope, type LiveHostSession, type LiveCameraOperation as Operation } from './live-storage';
 import { measureAsync } from '../../../observability/perf';
 import { captureLiveThumbnail } from './live-thumbnail';
 import { useLiveVideos } from './use-live-videos';
 import { downloadVideoBlob } from '../video/video-media.web';
 import { loadVideoBlob, loadVideoStatus } from './live-video-storage';
+import { checkNativeOriginalReadiness, loadNativeOriginalBlob } from './native-live-original-storage';
 import type { LiveHostBridgeApi, LiveHostSnapshot, LiveRecordingReference } from './live-scouting-contract';
 
-type Recording = { recordingId: string; startEpochMs: number; state: 'recording' | 'paused' | 'stopped' | 'error'; mimeType: string; durationMs?:number };
+type Recording = { recordingId: string; startEpochMs: number; state: 'recording' | 'paused' | 'stopped' | 'error'; mimeType: string; durationMs?:number; originalTransfer?:'progressive-v1' };
 type CameraState = 'off'|'preview'|'recording'|'paused'|'finalizing'|'error';
+type NativeStartBlock = 'thermal'|'lens'|null;
 type CameraControl = 'pause-recording'|'resume-recording'|'camera-on'|'camera-off'|'new-recording';
-export type LiveCaptureInfo = {label:string;width?:number;height?:number;frameRate?:number;zoom?:number};
+export type LiveCaptureInfo = {label:string;width?:number;height?:number;frameRate?:number;zoom?:number;source?:'android-pilot'};
 export function parseLiveCaptureInfo(value:unknown):LiveCaptureInfo|null {
     if(!value||typeof value!=='object')return null;
     const v=value as Record<string,unknown>;
@@ -35,7 +37,7 @@ export function parseLiveHostDataMessage(raw:unknown):Record<string,unknown>|nul
     let value:unknown;try{value=JSON.parse(raw);}catch{return null;}
     if(!value||typeof value!=='object'||Array.isArray(value))return null;
     const message=value as Record<string,unknown>;
-    return bytes<=16384||message.kind==='video-parts'?message:null;
+    return bytes<=16384||message.kind==='video-parts'||message.kind==='native-original-data'?message:null;
 }
 
 /** Local quality measurements only; never log pairing capabilities or arbitrary payloads. */
@@ -86,12 +88,14 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
     const startRequest=useRef<{roomId:string;at:number}|null>(null);
     const [cameraState,setCameraState]=useState<CameraState|null>(null),[controlPending,setControlPending]=useState<CameraControl|null>(null);
     const [captureInfo,setCaptureInfo]=useState<LiveCaptureInfo|null>(null);
-    const camera=useRef<{state:CameraState;version:number}|null>(null);
+    const [nativeStartBlock,setNativeStartBlock]=useState<NativeStartBlock>(null);
+    const camera=useRef<{state:CameraState;version:number;startBlock:NativeStartBlock}|null>(null);
     const controlRequest=useRef<{kind:CameraControl;at:number;recordingId?:string}|null>(null),retired=useRef(new Set<string>());
     const closingRoom=useRef(false);
     const finishControl=()=>{controlRequest.current=null;setControlPending(null);};
     const alive=useRef(true), epoch=useRef(0), peer=useRef<RTCPeerConnection|null>(null), channel=useRef<RTCDataChannel|null>(null), video=useRef<HTMLVideoElement|null>(null);
     const currentRoom=useRef<LiveRoom|null>(null), currentSession=useRef<LiveHostSession|null>(null), currentRecording=useRef<Recording|null>(null), writing=useRef(false);
+    const nativeRoomExtension=useRef<LiveRoom|null>(null);
     const clock=useRef<LiveClockMessage|null>(null), calibration=useRef<LiveClockCalibration|null>(null), frame=useRef<{hostEpochMs:number;captureHostEpochMs?:number}>({hostEpochMs:0});
     const playoutDelay=useRef<number|undefined>(undefined), pending=useRef(new Map<string,Operation>()), pings=useRef(new Map<string,number>());
     const cancel=useRef<AbortController|null>(null), generation=useRef(0), frameHandle=useRef<number|null>(null), sessionReady=useRef(false);
@@ -147,6 +151,20 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         if(!known||deletingSessions.current.has(known.id))return null;
         const stored=await loadLiveHostSession(scope,known.id);
         return stored?.recordingId===recordingId&&stored.ended&&!stored.deletedAt&&!deletingSessions.current.has(stored.id)?stored:null;
+    },resolveNativeSession:async(recordingId)=>{
+        const room=currentRoom.current,owner=channel.current,token=epoch.current;
+        const permitted=()=>alive.current&&renderScopeIdentity.current===scopeIdentity&&epoch.current===token
+            &&room&&currentRoom.current===room&&owner?.readyState==='open'&&channel.current===owner
+            &&currentRecording.current?.recordingId===recordingId&&currentRecording.current.originalTransfer==='progressive-v1'
+            &&currentRecording.current.state!=='error';
+        if(!permitted()||!await historyLoaded.current)return null;
+        await mutations.current.catch(()=>undefined);
+        if(!permitted())return null;
+        const known=currentSession.current;
+        if(known?.recordingId!==recordingId||deletingSessions.current.has(known.id))return null;
+        const stored=await loadLiveHostSession(scope,known.id);
+        return room&&permitted()&&stored?.recordingId===recordingId&&!stored.deletedAt&&stored.recordingState!=='error'
+            &&currentSession.current?.id===known.id&&!deletingSessions.current.has(known.id)?{session:stored,roomId:room.roomId}:null;
     }});
     const videoStatuses=useRef(videos.videoStatuses);
     useLayoutEffect(()=>{videoStatuses.current=videos.videoStatuses;});
@@ -169,11 +187,18 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         const canceled=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;});
         const abort=()=>rejectAbort(new Error(timedOut?'O serviço local demorou para responder. Verifique novamente.':'Verificação cancelada.'));
         controller.signal.addEventListener('abort',abort,{once:true});
-        const timeout=setTimeout(()=>{timedOut=true;controller.abort();},6000);
+        const timeout=setTimeout(()=>{timedOut=true;controller.abort();},liveHostedStudio()?45000:6000);
         const isCurrent=()=>alive.current&&epoch.current===token&&configRequest.current===controller;
         try{
             const result=await measureAsync('screen.scoutingLive.load.config',()=>Promise.race([getLiveServiceConfig(controller.signal),canceled]));
-            if(isCurrent()&&!controller.signal.aborted){setConfig(result);if(reportResult)setServiceCheck(result.cameraReady?'Serviço disponível · câmera pronta.':'Serviço disponível · configure o HTTPS para conectar o celular.');}
+            if(!isCurrent()||controller.signal.aborted)return;
+            setConfig(result);
+            if(!reportResult)return;
+            if(!result.cameraReady){setServiceCheck('Serviço disponível · configure o HTTPS para conectar o celular.');return;}
+            const storage=await Promise.race([checkNativeOriginalReadiness(),canceled]);
+            if(isCurrent()&&!controller.signal.aborted)setServiceCheck(storage.state==='unavailable'
+                ?'Serviço disponível. O armazenamento para o original está indisponível neste navegador.'
+                :'Serviço e armazenamento acessíveis. Para jogos longos, use uma janela normal e confira o espaço livre.');
         }catch(failure){if(reportResult&&isCurrent()&&(timedOut||!controller.signal.aborted))setError(friendly(failure));}
         finally{clearTimeout(timeout);controller.signal.removeEventListener('abort',abort);if(configRequest.current===controller){configRequest.current=null;if(alive.current&&epoch.current===token)setCheckingConfig(false);}}
     },[]);
@@ -182,8 +207,8 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         alive.current=true;const token=++epoch.current;
         const [userId,org,classId]=JSON.parse(scopeIdentity) as [string,string,string];
         const retained=currentRoom.current,replaying=!!retained&&!!cancel.current?.signal.aborted&&!closingRoom.current&&bridgeScopeIdentity.current===scopeIdentity;
-        // Discover local capabilities without reporting a failed user action.
-        void Promise.resolve().then(()=>{if(alive.current&&epoch.current===token)return refreshConfig({reportResult:false});});
+        // The public site requests browser access only after the user acts.
+        if (!liveHostedStudio()) void Promise.resolve().then(()=>{if(alive.current&&epoch.current===token)return refreshConfig({reportResult:false});});
         historyLoaded.current=measureAsync('screen.scoutingLive.load.history',async()=>{
             if(replaying)await mutations.current.catch(()=>undefined);
             return loadLiveHostSessions({userId,org,classId},true);
@@ -232,7 +257,8 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         const previous=currentRecording.current?.recordingId===raw.recordingId?currentRecording.current:null;
         const state=(raw.state==='recording'||raw.state==='paused')&&(existing?.ended||previous&&(previous.state==='stopped'||previous.state==='error'))?existing?.recordingState??previous?.state??'stopped':raw.state;
         const durationMs=Number.isFinite(raw.durationMs)&&raw.durationMs!>=0&&raw.durationMs!<=86400000?raw.durationMs:existing?.durationMs??(clock.current?.recordingId===raw.recordingId?clock.current.timeMs:undefined)??previous?.durationMs;
-        const next:Recording={recordingId:raw.recordingId,startEpochMs:raw.startEpochMs,state,mimeType:raw.mimeType.slice(0,120),...(durationMs!==undefined?{durationMs}:{})};
+        const nativeOriginal=raw.originalTransfer==='progressive-v1'||previous?.originalTransfer==='progressive-v1';
+        const next:Recording={recordingId:raw.recordingId,startEpochMs:raw.startEpochMs,state,mimeType:raw.mimeType.slice(0,120),...(durationMs!==undefined?{durationMs}:{}),...(nativeOriginal?{originalTransfer:'progressive-v1'}:{})};
         currentRecording.current=next;setRecording(next);
         if(previous?.state!==next.state){clock.current=null;frame.current={hostEpochMs:0};setPreviewTiming(null);}
         startRequest.current=null;setStartPending(false);
@@ -246,12 +272,25 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
             sessionReady.current=false;
             const at=new Date().toISOString();
             const initial:LiveHostSession=existing?{...existing,...finalMetadata}:{version:1,id:uid(),scope:{...scope},recordingId:next.recordingId,createdAt:at,updatedAt:at,setNumber:1,className,points:[],gaps:[],mimeType:next.mimeType,ended:false,...finalMetadata,delivery:{pending:[],acknowledged:[]}};
-            try{await updateSession(()=>owner===channel.current&&!retired.current.has(next.recordingId)?initial:null);if(alive.current&&currentRecording.current?.recordingId===next.recordingId)sessionReady.current=true;}catch(failure){if(alive.current)setError(friendly(failure));}
+            try{await updateSession(current=>{
+                if(owner!==channel.current||retired.current.has(next.recordingId))return null;
+                if(current?.recordingId!==next.recordingId)return initial;
+                return terminal?{...current,...finalMetadata,updatedAt:new Date().toISOString()}:null;
+            });if(alive.current&&currentRecording.current?.recordingId===next.recordingId)sessionReady.current=true;}catch(failure){if(alive.current)setError(friendly(failure));}
         }else if(terminal){
             try{await updateSession(current=>current?.recordingId===next.recordingId?{...current,...finalMetadata,updatedAt:new Date().toISOString()}:null);}catch(failure){if(alive.current)setError(friendly(failure));}
         }else sessionReady.current=true;
         if(alive.current&&currentRecording.current?.recordingId===next.recordingId)sendPending();
-        if(alive.current&&next.state==='stopped'&&currentSession.current?.recordingId===next.recordingId&&currentSession.current.ended)videos.requestVideo(currentSession.current);
+        const durable=currentSession.current,room=currentRoom.current,signal=cancel.current?.signal;
+        if(alive.current&&epoch.current===token&&owner===channel.current&&durable?.recordingId===next.recordingId){
+            if(nativeOriginal&&room&&signal&&!signal.aborted&&next.state!=='error'){
+                if(nativeRoomExtension.current!==room){
+                    nativeRoomExtension.current=room;
+                    void extendNativeLiveRoom(room,signal).catch(()=>{if(nativeRoomExtension.current===room)nativeRoomExtension.current=null;});
+                }
+                videos.requestNativeOriginal(durable);
+            }else if(next.state==='stopped'&&durable.ended)videos.requestVideo(durable);
+        }
         if(next.state==='error')setError('O celular informou falha na gravação. Confira o armazenamento no aparelho.');
     };
     const cameraCommand=(kind:CameraControl)=>{
@@ -266,18 +305,25 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
     const newRecording=async()=>{
         const previous=currentSession.current;
         if(writing.current||!previous?.ended||previous.recordingState!=='stopped'||pending.current.size){send({kind:'new-recording-blocked',roomId:currentRoom.current?.roomId});return;}
+        if(currentRecording.current?.originalTransfer==='progressive-v1'&&videoStatuses.current[previous.id]?.state!=='ready'){
+            setError('Aguarde a cópia do original antes de iniciar outra gravação.');return;
+        }
         cameraCommand('new-recording');
     };
     const handleMessage=(event:MessageEvent)=>{
         const value=parseLiveHostDataMessage(event.data);if(!value)return;
-        if(typeof value.kind==='string'&&value.kind.startsWith('video-')){videos.receiveVideoMessage(value);return;}
+        if(typeof value.kind==='string'&&(value.kind.startsWith('video-')||value.kind.startsWith('native-original-'))){videos.receiveVideoMessage(value);return;}
         if(value.kind==='camera-diagnostics'&&value.roomId===currentRoom.current?.roomId){const report=parseLiveCameraDiagnostics(value);if(report&&typeof __DEV__!=='undefined'&&__DEV__)console.info('[scouting-camera-quality]',JSON.stringify(report));return;}
         if(value.kind==='camera-control-error'&&value.roomId===currentRoom.current?.roomId&&value.command===controlRequest.current?.kind){finishControl();setError('O celular não concluiu o comando. Confira a tela do aparelho.');return;}
         if(value.kind==='new-recording-request'&&value.roomId===currentRoom.current?.roomId&&value.recordingId===currentSession.current?.recordingId){void newRecording();return;}
         if(value.kind==='camera-status'){
             if(value.roomId!==currentRoom.current?.roomId||value.controlsVersion!==2||!['off','preview','recording','paused','finalizing','error'].includes(String(value.state)))return;
-            const state=value.state as CameraState;camera.current={state,version:2};setCameraState(state);
-            setCaptureInfo(state==='off'?null:parseLiveCaptureInfo(value.capture));
+            const state=value.state as CameraState;
+            const startBlock=value.thermalBlocked===true?'thermal':value.readyToRecord===false?'lens':null;
+            camera.current={state,version:2,startBlock};setCameraState(state);setNativeStartBlock(startBlock);
+            const capture=state==='off'?null:parseLiveCaptureInfo(value.capture);
+            const androidPilot=typeof value.readyToRecord==='boolean'&&typeof value.thermalBlocked==='boolean';
+            setCaptureInfo(capture&&androidPilot?{...capture,source:'android-pilot'}:capture);
             const request=controlRequest.current;
             if(request?.kind==='new-recording'&&(state==='preview'||state==='off')&&!value.recordingId){
                 const previous=currentSession.current;
@@ -316,7 +362,12 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
     };
     const bindChannel=(dc:RTCDataChannel,isCurrent:()=>boolean,onOpen:()=>boolean)=>{
         channel.current=dc;videos.bindVideoChannel();dc.onmessage=event=>{if(isCurrent()&&channel.current===dc)handleMessage(event);};
-        dc.onopen=()=>{if(isCurrent()&&channel.current===dc&&onOpen())sendPending();};
+        dc.onopen=()=>{
+            if(!isCurrent()||channel.current!==dc)return;
+            const known=currentSession.current,source=currentRecording.current;
+            if(known&&source?.recordingId===known.recordingId&&source.originalTransfer==='progressive-v1')videos.requestNativeOriginal(known);
+            if(onOpen())sendPending();
+        };
         dc.onclose=()=>{if(isCurrent()&&channel.current===dc){videos.stopVideoChannel();setConnection('disconnected');setCaptureInfo(null);}};
     };
     const syncPreview=useCallback(()=>{
@@ -356,7 +407,7 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         if(resume){
             videos.stopVideoChannel();channel.current=null;peer.current=null;generation.current=0;
             clock.current=null;clockOwner.current=null;lastSegment.current=null;calibration.current=null;frame.current={hostEpochMs:0};playoutDelay.current=undefined;pings.current.clear();sessionReady.current=false;
-            setPreviewTiming(null);setStream(null);camera.current=null;setCameraState(null);setCaptureInfo(null);setBusy(false);
+            setPreviewTiming(null);setStream(null);camera.current=null;setCameraState(null);setNativeStartBlock(null);setCaptureInfo(null);setBusy(false);
             setConnection(connectionRef.current==='waiting'?'waiting':'disconnected');
         }
         let cursor=0;
@@ -416,7 +467,7 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         try{
             const created=await createLiveRoom(abort.signal);if(!alive.current||abort.signal.aborted||cancel.current!==abort){return;}
             videos.stopVideoChannel();generation.current=0;clock.current=null;calibration.current=null;frame.current={hostEpochMs:0};sessionReady.current=false;
-            retired.current.clear();camera.current=null;setCameraState(null);setCaptureInfo(null);finishControl();
+            retired.current.clear();camera.current=null;setCameraState(null);setNativeStartBlock(null);setCaptureInfo(null);finishControl();
             stopRequest.current=null;startRequest.current=null;setStopPending(false);setStartPending(false);
             currentSession.current=null;currentRecording.current=null;pending.current.clear();setPendingCopies(0);setSession(null);setRecording(null);setStream(null);
             currentRoom.current=created;setRoom(created);setConnection('waiting');attachRoomTransport(created,abort);
@@ -450,7 +501,7 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
     };
     const startRecording=()=>{
         const activeRoom=currentRoom.current;
-        if(startRequest.current||controlRequest.current||!activeRoom||currentRecording.current||currentSession.current||connection!=='connected'||camera.current&&camera.current.state!=='preview')return;
+        if(startRequest.current||controlRequest.current||!activeRoom||currentRecording.current||currentSession.current||connection!=='connected'||camera.current&&(camera.current.state!=='preview'||camera.current.startBlock))return;
         if(!send({kind:'start-recording',roomId:activeRoom.roomId})){setError('Sem conexão com o celular. Reconecte para iniciar a gravação.');return;}
         startRequest.current={roomId:activeRoom.roomId,at:Date.now()};setStartPending(true);setError('');
     };
@@ -466,7 +517,8 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         try{await closeLiveRoom(current,controller.signal);videos.stopVideoChannel();cancel.current?.abort();channel.current?.close();peer.current?.close();currentRoom.current=null;setRoom(null);setConnection('closed');setStream(null);setCaptureInfo(null);return true;}
         catch(failure){setError(friendly(failure));return false;}finally{closingRoom.current=false;setBusy(false);}
     };
-    const canNewRecording=!!session?.ended&&session.recordingState==='stopped'&&!pendingCopies&&!saving&&!busy&&!startPending&&!stopPending&&!controlPending&&connection==='connected';
+    const canNewRecording=!!session?.ended&&session.recordingState==='stopped'&&!pendingCopies&&!saving&&!busy&&!startPending&&!stopPending&&!controlPending&&connection==='connected'
+        &&(recording?.originalTransfer!=='progressive-v1'||videos.videoStatuses[session.id]?.state==='ready');
     const isInactiveSession=(candidate:LiveHostSession)=>candidate.scope.userId===scope.userId&&candidate.scope.org===scope.org&&candidate.scope.classId===scope.classId
         &&!candidate.deletedAt&&!deletingSessions.current.has(candidate.id)&&videoStatuses.current[candidate.id]?.state!=='receiving'
         &&!(currentRoom.current&&(currentSession.current?.id===candidate.id||currentRecording.current?.recordingId===candidate.recordingId));
@@ -514,7 +566,9 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         finally{writing.current=false;if(alive.current&&epoch.current===token)setSaving(false);}
     };
     const requestSavedVideo=(target:LiveHostSession)=>{
-        if(!videos.requestVideo(target))setError('Conecte o celular que tem esta gravação para receber o vídeo neste computador.');
+        const current=currentRecording.current;
+        const native=current?.recordingId===target.recordingId&&current.originalTransfer==='progressive-v1';
+        if(!(native?videos.requestNativeOriginal(target):videos.requestVideo(target)))setError('Conecte o celular que tem esta gravação para receber o vídeo neste computador.');
     };
     const downloadSavedVideo=async(target:LiveHostSession)=>{
         try{
@@ -571,13 +625,17 @@ export function useLiveHost(scope:LiveHostScope, className:string) {
         const matches=(value:LiveHostSession|null)=>!!value&&value.id===hostSessionId&&value.recordingId===recordingId&&value.ended&&!value.deletedAt;
         await mutations.current.catch(()=>undefined);if(!stillCurrent())return null;
         const saved=await loadLiveHostSession(owner,hostSessionId);if(!stillCurrent()||!matches(saved))return null;
-        const status=await loadVideoStatus(owner,hostSessionId,recordingId);if(!stillCurrent()||status?.state!=='ready')return null;
-        const blob=await measureAsync('screen.scoutingLiveVideo.load.bridge',()=>loadVideoBlob(owner,hostSessionId,recordingId));
+        const blob=await measureAsync('screen.scoutingLiveVideo.load.bridge',async()=>{
+            const native=await loadNativeOriginalBlob(owner,hostSessionId,recordingId);
+            if(native||!stillCurrent())return native;
+            const status=await loadVideoStatus(owner,hostSessionId,recordingId);
+            return stillCurrent()&&status?.state==='ready'?loadVideoBlob(owner,hostSessionId,recordingId):null;
+        });
         await mutations.current.catch(()=>undefined);if(!stillCurrent())return null;
         const fresh=await loadLiveHostSession(owner,hostSessionId);
         return stillCurrent()&&matches(fresh)?blob:null;
     },[bridgeActive]);
     const getReplayCapture=useCallback(()=>({stream:bridgeActive()?streamRef.current:null,stamp:getCaptureStamp(),snapshot:getSnapshot(),playoutDelayMs:Number.isFinite(playoutDelay.current)&&playoutDelay.current!>=0?playoutDelay.current!:0}),[bridgeActive,getCaptureStamp,getSnapshot]);
     const bridgeApi=useMemo<LiveHostBridgeApi>(()=>({getSnapshot,getCaptureStamp,loadSavedVideo:loadBridgeSavedVideo,getReplayCapture}),[getSnapshot,getCaptureStamp,loadBridgeSavedVideo,getReplayCapture]);
-    return {bridgeApi,config,checkingConfig,serviceCheck,room,error,previewPlaybackBlocked:error===PREVIEW_PLAYBACK_WARNING,connection,stream,session,history,recording,busy,saving,pendingCopies,stamp,deleted,cameraState,captureInfo,controlPending,cameraCommand,canNewRecording,newRecording,startPending,startRecording,stopPending,stopRecording,attachVideo,refreshConfig,start,mark,undo,nextSet,disconnect,deleteSaved,restoreDeleted,canDeleteSession,saveSavedThumbnail,videoStatuses:videos.videoStatuses,loadSavedVideo:videos.loadSavedVideo,saveImportedVideo,downloadSavedVideo,requestSavedVideo,canMark:!!stamp&&recording?.state==='recording'&&!saving&&!controlPending&&!stopPending&&!['paused','finalizing','off','error'].includes(cameraState??'')&&!session?.ended};
+    return {bridgeApi,config,checkingConfig,serviceCheck,room,error,previewPlaybackBlocked:error===PREVIEW_PLAYBACK_WARNING,connection,stream,session,history,recording,busy,saving,pendingCopies,stamp,deleted,cameraState,captureInfo,nativeStartBlock,controlPending,cameraCommand,canNewRecording,newRecording,startPending,startRecording,stopPending,stopRecording,attachVideo,refreshConfig,start,mark,undo,nextSet,disconnect,deleteSaved,restoreDeleted,canDeleteSession,saveSavedThumbnail,videoStatuses:videos.videoStatuses,loadSavedVideo:videos.loadSavedVideo,saveImportedVideo,downloadSavedVideo,requestSavedVideo,canMark:!!stamp&&recording?.state==='recording'&&!saving&&!controlPending&&!stopPending&&!['paused','finalizing','off','error'].includes(cameraState??'')&&!session?.ended};
 }

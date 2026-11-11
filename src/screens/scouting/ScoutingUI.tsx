@@ -41,10 +41,10 @@ export function ErrorNotice({ text }: { text: string }) {
   const { colors } = useAppTheme();
   return text ? <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={{ color: colors.dangerText, fontSize: 13, lineHeight: 20 }}>{text}</Text> : null;
 }
-export function ScoutingModal({ title, subtitle, onClose, children, footer, summary, compact = false, overlayZIndex }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode; compact?: boolean; overlayZIndex?: number }>) {
+export function ScoutingModal({ title, subtitle, onClose, children, footer, summary, compact = false, overlayZIndex, maxWidth }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; footer?: React.ReactNode; summary?: React.ReactNode; compact?: boolean; overlayZIndex?: number; maxWidth?: number }>) {
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
-  const card = useModalCardStyle({ maxWidth: compact ? 480 : 640, padding: 0, gap: 0 });
+  const card = useModalCardStyle({ maxWidth: maxWidth ?? (compact ? 480 : 640), padding: 0, gap: 0 });
   const inset = 12;
   const root = useRef<View>(null);
   const closeRef = useRef(onClose);

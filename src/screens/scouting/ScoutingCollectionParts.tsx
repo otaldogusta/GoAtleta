@@ -17,22 +17,22 @@ const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/
 export const collectorAthleteColumns=(availableWidth:number)=>availableWidth>=760?6:3;
 
 /** First/last names are presentation only; the full name and real jersey stay accessible. */
-export function CollectorAthlete({ student, jersey, selected, disabled, onPress, fullName=false }: { student:Student;jersey?:string;selected:boolean;disabled:boolean;onPress:()=>void;fullName?:boolean }) {
+export function CollectorAthlete({ student, jersey, selected, disabled, onPress, fullName=false, inlineJersey=false }: { student:Student;jersey?:string;selected:boolean;disabled:boolean;onPress:()=>void;fullName?:boolean;inlineJersey?:boolean }) {
   const {colors}=useAppTheme();
   const anchor=useRef<View>(null),tooltipId=useId(),generation=useRef(0),hovered=useRef(false),focused=useRef(false),closeTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
-  const context=useMemo(()=>({disabled,id:student.id,name:student.name}),[disabled,student.id,student.name]);
+  const context=useMemo(()=>({disabled,fullName,id:student.id,name:student.name}),[disabled,fullName,student.id,student.name]);
   const [tip,setTip]=useState<{context:typeof context;layout:{x:number;y:number;width:number;height:number}}|null>(null);
   const keep=()=>{if(closeTimer.current)clearTimeout(closeTimer.current);closeTimer.current=null;};
   const hide=()=>{generation.current++;keep();setTip(null);};
-  const show=()=>{if(Platform.OS!=="web"||disabled)return;keep();const token=++generation.current;anchor.current?.measureInWindow((x,y,width,height)=>{if(token===generation.current)setTip({context,layout:{x,y,width,height}});});};
+  const show=()=>{if(Platform.OS!=="web"||disabled||fullName)return;keep();const token=++generation.current;anchor.current?.measureInWindow((x,y,width,height)=>{if(token===generation.current)setTip({context,layout:{x,y,width,height}});});};
   const leave=()=>{if(hovered.current||focused.current)return;generation.current++;keep();closeTimer.current=setTimeout(()=>{closeTimer.current=null;setTip(null);},140);};
   useEffect(()=>()=>{generation.current++;hovered.current=false;focused.current=false;if(closeTimer.current)clearTimeout(closeTimer.current);},[context]);
-  const layout=tip?.context===context?tip.layout:null,visible=!!layout&&!disabled;
+  const layout=tip?.context===context?tip.layout:null,visible=!!layout&&!disabled&&!fullName;
   return <><View ref={anchor} collapsable={false} style={{width:"100%"}}><Pressable accessibilityRole="button" accessibilityLabel={jersey?`Camisa ${jersey}: ${student.name}`:student.name} aria-describedby={visible?tooltipId:undefined} aria-pressed={selected} accessibilityState={{selected,disabled}} disabled={disabled} onPress={onPress}
     onHoverIn={()=>{hovered.current=true;show();}} onHoverOut={()=>{hovered.current=false;leave();}} onFocus={()=>{focused.current=true;show();}} onBlur={()=>{focused.current=false;leave();}}
     style={{height:metrics.touchTarget,minHeight:metrics.touchTarget,paddingHorizontal:spacing.xs,borderRadius:radius.internal,borderWidth:1,borderColor:selected?colors.primaryBg:colors.border,backgroundColor:selected?colors.surfaceElevated:colors.backgroundSubtle,flexDirection:"row",alignItems:"center",gap:spacing.xs,opacity:disabled ? .55 : 1}}>
-    <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{width:24,height:24,borderRadius:12,backgroundColor:selected?colors.secondaryBg:colors.inputBg,alignItems:"center",justifyContent:"center",flexShrink:0}}>{jersey ? <Text style={{fontSize:metrics.metadataFontSize,color:selected?colors.text:colors.muted,textAlign:"center",fontVariant:["tabular-nums"]}}>{jersey}</Text> : <GoAtletaIcon name="profile" size={metrics.secondaryIconSize} color={colors.muted}/>}</View>
-    <Text numberOfLines={1} ellipsizeMode="tail" style={{flex:1,minWidth:0,fontSize:metrics.bodyFontSize,lineHeight:metrics.bodyLineHeight,color:colors.text,textAlign:"left"}}>{fullName?student.name:shortScoutingAthleteName(student.name)}</Text>
+    {!inlineJersey ? <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{width:24,height:24,borderRadius:12,backgroundColor:selected?colors.secondaryBg:colors.inputBg,alignItems:"center",justifyContent:"center",flexShrink:0}}>{jersey ? <Text style={{fontSize:metrics.metadataFontSize,color:selected?colors.text:colors.muted,textAlign:"center",fontVariant:["tabular-nums"]}}>{jersey}</Text> : <GoAtletaIcon name="profile" size={metrics.secondaryIconSize} color={colors.muted}/>}</View> : null}
+    <Text numberOfLines={1} ellipsizeMode="tail" style={{flex:1,minWidth:0,fontSize:metrics.bodyFontSize,lineHeight:metrics.bodyLineHeight,color:colors.text,textAlign:"left"}}>{inlineJersey&&jersey ? `${jersey} · ` : ""}{fullName?student.name:shortScoutingAthleteName(student.name)}</Text>
   </Pressable></View><AnchoredDropdown visible={visible} layout={layout} container={null} animationStyle={{}} zIndex={16000} maxHeight={120} nestedScrollEnabled fitContent preferredWidth={280} density="popover" interactiveRefs={[anchor]} onRequestClose={hide} surface="solid" portalToBodyOnWeb>
     <View nativeID={tooltipId} role="tooltip" onPointerEnter={()=>{hovered.current=true;keep();}} onPointerLeave={()=>{hovered.current=false;leave();}} style={{paddingHorizontal:spacing.sm,paddingVertical:spacing.xs}}><Copy>{student.name}</Copy></View>
   </AnchoredDropdown></>;

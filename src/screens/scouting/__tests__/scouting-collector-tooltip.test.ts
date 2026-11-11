@@ -37,3 +37,13 @@ test('full names use a portaled hover/focus tooltip, remain while focused and di
 test('a delayed hover measurement cannot reopen a name after pointer exit',()=>{
   mount(false);act(()=>card().props.onHoverIn());expect(measured).toBeDefined();act(()=>card().props.onHoverOut());act(()=>measured!(30,100,120,44));expect(tooltip()).toBeUndefined();
 });
+
+test('full-name list rows do not repeat the name in a hover or focus tooltip',()=>{
+  mount();act(()=>card().props.onFocus());expect(tooltip()).toBeDefined();
+  act(()=>view!.update(createElement(CollectorAthlete,{...props,fullName:true})));
+  act(()=>card().props.onHoverIn());act(()=>card().props.onFocus());
+  expect(tooltip()).toBeUndefined();expect(card().props['aria-describedby']).toBeUndefined();
+  expect(nodeText(card())).toContain(student.name);
+  expect(card().props.accessibilityLabel).toBe(`Camisa 77: ${student.name}`);
+  act(()=>card().props.onPress());expect(props.onPress).toHaveBeenCalledTimes(1);
+});

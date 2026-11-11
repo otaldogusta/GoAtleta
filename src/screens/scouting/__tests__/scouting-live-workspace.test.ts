@@ -312,6 +312,20 @@ test('camera source labels configured quality without claiming measured recordin
     expect(view!.root.findByProps({className:'lwc-source'}).children.join('')).toBe('Câmera traseira · 1× · 1080p · 60 fps configurados');expect(mockLive.captureInfo).toBe(captureInfo);
 });
 
+test('the live bench labels a silent Android pilot without offering to unmute the preview',async()=>{
+    const captureInfo={label:'Câmera traseira',source:'android-pilot'};
+    mockLive={...mockLive,room:{},stream:{getAudioTracks:()=>[]},connection:'connected',cameraState:'preview',captureInfo};
+    await mount({bench:true});
+    const badge=()=>view!.root.findByProps({className:'lwc-live-badge'}).children.join('');
+    expect(badge()).toBe('Ao vivo · Sem áudio');
+    expect(view!.root.findByType('video').props.muted).toBe(true);
+    expect(action('Ativar som da reprodução')).toBeUndefined();
+    mockLive={...mockLive,stream:{getAudioTracks:()=>[{}]}};await update();
+    expect(badge()).toBe('Ao vivo');
+    mockLive={...mockLive,stream:{getAudioTracks:()=>[]},captureInfo:{label:'Câmera traseira'}};await update();
+    expect(badge()).toBe('Ao vivo');
+});
+
 test('historical copy progress cannot replace the current saved video status or error',()=>{
     const current={...session,ended:true,recordingState:'stopped'};
     const derived=workspaceCameraStatus({...mockBase,session:current,videoStatuses:{'host-1':{state:'ready',receivedBytes:100,totalBytes:100},old:{state:'receiving',receivedBytes:13,totalBytes:100,error:'Erro antigo'}}} as any);
@@ -332,6 +346,8 @@ test('new recording respects host eligibility and copy progress does not claim a
     const onWorkspaceStatusChange=jest.fn();await mount({controlsOpen:true,onWorkspaceStatusChange});
     expect(action('Nova gravação ao vivo').props.disabled).toBe(true);expect(action('Baixar vídeo desta gravação ao vivo')).toBeUndefined();
     expect(view!.root.findByType('progress').props).toMatchObject({value:39,max:100});expect(onWorkspaceStatusChange).toHaveBeenLastCalledWith(expect.objectContaining({state:'copying',label:'Salvando vídeo',copyPercent:39,receiving:true}));
+    mockLive={...mockLive,videoStatuses:{'host-1':{state:'receiving',receivedBytes:900,verifiedBytes:200,totalBytes:1000}}};await update();
+    expect(view!.root.findByType('progress').props).toMatchObject({value:20,'aria-label':'Conferindo o original'});
     mockLive={...mockLive,videoStatuses:{'host-1':{state:'ready',receivedBytes:1000,totalBytes:1000}},canNewRecording:true};await update();
     expect(action('Nova gravação ao vivo').props.disabled).toBe(false);act(()=>action('Nova gravação ao vivo').props.onPress());expect(mockLive.newRecording).toHaveBeenCalledTimes(1);
     act(()=>action('Baixar vídeo desta gravação ao vivo').props.onPress());expect(mockLive.downloadSavedVideo).toHaveBeenCalledWith(mockLive.session);

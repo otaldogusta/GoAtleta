@@ -88,6 +88,17 @@ const initialThemeScript = `
 })();
 `;
 
+// The router snapshots the initial URL. Consume the short-lived proof first.
+const initialPhoneVideoScript = `
+(() => {
+  const { pathname, search, hash } = window.location;
+  if (pathname.replace(/\\/+$/, "") !== "/scouting/enviar-video" ||
+      !/^#id=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}&code=[0-9a-f]{64}$/.test(hash)) return;
+  Object.defineProperty(window, "__goAtletaPhoneVideoFragment", { value: hash, configurable: true });
+  window.history.replaceState(window.history.state, "", pathname + search);
+})();
+`;
+
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
     <html lang="pt-BR" translate="no" suppressHydrationWarning>
@@ -99,6 +110,7 @@ export default function RootHtml({ children }: PropsWithChildren) {
         />
         <meta name="google" content="notranslate" />
         <meta httpEquiv="content-language" content="pt-BR" />
+        <script dangerouslySetInnerHTML={{ __html: initialPhoneVideoScript }} />
         <style dangerouslySetInnerHTML={{ __html: initialThemeCss }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeScript }} />
         <ScrollViewStyleReset />

@@ -47,6 +47,21 @@ test('a persisted thirteen-percent prefix reloads as a resumable pause until an 
     expect(view.result.current.videoStatuses.session).toMatchObject(partial);
     expect(importLocalVideo).not.toHaveBeenCalled();view.unmount();
 });
+test('a short burst publishes its last committed progress even without a later incoming message',async()=>{
+    jest.useFakeTimers();
+    try{
+        (listVideoStatuses as jest.Mock).mockResolvedValue([]);
+        const view=renderHook(()=>useLiveVideos(scope,{resolveSession:async()=>session,send:()=>true}));await act(flush);
+        act(()=>view.result.current.bindVideoChannel());
+        const receiver=(createLiveVideoReceiver as jest.Mock).mock.calls[0][0];
+        const initial={...partial,receivedBytes:0,nextPart:0};
+        act(()=>receiver.onProgress(initial));act(()=>receiver.onProgress(partial));
+        expect(view.result.current.videoStatuses.session).toEqual(initial);
+        act(()=>jest.advanceTimersByTime(250));
+        expect(view.result.current.videoStatuses.session).toEqual(partial);
+        view.unmount();
+    }finally{jest.useRealTimers();}
+});
 test('an unavailable phone source preserves every committed progress field even while history is still loading',async()=>{
     let finishHistory!:(values:unknown[])=>void;
     (listVideoStatuses as jest.Mock).mockImplementation(()=>new Promise(resolve=>{finishHistory=resolve;}));

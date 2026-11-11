@@ -2,9 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, webcrypto } from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import { CAMERA_REAR_PREFERENCE, CAMERA_VIDEO_PART_SIZE, CameraVideoSender, CameraChunkQueue, CameraRecordingStore, CameraStopCoordinator, CameraTransport, LIVE_CAMERA_DATABASE, activeCameraPoints, bootCamera, cameraCaptureConstraints, cameraDisplayName, cameraFacingMode, cameraRecordingDetail, chooseRecordingMime, deleteCameraRecording, parseCameraPair, preferredCameraDevice, presentCameraPreview, projectCameraPoint, readRearCameraPreference, releaseCameraOrientation, resetCameraZoom, resolveRearCameraPreference } from '../../public/scouting-live/camera.js';
+import { CAMERA_REAR_PREFERENCE, CAMERA_VIDEO_PART_SIZE, CameraVideoSender, CameraChunkQueue, CameraRecordingStore, CameraStopCoordinator, CameraTransport, LIVE_CAMERA_DATABASE, activeCameraPoints, bootCamera, cameraCaptureConstraints, cameraDisplayName, cameraFacingMode, cameraRecordingDetail, chooseRecordingMime, deleteCameraRecording, nativeCameraPairIntent, parseCameraPair, preferredCameraDevice, presentCameraPreview, projectCameraPoint, readRearCameraPreference, releaseCameraOrientation, resetCameraZoom, resolveRearCameraPreference } from '../../public/scouting-live/camera.js';
 
 const roomId='11111111-1111-4111-8111-111111111111',token='a'.repeat(64),recordingId='recording-one';
+test('Android handoff puts the scoped private HTTPS capability in an explicit app extra',()=>{
+  const origin='https://192.168.1.10:8097', pair={roomId,token};
+  const intent=nativeCameraPairIntent(origin,pair);
+  assert.equal(intent.split('#')[0],'intent://estudio/parear');
+  assert.equal(decodeURIComponent(/;S\.studioPair=([^;]+);/.exec(intent)[1]),`${origin}/camera#room=${roomId}&token=${token}`);
+  for(const address of ['https://goatleta.com:8097','https://172.15.0.1:8097','https://127.0.0.1:8097','https://192.168.1.10:8098','http://192.168.1.10:8097']) assert.equal(nativeCameraPairIntent(address,pair),null);
+  assert.equal(nativeCameraPairIntent(origin,{roomId,token:'wrong'}),null);
+});
 const point={id:'point-1',recordingId,timeMs:1200,won:true,setNumber:1,scoreUs:1,scoreThem:0,uncertaintyMs:50,clockMode:'estimated',createdAtHostEpochMs:10000};
 function memoryIdb(){
   const stores=new Map(),state={failPut:false,failDeleteAt:0,deleteCount:0};

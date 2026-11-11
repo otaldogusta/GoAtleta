@@ -67,6 +67,55 @@ test('set and fundamental filters use actual metadata and retain original rally 
     expect(view.root.findByProps({label:'Abrir vídeo completo'})).toBeDefined();expect(JSON.stringify(doc)).toBe(before);act(()=>view.unmount());
 });
 
+test('the workspace owns selection without duplicate menus or changing the rally focus and media guards', async () => {
+    const doc = newVideoDocument({ fingerprint: 'workspace-selection', name: 'Jogo', duration: 40, width: 640, height: 360 }, 'first');
+    doc.rallies.push({ id: 'selected', start: 20, winner: null, reviewed: false });
+    const before = JSON.stringify(doc), onDownload = jest.fn(), onFocus = jest.fn(), onChange = jest.fn();
+    const props = { bench: true, hideOptions: true, doc, source: '', focus: 'selected', teams: { us: 'A', them: 'B' },
+        onFocus, onDownload, onOpenTools: jest.fn(), onExport: jest.fn(), onImport: jest.fn(),
+        canDownloadOriginal: false, canDownloadRally: (id: string) => id === 'first' };
+    let view!: ReactTestRenderer;
+    const update = (active: boolean, extra = {}) => act(() => view.update(createElement(VideoGallery, { ...props, ...extra, selectionControl: { active, onChange } })));
+    await act(async () => { view = create(createElement(VideoGallery, { ...props, selectionControl: { active: false, onChange } })); });
+    expect(view.root.findAllByProps({ label: 'Ferramentas do vídeo' })).toHaveLength(0);
+    expect(view.root.findAllByProps({ 'aria-label': 'Opções dos rallies' })).toHaveLength(0);
+    expect(view.root.findByProps({ label: 'Baixar rally 2' }).props.disabled).toBe(true);
+    act(() => view.root.findByProps({ label: 'Baixar rally 1' }).props.onPress());
+    expect(onDownload).toHaveBeenLastCalledWith(['first']);
+    act(() => view.root.findByProps({ label: 'Lista compacta' }).props.onPress());
+
+    update(true);
+    expect(view.root.findByProps({ 'aria-label': 'Galeria de rallies' }).props['data-layout']).toBe('list');
+    expect(view.root.findByProps({ 'aria-label': 'Selecionar rally 2' }).props.disabled).toBe(true);
+    expect(view.root.findByProps({ label: 'Baixar selecionados (0)' }).props.disabled).toBe(true);
+    act(() => view.root.findByProps({ 'aria-label': 'Selecionar rally 1' }).props.onChange({ target: { checked: true } }));
+    act(() => view.root.findByProps({ label: 'Baixar selecionados (1)' }).props.onPress());
+    expect(onDownload).toHaveBeenLastCalledWith(['first']);
+    update(true, { canDownloadRally: () => false });
+    expect(view.root.findByProps({ label: 'Baixar selecionados (1)' }).props.disabled).toBe(true);
+    act(() => view.root.findByProps({ label: 'Cancelar seleção' }).props.onPress());
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    update(false);
+    expect(view.root.findAllByProps({ type: 'checkbox' })).toHaveLength(0);
+    update(true);
+    expect(view.root.findByProps({ 'aria-label': 'Selecionar rally 1' }).props.checked).toBe(false);
+    act(() => view.root.findByProps({ 'aria-label': 'Selecionar rally 1' }).props.onChange({ target: { checked: true } }));
+    update(false);
+    update(true);
+    expect(view.root.findByProps({ 'aria-label': 'Selecionar rally 1' }).props.checked).toBe(false);
+
+    update(true, { readOnly: true });
+    expect(view.root.findAllByProps({ type: 'checkbox' })).toHaveLength(0);
+    expect(view.root.findAllByType('button').some(node => node.props.label?.startsWith('Baixar'))).toBe(false);
+    update(true, { localMedia: false });
+    expect(view.root.findAllByProps({ type: 'checkbox' })).toHaveLength(0);
+    expect(view.root.findAllByProps({ label: 'Cancelar seleção' })).toHaveLength(0);
+    expect(view.root.findByProps({ label: 'Abrir rally 2' }).props.active).toBe(true);
+    expect(onFocus).not.toHaveBeenCalled();
+    expect(JSON.stringify(doc)).toBe(before);
+    act(() => view.unmount());
+});
+
 test('a traditional document has no invented set filter and read-only layouts expose no editing or downloads',async()=>{
     const doc=newVideoDocument({fingerprint:'no-set',name:'Arquivo',duration:40,width:640,height:360},'r1');let view!:ReactTestRenderer;
     await act(async()=>{view=create(createElement(VideoGallery,{doc,source:'',focus:null,teams:{us:'A',them:'B'},readOnly:true,onFocus:jest.fn(),onDownload:jest.fn(),onExport:jest.fn(),onImport:jest.fn()}));});
@@ -122,6 +171,21 @@ test('local independent ranges drive captions, thumbnails and coverage downloads
     expect(view.root.findAllByType('button').find(node=>node.props.label==='Baixar vídeo completo')!.props.disabled).toBe(true);
     act(()=>view.unmount());
 });
+test('a new rally shows that it is waiting for video, then replaces the status once the video covers its start', async () => {
+    const doc = newVideoDocument({ fingerprint: 'live-wait', name: 'Ao vivo', duration: 24, width: 640, height: 360 }, 'first');
+    doc.rallies.push({ id: 'new', start: 12, winner: null, reviewed: false });
+    const props = { doc, source: 'blob:local', bench: true, focus: 'new', teams: { us: 'Equipe', them: 'Adversário' },
+        onFocus: jest.fn(), onDownload: jest.fn(), onExport: jest.fn(), onImport: jest.fn() };
+    let view!: ReactTestRenderer;
+    await act(async () => { view = create(createElement(VideoGallery, { ...props, availableUntilSeconds: 8 }), { createNodeMock: () => ({}) }); });
+    expect(view.root.findByProps({ 'aria-label': 'Miniatura aguardando o vídeo deste rally' }).children).toContain('Aguardando vídeo');
+    expect(videoThumbnail).not.toHaveBeenCalledWith('blob:local', 12, expect.any(AbortSignal));
+    await act(async () => { view.update(createElement(VideoGallery, { ...props, availableUntilSeconds: 20 })); });
+    expect(view.root.findAllByProps({ 'aria-label': 'Miniatura aguardando o vídeo deste rally' })).toHaveLength(0);
+    expect(view.root.findByProps({ label: 'Abrir rally 2' }).findByType('img').props.title).toBe('Início do trecho');
+    act(() => view.unmount());
+});
+
 test('YouTube poster is limited to the full video; rally thumbnails require the original', async () => {
     const doc = newVideoDocument({ youtubeId: 'abcdefghijk', fingerprint: 'youtube:abcdefghijk', name: 'Jogo', duration: 60, width: 640, height: 360 }, 'r1');
     doc.rallies.push({ id: 'r2', start: 15, winner: null, reviewed: false });

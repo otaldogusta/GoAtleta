@@ -7,6 +7,7 @@ import { ScoutingCollector, type ScoutingCollectorActions } from "../ScoutingCol
 import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
 import { ScoutingModal } from "../ScoutingUI";
 import { ContactPad } from "../ScoutingCaptureUI";
+import { ScoutingBenchPad } from "../ScoutingBenchPad";
 import { Button } from "../../../ui/Button";
 
 const mockExecute = jest.fn(async () => true);
@@ -18,6 +19,9 @@ jest.mock("../../../ui/confirm-dialog",()=>({useConfirmDialog:()=>({confirm:mock
 let mockBusy = false;
 let mockReadError="",mockReadBlocked=false;
 let mockRosterSaving = false;
+let mockLineupSaving = false;
+let mockRosterError = "";
+const mockSaveRoster = jest.fn(async (_players: { studentId: string; jersey: string }[]) => true);
 let mockPending: object | null = null;
 let mockContacts: ScoutingContact[] = [];
 let mockTraining = false;
@@ -32,12 +36,12 @@ let mockServe: ScoutingSide = 'them';
 let mockSetOutcome: React.Dispatch<React.SetStateAction<ScoutingRallyOutcome|null>>;
 jest.mock("../use-scouting-roster", () => ({
   ...jest.requireActual("../use-scouting-roster"),
-  useScoutingRoster: () => ({ players: mockRoster, loading: false, saving: mockRosterSaving, error: "", save: jest.fn() }),
+  useScoutingRoster: () => ({ players: mockRoster, loading: false, saving: mockRosterSaving, error: mockRosterError, save: mockSaveRoster }),
 }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null, KeyboardIcon: () => null }));
 jest.mock("../../../components/visual-court/CourtEditorScene",()=>({CourtEditorScene:()=>null}));
-jest.mock("../use-scouting-lineup",()=>({useScoutingLineup:()=>({lineup:[null,null,null,null,null,null],loading:false,saving:false,error:"",save:jest.fn(async()=>true)})}));
+jest.mock("../use-scouting-lineup",()=>({useScoutingLineup:()=>({lineup:[null,null,null,null,null,null],loading:false,saving:mockLineupSaving,error:"",save:jest.fn(async()=>true)})}));
 jest.mock("../../../ui/ModalSheet", () => ({ ModalSheet: ({ children }: { children: React.ReactNode }) => children }));
 jest.mock("../../../ui/AnchoredDropdown",()=>({AnchoredDropdown:({children,visible}:{children:React.ReactNode;visible:boolean})=>visible?children:null}));
 jest.mock("../use-scouting-shortcuts", () => ({ useScoutingShortcuts: (options: unknown) => mockShortcuts(options) }));
@@ -53,7 +57,7 @@ jest.mock("../use-scouting-collection", () => ({ useScoutingCollection: (...args
 const students = [{ id: "ana", name: "Ana Martins" }, { id: "maria1", name: "Maria Júlia Rodrigues" }, { id: "maria2", name: "Maria Gabriely Campos" }] as Student[];
 const collectorProps = () => ({ org: "org", sessionId: "game", userId: "user", students, onClose: jest.fn(), onSaved: jest.fn() });
 const setup = (options: Partial<React.ComponentProps<typeof ScoutingCollector>> = {}) => render(React.createElement(ScoutingCollector, { ...collectorProps(), ...options }));
-beforeEach(() => { jest.clearAllMocks(); mockReadError="";mockReadBlocked=false;mockConfirm.mockImplementation(async()=>false);mockContacts = []; mockTraining = false; mockNoMatchState = false; mockCompleted = false; mockRoster = null; mockHasPoint = false; mockRevision = 0; mockBusy = false; mockRosterSaving = false; mockPending = null; mockCaptureVersion=2;mockOutcome=null;mockPointOutcome=null;mockServe='them'; });
+beforeEach(() => { jest.clearAllMocks(); mockReadError="";mockReadBlocked=false;mockConfirm.mockImplementation(async()=>false);mockContacts = []; mockTraining = false; mockNoMatchState = false; mockCompleted = false; mockRoster = null; mockHasPoint = false; mockRevision = 0; mockBusy = false; mockRosterSaving = false; mockLineupSaving = false; mockRosterError = ""; mockSaveRoster.mockResolvedValue(true); mockPending = null; mockCaptureVersion=2;mockOutcome=null;mockPointOutcome=null;mockServe='them'; });
 
 test("redo restores the reopened point with the original winner and rejects a later revision", async () => {
   mockHasPoint = true;
@@ -80,6 +84,97 @@ test("a game roster filters the collector and shows jerseys without changing stu
   expect(screen.queryByRole("button", { name: "Maria Júlia Rodrigues" })).toBeNull();
   expect(students[0].name).toBe("Ana Martins");
 });
+
+test('batch jersey save initializes the current roster without closing or saving an unfinished lineup', async () => {
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    const onClose = jest.fn(), screen = setup({ bench: true, presentation: 'embedded', onClose });
+    fireEvent.press(screen.getByRole('button', { name: 'Definir atleta na zona 4' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Ana Martins' }));
+    const pad = screen.UNSAFE_getByType(ScoutingBenchPad);
+    await act(async () => expect(await pad.props.onSaveJerseys(new Map([['ana', '7']]))).toBe(true));
+    expect(mockSaveRoster).toHaveBeenCalledWith([
+      { studentId: 'ana', jersey: '7' }, { studentId: 'maria1', jersey: '' }, { studentId: 'maria2', jersey: '' },
+    ]);
+    expect(screen.getByText('Atletas em quadra')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Z4 · Ana' })).toBeTruthy();
+    expect(pad.props.onSaveLineup).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mockContactChanges).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+    screen.unmount();
+  } finally { Object.defineProperty(Platform, 'OS', platform); }
+});
+
+test('batch jersey save preserves a configured roster, rejects unknown members and propagates a failed local save', async () => {
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    mockRoster = [{ studentId: 'maria2', jersey: '14' }, { studentId: 'ana', jersey: '1' }];
+    const original = mockRoster.map(player => ({ ...player }));
+    mockRosterError = 'Não foi possível salvar o elenco neste aparelho. Tente novamente.';
+    const screen = setup({ bench: true, presentation: 'embedded' });
+    const pad = screen.UNSAFE_getByType(ScoutingBenchPad);
+    expect(pad.props.jerseyError).toBe(mockRosterError);
+    await act(async () => {
+      expect(await pad.props.onSaveJerseys(new Map([['ana', '7'], ['maria1', '5']]))).toBe(false);
+      expect(await pad.props.onSaveJerseys(new Map([['ana', '7'], ['unknown', '5']]))).toBe(false);
+    });
+    expect(mockSaveRoster).not.toHaveBeenCalled();
+    mockSaveRoster.mockResolvedValueOnce(false);
+    await act(async () => expect(await pad.props.onSaveJerseys(new Map([['ana', '']]))).toBe(false));
+    expect(mockSaveRoster).toHaveBeenCalledWith([{ studentId: 'maria2', jersey: '14' }, { studentId: 'ana', jersey: '' }]);
+    expect(mockRoster).toEqual(original);
+    expect(mockExecute).not.toHaveBeenCalled();
+    screen.unmount();
+  } finally { Object.defineProperty(Platform, 'OS', platform); }
+});
+
+test('batch jersey save swaps two numbers in a single write and leaves untouched players unchanged', async () => {
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    mockRoster = [{ studentId: 'ana', jersey: '7' }, { studentId: 'maria1', jersey: '11' }, { studentId: 'maria2', jersey: '14' }];
+    const original = mockRoster.map(player => ({ ...player }));
+    const screen = setup({ bench: true, presentation: 'embedded' });
+    const pad = screen.UNSAFE_getByType(ScoutingBenchPad);
+    await act(async () => expect(await pad.props.onSaveJerseys(new Map())).toBe(true));
+    expect(mockSaveRoster).not.toHaveBeenCalled();
+    await act(async () => expect(await pad.props.onSaveJerseys(new Map([['ana', '11'], ['maria1', '7']]))).toBe(true));
+    expect(mockSaveRoster).toHaveBeenCalledTimes(1);
+    expect(mockSaveRoster).toHaveBeenCalledWith([
+      { studentId: 'ana', jersey: '11' }, { studentId: 'maria1', jersey: '7' }, { studentId: 'maria2', jersey: '14' },
+    ]);
+    expect(mockRoster).toEqual(original);
+    expect(mockContactChanges).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
+    screen.unmount();
+  } finally { Object.defineProperty(Platform, 'OS', platform); }
+});
+
+test.each(['busy', 'read-blocked', 'pending', 'roster-saving', 'lineup-saving', 'inactive', 'contact', 'athlete', 'code'] as const)(
+  'inline jersey changes are rejected while %s', async condition => {
+    const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+    try {
+      mockBusy = condition === 'busy';
+      mockReadBlocked = condition === 'read-blocked';
+      mockPending = condition === 'pending' ? {} : null;
+      mockRosterSaving = condition === 'roster-saving';
+      mockLineupSaving = condition === 'lineup-saving';
+      if (condition === 'contact') mockContacts = [{ studentId: 'ana', athleteName: 'Ana Martins', fundamental: 'recepcao', resultKey: 'b_medio', phase: 'side_out' }];
+      const screen = setup({ bench: true, presentation: 'embedded', active: condition !== 'inactive' });
+      if (condition === 'athlete') act(() => screen.UNSAFE_getByType(ScoutingBenchPad).props.onAthlete('ana'));
+      if (condition === 'code') act(() => screen.UNSAFE_getByType(ScoutingBenchPad).props.onCodeDraftChange('7S+'));
+      const pad = screen.UNSAFE_getByType(ScoutingBenchPad);
+      expect(pad.props.jerseySaving).toBe(mockRosterSaving);
+      await act(async () => expect(await pad.props.onSaveJerseys(new Map([['ana', '7']]))).toBe(false));
+      expect(mockSaveRoster).not.toHaveBeenCalled();
+      screen.unmount();
+    } finally { Object.defineProperty(Platform, 'OS', platform); }
+  },
+);
 
 test("requires an explicit athlete or team choice before adding a contact, and keeps unconfirmed contacts out of the score", async () => {
   const screen = setup();
@@ -382,8 +477,48 @@ test('bench preserves a code draft when opening history and rejects an unregiste
     await act(async()=>fireEvent(code,'submitEditing'));expect(screen.getByText(/Camisa 12 não cadastrada/)).toBeTruthy();expect(mockContactChanges).not.toHaveBeenCalled();expect(mockExecute).not.toHaveBeenCalled();
     fireEvent.press(screen.getByRole('button',{name:'Opções da coleta'}));fireEvent.press(screen.getByRole('button',{name:'Ver pontos'}));
     fireEvent.press(screen.getByRole('button',{name:'Opções da coleta'}));fireEvent.press(screen.getByRole('button',{name:'Voltar à jogada'}));
-    expect(screen.getByDisplayValue('12S+')).toBeTruthy();screen.unmount();
+    expect(screen.getByDisplayValue('12S+')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button',{name:'Limpar código do contato'}));
+    expect(screen.getByRole('button',{name:'Nosso ponto'})).toBeEnabled();screen.unmount();
   }finally{Object.defineProperty(Platform,'OS',platform);}
+});
+
+test('bench records and edits a named guest without linking the matching roster student', async () => {
+  const platform = Object.getOwnPropertyDescriptor(Platform, 'OS')!;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    const screen = setup({ bench: true, presentation: 'embedded' });
+    const openGuest = () => fireEvent.press(screen.getByRole('button', { name: 'Convidado' }));
+    openGuest();
+    const name = screen.getByLabelText('Nome do convidado');
+    const select = screen.getByRole('button', { name: 'Selecionar convidado' });
+    fireEvent.changeText(name, '  ');
+    expect(select).toBeDisabled();
+    fireEvent.changeText(name, ' Ana  Martins ');
+    fireEvent.press(select);
+    fireEvent.press(screen.getByRole('button', { name: 'Boa' }));
+    const guest = { studentId: null, athleteName: 'Ana Martins', fundamental: 'recepcao', resultKey: 'b_medio' };
+    expect(mockContactChanges).toHaveBeenLastCalledWith([expect.objectContaining(guest)], { kind: 'append', index: 0 });
+    expect(mockExecute).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Editar contato 1: Ana Martins, Recepção, Boa' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Completa' }));
+    const correctedGuest = { ...guest, resultKey: 'a_alto' };
+    expect(mockContactChanges).toHaveBeenLastCalledWith([expect.objectContaining(correctedGuest)], { kind: 'replace', index: 0 });
+
+    openGuest();
+    fireEvent.press(screen.getByRole('button', { name: 'Ana Martins' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Sem atleta' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Organizou' }));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Nosso ponto' })));
+    expect(mockExecute).toHaveBeenCalledWith({ name: 'point', payload: { winner: 'us', contacts: [
+      expect.objectContaining(correctedGuest),
+      expect.objectContaining({ studentId: null, athleteName: null, fundamental: 'levantamento', resultKey: 'organizou' }),
+    ] } });
+    screen.unmount();
+  } finally {
+    Object.defineProperty(Platform, 'OS', platform);
+  }
 });
 
 test('opening lineup editor preserves saved status and closing retains changed selections with their dirty guard',()=>{
@@ -394,7 +529,7 @@ test('opening lineup editor preserves saved status and closing retains changed s
     expect(publish.mock.calls.at(-1)[0]).toMatchObject({status:'saved',canFinish:false});expect(mockShortcuts.mock.calls.at(-1)[0].enabled).toBe(false);
     fireEvent.press(screen.getByRole('button',{name:'Ana Martins'}));expect(publish.mock.calls.at(-1)[0].status).toBe('dirty');
     fireEvent.press(screen.getByRole('button',{name:'Fechar atletas em quadra'}));expect(publish.mock.calls.at(-1)[0]).toMatchObject({status:'dirty',canFinish:false});
-    fireEvent.press(screen.getByRole('button',{name:'Definir em quadra'}));expect(screen.getByText('Z4 · Ana')).toBeTruthy();expect(mockExecute).not.toHaveBeenCalled();screen.unmount();
+    fireEvent.press(screen.getByRole('button',{name:'Definir em quadra'}));expect(screen.getByRole('button',{name:'Z4 · Ana'})).toBeTruthy();expect(mockExecute).not.toHaveBeenCalled();screen.unmount();
   }finally{Object.defineProperty(Platform,'OS',platform);}
 });
 

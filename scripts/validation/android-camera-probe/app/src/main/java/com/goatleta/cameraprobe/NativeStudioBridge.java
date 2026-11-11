@@ -1,14 +1,12 @@
 package com.goatleta.cameraprobe;
 
 import android.annotation.SuppressLint;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.ParcelFileDescriptor;
 import android.util.Base64;
 import android.webkit.PermissionRequest;
 import android.webkit.RenderProcessGoneDetail;
@@ -30,11 +28,12 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,24 +46,23 @@ final class NativeStudioBridge implements AutoCloseable {
     void onStatus(String state);
   }
 
-  private static final String PAGE = "/native-camera";
+  private static final String PAGE = StudioPairingLink.NATIVE_PATH;
   private static final String HANDSHAKE = "goatleta-native-studio-v1";
   private static final int FRAME_INTERVAL_MS = 83;
+  private static final int RECORDING_FRAME_INTERVAL_MS = 150;
+  private static final int HOT_FRAME_INTERVAL_MS = 300;
   private static final int FRAME_SIDE = 640;
+  private static final int HOT_FRAME_SIDE = 480;
   private static final int MAX_JPEG_BYTES = 128 * 1024;
-  // One native read feeds multiple acknowledged 8 KiB network parts.
-  private static final int CHUNK_BYTES = 256 * 1024;
-  private static final long MAX_ORIGINAL_BYTES = 64L * 1024 * 1024;
-  private static final int MAX_ORIGINALS = 4;
+  private static final int MAX_RESTORED_ORIGINALS = 256;
+  private static final int MAX_FILE_REQUESTS = 4;
   private static final Pattern ID = Pattern.compile("[A-Za-z0-9_-]{1,128}");
-  private static final Pattern ROOM = Pattern.compile("[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}");
-  private static final Pattern TOKEN = Pattern.compile("[0-9a-fA-F]{64}");
   private final Handler main = new Handler(Looper.getMainLooper());
   private final ExecutorService frameWorker = Executors.newSingleThreadExecutor();
   private final ExecutorService fileWorker = Executors.newSingleThreadExecutor();
-  private final LinkedHashMap<String, Original> originals = new LinkedHashMap<>();
+  private final LinkedHashMap<String, StudioOriginalFile.Source> originals = new LinkedHashMap<>();
   private final Runnable capture = this::capturePreview;
-  private final ContentResolver resolver;
+  private final File sourceDirectory;
   private final String pageUrl, documentUrl;
   private final Uri origin;
   private final String roomPath;
@@ -73,36 +71,23 @@ final class NativeStudioBridge implements AutoCloseable {
   private final Listener listener;
   private WebMessagePort port;
   private String cameraState, recordingState;
-  private boolean started, closed, pageFailed, ready, previewEnabled, compressing, reading;
+  private boolean started, closed, pageFailed, ready, previewEnabled, compressing;
+  private int fileRequests;
+  private int frameIntervalMs = FRAME_INTERVAL_MS, frameSide = FRAME_SIDE;
   private long previewGeneration, nextFrame, pendingFrame;
-
-  private record Original(Uri uri, long bytes) {}
 
   @SuppressLint("SetJavaScriptEnabled")
   NativeStudioBridge(Context context, String pairUrl, PreviewView preview, Listener listener) {
-    URI link;
-    try {
-      link = URI.create(pairUrl == null ? "" : pairUrl);
-    } catch (IllegalArgumentException error) {
-      // URI parser errors can include the full camera capability.
-      throw new IllegalArgumentException("Link local da câmera inválido.");
-    }
-    String host = link.getHost();
-    int portNumber = link.getPort();
-    if (!"https".equals(link.getScheme()) || !privateIp(host) || portNumber < 1 || portNumber > 65535
-        || !link.getRawAuthority().equals(host + ":" + portNumber) || link.getRawQuery() != null
-        || !("/camera".equals(link.getRawPath()) || PAGE.equals(link.getRawPath()))) {
-      throw new IllegalArgumentException("Endereço local da câmera inválido.");
-    }
-    String fragment = link.getRawFragment();
-    String room = pairRoom(fragment);
-    origin = Uri.parse("https://" + host + ":" + portNumber);
+    StudioPairingLink pair = StudioPairingLink.parse(pairUrl);
+    URI link = pair.address();
+    origin = Uri.parse("https://" + link.getRawAuthority());
     documentUrl = origin + PAGE;
-    pageUrl = documentUrl + "#" + fragment;
-    roomPath = "/rooms/" + room + "/";
+    pageUrl = documentUrl + "#" + link.getRawFragment();
+    roomPath = "/rooms/" + pair.room() + "/";
     this.preview = preview;
     this.listener = listener;
-    resolver = context.getContentResolver();
+    sourceDirectory = StudioOriginalFile.roomDirectory(context.getFilesDir(), pageUrl);
+    restoreOriginals();
     web = new WebView(context);
     WebSettings settings = web.getSettings();
     settings.setJavaScriptEnabled(true);
@@ -161,36 +146,6 @@ final class NativeStudioBridge implements AutoCloseable {
         return true;
       }
     });
-  }
-
-  private static boolean privateIp(String host) {
-    if (host == null) return false;
-    String[] pieces = host.split("\\.", -1);
-    if (pieces.length != 4) return false;
-    int[] bytes = new int[4];
-    for (int i = 0; i < pieces.length; i++) {
-      if (!pieces[i].matches("0|[1-9][0-9]{0,2}")) return false;
-      bytes[i] = Integer.parseInt(pieces[i]);
-      if (bytes[i] > 255) return false;
-    }
-    return bytes[0] == 10 || bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31
-        || bytes[0] == 192 && bytes[1] == 168;
-  }
-
-  private static String pairRoom(String fragment) {
-    String room = null;
-    String token = null;
-    if (fragment != null && fragment.length() == 112) {
-      for (String field : fragment.split("&", -1)) {
-        if (field.startsWith("room=") && room == null) room = field.substring(5);
-        else if (field.startsWith("token=") && token == null) token = field.substring(6);
-        else throw new IllegalArgumentException("Pareamento local inválido.");
-      }
-    }
-    if (room == null || token == null || !ROOM.matcher(room).matches() || !TOKEN.matcher(token).matches()) {
-      throw new IllegalArgumentException("Pareamento local inválido.");
-    }
-    return room;
   }
 
   private boolean sameOrigin(Uri target) {
@@ -266,7 +221,7 @@ final class NativeStudioBridge implements AutoCloseable {
           case "preview-ack" -> {
             if (pendingFrame != 0 && message.optLong("frameId", -1) == pendingFrame) {
               pendingFrame = 0;
-              schedulePreview(FRAME_INTERVAL_MS);
+              schedulePreview(frameIntervalMs);
             }
           }
           case "connection" -> {
@@ -287,6 +242,7 @@ final class NativeStudioBridge implements AutoCloseable {
             }
           }
           case "read-chunk" -> readChunk(source, message);
+          case "hash-range" -> hashRange(source, message);
           default -> { }
         }
       }
@@ -326,6 +282,16 @@ final class NativeStudioBridge implements AutoCloseable {
     if (enabled) schedulePreview(0);
   }
 
+  void setPreviewLoad(boolean recording, boolean hot) {
+    int interval = hot ? HOT_FRAME_INTERVAL_MS : recording ? RECORDING_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS;
+    int side = hot ? HOT_FRAME_SIDE : FRAME_SIDE;
+    if (closed || interval == frameIntervalMs && side == frameSide) return;
+    frameIntervalMs = interval;
+    frameSide = side;
+    previewGeneration++;
+    schedulePreview(frameIntervalMs);
+  }
+
   private void schedulePreview(long delayMs) {
     if (closed || !ready || !previewEnabled || compressing || pendingFrame != 0) return;
     main.removeCallbacks(capture);
@@ -342,31 +308,32 @@ final class NativeStudioBridge implements AutoCloseable {
       bitmap = null; // The preview surface can briefly vanish on a rotation.
     }
     if (bitmap == null) {
-      schedulePreview(FRAME_INTERVAL_MS);
+      schedulePreview(frameIntervalMs);
       return;
     }
     Bitmap captured = bitmap;
+    int side = frameSide;
     long generation = previewGeneration;
     long frameId = ++nextFrame;
     compressing = true;
     frameWorker.execute(() -> {
-      String jpeg = encodePreview(captured);
+      String jpeg = encodePreview(captured, side);
       main.post(() -> {
         compressing = false;
         if (jpeg != null && generation == previewGeneration && previewEnabled
             && post(json("preview", "jpeg", jpeg, "frameId", frameId, "capturedEpochMs", capturedEpochMs))) {
           pendingFrame = frameId;
         } else {
-          schedulePreview(FRAME_INTERVAL_MS);
+          schedulePreview(frameIntervalMs);
         }
       });
     });
   }
 
-  private static String encodePreview(Bitmap bitmap) {
+  private static String encodePreview(Bitmap bitmap, int frameSide) {
     Bitmap scaled = bitmap;
     try {
-      float factor = Math.min(1f, FRAME_SIDE / (float) Math.max(bitmap.getWidth(), bitmap.getHeight()));
+      float factor = Math.min(1f, frameSide / (float) Math.max(bitmap.getWidth(), bitmap.getHeight()));
       if (factor < 1f) {
         scaled = Bitmap.createScaledBitmap(bitmap, Math.max(1, Math.round(bitmap.getWidth() * factor)),
             Math.max(1, Math.round(bitmap.getHeight() * factor)), true);
@@ -382,57 +349,95 @@ final class NativeStudioBridge implements AutoCloseable {
     }
   }
 
-  void offerOriginal(String id, Uri uri, long bytes) {
-    // Only the activity can register its own finalized MediaStore output.
-    if (closed || !ID.matcher(id).matches() || uri == null || !"content".equals(uri.getScheme())
-        || !"media".equals(uri.getAuthority()) || bytes <= 0 || bytes > MAX_ORIGINAL_BYTES) return;
-    Original original = new Original(uri, bytes);
-    if (originals.putIfAbsent(id, original) != null) return;
-    if (originals.size() > MAX_ORIGINALS) originals.remove(originals.keySet().iterator().next());
-    publishOriginal(id, original);
+  File reserveOriginal(String id) throws IOException {
+    return StudioOriginalFile.pending(sourceDirectory, id);
   }
 
-  private void publishOriginal(String id, Original original) {
-    post(json("finalized", "recordingId", id, "bytes", original.bytes(), "chunkSize", CHUNK_BYTES));
+  void updateOriginal(String id, StudioOriginalFile.Source original) {
+    if (closed) return;
+    if (!original.equals(originals.put(id, original))) publishOriginal(id, original);
+  }
+
+  void discardOffer(String id) { originals.remove(id); }
+
+  private void restoreOriginals() {
+    File[] files = sourceDirectory.listFiles();
+    if (files == null) return;
+    Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
+    for (File file : files) {
+      String id = StudioOriginalFile.finalizedId(file);
+      if (id == null) continue;
+      long bytes = file.length();
+      if (bytes <= 0 || bytes > StudioOriginalFile.MAX_BYTES) continue;
+      originals.put(id, new StudioOriginalFile.Source(file, bytes, true));
+      if (originals.size() == MAX_RESTORED_ORIGINALS) break;
+    }
+  }
+
+  private void publishOriginal(String id, StudioOriginalFile.Source original) {
+    post(json("source", "recordingId", id, "bytes", original.bytes(), "finalized", original.finalized()));
   }
 
   private void readChunk(WebMessagePort source, JSONObject request) {
     String requestId = request.optString("requestId");
     if (!ID.matcher(requestId).matches()) return;
     String id = request.optString("recordingId");
-    Original original = originals.get(id);
+    StudioOriginalFile.Source original = originals.get(id);
     Object rawIndex = request.opt("index");
     int index = request.optInt("index", -1);
-    long offset = (long) index * CHUNK_BYTES;
-    if (reading || original == null || !(rawIndex instanceof Number number)
+    long offset = (long) index * StudioOriginalFile.CHUNK_BYTES;
+    if (original == null || !(rawIndex instanceof Number number)
         || number.doubleValue() != index || index < 0 || offset >= original.bytes()) {
-      post(json("chunk-error", "requestId", requestId));
+      postFileError(requestId);
       return;
     }
-    int length = (int) Math.min(CHUNK_BYTES, original.bytes() - offset);
-    reading = true;
+    int length = (int) Math.min(StudioOriginalFile.CHUNK_BYTES, original.bytes() - offset);
+    readOriginal(source, requestId, original, offset, length, bytes ->
+        json("chunk", "requestId", requestId, "recordingId", id, "index", index,
+            "data", Base64.encodeToString(bytes, Base64.NO_WRAP)));
+  }
+
+  private void hashRange(WebMessagePort source, JSONObject request) {
+    String requestId = request.optString("requestId");
+    if (!ID.matcher(requestId).matches()) return;
+    String id = request.optString("recordingId");
+    StudioOriginalFile.Source original = originals.get(id);
+    long offset = request.optLong("offset", -1);
+    int length = request.optInt("bytes", -1);
+    if (original == null || !original.finalized()
+        || !(request.opt("offset") instanceof Number position) || position.doubleValue() != offset
+        || !(request.opt("bytes") instanceof Number size) || size.doubleValue() != length
+        || offset < 0 || offset >= original.bytes() || offset % StudioOriginalFile.HASH_BYTES != 0
+        || length != Math.min(StudioOriginalFile.HASH_BYTES, original.bytes() - offset)) {
+      postFileError(requestId);
+      return;
+    }
+    readOriginal(source, requestId, original, offset, length, bytes ->
+        json("range-hash", "requestId", requestId, "recordingId", id, "offset", offset,
+            "bytes", length, "sha256", StudioOriginalFile.sha256(bytes)));
+  }
+
+  private void readOriginal(WebMessagePort source, String requestId, StudioOriginalFile.Source original,
+      long offset, int length, java.util.function.Function<byte[], String> response) {
+    if (fileRequests >= MAX_FILE_REQUESTS) { postFileError(requestId); return; }
+    fileRequests++;
     fileWorker.execute(() -> {
-      String data = readOriginal(original, offset, length);
+      String result;
+      try {
+        result = response.apply(StudioOriginalFile.read(original, offset, length));
+      } catch (IOException | SecurityException error) {
+        result = null;
+      }
+      String reply = result;
       main.post(() -> {
-        reading = false;
-        if (!closed && port == source) post(data == null ? json("chunk-error", "requestId", requestId)
-            : json("chunk", "requestId", requestId, "recordingId", id, "index", index, "data", data));
+        fileRequests--;
+        if (closed || port != source) return;
+        if (reply == null) postFileError(requestId); else post(reply);
       });
     });
   }
 
-  private String readOriginal(Original original, long offset, int length) {
-    try (ParcelFileDescriptor descriptor = resolver.openFileDescriptor(original.uri(), "r")) {
-      if (descriptor == null || descriptor.getStatSize() != original.bytes()) return null;
-      ByteBuffer bytes = ByteBuffer.allocate(length);
-      try (FileChannel file = new ParcelFileDescriptor.AutoCloseInputStream(descriptor).getChannel()) {
-        while (bytes.hasRemaining()) if (file.read(bytes, offset + bytes.position()) <= 0) return null;
-      }
-      return Base64.encodeToString(bytes.array(), Base64.NO_WRAP);
-    } catch (IOException | SecurityException error) {
-      return null;
-    }
-  }
+  private void postFileError(String requestId) { post(json("chunk-error", "requestId", requestId)); }
 
   private static String json(String kind, Object... fields) {
     JSONObject object = new JSONObject();

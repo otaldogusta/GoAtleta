@@ -8,6 +8,8 @@ import { useVideoDraft } from '../video/use-video-draft';
 import type { LocalStudioSource } from '../video/local-studio-types';
 import { localStudioMediaRange } from '../video/local-studio-range';
 import { StudioSelect } from '../video/StudioSelect.web';
+import { VideoBenchInspector } from '../video/VideoBenchInspector.web';
+import type { StudioMenuAction } from '../video/types';
 
 jest.mock('../video/use-video-draft', () => ({ useVideoDraft: jest.fn() }));
 jest.mock('../video/video-media.web', () => ({ inspectVideo: jest.fn(), recordVideoClip:jest.fn(), downloadVideoBlob:jest.fn() }));
@@ -54,6 +56,38 @@ function render(local:LocalStudioSource,extra:Partial<Parameters<typeof Studio>[
 function button(label:string){return view.root.findAllByType('button').find(node=>node.props.label===label)!;}
 beforeEach(()=>{jest.clearAllMocks();nodes=[];globalThis.document={getElementById:()=>null,activeElement:null,body:{style:{overflow:''}}} as unknown as Document;window.addEventListener=jest.fn();window.removeEventListener=jest.fn();(useVideoDraft as jest.Mock).mockReturnValue(draft(null));jest.mocked(recordVideoClip).mockResolvedValue({type:'video/webm'} as Blob);});
 afterEach(()=>{act(()=>view?.unmount());globalThis.document=savedDocument;});
+
+test('workspace menu stays available over the live preview and uses current media capabilities without playback registrations',()=>{
+    const local=localSource(),publish=jest.fn();
+    render(local,{bench:true,benchPreviewActive:true,visible:false,onMenuActionsChange:publish});
+    const actions=()=>publish.mock.calls.at(-1)![0] as StudioMenuAction[];
+    const get=(id:string)=>actions().find(action=>action.id===id)!;
+    expect(get('original').disabled).toBe(true);
+    expect(view.root.findByType('gallery').props.hideOptions).toBe(true);
+    act(()=>get('select').onPress());
+    expect(view.root.findByType('gallery').props.selectionControl.active).toBe(true);
+    act(()=>view.root.findByType('gallery').props.selectionControl.onChange(false));
+    expect(view.root.findByType('gallery').props.selectionControl.active).toBe(false);
+    const calls=publish.mock.calls.length;
+    act(()=>view.update(createElement(Studio,{...props,localReplay:{...local},bench:true,benchPreviewActive:true,visible:false,onMenuActionsChange:publish})));
+    expect(publish).toHaveBeenCalledTimes(calls);
+    act(()=>view.update(createElement(Studio,{...props,localReplay:{...local,original:true},bench:true,onMenuActionsChange:publish})));
+    expect(get('original').disabled).toBe(false);
+    const returnFocus=jest.fn();
+    Object.defineProperty(document,'activeElement',{configurable:true,value:{isConnected:true,focus:returnFocus}});
+    act(()=>get('tools').onPress());expect(button('Salvar rascunho')).toBeDefined();
+    act(()=>view.root.findByType(VideoBenchInspector).props.onClose());
+    expect(returnFocus).toHaveBeenCalledTimes(1);
+    act(()=>view.unmount());expect(publish).toHaveBeenLastCalledWith(null);
+});
+
+test('workspace menu cannot import while a local draft conflict is unresolved',()=>{
+    const local=localSource(),publish=jest.fn();
+    local.draft.conflict={} as NonNullable<typeof local.draft.conflict>;
+    render(local,{bench:true,onMenuActionsChange:publish});
+    const actions=publish.mock.calls.at(-1)![0] as StudioMenuAction[];
+    expect(actions.find(action=>action.id==='import')?.disabled).toBe(true);
+});
 
 test('uses canonical Rallies with the local draft and never opens or changes a legacy draft',async()=>{
  const local=localSource(),legacy=(useVideoDraft as jest.Mock).getMockImplementation()!();render(local);
@@ -151,16 +185,40 @@ test('starting a bench export closes the tools sheet before its progress dialog 
  expect(local.exportState).toHaveBeenLastCalledWith(false);expect(downloadVideoBlob).toHaveBeenCalledTimes(1);
 });
 
-test('live preview makes only the covered player inert while rally selection remains available',()=>{
- const local=localSource(),onBenchReplayChange=jest.fn();
- const extra={bench:true,benchPreviewActive:true,onBenchReplayChange};render(local,extra);
- const player=()=>view.root.findAllByType('div').find(node=>typeof node.props.className==='string'&&node.props.className.startsWith('sv-player'))!;
- expect(player().props.inert).toBe(true);expect(player().props['aria-hidden']).toBe(true);
+test('live preview hides historical transport while rallies still open the replay',()=>{
+ const local=localSource(),onBenchReplayChange=jest.fn(),onReturnToLive=jest.fn();
+ const extra={bench:true,benchPreviewActive:true,onBenchReplayChange,onReturnToLive};render(local,extra);
+ expect(button('Reproduzir vídeo')).toBeUndefined();
+ expect(button('Voltar ao vivo')).toBeUndefined();
+ expect(view.root.findAllByType('timeline' as never)).toHaveLength(0);
  const gallery=view.root.findByType('gallery' as never);expect(gallery.parent?.props.inert).not.toBe(true);
+ expect(gallery.props.onPlay).toBeUndefined();
  act(()=>gallery.props.onFocus('r1'));expect(onBenchReplayChange).toHaveBeenLastCalledWith(true);
  act(()=>view.update(createElement(Studio,{...props,...extra,benchPreviewActive:false,localReplay:local})));
- expect(player().props.inert).toBeUndefined();expect(player().props['aria-hidden']).toBeUndefined();
+ expect(button('Reproduzir vídeo')).toBeDefined();expect(button('Voltar ao vivo')).toBeDefined();
+ expect(view.root.findByType('gallery' as never).props.onPlay).toEqual(expect.any(Function));
+ expect(view.root.findAllByType('timeline' as never)).toHaveLength(1);
  expect(view.root.findAllByType('video')).toHaveLength(1);expect(local.draft.change).not.toHaveBeenCalled();
+});
+
+test('only a replay with confirmed audio exposes a mute toggle for the active video',()=>{
+ const local=localSource();render(local,{bench:true});
+ const video=()=>view.root.findByType('video');
+ act(()=>video().props.onLoadedMetadata());
+ expect(button('Silenciar reprodução')).toBeUndefined();
+ Object.assign(nodes.at(-1)!,{webkitAudioDecodedByteCount:512});
+ act(()=>video().props.onTimeUpdate());
+ expect(video().props.muted).toBe(false);
+ act(()=>button('Silenciar reprodução').props.onPress());
+ expect(video().props.muted).toBe(true);
+ act(()=>button('Ativar som da reprodução').props.onPress());
+ expect(video().props.muted).toBe(false);
+
+ act(()=>view.update(createElement(Studio,{...props,bench:true,localReplay:{...local,source:'blob:other'}})));
+ expect(button('Silenciar reprodução')).toBeUndefined();
+ Object.assign(nodes.at(-1)!,{audioTracks:{length:1}});
+ act(()=>video().props.onLoadedMetadata());
+ expect(button('Silenciar reprodução')).toBeDefined();
 });
 
 test('bench source navigation closes its tools sheet and delegates through the existing callbacks with the dirty draft preserved',()=>{

@@ -68,6 +68,26 @@ public final class FrameStatsTest {
     check(uneven.framesPerSecond > 59 && uneven.framesPerSecond < 61 && uneven.maxIntervalUs < 50_000,
         "the burst fixture passes average and maximum-gap limits alone");
     check(uneven.p95IntervalUs == 25_000 && !uneven.isLongEnoughNear60(), "p95 rejects sustained uneven bursts");
+    FrameStats fullGame = FrameStats.forStudio();
+    for (int index = 0; index <= 2 * 60 * 60 * 60; index++) {
+      fullGame.addMicroseconds(Math.round(index * 1_000_000d / 60));
+    }
+    FrameStats.Result fullGameResult = fullGame.snapshot();
+    check(fullGameResult.cadenceWindows == 120 && fullGameResult.failedCadenceWindows == 0
+        && fullGameResult.isLongEnoughNear60(), "all two-hour cadence windows are covered");
+    FrameStats intermittentSlowdown = FrameStats.forStudio();
+    long timestamp = 0;
+    for (int second = 0; second < 5 * 60; second++) {
+      int frames = second >= 60 && second < 120 ? 57 : 60;
+      for (int frame = 0; frame < frames; frame++) {
+        intermittentSlowdown.addMicroseconds(timestamp + Math.round(frame * 1_000_000d / frames));
+      }
+      timestamp += 1_000_000L;
+    }
+    FrameStats.Result intermittent = intermittentSlowdown.snapshot();
+    check(intermittent.framesPerSecond >= 59 && intermittent.p95IntervalUs <= 22_000
+        && intermittent.failedCadenceWindows == 1 && !intermittent.isLongEnoughNear60(),
+        "a degraded minute fails despite passing whole-file average and interval bounds");
     System.out.println("FrameStats checks passed");
   }
 }

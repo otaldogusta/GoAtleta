@@ -1,4 +1,4 @@
-import { typography } from '../../../theme/tokens';
+import { radius, typography } from '../../../theme/tokens';
 
 export const studioStyles = `
 
@@ -136,7 +136,9 @@ export const studioStyles = `
 .sv-source-dialog .sv-tracking-confirm{margin:12px 0;min-height:36px;font-size:12px}.sv-source-dialog .sv-tracking-preview{max-height:140px;margin:8px 0}.sv-source-dialog .sv-media-meta{padding:0;background:transparent;border:0;font-size:12px}.sv-media-meta span{display:block;color:var(--sv-muted);font-size:11px;margin-top:4px}.sv-source-kind{font-size:10px!important;color:var(--sv-muted);margin-top:-4px!important}
 .sv-source-file{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--sv-line);font-size:11px;color:var(--sv-muted)}.sv-source-file [role=button]{border:0!important;min-height:36px!important}
 .sv-source-dialog .sv-progress{display:grid;gap:8px;margin-top:12px}.sv-source-dialog .sv-alert{font-size:12px;overflow-wrap:anywhere}
-.sv-source-options{flex-wrap:wrap;gap:8px}.sv-source-options>.sv-action,.sv-source-camera-trigger{flex:1;min-width:140px}.sv-source-camera-trigger{display:flex}.sv-source-camera-trigger>.sv-action{width:100%}.sv-source-camera{min-width:0;outline:none}.sv-source-options [role=button]{min-height:44px!important}.sv-source-options [role=button]>span{font-size:12px;line-height:18px;white-space:nowrap}
+.sv-source-options{flex-wrap:wrap;gap:8px}.sv-source-options>.sv-action,.sv-source-camera-trigger,.sv-source-phone-trigger{flex:1;min-width:140px}.sv-source-camera-trigger,.sv-source-phone-trigger{display:flex}.sv-source-camera-trigger>.sv-action,.sv-source-phone-trigger>.sv-action{width:100%}.sv-source-camera{min-width:0;outline:none}.sv-source-options [role=button]{min-height:44px!important}.sv-source-options [role=button]>span{font-size:12px;line-height:18px;white-space:nowrap}
+.sv-phone-reception strong,.sv-phone-sender .sv-media-meta{overflow-wrap:anywhere}.sv-phone-qr{display:block;width:196px;height:auto;max-width:100%;margin:0 auto;padding:8px;background:#fff;border-radius:${radius.internal}px}
+.sv-phone-sender{overflow:auto;align-items:safe center}.sv-phone-sender section [role=button]{min-height:44px}.sv-phone-sender progress,.sv-phone-reception progress{display:block;width:100%;accent-color:var(--sv-green)}
 .sv[data-modal-open=true] .sv-stage:has(iframe){visibility:hidden}
 .sv-add-video-icon{position:relative;display:flex;align-items:flex-end;justify-content:flex-end;width:23px;height:23px}
 .sv-add-video-badge{position:absolute;top:0;left:-1px;width:12px;height:12px;display:flex;align-items:center;justify-content:center;background:var(--sv-bg);border-radius:3px}

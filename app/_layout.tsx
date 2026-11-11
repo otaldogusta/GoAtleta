@@ -61,6 +61,7 @@ import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { useBirthdayNotifications } from "../src/hooks/use-birthday-notifications";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { logNavigation } from "../src/observability/breadcrumbs";
+import { sanitizeNavigationPath } from "../src/observability/navigation-privacy";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { VercelWebAnalytics } from "../src/observability/VercelWebAnalytics";
 import { resolveNotificationOrganizationId } from "../src/notifications/notification-organization";
@@ -94,22 +95,22 @@ import { requiresFirstAccessProfile } from "../src/core/profile-name";
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
+const phoneVideoSenderPath = "/scouting/enviar-video";
+const credentialEntry = (value: unknown) => {
+  const path = typeof value === "string" ? sanitizeNavigationPath(value)?.replace(/\/+$/, "") : undefined;
+  return path === "/staff-invite" || path === phoneVideoSenderPath;
+};
+const isCredentialEntryOpen = () => typeof window !== "undefined" && credentialEntry(window.location.pathname);
 
 Sentry.init({
   dsn: sentryDsn,
   enabled: Boolean(sentryDsn),
-  // Email proof is a credential. Do not collect events or breadcrumbs while
-  // the confirmation entry still owns it (including before React mounts).
-  beforeSend: (event) =>
-    typeof window !== "undefined" &&
-    window.location.pathname === "/staff-invite"
-      ? null
-      : event,
-  beforeBreadcrumb: (breadcrumb) =>
-    typeof window !== "undefined" &&
-    window.location.pathname === "/staff-invite"
-      ? null
-      : breadcrumb,
+  // Capability routes can carry credentials before React mounts.
+  beforeSend: (event) => isCredentialEntryOpen() || credentialEntry(event.request?.url) ? null : event,
+  beforeSendTransaction: (event) => isCredentialEntryOpen() || credentialEntry(event.request?.url) ? null : event,
+  beforeSendLog: (log) => isCredentialEntryOpen() ? null : log,
+  beforeBreadcrumb: (breadcrumb) => isCredentialEntryOpen() ||
+    [breadcrumb.data?.from, breadcrumb.data?.to, breadcrumb.data?.url].some(credentialEntry) ? null : breadcrumb,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -363,6 +364,7 @@ function RootLayoutContent() {
     "/terms",
     "/data-deletion",
     "/scouting/shared",
+    phoneVideoSenderPath,
     "/court/shared",
     ...(__DEV__ ? ["/admin", "/family-access-preview"] : []),
   ];
@@ -714,6 +716,7 @@ function RootLayoutContent() {
 
     // Do not redirect users away from reset-password screen during password recovery
     if (normalizedPathname === "/reset-password") return;
+    if (normalizedPathname === phoneVideoSenderPath) return;
 
     if (session && ["/onboarding", "/welcome", "/login", "/signup"].includes(normalizedPathname)) {
       if (roleLoading || platformAccessLoading) return;

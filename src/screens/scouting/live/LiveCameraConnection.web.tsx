@@ -171,7 +171,7 @@ export default function LiveCameraConnection(props: LiveCameraConnectionProps) {
             fitContent preferredWidth={300} align="end" portalToBodyOnWeb={props.portalToBodyOnWeb??true} interactiveRefs={helpRefs} onRequestClose={dismissHelp} scrollContentStyle={{ padding: 0 }}>
             <div id={helpId} ref={bindHelpContent} className="lc-help" style={theme} role="dialog" aria-modal="false" aria-labelledby={`${helpId}-title`} tabIndex={-1}>
                 <div className="lc-help-head"><h3 id={`${helpId}-title`}>Conectar a câmera</h3><button className="lc-help-close" type="button" aria-label="Fechar ajuda da conexão" onClick={closeHelp}><GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.muted}/></button></div>
-                <ol><li>Use o mesmo Wi-Fi no celular e no computador.</li><li>Leia o QR e toque em Ligar câmera.</li><li>Se a conexão cair, toque em Reconectar no celular.</li></ol>
+                <ol><li>Use o mesmo Wi-Fi nos dois aparelhos e permita o acesso à rede local se o navegador pedir.</li><li>Leia o QR e toque em Ligar câmera. Para usar o piloto Android atualizado, toque em Abrir app de câmera.</li><li>Se a conexão cair, toque em Reconectar no celular.</li></ol>
                 <p>O pareamento continua entre gravações.</p>
                 {props.cameraReady ? <div className="lc-certificate"><p>Android: instale o certificado local antes de abrir a câmera.</p><a href="http://127.0.0.1:8096/certificate.crt" download="go-atleta-live-ca.crt">Baixar certificado local</a></div> : null}
             </div>

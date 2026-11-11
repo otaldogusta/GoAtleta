@@ -1,7 +1,7 @@
 # Go Atleta — teste nativo da câmera
 
-Harness Android local para verificar o S25 antes da integração da captura nativa
-ao estúdio. Usa CameraX 1.6.0, a mesma versão do `expo-camera` instalado no projeto.
+Harness Android local para validar a captura nativa e o envio ao Estúdio.
+Usa CameraX 1.6.0, a mesma versão do `expo-camera` instalado no projeto.
 O package de teste é `com.goatleta.cameraprobe`.
 
 ## Prova de captura
@@ -63,8 +63,13 @@ registrada separadamente abaixo.
 O APK debug aceita `-PstudioHost=<IPv4 privado>` e
 `-PstudioCa=<certificado público da CA local>` juntos no build. A configuração
 gerada confia nessa CA apenas para o IPv4 informado. O APK isolado fica
-separado. O piloto usa o link de uma sala de teste do Estúdio em
-`files/studio-pair.url`, no armazenamento privado do app. Use o ADB autorizado
+separado. Com o APK atualizado instalado e o navegador confiando na CA do
+notebook, abra o QR da câmera do Estúdio local. Toque em **Abrir app de
+câmera** e confirme **Conectar** no Android. O APK aceita o link apenas para o
+IPv4 configurado no build e pede confirmação antes de trocar de sala.
+
+O link fica em `files/studio-pair.url`, no armazenamento privado do app. O ADB
+continua disponível no ensaio. Use o ADB autorizado
 para entregar o link por stdin a `run-as com.goatleta.cameraprobe`, sem incluí-lo
 nos argumentos, no Git ou nos logs. Abra o app depois de configurar o link.
 
@@ -80,7 +85,52 @@ temporizador do WebView e o download manteve o SHA-256. No segundo ensaio,
 19,973 s a 59,13 fps geraram 50,3 MB. A cópia automática por Wi-Fi ficou
 disponível cerca de 54 s após o encerramento. O original foi baixado com hash
 idêntico e reaberto no Estúdio. A validação cobre o APK debug e sessões curtas.
-Gravação de jogo inteiro e marcações oficiais ficam fora do piloto.
+Esses ensaios precedem o modo de gravação longa descrito abaixo.
+
+## Gravação longa com cópia em andamento
+
+Com o Estúdio local pareado, a sessão grava um MP4 em armazenamento privado do
+app até Encerrar, com teto de duas horas ou 24 GiB. Confira o espaço indicado no
+telefone, o enquadramento 1× e a prévia antes de começar. Mantenha o app aberto
+em primeiro plano. Uma queda de Wi-Fi pausa a cópia e a câmera continua a gravar.
+O celular tenta reconectar e o notebook retoma do último bloco gravado em disco.
+O original finalizado também fica disponível pelo compartilhamento do Android.
+
+O Estúdio recebe o arquivo por WebRTC e o grava no armazenamento privado do
+navegador (OPFS). Ao encerrar, o notebook verifica SHA-256 por faixa do MP4
+final, recebe as faixas que faltarem ou tiverem mudado e libera o vídeo para
+revisão e download. Mantenha o Estúdio e o companion abertos para retomar na
+mesma sala. O notebook autoriza a extensão da sala até seis horas da criação.
+O APK, o notebook e o celular precisam usar o mesmo pareamento local.
+
+O APK usa a configuração CameraX Full HD e 60 fps com prévia no aparelho,
+independente do modelo. O piloto fixa a lente traseira principal quando as
+características ópticas e a sessão permitem confirmá-la. Compare o
+enquadramento com 1× da câmera do aparelho antes de marcar o checkbox. Se a
+câmera rejeitar a combinação, o app mostra a falha de abertura. A configuração
+solicitada e a taxa efetivamente medida são
+registradas separadamente. O relatório acompanha cadência do sensor e do MP4
+em janelas de um minuto e registra a condição térmica observada. Em estado
+térmico severo, a prévia remota é reduzida e novos inícios ficam bloqueados.
+Em estado crítico, o piloto finaliza a gravação para preservar o vídeo. O
+ensaio longo da versão anterior chegou a 18 min 55 s a 57,64 fps e foi
+encerrado por temperatura. Em 09/11, a lente física principal 5 foi verificada
+no S25. O clipe horizontal de 27,43 s mediu 59,43 fps em 1920 × 1080 e teve
+cópia Wi-Fi com SHA-256 idêntico. A cadência sustentada continua pendente.
+
+A prévia tem quadro próprio em 16:9 na paisagem e 9:16 no retrato. Os
+controles ficam ao lado ou abaixo do quadro, com os diagnósticos de captura
+recolhidos em **Detalhes**.
+
+No S25 SM-S931B com a lente física 5, o piloto calibra o quadro para o vídeo
+Samsung em FHD 60 e 1×. O relatório informa o fator solicitado e o recorte que
+o Camera2 devolveu. O MP4 curto comparado na mesma posição ficou a 0,37% da
+escala da referência Samsung.
+
+No ensaio seguinte de 1h30min04s, a captura continuou com a rede indisponível
+e a cópia retomou exatamente no último byte confirmado. O relatório mediu
+59,01 fps no arquivo e no sensor, com 38 de 90 janelas fora do critério de
+cadência. A conferência integral do original ficou aguardando a reconexão.
 
 ## Referências
 

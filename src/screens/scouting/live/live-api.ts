@@ -4,22 +4,32 @@ export type LiveSignal = { sequence: number; from: 'camera' | 'host'; type: 'off
 export type LiveRoomStatus = { expiresAt: number; cameraConnected: boolean; cameraClientId: string | null; generation: number; closed: boolean };
 export type LiveSignalInput = { type: 'answer'; sdp: string; generation: number } | { type: 'ice'; candidate: RTCIceCandidateInit | null; generation: number };
 const BASE = 'http://127.0.0.1:8096';
+const HOSTED_STUDIO = 'https://goatleta.com';
 const roomId = /^[a-f0-9-]{36}$/;
 
+export function liveHostedStudio() {
+    return typeof window !== 'undefined' && window.location.origin === HOSTED_STUDIO;
+}
+
 export function liveLocalAvailable() {
-    return typeof window !== 'undefined' && __DEV__ && ['http://localhost:8081','http://127.0.0.1:8081'].includes(window.location.origin);
+    return liveHostedStudio() || typeof window !== 'undefined' && __DEV__ && ['http://localhost:8081','http://127.0.0.1:8081'].includes(window.location.origin);
 }
 async function request(path: string, signal: AbortSignal, room?: LiveRoom, body?: unknown, method?: string): Promise<unknown> {
-    if (!liveLocalAvailable()) throw new Error('O modo ao vivo está disponível neste computador de desenvolvimento.');
+    if (!liveLocalAvailable()) throw new Error('Abra o Estúdio do Go Atleta para conectar a câmera.');
     try {
-        const response = await fetch(`${BASE}${path}`, { signal, method: method ?? (body === undefined ? 'GET' : 'POST'), headers: {
-            'Content-Type': 'application/json', 'X-GoAtleta-Live': '1', ...(room ? { 'X-GoAtleta-Live-Role': 'host', 'X-GoAtleta-Live-Token': room.hostToken } : {}),
-        }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+        const options: RequestInit & { targetAddressSpace: 'loopback' } = {
+            targetAddressSpace: 'loopback', credentials: 'omit', redirect: 'error', cache: 'no-store',
+            signal, method: method ?? (body === undefined ? 'GET' : 'POST'), headers: {
+                'Content-Type': 'application/json', 'X-GoAtleta-Live': '1', ...(room ? { 'X-GoAtleta-Live-Role': 'host', 'X-GoAtleta-Live-Token': room.hostToken } : {}),
+            }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        };
+        const response = await fetch(`${BASE}${path}`, options);
         const value = await response.json();
         if (!response.ok) throw new Error(typeof value.error === 'string' ? value.error : 'Não foi possível conectar a câmera.');
         return value;
     } catch (failure) {
         if (signal.aborted || failure instanceof Error && failure.name !== 'TypeError') throw failure;
+        if (liveHostedStudio()) throw new Error('Inicie o serviço de câmera do Go Atleta neste notebook e permita o acesso ao computador no navegador.');
         throw new Error('Serviço ao vivo desconectado. Inicie o serviço local para conectar a câmera.');
     }
 }
@@ -32,15 +42,24 @@ export async function getLiveServiceConfig(signal: AbortSignal): Promise<LiveSer
     if (typeof value.cameraReady !== 'boolean' || value.cameraOrigin !== null && (typeof value.cameraOrigin !== 'string' || !value.cameraOrigin.startsWith('https://')) || !Number.isFinite(value.roomTtlMs)) throw new Error('Configuração de câmera inválida.');
     return value;
 }
+
+function privateCameraUrl(url: URL) {
+    const match = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(url.hostname);
+    if (!match || url.protocol !== 'https:') return false;
+    const first = Number(match[1]), second = Number(match[2]);
+    return first === 10 || first === 192 && second === 168 || first === 172 && second >= 16 && second <= 31;
+}
+
 export async function createLiveRoom(signal: AbortSignal): Promise<LiveRoom> {
     const value = await request('/rooms', signal, undefined, {}) as LiveRoom;
     if (!value || !roomId.test(value.roomId) || !/^[a-f0-9]{64}$/.test(value.hostToken) || !/^[a-f0-9]{64}$/.test(value.cameraToken) || !Number.isFinite(value.expiresAt)) throw new Error('O serviço retornou uma conexão inválida.');
+    if (liveHostedStudio() && !value.cameraUrl) throw new Error('Configure o HTTPS do serviço de câmera antes de gerar o QR.');
     for (const [address,local] of [[value.cameraUrl,false],[value.localCameraUrl,true]] as const) {
         if (address === null && !local) continue;
         if (typeof address !== 'string') throw new Error('Endereço de câmera inválido.');
         const camera = new URL(address), fragment = new URLSearchParams(camera.hash.slice(1));
-        if (local ? camera.origin !== 'http://localhost:8096' && camera.origin !== BASE : camera.protocol !== 'https:') throw new Error('Endereço seguro da câmera inválido.');
-        if (camera.pathname !== '/camera' || camera.search || fragment.get('room') !== value.roomId || fragment.get('token') !== value.cameraToken) throw new Error('Endereço seguro da câmera inválido.');
+        if (local ? camera.origin !== 'http://localhost:8096' && camera.origin !== BASE : !privateCameraUrl(camera) || liveHostedStudio() && camera.port !== '8097') throw new Error('Endereço seguro da câmera inválido.');
+        if (camera.username || camera.password || camera.pathname !== '/camera' || camera.search || [...fragment].length !== 2 || fragment.get('room') !== value.roomId || fragment.get('token') !== value.cameraToken) throw new Error('Endereço seguro da câmera inválido.');
     }
     return value;
 }
@@ -51,5 +70,6 @@ export async function pollLiveSignals(room: LiveRoom, after: number, signal: Abo
 }
 export const sendLiveSignal = (room: LiveRoom, body: LiveSignalInput, signal: AbortSignal) => request(`${path(room)}/signals`, signal, room, body);
 export const heartbeatLiveRoom = (room: LiveRoom, signal: AbortSignal) => request(`${path(room)}/heartbeat`, signal, room, {});
+export const extendNativeLiveRoom = (room: LiveRoom, signal: AbortSignal) => request(`${path(room)}/extend-native`, signal, room, {});
 export const closeLiveRoom = (room: LiveRoom, signal: AbortSignal) => request(path(room), signal, room, undefined, 'DELETE');
 export const getLiveRoomStatus = async (room: LiveRoom, signal: AbortSignal) => request(`${path(room)}/status`, signal, room) as Promise<LiveRoomStatus>;

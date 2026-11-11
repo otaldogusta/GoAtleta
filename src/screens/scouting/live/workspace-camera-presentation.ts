@@ -18,7 +18,7 @@ export function liveHasUsablePreview(live:Pick<ReturnType<typeof useLiveHost>,'c
     if(typeof live.stream.getVideoTracks!=='function')return true;
     try{return live.stream.getVideoTracks().some(track=>track.readyState!=='ended');}catch{return false;}
 }
-export function workspaceCameraControlState(live:Pick<ReturnType<typeof useLiveHost>,'connection'|'recording'|'session'|'stream'|'room'|'cameraState'|'busy'|'saving'|'controlPending'|'stopPending'|'startPending'>):ScoutingLiveWorkspaceControlState{
+export function workspaceCameraControlState(live:Pick<ReturnType<typeof useLiveHost>,'connection'|'recording'|'session'|'stream'|'room'|'cameraState'|'busy'|'saving'|'controlPending'|'stopPending'|'startPending'|'nativeStartBlock'>):ScoutingLiveWorkspaceControlState{
     const terminal=!!live.session?.ended||live.recording?.state==='stopped'||live.recording?.state==='error';
     const busy=live.busy||live.saving||!!live.controlPending||live.startPending||live.stopPending||live.cameraState==='finalizing';
     const ready=!busy&&!terminal&&live.connection==='connected'&&!!live.room;
@@ -27,7 +27,7 @@ export function workspaceCameraControlState(live:Pick<ReturnType<typeof useLiveH
         :live.controlPending==='pause-recording'?'pause':live.controlPending==='resume-recording'?'resume'
         :live.controlPending==='new-recording'?'new-recording':live.controlPending?'camera':live.busy?'preparing':null;
     const hasPreview=liveHasUsablePreview(live);
-    return {canStart:ready&&hasPreview&&!live.recording&&!live.session&&live.cameraState==='preview',canPause,canResume,canStop:canPause||canResume,busy,hasPreview,pending};
+    return {canStart:ready&&hasPreview&&!live.recording&&!live.session&&!live.nativeStartBlock&&live.cameraState==='preview',canPause,canResume,canStop:canPause||canResume,busy,hasPreview,pending};
 }
 export function workspaceCameraStatus(live:Pick<ReturnType<typeof useLiveHost>,'connection'|'recording'|'session'|'stamp'|'stream'|'cameraState'|'captureInfo'|'error'|'videoStatuses'|'stopPending'|'startPending'>):ScoutingLiveWorkspaceStatus {
     const current=live.session?live.videoStatuses?.[live.session.id]:undefined;
@@ -36,7 +36,8 @@ export function workspaceCameraStatus(live:Pick<ReturnType<typeof useLiveHost>,'
     const activeCapture=live.recording?.state==='recording'||live.recording?.state==='paused'||live.stopPending||live.cameraState==='finalizing';
     const rawElapsed=activeCapture&&connected?live.stamp?.timeMs??live.recording?.durationMs??live.session?.durationMs:null;
     const elapsedMs=typeof rawElapsed==='number'&&Number.isFinite(rawElapsed)?Math.max(0,Math.floor(rawElapsed/1000)*1000):null;
-    const copyPercent=copy&&copy.totalBytes>0?Math.min(100,Math.max(0,Math.floor(copy.receivedBytes/copy.totalBytes*100))):null;
+    const copied=live.session?.ended?copy?.verifiedBytes??copy?.receivedBytes:copy?.receivedBytes;
+    const copyPercent=copy&&copied!==undefined&&copy.totalBytes>0?Math.min(100,Math.max(0,Math.floor(copied/copy.totalBytes*100))):null;
     const error=live.error||copy?.error||(live.cameraState==='error'?'A câmera informou uma falha. Confira o celular.':null);
     const base={elapsedMs,copyPercent,receiving,connected,error,sourceLabel:live.captureInfo?liveCameraSummary(live.captureInfo):null};
     const status=(state:ScoutingLiveWorkspaceStatus['state'],label:string,tone:ScoutingLiveWorkspaceStatus['tone']):ScoutingLiveWorkspaceStatus=>({...base,state,label,tone});
@@ -46,7 +47,7 @@ export function workspaceCameraStatus(live:Pick<ReturnType<typeof useLiveHost>,'
     if(live.recording?.state==='recording')return status('recording','Gravando','danger');
     if(live.recording?.state==='paused')return status('paused','Pausada','warning');
     if(live.recording?.state==='error'||live.session?.recordingState==='error')return status('error','Gravação interrompida','danger');
-    if(receiving)return status('copying',connected?'Salvando vídeo':'Envio pausado','warning');
+    if(receiving)return status('copying',connected?copy?.verifiedBytes===undefined?'Salvando vídeo':'Conferindo original':'Envio pausado','warning');
     if(error)return status('error',copy?.state==='error'?'Vídeo pendente':'Câmera com aviso','danger');
     if(current?.state==='ready')return status('saved','Original salvo','success');
     if(live.startPending)return status('connecting','Iniciando gravação','warning');

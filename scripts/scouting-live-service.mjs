@@ -1,4 +1,4 @@
-// Development-only WebRTC signaling. Media, recordings and scouting never pass through this service.
+// Local WebRTC signaling. Media, recordings and scouting never pass through this service.
 import http from 'node:http';
 import https from 'node:https';
 import { Buffer } from 'node:buffer';
@@ -13,9 +13,11 @@ import { fileURLToPath } from 'node:url';
 export const LIVE_HOST_PORT = 8096;
 export const LIVE_CAMERA_PORT = 8097;
 export const LIVE_ROOM_TTL_MS = 2 * 60 * 60 * 1000;
+const NATIVE_ROOM_MAX_TTL_MS = 6 * 60 * 60 * 1000;
 const CAMERA_LEASE_MS = 45000;
 const MAX_ROOMS = 8, MAX_SIGNALS = 256, MAX_SIGNAL_BYTES = 512 * 1024, MAX_BODY = 96 * 1024;
 const HOST_ORIGINS = new Set(['http://localhost:8081', 'http://127.0.0.1:8081']);
+const GOATLETA_WEB_ORIGIN = 'https://goatleta.com';
 const ID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const TOKEN = /^[a-f0-9]{64}$/;
 const hash = value => createHash('sha256').update(value).digest();
@@ -104,8 +106,9 @@ async function body(req) {
 
 /** No listeners or certificates are created by this factory. Tests bind loopback ephemeral ports only. */
 export function createLiveService({ cameraOrigin = null, assetsDirectory = resolve('public/scouting-live'), nativeAssetsDirectory = NATIVE_CAMERA_ASSET_ROOT, androidProbeDirectory = resolve('.tmp/work/scouting-native-camera'), ttlMs = LIVE_ROOM_TTL_MS,
-  now = Date.now, cameraLeaseMs = CAMERA_LEASE_MS, certificate = null } = {}) {
+  now = Date.now, cameraLeaseMs = CAMERA_LEASE_MS, certificate = null, allowGoatletaWeb = false } = {}) {
   if (!Number.isSafeInteger(ttlMs) || ttlMs < 1000 || ttlMs > LIVE_ROOM_TTL_MS || !Number.isSafeInteger(cameraLeaseMs) || cameraLeaseMs < 1000) throw new Error('Limites de sessão inválidos.');
+  const isHostOrigin = origin => HOST_ORIGINS.has(origin) || allowGoatletaWeb === true && origin === GOATLETA_WEB_ORIGIN;
   let publicOrigin = null;
   if (cameraOrigin) {
     const parsed = new URL(cameraOrigin);
@@ -161,7 +164,7 @@ export function createLiveService({ cameraOrigin = null, assetsDirectory = resol
       res.setHeader('Cache-Control','no-store'); res.setHeader('X-Content-Type-Options','nosniff');
       res.setHeader('Referrer-Policy','no-referrer'); res.setHeader('Vary','Origin');
       res.setHeader('Cross-Origin-Resource-Policy','same-origin');
-      if (typeof origin === 'string' && (transport === 'http' && HOST_ORIGINS.has(origin) || transport === 'https' && origin === publicOrigin || transport === 'http' && cameraLocalOrigins.has(origin))) res.setHeader('Access-Control-Allow-Origin',origin);
+      if (typeof origin === 'string' && (transport === 'http' && (isHostOrigin(origin) || cameraLocalOrigins.has(origin)) || transport === 'https' && origin === publicOrigin)) res.setHeader('Access-Control-Allow-Origin',origin);
     };
     setSecurityHeaders();
     const send = (code,value) => { res.writeHead(code, {'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(value)); };
@@ -194,37 +197,39 @@ export function createLiveService({ cameraOrigin = null, assetsDirectory = resol
         res.writeHead(200, {'Content-Type':'application/x-x509-ca-cert','Content-Disposition':'attachment; filename="go-atleta-local-ca.crt"'}); res.end(certificateBytes); return;
       }
       if (req.method === 'OPTIONS') {
-        const allowed = transport === 'http' ? HOST_ORIGINS.has(origin) || cameraLocalOrigins.has(origin) : origin === publicOrigin;
+        const allowed = transport === 'http' ? isHostOrigin(origin) || cameraLocalOrigins.has(origin) : origin === publicOrigin;
         if (!allowed) throw error(403,'Origem não autorizada.');
         res.writeHead(204, {'Access-Control-Allow-Methods':'GET,POST,DELETE','Access-Control-Allow-Headers':'Content-Type,X-GoAtleta-Live,X-GoAtleta-Live-Role,X-GoAtleta-Live-Token,X-GoAtleta-Live-Client'}); res.end(); return;
       }
       if (req.headers['x-goatleta-live'] !== '1') throw error(403,'Solicitação não autorizada.');
       limited(req,'api',360);
       if (transport === 'http' && req.method === 'GET' && url.pathname === '/config' && !url.search) {
-        if (!HOST_ORIGINS.has(origin)) throw error(403,'Origem não autorizada.');
-        send(200,{cameraReady:!!publicOrigin,cameraOrigin:publicOrigin,localCameraOrigin:localOrigin(req),roomTtlMs:ttlMs,certificateAvailable:!!certificateBytes,certificateUrl:certificateBytes?`${localOrigin(req)}/certificate.crt`:null}); return;
+        if (!isHostOrigin(origin)) throw error(403,'Origem não autorizada.');
+        send(200,{cameraReady:!!publicOrigin,cameraOrigin:publicOrigin,localCameraOrigin:localOrigin(req),roomTtlMs:ttlMs,certificateAvailable:!!certificateBytes,certificateUrl:certificateBytes?`${localOrigin(req)}/certificate.crt`:null,allowGoatletaWeb:allowGoatletaWeb===true}); return;
       }
       if (transport === 'http' && req.method === 'POST' && url.pathname === '/rooms' && !url.search) {
-        if (!HOST_ORIGINS.has(origin)) throw error(403,'Origem não autorizada.');
+        if (!isHostOrigin(origin)) throw error(403,'Origem não autorizada.');
+        if (origin === GOATLETA_WEB_ORIGIN && !publicOrigin) throw error(503,'Configure o HTTPS local no notebook para conectar o celular por Wi-Fi.');
         limited(req,'create',6);
         if (!empty(await body(req))) throw error(400,'A conexão não recebe dados de alunos ou análises.');
         if (rooms.size >= MAX_ROOMS) throw error(429,'Encerre uma conexão antes de criar outra.');
-        const roomId = randomUUID(), hostToken = randomBytes(32).toString('hex'), cameraToken = randomBytes(32).toString('hex'), expiresAt = now()+ttlMs;
-        rooms.set(roomId,{roomId,hostHash:hash(hostToken),cameraHash:hash(cameraToken),expiresAt,cameraClientId:null,cameraSeen:0,generation:0,sequence:0,messages:[],bytes:0,acks:{host:0,camera:0},offers:[]});
+        const roomId = randomUUID(), hostToken = randomBytes(32).toString('hex'), cameraToken = randomBytes(32).toString('hex'), createdAt=now(), expiresAt = createdAt+ttlMs;
+        rooms.set(roomId,{roomId,hostHash:hash(hostToken),cameraHash:hash(cameraToken),hosted:origin===GOATLETA_WEB_ORIGIN,createdAt,expiresAt,cameraClientId:null,cameraSeen:0,generation:0,sequence:0,messages:[],bytes:0,acks:{host:0,camera:0},offers:[]});
         const suffix = `/camera#room=${roomId}&token=${cameraToken}`;
         send(201,{roomId,hostToken,cameraToken,cameraUrl:publicOrigin?`${publicOrigin}${suffix}`:null,localCameraUrl:`${localOrigin(req)}${suffix}`,expiresAt}); return;
       }
-      const match = url.pathname.match(/^\/rooms\/([a-f0-9-]{36})(?:\/(join|signals|heartbeat|status))?$/);
+      const match = url.pathname.match(/^\/rooms\/([a-f0-9-]{36})(?:\/(join|signals|heartbeat|status|extend-native))?$/);
       if (!match || !ID.test(match[1])) throw error(404,'Conexão não encontrada.');
       if (!['host','camera'].includes(role)) throw error(401,'Papel de conexão inválido.');
       const cameraCaller = role === 'camera';
       const callerAllowed = transport === 'https' ? cameraCaller && (!origin || origin === publicOrigin)
-        : cameraCaller ? !origin || cameraLocalOrigins.has(origin) : HOST_ORIGINS.has(origin);
+        : cameraCaller ? !origin || cameraLocalOrigins.has(origin) : isHostOrigin(origin);
       if (!callerAllowed) throw error(403,'Origem não autorizada.');
       if (req.headers['sec-fetch-site'] && !origin && !['same-origin','none'].includes(req.headers['sec-fetch-site'])) throw error(403,'Origem não autorizada.');
       const room = rooms.get(match[1]);
       if (!room || room.expiresAt <= now()) { rooms.delete(match[1]); throw error(410,'Esta conexão expirou ou foi encerrada.'); }
       authorized(req,room,role);
+      if (!cameraCaller && room.hosted !== (origin === GOATLETA_WEB_ORIGIN)) throw error(403,'Origem não autorizada.');
       const action = match[2];
       if (action !== 'signals' && url.search || action === 'signals' && ([...url.searchParams.keys()].some(key=>key!=='after') || url.searchParams.getAll('after').length > 1)) throw error(400,'Parâmetros inválidos.');
       if (req.method === 'POST' && action === 'join' && cameraCaller) {
@@ -238,6 +243,13 @@ export function createLiveService({ cameraOrigin = null, assetsDirectory = resol
       if (req.method === 'GET' && action === 'status') { send(200,status(room)); return; }
       if (req.method === 'POST' && action === 'heartbeat') {
         if (!empty(await body(req))) throw error(400,'Estado inválido.');
+        send(200,status(room)); return;
+      }
+      if (req.method === 'POST' && action === 'extend-native' && !cameraCaller) {
+        if (!empty(await body(req))) throw error(400,'A extensão recebe somente a autorização da conexão.');
+        if (rooms.get(room.roomId)!==room || room.expiresAt <= now()) throw error(410,'Esta conexão expirou ou foi encerrada.');
+        if (!status(room).cameraConnected || room.generation < 1) throw error(409,'Conecte a câmera antes de estender a sessão.');
+        room.expiresAt=room.createdAt+NATIVE_ROOM_MAX_TTL_MS;
         send(200,status(room)); return;
       }
       if (req.method === 'DELETE' && !action && role === 'host') { rooms.delete(room.roomId); send(200,{closed:true}); return; }
@@ -279,11 +291,17 @@ export function createLiveService({ cameraOrigin = null, assetsDirectory = resol
 }
 
 export function liveCliOptions(args) {
-  const allowed=new Set(['--cert','--key','--ca','--public-host','--http-port','--https-port','--assets']);
   const result={httpPort:LIVE_HOST_PORT,httpsPort:LIVE_CAMERA_PORT,assetsDirectory:resolve('public/scouting-live')};
   const names={'--cert':'cert','--key':'key','--ca':'ca','--public-host':'publicHost','--http-port':'httpPort','--https-port':'httpsPort','--assets':'assetsDirectory'};
   const seen=new Set();
-  for(let i=0;i<args.length;i+=2){if(!allowed.has(args[i])||seen.has(args[i])||!args[i+1]||args[i+1].startsWith('--'))throw new Error('Argumentos inválidos.');seen.add(args[i]);result[names[args[i]]]=args[i+1];}
+  for(let i=0;i<args.length;i++){
+    const name=args[i];
+    if(seen.has(name))throw new Error('Argumentos inválidos.');
+    seen.add(name);
+    if(name==='--allow-goatleta-web'){result.allowGoatletaWeb=true;continue;}
+    if(!Object.hasOwn(names,name)||!args[i+1]||args[i+1].startsWith('--'))throw new Error('Argumentos inválidos.');
+    result[names[name]]=args[++i];
+  }
   result.httpPort=Number(result.httpPort);result.httpsPort=Number(result.httpsPort);
   if(![result.httpPort,result.httpsPort].every(port=>Number.isInteger(port)&&port>=1024&&port<=65535)||result.httpPort===result.httpsPort)throw new Error('Portas inválidas.');
   if(!!result.cert!==!!result.key || (result.cert || result.publicHost) && (!result.cert || !privateIpv4(result.publicHost)))throw new Error('HTTPS requer --cert, --key e --public-host IPv4 privado.');
@@ -293,7 +311,7 @@ export function liveCliOptions(args) {
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const options=liveCliOptions(process.argv.slice(2));
   const tls=options.cert?{cert:readFileSync(options.cert),key:readFileSync(options.key),minVersion:'TLSv1.2'}:null;
-  const companion=createLiveService({cameraOrigin:tls?`https://${options.publicHost}:${options.httpsPort}`:null,assetsDirectory:options.assetsDirectory,certificate:options.ca?readFileSync(options.ca):null});
+  const companion=createLiveService({cameraOrigin:tls?`https://${options.publicHost}:${options.httpsPort}`:null,assetsDirectory:options.assetsDirectory,certificate:options.ca?readFileSync(options.ca):null,allowGoatletaWeb:options.allowGoatletaWeb});
   companion.hostServer.listen(options.httpPort,'127.0.0.1',()=>console.log(`Go Atleta ao vivo: notebook em 127.0.0.1:${options.httpPort}.`));
   if(tls){const camera=https.createServer({...tls,maxHeaderSize:8192,requestTimeout:10000,headersTimeout:5000},companion.cameraHandler);camera.listen(options.httpsPort,'0.0.0.0',()=>console.log(`Câmera HTTPS local configurada na porta ${options.httpsPort}. Certificados e firewall não foram alterados.`));}
   else console.log('Câmera Wi-Fi aguarda HTTPS local. Teste de câmera disponível somente neste computador.');

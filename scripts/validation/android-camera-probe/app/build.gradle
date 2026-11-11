@@ -35,6 +35,7 @@ def prepareNativeStudioTrust = tasks.register('prepareNativeStudioTrust') {
         if (host.isEmpty() != ca.isEmpty()) throw new GradleException('Informe studioHost e studioCa juntos.')
         def config = studioResources.get().file('xml/native_studio_trust.xml').asFile
         def raw = studioResources.get().file('raw/native_studio_ca.crt').asFile
+        def pairing = studioResources.get().file('values/native_studio_pairing.xml').asFile
         config.parentFile.mkdirs()
         def localTrust = ''
         if (host) {
@@ -58,6 +59,8 @@ def prepareNativeStudioTrust = tasks.register('prepareNativeStudioTrust') {
         } else {
             java.nio.file.Files.deleteIfExists(raw.toPath())
         }
+        pairing.parentFile.mkdirs()
+        pairing.text = "<resources><string name=\"native_studio_pair_host\" translatable=\"false\">$host</string></resources>"
         config.text = "<network-security-config><base-config cleartextTrafficPermitted=\"false\"/>${localTrust}</network-security-config>"
     }
 }

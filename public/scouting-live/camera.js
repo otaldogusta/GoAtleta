@@ -14,6 +14,16 @@ export function parseCameraPair(fragment) {
   return { roomId, token };
 }
 
+export function nativeCameraPairIntent(origin, pair) {
+  const camera = new URL(origin);
+  const address = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(camera.hostname);
+  if (!address || camera.protocol !== 'https:' || camera.port !== '8097' || camera.origin !== origin || !UUID.test(pair.roomId) || !TOKEN.test(pair.token)) return null;
+  const first = Number(address[1]), second = Number(address[2]);
+  if (!(first === 10 || first === 192 && second === 168 || first === 172 && second >= 16 && second <= 31)) return null;
+  const pairUrl = `${origin}/camera#room=${pair.roomId}&token=${pair.token}`;
+  return `intent://estudio/parear#Intent;scheme=goatleta-camera;package=com.goatleta.cameraprobe;S.studioPair=${encodeURIComponent(pairUrl)};end`;
+}
+
 export function chooseRecordingMime(Recorder) {
   // Prefer VP8/Opus when available; MP4 remains capability-based without
   // forcing an AVC profile/level that may not match the camera resolution.
@@ -554,7 +564,7 @@ export class CameraTransport {
     const peer=new this.Peer({iceServers:this.iceServers});this.peer=peer;this.offerUploaded=false;this.outboundIce=[];
     (stream?.getTracks()??[]).forEach(track=>peer.addTrack(track,stream));
     const channel=peer.createDataChannel('goatleta-live',{ordered:true});this.channel=channel;
-    channel.onopen=()=>{if(this.stopped||this.peer!==peer||this.channel!==channel||channel.readyState!=='open'||['failed','disconnected','closed'].includes(peer.connectionState))return;this.clearNegotiation();this.reportedOffline=false;this.onState('connected');const c=this.clock();if(c.recordingId)this.send({kind:'recording',recordingId:c.recordingId,startEpochMs:c.startEpochMs,startedAtISO:c.startedAtISO,mimeType:c.mimeType,state:c.state,durationMs:c.durationMs,segmentId:c.segmentId});};
+    channel.onopen=()=>{if(this.stopped||this.peer!==peer||this.channel!==channel||channel.readyState!=='open'||['failed','disconnected','closed'].includes(peer.connectionState))return;this.clearNegotiation();this.reportedOffline=false;this.onState('connected');const c=this.clock();if(c.recordingId)this.send({kind:'recording',recordingId:c.recordingId,startEpochMs:c.startEpochMs,startedAtISO:c.startedAtISO,mimeType:c.mimeType,state:c.state,durationMs:c.durationMs,segmentId:c.segmentId,...(c.originalTransfer==='progressive-v1'?{originalTransfer:c.originalTransfer}:{})});};
     channel.onclose=channel.onerror=()=>{if(this.peer===peer&&this.channel===channel&&!this.stopped){this.reportedOffline=true;this.onState('offline');}};
     channel.onmessage=event=>{
       if(this.stopped||this.peer!==peer||this.channel!==channel||channel.readyState!=='open')return;
@@ -1087,6 +1097,15 @@ export function bootCamera(document,window,{store=new CameraRecordingStore(windo
     notice();
     }
   }catch(error){pair=null;fail(error.message);}
+  const nativeLink = $('open-native-camera');
+  if (nativeLink && pair && /Android/i.test(navigator.userAgent)) {
+    const intent = nativeCameraPairIntent(window.location.origin, pair);
+    if (intent) {
+      nativeLink.href = intent;
+      nativeLink.hidden = false;
+      ui.prepare.addEventListener('click', () => { nativeLink.hidden = true; nativeLink.removeAttribute('href'); }, { once: true });
+    }
+  }
   if(pair)videoSender=new CameraVideoSender({store,roomId:pair.roomId,crypto,send:message=>transport?.send(message)??false,connected:()=>ui.camera_app.dataset.connection==='connected',getMaxMessageSize:()=>transport?.peer?.sctp?.maxMessageSize??0,setTimer:(fn,ms)=>window.setTimeout(fn,ms),clearTimer:timer=>window.clearTimeout?window.clearTimeout(timer):clearTimeout(timer),onState:progress=>{
     lastTransferId=progress.recordingId;ui.transfer_row.hidden=false;ui.transfer_status.hidden=false;
     ui.transfer_status.textContent=progress.state==='ready'?'Salvo no computador':progress.state==='sending'?`Enviando · ${progress.percent}%`:progress.state==='offering'?'Preparando cópia…':progress.state==='paused'?'Cópia pausada':progress.state==='error'?'Cópia pendente. Tente enviar novamente.':progress.message;

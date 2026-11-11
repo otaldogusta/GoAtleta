@@ -1,5 +1,14 @@
 import type { ScoutingSession, Student } from '../../../core/models';
 import type { LocalStudioSource } from './local-studio-types';
+import type { GoAtletaIconName } from '../../../ui/icon-registry';
+export type StudioMenuAction = {
+    id: string;
+    group: 'Vídeo' | 'Rallies' | 'Análise';
+    label: string;
+    icon: GoAtletaIconName;
+    disabled?: boolean;
+    onPress: () => void;
+};
 export type LinkedScoutingSession = { id: string; title: string; date: string };
 export type StudioProps = {
     org: string;
@@ -18,6 +27,7 @@ export type StudioProps = {
     onCameraSourceTarget?: (node: HTMLElement | null) => void;
     onBenchReplayChange?: (replaying: boolean) => void;
     onBenchStageTarget?: (node: HTMLElement | null) => void;
+    onMenuActionsChange?: (actions: StudioMenuAction[] | null) => void;
     toolbarTarget?: HTMLElement | null;
     localReplay?: LocalStudioSource;
     onLinkedSessionsChange?: (sources: LinkedScoutingSession[]) => void;

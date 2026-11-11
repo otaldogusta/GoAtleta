@@ -25,6 +25,8 @@ import { ScoutingBenchSetup } from "./ScoutingBenchSetup";
 import { useScoutingLineup } from "./use-scouting-lineup";
 import type { ScoutingCodeContact } from "./scouting-bench";
 
+const guestNameLimit = 160;
+
 export type ScoutingCollectorActions={requestFinish:()=>void;canFinish:boolean;status:"loading"|"saved"|"dirty"|"pending"|"busy"|"error"};
 export function ScoutingCollector({ org, sessionId, userId, students, onClose, onSaved, onOpenVideo, presentation = "modal", active = true, keyboardActive = true, bench = false, teamName, onDirtyChange, onBusyChange, onActionsChange, containerWidth, captureBridge }: {
   org: string; sessionId: string; userId: string; students: Student[]; onClose: () => void; onSaved: () => void; onOpenVideo?: () => void;
@@ -46,6 +48,8 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
   const [fundamental, setFundamental] = useState<ScoutingActionFundamental | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [athleteChosen, setAthleteChosen] = useState(false);
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [guestDraft, setGuestDraft] = useState<string | null>(null);
   const [zone, setZone] = useState<number | null>(null);
   const [phase, setPhase] = useState<ScoutingActionPhase | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
@@ -77,11 +81,24 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
   const terminal = rallyOutcomeWinner(flow.outcome) ?? contactOutcome(last);
   const captureVersion = detail?.captureVersion ?? 2;
   const contacts = flow.contacts;
+  const canEditRoster = !disabled && !athleteChosen && editing === null && !contacts.length && !codeDirty;
+  const saveJerseys = async (changes: ReadonlyMap<string, string>): Promise<boolean> => {
+    if (!canEditRoster || lineup.saving || [...changes.keys()].some(id => !rosterStudents.some(student => student.id === id))) return false;
+    if (!changes.size) return true;
+    const players = roster.players ?? rosterStudents.map(student => ({ studentId: student.id, jersey: "" }));
+    return roster.save(players.map(player => changes.has(player.studentId) ? { ...player, jersey: changes.get(player.studentId)! } : player));
+  };
+  const canPickGuest = inBench && isGame && !disabled && !codeDirty && (!terminal || editing !== null) && !configuring && !editingRoster && !history;
+  const guestInput = guestDraft?.replace(/\s+/g, " ").trim() ?? "";
+  const recentGuests = guestDraft === null ? [] : [...new Set([
+    ...contacts.slice().reverse(),
+    ...(detail?.rallies.slice(-10).reverse().flatMap(rally => rally.contacts.slice().reverse()) ?? []),
+  ].flatMap(contact => !contact.studentId && contact.athleteName ? [contact.athleteName] : []))].slice(0, 6);
   const configuringDraft = configuring && (scoreUs !== "0" || scoreThem !== "0" || initialSet !== "1" || serve !== "us" || rotation != null);
-  const dirty = contacts.length > 0 || !!flow.outcome || athleteChosen || codeDirty || lineupDirty || editing != null || configure || configuringDraft || editingRoster || flow.busy || !!flow.pending || roster.saving;
+  const dirty = contacts.length > 0 || !!flow.outcome || athleteChosen || !!guestInput || codeDirty || lineupDirty || editing != null || configure || configuringDraft || editingRoster || flow.busy || !!flow.pending || roster.saving;
   const saving = flow.busy || roster.saving;
   const finishOwner=useMemo(()=>({org,userId,sessionId}),[org,userId,sessionId]);
-  const canFinish=!!editable&&!flow.loading&&!flow.readBlocked&&!flow.conflict&&!flow.busy&&!flow.pending&&!roster.loading&&!roster.saving&&!contacts.length&&!flow.outcome&&!configuring&&!editingRoster&&!lineupEditing&&!lineupDirty&&!codeDirty&&editing==null&&(!isGame||!athleteChosen);
+  const canFinish=!!editable&&!flow.loading&&!flow.readBlocked&&!flow.conflict&&!flow.busy&&!flow.pending&&!roster.loading&&!roster.saving&&!contacts.length&&!flow.outcome&&!configuring&&!editingRoster&&!lineupEditing&&!lineupDirty&&!codeDirty&&guestDraft===null&&editing==null&&(!isGame||!athleteChosen);
   const finishState=useRef<{owner:typeof finishOwner;canFinish:boolean;execute:typeof flow.execute}|null>(null),finishOpening=useRef(false);
   useLayoutEffect(()=>{const current={owner:finishOwner,canFinish,execute:flow.execute};finishState.current=current;return()=>{if(finishState.current===current)finishState.current=null;};},[finishOwner,canFinish,flow.execute]);
   const requestFinish=useCallback(()=>{
@@ -102,13 +119,24 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
   useEffect(() => () => { onBusyChange?.(false); }, [onBusyChange]);
   const nextSet = state ? state.setNumber + 1 : Number(initialSet);
   const validSet = /^\d+$/.test(scoreUs) && /^\d+$/.test(scoreThem) && Number(scoreUs) <= 999 && Number(scoreThem) <= 999 && Number.isInteger(nextSet) && nextSet >= 1 && nextSet <= 99;
+  const chooseAthlete = (id: string | null, name: string | null = null) => {
+    setStudentId(id);
+    setGuestName(id === null ? name : null);
+    setAthleteChosen(true);
+  };
+  const openGuest = () => { if (canPickGuest) setGuestDraft(guestName ?? ""); };
+  const chooseGuest = (name: string) => {
+    if (!canPickGuest || guestDraft === null || !name.trim() || Array.from(name).length > guestNameLimit) return;
+    chooseAthlete(null, name);
+    setGuestDraft(null);
+  };
   const commitContact = async (resultKey: string, code?: ScoutingCodeContact): Promise<boolean> => {
     if (disabled || (!code && !athleteChosen) || (code && (editing !== null || athleteChosen)) || (isGame && terminal && editing == null)) return false;
     const contactStudentId = code?.studentId ?? studentId, contactSkill = code?.fundamental ?? skill;
     const student = students.find(s => s.id === contactStudentId);
     if (code && (!student || !jerseys.has(code.studentId) || !rosterStudents.some(value => value.id === code.studentId))) return false;
     const defaultPhase:ScoutingActionPhase=contactSkill === "saque" ? "saque" : isGame ? state?.serve === "them" && !contacts.some(c => c.fundamental === "ataque") ? "side_out" : "transicao" : ["recepcao", "levantamento", "ataque"].includes(contactSkill) ? "side_out" : "transicao";
-    const contact: ScoutingContact = { studentId: contactStudentId, athleteName: student?.name ?? null, fundamental: contactSkill,
+    const contact: ScoutingContact = { studentId: contactStudentId, athleteName: contactStudentId ? student?.name ?? null : guestName, fundamental: contactSkill,
       resultKey, zone: code ? null : zone, phase: code ? defaultPhase : phase ?? defaultPhase };
     if (!isGame) { const ok = await flow.execute({ name: "action", payload: { contacts: [contact] } }); if(ok&&code) resetEditor(); return ok; }
     const next = editing == null ? [...contacts, contact] : contacts.map((c, i) => i === editing ? contact : c);
@@ -129,9 +157,9 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
     }
   };
   const editContact = (c: ScoutingContact, index: number) => {
-    setEditing(index); setFundamental(c.fundamental); setStudentId(c.studentId ?? null); setAthleteChosen(true); setZone(c.zone ?? null); setPhase(c.phase); setExtra(c.zone != null);
+    setEditing(index); setFundamental(c.fundamental); chooseAthlete(c.studentId ?? null, c.athleteName ?? null); setZone(c.zone ?? null); setPhase(c.phase); setExtra(c.zone != null);
   };
-  const resetEditor = () => { setEditing(null); setFundamental(null); setStudentId(null); setAthleteChosen(false); setZone(null); setPhase(null); setExtra(false); };
+  const resetEditor = () => { setEditing(null); setFundamental(null); setStudentId(null); setGuestName(null); setGuestDraft(null); setAthleteChosen(false); setZone(null); setPhase(null); setExtra(false); };
   const canReopen = !disabled && !contacts.length && !flow.outcome && (!isGame || !athleteChosen) && (isGame ? !!detail?.rallies.length && detail.rallies[detail.rallies.length - 1].setNumber === state?.setNumber : !!detail?.actions.length);
   const reopen = () => {
     if (!detail || !canReopen) return;
@@ -150,7 +178,7 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
       if (ok) { setUndonePoint(null); resetEditor(); }
     });
   };
-  useScoutingShortcuts({ enabled: active && keyboardActive && !!editable && isGame && !editingRoster && !lineupEditing && !configuring,
+  useScoutingShortcuts({ enabled: active && keyboardActive && !!editable && isGame && !editingRoster && !lineupEditing && !configuring && guestDraft === null,
     canUndo: canReopen, canRedo, undo: reopen, redo });
   const footer = (editable || !!flow.pending) && !configuring && !editingRoster ? <>
     {isGame && (flow.busy || editing != null || athleteChosen) ? <CaptureText muted>{flow.busy ? compact?"Salvando…":"Salvando ponto…" : editing != null ? "Escolha o resultado da correção." : "Escolha o resultado do contato."}</CaptureText> : null}
@@ -242,8 +270,8 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
         <GoAtletaIcon name="checkmarkCircle" size={16} color={colors.success} />
         <CaptureText strong>{flow.outcome ? scoutingRallyOutcomeLabel(flow.outcome) : `${last?.athleteName || "Equipe"} · ${captureResult(last!)?.label ?? "Ponto"}`}</CaptureText>
       </View> : <View style={{ gap: 4 }}>
-        {inBench?<ScoutingBenchPad key={`${org}:${userId}:${sessionId}`} compact skill={skill} captureVersion={captureVersion} students={rosterStudents} jerseys={jerseys} studentId={studentId} athleteChosen={athleteChosen} editing={editing} disabled={disabled||!!terminal&&editing===null} wide={false} lineup={lineup.lineup} lineupLoading={lineup.loading} lineupSaving={lineup.saving} lineupError={lineup.error} courtEnabled={session?.format==="6x6"} onSaveLineup={lineup.save} canEditRoster={!disabled&&!athleteChosen&&editing===null&&!contacts.length&&!codeDirty} onEditRoster={()=>setEditingRoster(true)} codeDraft={codeDraft} onCodeDraftChange={setCodeDraft} onLineupEditingChange={setLineupEditing} onLineupDirtyChange={setLineupDirty} onCode={contact=>commitContact(contact.resultKey,contact)} onSkill={f=>{setFundamental(f);setPhase(null);}} onAthlete={id=>{setStudentId(id);setAthleteChosen(true);}} onResult={key=>{void commitContact(key);}} sequence={<ContactSequence compact contacts={contacts} editing={editing} disabled={disabled} onEdit={editContact} onUndo={()=>{flow.changeContacts(contacts.slice(0,-1),{kind:"remove",index:contacts.length-1});resetEditor();}}/>}/>:<ContactPad compact={compact} availableWidth={Math.max(0,(containerWidth??width)-spacing.sm*2)} key={compact?`${org}:${userId}:${sessionId}`:undefined} skill={skill} captureVersion={captureVersion} students={rosterStudents} jerseys={jerseys} studentId={studentId} athleteChosen={athleteChosen} editing={editing} disabled={disabled} wide={(containerWidth ?? width) >= 600}
-          onSkill={f => { setFundamental(f); setPhase(null); }} onAthlete={id => { setStudentId(id); setAthleteChosen(true); }} onResult={key => { void commitContact(key); }} />}
+        {inBench?<ScoutingBenchPad key={`${org}:${userId}:${sessionId}`} compact skill={skill} captureVersion={captureVersion} students={rosterStudents} jerseys={jerseys} studentId={studentId} athleteChosen={athleteChosen} editing={editing} disabled={disabled||!!terminal&&editing===null} wide={false} lineup={lineup.lineup} lineupLoading={lineup.loading} lineupSaving={lineup.saving} lineupError={lineup.error} courtEnabled={session?.format==="6x6"} onSaveLineup={lineup.save} canEditRoster={canEditRoster} jerseySaving={roster.saving} jerseyError={roster.error} onSaveJerseys={saveJerseys} onEditRoster={()=>setEditingRoster(true)} codeDraft={codeDraft} onCodeDraftChange={setCodeDraft} onLineupEditingChange={setLineupEditing} onLineupDirtyChange={setLineupDirty} onCode={contact=>commitContact(contact.resultKey,contact)} onSkill={f=>{setFundamental(f);setPhase(null);}} onAthlete={chooseAthlete} guestName={guestName} onGuest={isGame ? openGuest : undefined} onResult={key=>{void commitContact(key);}} sequence={<ContactSequence compact contacts={contacts} editing={editing} disabled={disabled} onEdit={editContact} onUndo={()=>{flow.changeContacts(contacts.slice(0,-1),{kind:"remove",index:contacts.length-1});resetEditor();}}/>}/>:<ContactPad compact={compact} availableWidth={Math.max(0,(containerWidth??width)-spacing.sm*2)} key={compact?`${org}:${userId}:${sessionId}`:undefined} skill={skill} captureVersion={captureVersion} students={rosterStudents} jerseys={jerseys} studentId={studentId} athleteChosen={athleteChosen} editing={editing} disabled={disabled} wide={(containerWidth ?? width) >= 600}
+          onSkill={f => { setFundamental(f); setPhase(null); }} onAthlete={chooseAthlete} onResult={key => { void commitContact(key); }} />}
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }}>
           {!inBench||extra?<Link icon="dashboard" label={zone ? `Zona ${zone} · opcional` : "Local na quadra · opcional"} selected={extra} onPress={() => setExtra(!extra)} />:null}
           {!compact ? <Link label="Critérios" selected={criteria} onPress={() => setCriteria(!criteria)} /> : null}
@@ -263,6 +291,15 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
       </> : null}
     </View> : session?.status === "concluido" || history ? <Copy muted>{history ? "Nenhum ponto registrado nesta análise." : "Análise concluída sem registros."}</Copy> : null}
   </>;
+  const guestPicker = guestDraft !== null && active && editable ? <ScoutingModal compact title="Convidado deste jogo" onClose={() => setGuestDraft(null)} overlayZIndex={15000}>
+    <Copy muted>O nome aparece nos contatos desta análise.</Copy>
+    <Input label="Nome do convidado" value={guestDraft} onChangeText={setGuestDraft} maxLength={guestNameLimit} editable={canPickGuest} onSubmitEditing={() => chooseGuest(guestInput)} />
+    <Button label="Selecionar convidado" disabled={!canPickGuest || !guestInput || Array.from(guestInput).length > guestNameLimit} onPress={() => chooseGuest(guestInput)} />
+    {recentGuests.length ? <View style={{ gap: spacing.xs }}>
+      <Copy muted>Convidados recentes</Copy>
+      {recentGuests.map(name => <Choice key={name} compact label={name} disabled={!canPickGuest} onPress={() => chooseGuest(name)} />)}
+    </View> : null}
+  </ScoutingModal> : null;
   const composition = {
     title: editable ? isGame ? "Registrar jogada" : "Registrar treino" : session?.title || "Análise",
     subtitle: session ? `${session.title} · ${session.format ?? "Contexto não informado"} · ${shortDate(session.date)}` : undefined,
@@ -270,6 +307,6 @@ export function ScoutingCollector({ org, sessionId, userId, students, onClose, o
     footer: inBench && configuring && !editingRoster ? setupFooter : footer, summary: configuring || editingRoster ? undefined : scoreboard,
   };
   if (presentation === "embedded" && detail && !editable && !flow.pending && !flow.busy && !flow.loading && !flow.readBlocked && !flow.error) return <ScoutingRecordedReview detail={detail} containerWidth={containerWidth ?? width} />;
-  return presentation === "embedded" ? <><ScoutingCapturePanel {...composition} title={editable ? composition.title : "Revisar registros"} active={active} compact={!!configuring} dense={compact} bench={inBench}>{content}</ScoutingCapturePanel>{compact&&collectionMenu&&active?<ScoutingModal compact title="Opções da coleta" onClose={()=>setCollectionMenu(false)} overlayZIndex={15000}><Link label={history?"Voltar à jogada":"Ver pontos"} onPress={()=>{setHistory(!history);setCollectionMenu(false);}}/>{canRedo?<Link label="Refazer ponto" onPress={()=>{redo();setCollectionMenu(false);}}/>:null}{editable?<><Link label="Editar elenco" disabled={!!disabled||athleteChosen||editing!=null||contacts.length>0||codeDirty} onPress={()=>{setEditingRoster(true);setCollectionMenu(false);}}/>{isGame?<Link label="Próximo set" disabled={!!disabled||contacts.length>0||!!flow.outcome||athleteChosen||codeDirty||(state?.setNumber??0)>=99} onPress={()=>{setScoreUs("0");setScoreThem("0");setRotation(null);setConfigure(true);setHistory(false);setCollectionMenu(false);}}/>:null}</>:null}{inBench&&editable?<Link label={zone?`Zona ${zone} do contato`:"Local do contato"} onPress={()=>{setExtra(true);setHistory(false);setCollectionMenu(false);}}/>:null}{inBench&&isGame&&state&&captureVersion>=3?<ScoutingRallyOutcomeControl outcome={flow.outcome} serve={state.serve} disabled={!!disabled||athleteChosen||editing!==null} onChange={value=>{flow.changeOutcome(value);setUndonePoint(null);}}/>:null}<CollectorHelp label="Sobre a coleta"><Copy>Escolha fundamento, atleta e resultado para registrar cada contato. Confirme quem venceu ao terminar a jogada.</Copy></CollectorHelp></ScoutingModal>:null}</>
+  return presentation === "embedded" ? <><ScoutingCapturePanel {...composition} title={editable ? composition.title : "Revisar registros"} active={active} compact={!!configuring} dense={compact} bench={inBench}>{content}</ScoutingCapturePanel>{guestPicker}{compact&&collectionMenu&&active?<ScoutingModal compact title="Opções da coleta" onClose={()=>setCollectionMenu(false)} overlayZIndex={15000}><Link label={history?"Voltar à jogada":"Ver pontos"} onPress={()=>{setHistory(!history);setCollectionMenu(false);}}/>{canRedo?<Link label="Refazer ponto" onPress={()=>{redo();setCollectionMenu(false);}}/>:null}{editable?<><Link label="Editar elenco e camisas" disabled={!!disabled||athleteChosen||editing!=null||contacts.length>0||codeDirty} onPress={()=>{setEditingRoster(true);setCollectionMenu(false);}}/>{isGame?<Link label="Próximo set" disabled={!!disabled||contacts.length>0||!!flow.outcome||athleteChosen||codeDirty||(state?.setNumber??0)>=99} onPress={()=>{setScoreUs("0");setScoreThem("0");setRotation(null);setConfigure(true);setHistory(false);setCollectionMenu(false);}}/>:null}</>:null}{inBench&&editable?<Link label={zone?`Zona ${zone} do contato`:"Local do contato"} onPress={()=>{setExtra(true);setHistory(false);setCollectionMenu(false);}}/>:null}{inBench&&isGame&&state&&captureVersion>=3?<ScoutingRallyOutcomeControl outcome={flow.outcome} serve={state.serve} disabled={!!disabled||athleteChosen||editing!==null} onChange={value=>{flow.changeOutcome(value);setUndonePoint(null);}}/>:null}<CollectorHelp label="Sobre a coleta"><Copy>Escolha fundamento, atleta e resultado para registrar cada contato. Confirme quem venceu ao terminar a jogada.</Copy></CollectorHelp></ScoutingModal>:null}</>
     : active ? <ScoutingModal {...composition} compact={!!configuring}>{content}</ScoutingModal> : null;
 }

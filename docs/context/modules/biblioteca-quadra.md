@@ -526,6 +526,33 @@ agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.
   Não modifica alunos, matrículas ou contatos anteriores. Sem sincronização
   entre aparelhos ou estúdio de vídeo. [Contrato](../../ui/SCOUTING_IMPLEMENTACAO_2026-10-07.md#elenco-local-por-jogo--01112026).
 
+- Ajuste local da bancada (10/11/2026): o `+` da zona vazia abre o seletor da
+  posição tocada. O modal organiza Z4/Z3/Z2 e Z5/Z6/Z1 em duas linhas no desktop,
+  com reflow em largura estreita; atletas
+  atribuídos saem da lista disponível. Escolher outro substitui na mesma zona,
+  e o × remove e devolve o atleta à lista. Rascunho e salvamento explícito
+  permanecem. Cards de 44 px úteis têm zona/nome à esquerda, camisa à direita e ×
+  no canto; a web oferece setas numéricas de 0 a 99. A lista também permite
+  editar a camisa; **Salvar em quadra** confirma camisas em lote e posições. Reutiliza
+  o elenco local escopado, sem alterar participantes ou contatos; falhas mantêm
+  o rascunho. **Editar elenco** mantém a configuração completa.
+  [Composição compacta e salvamento](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#camisa-direta-no-card-compacto--10112026).
+  O pacote integra o [release autorizado de 11/11](../../operations/production.md#release-do-estúdio--11112026);
+  implantação e distribuição do piloto têm verificações separadas.
+  Na lista compacta de rallies, cada linha conserva a altura do seu conteúdo.
+  [Comportamento e validação](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#lista-de-rallies-e-escolha-por-posição--10112026).
+
+- No Estúdio local, a prévia ao vivo mantém a galeria e reserva Play e relógio
+  para a revisão. O replay tem controle de som e retorno ao vivo. A bancada
+  separa código e seleção manual, registra convidados por nome na análise
+  e oferece uma entrada **Elenco** em formatos sem quadra.
+  [Ensaio local e limites](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#ajustes-do-estúdio-conferidos-no-localhost--10112026).
+
+- Opções do workspace unificadas localmente em 10/11: o cabeçalho reúne Vídeo,
+  Rallies e Análise; os dois menus da galeria ficam no Estúdio independente.
+  Ações seguem a fonte selecionada, mantendo captura, rascunhos e guardas.
+  [Contrato e conferência sintética desktop](../../ui/SCOUTING_ESTUDIO_UNIFICADO_2026-11-02.md#opções-unificadas-no-cabeçalho--10112026).
+
 - Informações do vídeo permite salvar o lado inicial da equipe neste aparelho,
   por conta/organização/sessão/vídeo; não atribui contatos após trocas de lado.
   Sem sincronização dessa preferência. YouTube e tracking ONNX mantêm o limite
@@ -842,4 +869,41 @@ agenda preservada. Entrega autorizada via main, com CI/deploy remoto separado.
   medidos. O piloto local também confirmou prévia RTC durante a gravação e
   cópia automática por Wi-Fi no Estúdio. Na repetição, 19,973 s em 1080p a
   59,13 fps geraram 50,3 MB, disponíveis em cerca de 54 s. O download manteve
-  o hash. Gravações longas e marcações oficiais ficam fora do piloto.
+  o hash. Esses ensaios físicos cobrem sessões curtas.
+- A extensão local do piloto grava até duas horas ou 24 GiB em Android
+  compatível com Full HD/60 e prévia. O original em andamento é copiado via
+  WebRTC para OPFS, com retomada por bloco persistido na mesma sala e verificação
+  das faixas finalizadas antes da revisão/download. A gravação local continua
+  em queda de Wi-Fi com o app em primeiro plano. O companion só sinaliza, e a
+  mídia permanece isolada no escopo local. A prova física de jogo inteiro ainda
+  está pendente. [Operação e limites](../../operations/scouting-live-local.md#cópia-durante-a-captura-nativa--07112026).
+- O piloto fixa a lente traseira principal quando a sessão física Full HD/60
+  pode ser confirmada. Bloqueia novos inícios em estado térmico severo, reduz
+  a prévia remota e finaliza o MP4 em estado crítico. A conferência final
+  retoma do último intervalo verificado na mesma sala. A prévia nativa tem
+  quadro livre e painel separado, com diagnósticos em **Detalhes**. O S25
+  confirmou a lente principal, 59,43 fps e cópia íntegra em 27,43 s. A cadência
+  de jogo inteiro segue pendente. [Prova e recorte da prévia](../../operations/scouting-live-local.md#prova-da-lente-física-no-s25--09112026).
+- No SM-S931B com a lente física 5, o quadro do piloto é calibrado para o
+  vídeo Samsung em 1×. A comparação de MP4s no mesmo apoio mediu diferença
+  de escala de 0,37% em um clipe curto. A captura de 1h30min04s continuou
+  durante a queda e retomou o original do byte confirmado. A média foi de
+  59,01 fps com 38 janelas abaixo do critério. A cópia final ficou aguardando
+  o S25 reconectar. [Calibração e limites](../../operations/scouting-live-local.md#calibração-do-quadro-samsung-1--09112026).
+- **Adicionar vídeo → Conectar câmera → Gerar QR code** foi conferido no
+  Estúdio autenticado em `https://goatleta.com` (web `052df301`). No notebook,
+  o companion só aceita a origem do site com
+  `--allow-goatleta-web`, e o Chrome acessa o loopback após ação explícita. O QR
+  da câmera abre o HTTPS local no Android, com a CA já confiável.
+  O S25 abriu o APK pelo QR e gravou 67,06 s a 59,592 fps em 1080p com a lente
+  principal 1×. A captura foi encerrada no celular. O Estúdio confirmou os
+  blocos e o tamanho do original no ensaio local. A correção do diálogo que
+  pode bloquear a parada segue local. O hash integral independente da cópia
+  por Wi-Fi e a cadência de jogo inteiro seguem pendentes.
+  [Operação e limites](../../operations/scouting-live-local.md#abrir-a-câmera-pelo-site-do-go-atleta).
+- **Adicionar vídeo → Enviar do celular** associa um MP4 existente à análise
+  pelo navegador. A sinalização temporária é autorizada pela turma e análise.
+  O código do QR permanece na memória da página quando a tela é recriada.
+  O original trafega pelo canal local e fica no navegador do notebook.
+  O envio foi publicado no site com a migração `20261110013811`.
+  [Contrato de envio do celular](../../operations/scouting-live-local.md#enviar-um-mp4-existente-do-celular).

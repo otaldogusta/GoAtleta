@@ -17,7 +17,7 @@ type Props = {
   athleteChosen?: boolean;
   studentId?: string | null;
   onStudent?: (id: string) => void;
-  onEmpty?: () => void;
+  onEmpty?: (slot: number) => void;
   readOnly?: boolean;
 };
 
@@ -62,7 +62,7 @@ export function ScoutingLineupCourt({ students, jerseys, lineup, collapsed = fal
         <View style={{ height: 32, width: 32, borderRadius: 16, borderWidth: 1.5, borderColor: brandPalette.areia, backgroundColor: selected ? colors.primaryBg : colors.background, alignItems: "center", justifyContent: "center" }}>{student ? jerseys?.get(student.id) ? <Text style={{ fontSize: 16, lineHeight: 20, fontWeight: "700", color: selected ? colors.primaryText : colors.text }}>{jerseys.get(student.id)}</Text> : <GoAtletaIcon name="profile" size={16} color={colors.text} /> : actionable ? <GoAtletaIcon name="add" size={16} color={colors.text} /> : <Text style={{ fontSize: 16, lineHeight: 20, color: colors.muted }}>—</Text>}</View>
         <Text numberOfLines={1} ellipsizeMode="tail" style={{ maxWidth: "100%", color: collapsed ? colors.text : brandPalette.white, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>{displayName}</Text>
       </>;
-      return actionable ? <Pressable key={zone} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => { if (student) onStudent?.(student.id); else onEmpty?.(); }} style={style}>{content}</Pressable>
+      return actionable ? <Pressable key={zone} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => { if (student) onStudent?.(student.id); else onEmpty?.(index); }} style={style}>{content}</Pressable>
         : <View key={zone} accessible accessibilityLabel={label} style={style}>{content}</View>;
     })}</View>
   </View>;

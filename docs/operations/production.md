@@ -15,6 +15,33 @@ arquivados para consulta histórica, mas não devem receber conteúdo novo.
    `https://www.goatleta.com` redirecionando para o domínio principal.
 6. Fazer smoke visual nas rotas críticas antes de abrir nova frente.
 
+## Release do Estúdio — 11/11/2026
+
+Publicação autorizada pela `main`, usando a integração Git existente da Vercel.
+O pacote reúne o pareamento do celular, recepção do original, revisão dos rallies,
+menu único de opções, convidados e edição compacta de posições/camisas. Fontes
+e testes do piloto Android acompanham o código; anexos pessoais, vídeos,
+certificados, APKs locais e arquivos da IDE ficam fora do commit.
+
+A migration `20261110013811_scouting_phone_video_pairing` foi conferida em
+produção por leitura: funções equivalentes ao SQL local, RLS/grants e expiração
+ativos. Não é necessário reaplicá-la. O smoke autenticado no localhost conferiu
+busca/posição/camisa, menu unificado e as entradas **Conectar câmera** e
+**Enviar MP4 do celular**, preservando os dados da análise.
+
+Validação de entrega: `npm run build:verified`, revisão do diff e smoke
+autenticado. Os testes adicionais de câmera passaram (160 Node, um skip de
+symlink no Windows, e quatro testes JVM). Esta publicação web não constitui
+nova homologação física de uma hora em 1080p60 nem distribuição do APK do
+piloto. O APK servido pelo companion e o build local são artefatos separados;
+o export da Vercel não distribui esses binários.
+
+O estado efetivo da publicação deve ser conferido pelo mesmo SHA em
+[main no GitHub](https://github.com/otaldogusta/GoAtleta/commits/main/),
+[Actions](https://github.com/otaldogusta/GoAtleta/actions) e no deployment
+`READY` de produção, seguido de smoke em [goatleta.com](https://goatleta.com).
+O push em `main` também aciona o workflow EAS existente após os checks.
+
 ## Plano mestre Android: estabilização, AAB e Play Store
 
 Este plano é o gate canônico entre uma alteração local no aplicativo e uma

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { assertSessionIdentity, getSessionIdentity } from '../../../auth/session';
 import { loadLiveHostSession, type LiveHostScope } from './live-storage';
 import { loadVideoBlob, loadVideoStatus } from './live-video-storage';
+import { loadNativeOriginalBlob, loadNativeOriginalStatus } from './native-live-original-storage';
 import { applyLiveScoutingEvent, loadLiveScoutingTimeline, timelineRecordings, type LiveScoutingTimeline } from './live-scouting-storage';
 import { LiveReplayRecorder, loadLiveReplay, type LiveReplayState } from './live-replay';
 import type { LiveHostBridgeApi, LiveHostSnapshot, LiveRecordingReference, LiveReplayMedia, LiveTimelineClip, ScoutingCaptureBridge } from './live-scouting-contract';
@@ -66,10 +67,12 @@ export function useLiveScouting(scope:LiveHostScope,analysisSessionId:string,ena
         const owner=context.current,auth=getSessionIdentity();assertSessionIdentity(auth);if(auth.userId!==stableScope.userId||owner.identity!==identity||!isCurrent(owner))return null;
         const manifest=await loadLiveHostSession(stableScope,reference.hostSessionId);
         if(!isCurrent(owner)||!manifest||manifest.deletedAt||manifest.recordingId!==reference.recordingId)return null;
-        const status=await loadVideoStatus(stableScope,reference.hostSessionId,reference.recordingId);
+        const nativeReady=manifest.ended&&manifest.recordingState==='stopped'&&(await loadNativeOriginalStatus(stableScope,reference.hostSessionId,reference.recordingId))?.state==='ready';
+        const status=nativeReady?'ready':(await loadVideoStatus(stableScope,reference.hostSessionId,reference.recordingId))?.state;
         let result:LiveReplayMedia|null=null;
-        if(manifest.ended&&manifest.recordingState==='stopped'&&status?.state==='ready'){
-            const blob=await loadVideoBlob(stableScope,reference.hostSessionId,reference.recordingId);
+        if(manifest.ended&&manifest.recordingState==='stopped'&&status==='ready'){
+            const load=nativeReady?loadNativeOriginalBlob:loadVideoBlob;
+            const blob=await load(stableScope,reference.hostSessionId,reference.recordingId);
             if(blob)result={blob,offsetMs:0,availableUntilMs:manifest.durationMs??7200000,original:true,uncertaintyMs:0};
         }else result=await loadLiveReplay(stableScope,reference,clip);
         assertSessionIdentity(auth);if(!isCurrent(owner))return null;

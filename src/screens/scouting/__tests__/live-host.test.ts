@@ -1,16 +1,21 @@
 import {act,renderHook} from '@testing-library/react-native';
 import {parseLiveCameraDiagnostics,parseLiveCaptureInfo,parseLiveHostDataMessage,useLiveHost} from '../live/use-live-host';
 import * as thumbnail from '../live/live-thumbnail';
-import {closeLiveRoom,createLiveRoom,getLiveServiceConfig,heartbeatLiveRoom,pollLiveSignals} from '../live/live-api';
+import {closeLiveRoom,createLiveRoom,extendNativeLiveRoom,getLiveServiceConfig,heartbeatLiveRoom,liveHostedStudio,pollLiveSignals} from '../live/live-api';
 import {deleteLiveHostSession,loadLiveHostSession,loadLiveHostSessions,restoreLiveHostSession,saveLiveHostSession,saveLiveHostThumbnail,parseLiveHostSession,type LiveHostSession} from '../live/live-storage';
 import {loadVideoBlob,loadVideoStatus} from '../live/live-video-storage';
-const mockVideos={videoStatuses:{},bindVideoChannel:jest.fn(),stopVideoChannel:jest.fn(),receiveVideoMessage:jest.fn(),requestVideo:jest.fn(),loadSavedVideo:jest.fn(async()=>null),saveImportedVideo:jest.fn(async()=>true)};
+import type { useLiveVideos } from '../live/use-live-videos';
+const mockVideos={videoStatuses:{},bindVideoChannel:jest.fn(),stopVideoChannel:jest.fn(),receiveVideoMessage:jest.fn(),requestVideo:jest.fn(),requestNativeOriginal:jest.fn(),loadSavedVideo:jest.fn(async()=>null),saveImportedVideo:jest.fn(async()=>true)};
+let mockVideoOptions:Parameters<typeof useLiveVideos>[1];
 
 test('host transport extends only video batch envelopes and rejects non-object JSON',()=>{
     for(const raw of [null,new ArrayBuffer(1),'null','[]','false','{'])expect(parseLiveHostDataMessage(raw)).toBeNull();
     const batch={kind:'video-parts',data:'a'.repeat(32000)};
     expect(parseLiveHostDataMessage(JSON.stringify(batch))).toEqual(batch);
     expect(parseLiveHostDataMessage(JSON.stringify({...batch,kind:'clock'}))).toBeNull();
+    const native={kind:'native-original-data',data:'a'.repeat(43692)};
+    expect(parseLiveHostDataMessage(JSON.stringify(native))).toEqual(native);
+    expect(parseLiveHostDataMessage(JSON.stringify({...native,kind:'native-original-offer'}))).toBeNull();
     expect(parseLiveHostDataMessage(JSON.stringify({...batch,data:'a'.repeat(48*1024)}))).toBeNull();
     expect(parseLiveHostDataMessage('{"kind":"video-part"}')).toEqual({kind:'video-part'});
     expect(parseLiveHostDataMessage(JSON.stringify({kind:'video-parts',padding:'漢'.repeat(18000)}))).toBeNull();
@@ -29,10 +34,10 @@ test('camera quality measurements whitelist bounded metrics and omit pairing cap
     expect(parseLiveCameraDiagnostics({...input,sourceFps:30,localFps:59.94,localPresentedFps:29.97,localSampleMs:3000})).toMatchObject({sourceFps:30,localFps:59.94,localPresentedFps:29.97,localSampleMs:3000});
     for(const delta of [{localFps:Infinity},{localPresentedFps:241},{localSampleMs:-1},{localSampleMs:7200001}])expect(parseLiveCameraDiagnostics({...input,...delta})).toBeNull();
 });
-jest.mock('../live/use-live-videos',()=>({useLiveVideos:()=>mockVideos}));
+jest.mock('../live/use-live-videos',()=>({useLiveVideos:(_scope:unknown,options:typeof mockVideoOptions)=>{mockVideoOptions=options;return mockVideos;}}));
 const mockSaved=new Map<string,LiveHostSession>();
 const mockDeleted=new Map<string,LiveHostSession>();
-jest.mock('../live/live-api',()=>({getLiveServiceConfig:jest.fn(async()=>({cameraReady:false,cameraOrigin:null,hostOrigin:'http://localhost:8081',roomTtlMs:7200000})),createLiveRoom:jest.fn(),pollLiveSignals:jest.fn(),sendLiveSignal:jest.fn(async()=>({})),heartbeatLiveRoom:jest.fn(async()=>({})),closeLiveRoom:jest.fn(async()=>({}))}));
+jest.mock('../live/live-api',()=>({liveHostedStudio:jest.fn(()=>false),getLiveServiceConfig:jest.fn(async()=>({cameraReady:false,cameraOrigin:null,hostOrigin:'http://localhost:8081',roomTtlMs:7200000})),createLiveRoom:jest.fn(),pollLiveSignals:jest.fn(),sendLiveSignal:jest.fn(async()=>({})),heartbeatLiveRoom:jest.fn(async()=>({})),extendNativeLiveRoom:jest.fn(async()=>({})),closeLiveRoom:jest.fn(async()=>({}))}));
 jest.mock('../live/live-storage',()=>({...jest.requireActual('../live/live-storage'),loadLiveHostSession:jest.fn(),loadLiveHostSessions:jest.fn(async()=>[]),saveLiveHostSession:jest.fn(async()=>{}),saveLiveHostThumbnail:jest.fn(),deleteLiveHostSession:jest.fn(),restoreLiveHostSession:jest.fn()}));
 jest.mock('../live/live-video-storage',()=>({...jest.requireActual('../live/live-video-storage'),loadVideoBlob:jest.fn(),loadVideoStatus:jest.fn()}));
 const originalCrypto=Object.getOwnPropertyDescriptor(globalThis,'crypto'), originalPeer=Object.getOwnPropertyDescriptor(globalThis,'RTCPeerConnection');
@@ -49,6 +54,7 @@ class Peer {
 const room={roomId:'11111111-1111-4111-8111-111111111111',hostToken:'a'.repeat(64),cameraToken:'b'.repeat(64),cameraUrl:null,localCameraUrl:'http://localhost:8096/camera#room=room&token=camera',expiresAt:99999999};
 beforeEach(()=>{
     jest.useFakeTimers({now:2010000});jest.clearAllMocks();mockSequence=0;
+    jest.mocked(liveHostedStudio).mockReturnValue(false);
     mockSaved.clear();mockDeleted.clear();mockVideos.videoStatuses={};
     (getLiveServiceConfig as jest.Mock).mockResolvedValue({cameraReady:false,cameraOrigin:null,hostOrigin:'http://localhost:8081',roomTtlMs:7200000});
     Object.defineProperty(globalThis,'crypto',{configurable:true,value:{randomUUID:()=>`point-${++mockSequence}`}});
@@ -243,6 +249,18 @@ test('an old peer cannot bind or reconnect a channel after the current room inst
     act(()=>{oldPeer.onconnectionstatechange();dc.onopen();oldPeer.ondatachannel({channel:dc});});
     expect(view.result.current.connection).toBe('connecting');view.unmount();
 });
+test('the hosted Studio leaves the notebook untouched until the user connects',async()=>{
+    jest.mocked(liveHostedStudio).mockReturnValue(true);
+    const view=renderHook(()=>useLiveHost({userId:'user',org:'org',classId:'class'},'Sub19'));
+    await act(async()=>{await flush();});
+    expect(getLiveServiceConfig).not.toHaveBeenCalled();
+    expect(createLiveRoom).not.toHaveBeenCalled();
+    await act(async()=>{await view.result.current.start();await flush();});
+    expect(createLiveRoom).toHaveBeenCalledTimes(1);
+    expect(view.result.current.room).toEqual(room);
+    view.unmount();
+});
+
 test('service verification distinguishes initial, checking, missing HTTPS and camera ready states',async()=>{
     let finish!:(value:unknown)=>void;
     (getLiveServiceConfig as jest.Mock).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
@@ -255,7 +273,7 @@ test('service verification distinguishes initial, checking, missing HTTPS and ca
     expect(view.result.current.serviceCheck).toContain('configure o HTTPS');
     (getLiveServiceConfig as jest.Mock).mockResolvedValueOnce({cameraReady:true,cameraOrigin:'https://192.168.0.1:8097',hostOrigin:'http://localhost:8081',roomTtlMs:7200000});
     await act(async()=>{await view.result.current.refreshConfig();});
-    expect(view.result.current.serviceCheck).toBe('Serviço disponível · câmera pronta.');expect(view.result.current.checkingConfig).toBe(false);view.unmount();
+    expect(view.result.current.serviceCheck).toBe('Serviço disponível. O armazenamento para o original está indisponível neste navegador.');expect(view.result.current.checkingConfig).toBe(false);view.unmount();
 });
 
 test.each(['offline','timeout'])('an unavailable automatic probe stays neutral (%s)',async(reason)=>{
@@ -316,7 +334,7 @@ test('concurrent service checks cancel superseded work and unmount aborts a pend
     let old!:Promise<void>;act(()=>{old=view.result.current.refreshConfig();});
     (getLiveServiceConfig as jest.Mock).mockResolvedValueOnce({cameraReady:true,cameraOrigin:'https://192.168.0.1:8097',hostOrigin:'http://localhost:8081',roomTtlMs:7200000});
     await act(async()=>{await view.result.current.refreshConfig();await old;finish({cameraReady:false});await flush();});
-    expect(oldSignal.aborted).toBe(true);expect(view.result.current.serviceCheck).toContain('câmera pronta');expect(view.result.current.error).toBe('');
+    expect(oldSignal.aborted).toBe(true);expect(view.result.current.serviceCheck).toContain('Serviço disponível');expect(view.result.current.error).toBe('');
     const schedule=jest.spyOn(globalThis,'setTimeout'),clear=jest.spyOn(globalThis,'clearTimeout');
     let pendingSignal!:AbortSignal;(getLiveServiceConfig as jest.Mock).mockImplementationOnce((signal:AbortSignal)=>{pendingSignal=signal;return new Promise(()=>{});});
     let pending!:Promise<void>;act(()=>{pending=view.result.current.refreshConfig();});view.unmount();await pending;
@@ -339,6 +357,45 @@ async function connected(recordingId:string|null='recording-1'){
     act(()=>{emit({kind:'pong',id:ping.id,sentEpochMs:ping.sentEpochMs,cameraEpochMs:Date.now(),recordingId});emit({kind:'clock',recordingId,segmentId:'segment-1',startEpochMs:2000000,timeMs:Date.now()-2000000,senderEpochMs:Date.now(),recording:true});node.frame(0,{mediaTime:13});jest.advanceTimersByTime(500);});
     return{view,dc,emit,node};
 }
+
+test('authorizes only the current durable native original, including during capture',async()=>{
+    const {view,emit}=await connected(null);
+    const current={kind:'recording',recordingId:'native-1',startEpochMs:2000000,state:'recording',mimeType:'video/mp4',originalTransfer:'progressive-v1'};
+    expect(await mockVideoOptions.resolveNativeSession?.(current.recordingId)).toBeNull();
+    await act(async()=>{emit(current);emit(current);await flush();});
+    const session=view.result.current.session!;
+    expect(mockSaved.size).toBe(1);
+    expect(mockVideos.requestNativeOriginal).toHaveBeenCalledWith(session);
+    expect(mockVideos.requestVideo).not.toHaveBeenCalled();
+    expect(extendNativeLiveRoom).toHaveBeenCalledTimes(1);
+    expect(await mockVideoOptions.resolveNativeSession?.(current.recordingId)).toEqual({session,roomId:room.roomId});
+    expect(await mockVideoOptions.resolveNativeSession?.('another-video')).toBeNull();
+    await act(async()=>{emit({...current,state:'stopped'});await flush();});
+    expect((await mockVideoOptions.resolveNativeSession?.(current.recordingId))?.session.ended).toBe(true);
+    expect(mockVideos.requestVideo).not.toHaveBeenCalled();
+    await act(async()=>{await view.result.current.disconnect();});
+    expect(await mockVideoOptions.resolveNativeSession?.(current.recordingId)).toBeNull();
+    view.unmount();
+});
+
+test('blocks a native start until the phone confirms the lens and temperature',async()=>{
+    const {view,emit,dc}=await connected(null);
+    const preview={kind:'camera-status',roomId:room.roomId,state:'preview',controlsVersion:2};
+    const sentStarts=()=>dc.send.mock.calls.map(([raw])=>JSON.parse(raw)).filter(value=>value.kind==='start-recording');
+    act(()=>emit({...preview,readyToRecord:false}));
+    expect(view.result.current.nativeStartBlock).toBe('lens');
+    act(()=>view.result.current.startRecording());
+    expect(sentStarts()).toHaveLength(0);
+    act(()=>emit({...preview,readyToRecord:true,thermalBlocked:true}));
+    expect(view.result.current.nativeStartBlock).toBe('thermal');
+    act(()=>view.result.current.startRecording());
+    expect(sentStarts()).toHaveLength(0);
+    act(()=>emit({...preview,readyToRecord:true,thermalBlocked:false}));
+    expect(view.result.current.nativeStartBlock).toBeNull();
+    act(()=>view.result.current.startRecording());
+    expect(sentStarts()).toHaveLength(1);
+    view.unmount();
+});
 
 test('the retained bridge captures fresh fractional camera time after preview frames stop',async()=>{
     const {view,emit}=await connected(),api=view.result.current.bridgeApi,initial=api.getCaptureStamp()!;
@@ -444,10 +501,12 @@ test('thumbnail capture failure is nonfatal and a late thumbnail write cannot re
 
 test('actual capture settings are bounded and discarded when the camera turns off',async()=>{
     const capture={label:'Rear camera',width:1920,height:1080,frameRate:30,zoom:1};
-    expect(parseLiveCaptureInfo({...capture,deviceId:'private'})).toEqual(capture);
+    expect(parseLiveCaptureInfo({...capture,deviceId:'private',source:'android-pilot'})).toEqual(capture);
     for(const changed of [{width:0},{height:Infinity},{frameRate:241},{zoom:101},{label:'x'.repeat(121)}])expect(parseLiveCaptureInfo({...capture,...changed})).toBeNull();
     const {view,emit}=await connected(null);
     act(()=>emit({kind:'camera-status',roomId:room.roomId,state:'preview',controlsVersion:2,capture}));expect(view.result.current.captureInfo).toEqual(capture);
+    act(()=>emit({kind:'camera-status',roomId:room.roomId,state:'preview',controlsVersion:2,capture,readyToRecord:true,thermalBlocked:false}));
+    expect(view.result.current.captureInfo).toEqual({...capture,source:'android-pilot'});
     act(()=>emit({kind:'camera-status',roomId:room.roomId,state:'off',controlsVersion:2,capture}));expect(view.result.current.captureInfo).toBeNull();view.unmount();
 });
 

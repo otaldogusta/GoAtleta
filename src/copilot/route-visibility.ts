@@ -7,6 +7,7 @@ const publicRoutes = new Set([
   "/pending",
   "/auth-callback",
   "/staff-invite",
+  "/scouting/enviar-video",
 ]);
 
 const invitePrefixes = ["/invite", "/family-invite", "/staff-invite"];

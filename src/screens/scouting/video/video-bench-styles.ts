@@ -8,6 +8,7 @@ export const videoBenchStyles = `
 .sv.sv-bench .sv-gallery[data-bench=true]{overflow-anchor:none}
 .sv.sv-bench .sv-main{flex:none;display:flex;overflow:visible;min-width:0;min-height:0;gap:0;border:1px solid var(--sv-line);border-radius:12px;background:var(--sv-panel)}
 .sv.sv-bench .sv-stage{flex:none;aspect-ratio:16/9;min-height:0;width:100%;max-height:max(220px,calc(100dvh - 450px));border-radius:11px 11px 0 0}
+.sv.sv-bench .sv-stage[data-live-preview=true]{border-radius:11px}
 .sv.sv-bench .sv-stage:has(.sv-bench-empty){background:var(--sv-panel)}
 .sw-bench .sw-body[data-split=false][data-mode=register] .sv.sv-bench .sv-stage:has(.sv-bench-empty){background:var(--sv-panel)}
 .sv.sv-bench .sv-bench-empty{justify-items:center;gap:12px;max-width:280px;padding:24px;color:var(--sv-text)}

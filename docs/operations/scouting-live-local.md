@@ -59,6 +59,55 @@ sem garantia de 1080p/60 nesta versão.
 O QR autoriza uma câmera, sem acesso aos dados da turma ou administração.
 Encerrar ou expirar a conexão revoga essa autorização. Não compartilhe o link.
 
+### Abrir a câmera pelo site do Go Atleta
+
+Em 10/11/2026, a versão web `052df301` entrou em produção. Na análise
+autenticada, **Adicionar vídeo** mostrou **Conectar câmera** e **Enviar MP4
+do celular** como opções separadas; o painel de câmera mostrou **Gerar QR
+code**. A gravação física abaixo foi verificada em ambiente local isolado.
+No notebook, prepare o HTTPS local
+conforme os passos acima e inicie o companion com autorização para o site.
+
+```powershell
+npm run dev:scouting-live -- --allow-goatleta-web
+```
+
+No Chrome do notebook, abra `https://goatleta.com`, entre na turma e na análise
+do Estúdio. Use **Conectar câmera → Gerar QR code** ou **Verificar serviço**.
+Autorize o acesso à rede local se o Chrome pedir. O terminal inicia apenas o
+companion, e o Estúdio abre no site. A permissão do serviço fica desativada por
+padrão e só libera a origem exata `https://goatleta.com` no loopback do notebook.
+Se o companion já estiver rodando sem a opção, aguarde o fim da conexão atual
+antes de encerrá-lo e iniciar com a opção.
+
+Escaneie o QR com o Android no mesmo Wi-Fi. O link abre a câmera no HTTPS
+privado do notebook, com a CA local já confiável no celular. Use **Ligar
+câmera** para conectar a prévia e **Gravar** para iniciar a captura. No Android
+com o [piloto atualizado](../../scripts/validation/android-camera-probe/README.md),
+o botão **Abrir app de câmera** oferece o pareamento nativo, com confirmação
+no aplicativo.
+**Adicionar vídeo → Enviar MP4 do celular** recebe um MP4 já gravado.
+
+Em 10/11/2026, o S25 físico abriu o APK atualizado pelo botão do QR no Chrome.
+Após a confirmação no app, o código salvo correspondeu à sala de teste e o
+Estúdio reproduziu a prévia de 640 × 360 com quadros avançando. O ensaio usou
+uma análise fictícia e sinalização local, com o site público isolado.
+
+O usuário confirmou o enquadramento 1× com a lente traseira principal
+(ID físico 5). O MP4 de 67,055689 s saiu em 1920 × 1080 a 59,592 fps, com
+3.996 timestamps de apresentação distintos. O sensor mediu 59,5918 fps.
+Todas as janelas de cadência da amostra passaram, o estado térmico máximo
+foi 1 e o arquivo decodificou no início, meio e fim. A captura foi encerrada
+no S25: o navegador interceptou o clique de parada automatizado, antes de
+enviar o comando ao celular. O fechamento do diálogo ao iniciar a gravação
+foi corrigido e testado localmente; o clique físico e a publicação da
+correção de parada continuam pendentes.
+
+O Estúdio mostrou **Original salvo** após verificar cada bloco e o tamanho
+total. O SHA-256 do arquivo no S25 coincidiu com o da cópia separada por USB.
+A comparação independente do hash integral da cópia por Wi-Fi e a cadência
+de um jogo inteiro continuam pendentes.
+
 ## Registrar e rever durante a gravação — integração local de 04/11/2026
 
 Selecione a análise no Estúdio, conecte a câmera e inicie a gravação. Em
@@ -1171,12 +1220,228 @@ depois de fechar a conexão e reabrir o Estúdio. A validação cobre os ensaios
 curtos do APK debug. Gravações de jogo inteiro e marcações oficiais com fonte
 nativa ficam fora do piloto.
 
+### Cópia durante a captura nativa — 07/11/2026
+
+O piloto local Android passa a gravar um MP4 contínuo com alvo Full HD/60 fps
+enquanto copia os bytes disponíveis ao notebook. Use o APK debug pareado com
+a CA local e abra o Estúdio em `localhost:8081`. O teto é de duas horas ou
+24 GiB. A gravação precisa do app aberto em primeiro plano e de espaço livre no
+telefone. O S25 é o aparelho dos ensaios curtos registrados acima. Outros
+Androids usam a mesma configuração e dependem de suportar a combinação de
+câmera, resolução, cadência e prévia. O relatório mede a taxa efetiva.
+
+O companion troca sinais de conexão. O original viaja por WebRTC e é escrito
+por blocos no armazenamento privado do navegador (OPFS), com manifesto local
+por usuário, organização, turma, sessão, sala e gravação. Na queda de Wi-Fi,
+o Android continua gravando e tenta reconectar. Mantendo o Estúdio e o companion
+abertos na mesma sala, a cópia retoma a partir do bloco gravado em disco. O
+notebook pode estender essa sala até seis horas a partir da criação. Os limites
+do fluxo da câmera web permanecem registrados nas seções anteriores.
+
+Ao parar, o S25 salva o original e oferece hashes das faixas do MP4 final.
+O notebook verifica as faixas recebidas e solicita bytes faltantes ou que
+mudaram na finalização. O arquivo fica disponível para revisão/download após
+a verificação completa. O original também pode ser compartilhado no Android.
+Os vídeos ocupam espaço no telefone e na quota do navegador. A referência do
+ensaio curto é cerca de 13,6 GB para 90 min, sujeita ao bitrate efetivo. O
+histórico físico de 20 s não certifica gravação longa, cadência sustentada ou
+vazão no Wi-Fi da quadra. Use um perfil normal do navegador com espaço livre
+para o arquivo e o replay. O perfil temporário anônimo do teste limitou a
+escrita de um arquivo na faixa de 4 GiB.
+
+Na fixture local com WebRTC, IndexedDB e OPFS reais, o Estúdio recebeu 256 KiB
+durante a captura sintética. Depois de fechar o canal e reconectar, a primeira
+leitura retomou no byte 262.144. O MP4 final de 2.400.745 bytes manteve o SHA-256
+da fonte após reparar o cabeçalho alterado. O player abriu os 6 s e buscou para
+5,75 s. A fixture bloqueou rede externa. Em um perfil normal temporário do
+Chromium, o worker gravou, verificou e releu um bloco no offset de 16 GiB em
+arquivo esparso. Essa prova verifica o endereçamento de arquivo grande e a
+retomada no navegador. O ensaio físico de duração de jogo permanece pendente.
+O rodapé de progresso foi inspecionado na fixture em 1280 × 800 e 390 × 844.
+Passaram 178 testes Jest focados, 183 testes Node (um skip de symlink no
+Windows), testes JVM de cadência e arquivo, build e lint do APK, tipos, escopo,
+arquitetura e performance. A fixture não usa uma sessão real do produto.
+
+### Ensaio físico de 18 min 55 s no S25 — 07/11/2026
+
+O APK debug foi instalado por USB no Galaxy S25 SM-S931B (API 37). O host
+isolado em `localhost:8081` usou o código do Estúdio, companion, WebRTC e OPFS
+reais com dados fictícios. A câmera foi confirmada em 1× no enquadramento
+vertical. O S25 gravou 1.135,319 s, com 2.273.105.624 bytes e finalização sem
+erro. O ensaio foi encerrado pelo Estúdio quando o Android informou estado
+térmico 4 e a bateria marcou 47,3 °C. A meta planejada era 30 minutos.
+
+O relatório do telefone mediu 1920 × 1080, 65.445 PTS únicos a 57,64 fps e
+65.449 timestamps únicos do sensor a 57,65 fps, sem pausa. Houve cobertura de
+toda a gravação e seis de 19 janelas ficaram fora do critério de cadência.
+O p95 foi 16,678 ms no arquivo e 16,673 ms no sensor. A maior lacuna foi
+50,022 ms no arquivo. A cadência sustentada de 60 fps não passou neste ensaio.
+
+O notebook confirmou cerca de 1,31 GB durante a captura antes do primeiro
+corte de Wi-Fi. O Android voltou a ligar o rádio automaticamente. No corte
+repetido, houve 17 observações de rádio desligado e seis amostras USB sem rota
+`wlan0` para o notebook, todas com horários de escrita distintos no original
+do telefone. As confirmações no notebook voltaram a avançar no mesmo canal
+quando a rede estabilizou. O ensaio não produziu uma queda contínua de 60 s.
+O Wi-Fi ficou ligado ao fim.
+
+Após encerrar, a prévia foi liberada para resfriar o S25. Ao voltar à mesma
+sala, um novo canal confirmou o prefixo de 1.853.882.368 bytes e retomou a
+verificação sem retransmitir os blocos válidos. O perfil temporário do
+Chromium parou em 2.097.152.000 bytes, mesmo após aumentar a quota do contexto.
+O prefixo foi migrado localmente para OPFS em um perfil persistente e o host
+voltou à mesma sala. Com o app novamente aberto no S25, o notebook recebeu e
+verificou os 175.953.624 bytes restantes por Wi-Fi, sem USB. O download do
+Estúdio ficou com 2.273.105.624 bytes e o mesmo SHA-256 calculado no S25. O
+player abriu em 1920 × 1080, buscou para 34,06 s, 567,67 s e 1.101,27 s e
+reproduziu após a última busca. A fixture isolada usou o código do Estúdio e
+os transportes reais. A etapa final da cópia terminou no mesmo canal.
+
+### Lente principal, temperatura e retomada da conferência
+
+O piloto seleciona uma lente traseira de campo de visão padrão pelas
+características ópticas do Camera2. Quando a câmera é lógica, a mesma lente
+física é fixada na prévia e no gravador. O início exige o perfil Full HD com
+faixa fixa de 60 fps, evidência da lente selecionada e confirmação visual do
+enquadramento. Se o Android não expuser uma seleção inequívoca ou rejeitar a
+combinação, o piloto bloqueia a gravação. O zoom configurado em 1×, sozinho,
+não identifica a lente principal. A confirmação visual da versão anterior
+ficou em dúvida após o operador observar enquadramento de 0,6×.
+
+Durante a captura, a prévia remota faz menos leituras do quadro. O estado
+térmico severo reduz a prévia remota e impede novos inícios. O estado crítico
+aciona a finalização normal do MP4. A câmera local continua com alvo de
+60 fps durante a gravação, e a taxa entregue continua sendo medida no arquivo.
+
+Em **Verificar serviço**, o Estúdio testa uma escrita pequena no armazenamento
+do navegador. Use um perfil normal e confira o espaço em disco para o volume
+do jogo. O teste pequeno não valida a capacidade de um arquivo longo. A
+conferência do MP4 final agora guarda o último intervalo verificado, assim como
+o envio guarda os bytes recebidos. Se a sala reconectar, o Estúdio continua a
+conferência da posição guardada. O painel mostra o avanço da conferência antes
+de liberar o original.
+
+O APK atualizado passou no build, na verificação de assinatura, nos testes JVM
+e no lint (zero erros, 20 avisos). Uma fixture local de WebRTC e OPFS confirmou
+a retomada do cursor de conferência e a igualdade do MP4 baixado com a fonte.
+
+### Prova da lente física no S25 — 09/11/2026
+
+O APK foi atualizado por ADB. O Camera2 mostrou a lente física 5 nas saídas de
+prévia e gravação, distância focal de 5,4 mm e faixa fixa de 60 fps. O relatório
+estimou distância focal equivalente de 22,91 mm. A captura de 27,43 s gerou
+um MP4 horizontal de 1920 × 1080, com 59,43 fps medidos no arquivo e no sensor,
+p95 de 16,678 ms, maior intervalo de 33,344 ms e pico térmico 0. O Estúdio
+recebeu 69.349.869 bytes por Wi-Fi. O download teve o mesmo SHA-256 do S25
+e abriu no player com busca no início, meio e perto do fim.
+
+O operador apontou que a prévia continuava pequena e parecia ultrapanorâmica.
+O ensaio foi encerrado antes da queda programada de Wi-Fi. A seleção da lente
+foi verificada na captura curta. A cadência de uma partida continua pendente.
+
+Na posição fixa de comparação, a tela anterior mostrava uma imagem de 1.283 px
+de largura, com apenas 103 linhas livres entre os controles. Ao normalizar a
+largura da imagem, a prévia correspondia ao MP4. Os pontos de referência no
+MP4 ficaram com cerca de 78% da escala vista na prévia 1× da Câmera Samsung e
+127% da escala da prévia 0,6×. Essa comparação usou as prévias da Samsung e
+deixa aberta a diferença entre o recorte de prévia e o de gravação dela.
+
+A revisão de interface separa imagem e controles. A câmera ocupa um quadro
+16:9 na paisagem ou 9:16 no retrato. A gravação, a conexão e a temperatura
+ficam no painel lateral ou inferior. A cadência e o resultado da gravação
+anterior ficam em **Detalhes**. A prévia pede 16:9 ao CameraX, com fallback
+para uma proporção suportada, e preserva o campo de visão da lente selecionada.
+O APK foi reinstalado e conferido no S25 em 1080 × 2340 e 2340 × 1080. O quadro
+na paisagem ocupou cerca de 1.680 × 945 px livres, inclusive com **Detalhes**
+aberto. Após **Reconectar**, o Estúdio recebeu a prévia principal da mesma sala
+e preservou o clipe anterior. Build, três verificações JVM e lint passaram,
+com zero erros e 20 avisos. Essa rodada da interface não iniciou nova captura.
+
+### Calibração do quadro Samsung 1× — 09/11/2026
+
+Um MP4 da Câmera Samsung em FHD 60 e 1× foi gravado com o S25 apoiado em
+posição fixa. O piloto sem ajuste precisaria de cerca de 1,26× para igualar
+a escala dos pontos da cena. No SM-S931B com a lente física 5 selecionada,
+o piloto solicita esse fator ao CameraX e mostra **Traseira principal · quadro
+Samsung 1×**. Os demais modelos mantêm a seleção óptica anterior. A leitura
+do Camera2 confirmou o recorte físico de 3.238 × 2.428 dentro da área de
+4.080 × 3.060. O relatório guarda o fator solicitado, o zoom lógico informado
+e o recorte do resultado físico quando disponível.
+
+Na mesma posição, o MP4 calibrado apresentou diferença mediana de 0,37% na
+escala e deslocamento de centro inferior a 0,07% em ambos os eixos. O vídeo
+de 12,95 s abriu em 1920 × 1080 e mediu 59,44 fps no arquivo e no sensor.
+A validação usou um perfil persistente isolado e confirmou a extensão da sala
+para seis horas. O download de 29.224.334 bytes manteve o SHA-256 do S25.
+O ensaio curto não representa a cadência de uma partida.
+
+Durante a gravação longa iniciada na mesma sala, o sistema religou o Wi-Fi
+sozinho nos primeiros cortes e a cópia avançou em blocos pequenos. Com
+autorização, os dados móveis também foram desligados por cerca de 70 s. Nas
+31 amostras em aproximadamente 60 s sem rota e com o canal desconectado,
+o arquivo do S25 continuou a registrar escritas e o ACK ficou em 923.009.024.
+Na volta das conexões, o novo canal confirmou esse mesmo offset e a primeira
+parte recebida começou no byte 923.009.024. A gravação continuou ativa no S25
+durante a troca de canal.
+
+O Estúdio encerrou a captura após 1h30min04s. O relatório do S25 registrou
+1920 × 1080, 318.922 timestamps distintos no MP4, 59,01 fps no arquivo e no
+sensor, sem pausas, com cobertura de toda a gravação e pico térmico 3. A
+maior lacuna de quadros foi de 66,69 ms e 38 das 90 janelas de um minuto
+ficaram fora do critério. A duração integral e a retomada passaram. A
+cadência sustentada de 60 fps ficou abaixo do critério do piloto.
+
+O original de 10.927.104.127 bytes foi fechado e teve SHA-256 calculado no
+S25. O notebook recebeu 7.595.884.544 bytes e verificou 6.854.541.312 antes
+de perder contato com o app novamente. A sala e o manifesto foram mantidos
+para retomar a conferência quando o celular voltar. O download integral e
+a comparação dos hashes continuam pendentes.
+
+### Enviar um MP4 existente do celular
+
+Em **Adicionar vídeo → Enviar do celular**, o notebook gera um QR para a
+análise aberta. O celular abre a página do Go Atleta no navegador, escolhe o
+MP4 e inicia o envio. O notebook mostra o nome do arquivo e pede confirmação
+antes de receber. Depois, o Estúdio usa o mesmo fluxo de **Escolher arquivo**
+para reconhecer e associar o original à análise.
+
+As RPCs do Supabase trocam só as descrições da conexão. O dono da sala deve
+ter acesso à organização, à turma e à análise. O código do celular fica no
+fragmento do QR e vale por até dez minutos para uma resposta. Ao abrir a
+página, o navegador limpa o fragmento e guarda o código em memória, inclusive
+se a tela for recriada durante a abertura. Recarregar a página sem o QR exige
+outro código. A página pública recebe apenas a oferta de conexão e não expõe
+a análise. Ambos os navegadores precisam acessar o site e usar uma rede local
+que permita conexão entre os aparelhos.
+
+O canal direto WebRTC aceita candidatos de rede local e confere a rota
+selecionada, sem servidor de retransmissão. O notebook grava o arquivo em
+OPFS, verifica o SHA-256 de cada bloco e usa o MP4 recebido sem recompressão.
+O teto é de 24 GiB e depende da quota disponível. Mantenha as duas páginas
+abertas. Uma interrupção que encerra a conexão exige outro QR.
+
+A referência local associa o arquivo à conta, organização, turma, análise
+e identidade do vídeo. Ao reabrir, o Estúdio confere a mesma análise e o
+arquivo original no mesmo perfil do navegador. A associação de mídia continua
+local ao notebook e depende da retenção de dados do navegador.
+
+Um ensaio em dois contextos do Chromium usou os componentes do notebook e
+do celular, sinalização de teste e WebRTC/OPFS reais. O MP4 de 2.400.745 bytes
+chegou com SHA-256 idêntico e a maior requisição de sinalização teve menos de
+1 KiB. Testes SQL em banco isolado verificaram o vínculo, a prova do QR,
+a resposta única, a revogação e a expiração.
+
+O envio de MP4 foi publicado com a migração `20261110013811`. A abertura do
+link até **Escolher MP4** foi conferida em produção com código fictício.
+A conferência da correção em um celular físico segue pendente.
+
 ### Continuidade do Estúdio
 
 O código da bancada e os testes ficam na `main`. O Estúdio publicado oferece a
-coleta e revisão de vídeo. Pareamento, prévia e cópia da câmera exigem a origem
-de desenvolvimento `localhost:8081` e o companion local. Os arquivos WebView
-do piloto ficam no [projeto Android de teste](../../scripts/validation/android-camera-probe/README.md)
+coleta e revisão de vídeo. A integração da câmera com a origem do site está
+preparada localmente e usa o companion no notebook.
+[Abrir a câmera pelo site do Go Atleta](#abrir-a-câmera-pelo-site-do-go-atleta).
+Os arquivos WebView ficam no [projeto Android de teste](../../scripts/validation/android-camera-probe/README.md)
 e são servidos pelo companion. O export web da Vercel não inclui esses arquivos.
 
 Em outra estação, siga a [preparação do workspace](workstations.md) e confira

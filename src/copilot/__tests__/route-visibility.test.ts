@@ -6,6 +6,7 @@ describe("assistant visibility on public routes", () => {
     "/family-invite", "/family-invite/token", "/family-invite/token/",
     "/staff-invite", "/staff-invite/token", "/staff-invite/token/",
     "/login", "/login/", "/welcome", "/reset-password", "/pending",
+    "/scouting/enviar-video", "/scouting/enviar-video/",
   ])("blocks the assistant on %s even for an existing session", (path) => {
     expect(isCopilotPublicRoute(path)).toBe(true);
   });

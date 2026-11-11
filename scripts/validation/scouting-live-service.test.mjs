@@ -63,6 +63,54 @@ test('host creation rejects other origins, omitted CSRF header, rebinding and pr
   assert.equal(f.service.roomCount(),0);
 });
 
+test('hosted web requires explicit opt-in and authorizes only the exact public origin over loopback',async t=>{
+  const origin='https://goatleta.com',hosted={Origin:origin};
+  const local=await fixture(t), disabled=await local.request('/config',{extra:hosted});
+  assert.equal(disabled.status,403);assert.equal(disabled.headers.has('access-control-allow-origin'),false);
+  assert.equal((await local.request('/config')).value.allowGoatletaWeb,false);
+
+  const f=await fixture(t,{allowGoatletaWeb:true,cameraOrigin:'https://192.168.1.20:8097'});
+  for(const rejected of ['http://goatleta.com','https://www.goatleta.com','https://goatleta.com.evil.example','null']){
+    const response=await f.request('/config',{extra:{Origin:rejected}});
+    assert.equal(response.status,403);assert.equal(response.headers.has('access-control-allow-origin'),false);
+  }
+  const preflight=await f.request('/rooms',{method:'OPTIONS',extra:{...hosted,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type,x-goatleta-live'},raw:true});
+  assert.equal(preflight.status,204);assert.equal(preflight.headers.get('access-control-allow-origin'),origin);
+  assert.match(preflight.headers.get('access-control-allow-headers'),/X-GoAtleta-Live/);
+  assert.equal(preflight.headers.has('access-control-allow-credentials'),false);
+  assert.equal(preflight.headers.has('access-control-allow-private-network'),false);
+
+  const config=await f.request('/config',{extra:{...hosted,'Sec-Fetch-Site':'cross-site'}});
+  assert.equal(config.status,200);assert.equal(config.value.allowGoatletaWeb,true);
+  assert.equal(config.headers.get('access-control-allow-origin'),origin);
+  for(const extra of [{...hosted,'X-GoAtleta-Live':''},{...hosted,Host:`goatleta.com:${f.port}`}]){
+    assert.equal((await f.request('/rooms',{method:'POST',body:{},extra})).status,403);
+  }
+  const created=await f.request('/rooms',{method:'POST',body:{},extra:hosted});
+  assert.equal(created.status,201);assert.equal(new URL(created.value.cameraUrl).origin,'https://192.168.1.20:8097');
+  const path=`/rooms/${created.value.roomId}/status`, role=f.role(created.value);
+  assert.equal((await f.request(path,{extra:{...role,...hosted}})).status,200);
+  assert.equal((await f.request(path,{extra:{...role,...hosted,'X-GoAtleta-Live-Token':created.value.cameraToken}})).status,401);
+  assert.equal((await f.request(path,{extra:role})).status,403);
+  const devRoom=await f.room();
+  assert.equal((await f.request(`/rooms/${devRoom.roomId}/status`,{extra:{...f.role(devRoom),...hosted}})).status,403);
+
+  const lan=http.createServer(f.service.cameraHandler);
+  await new Promise(resolve=>lan.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>lan.close(resolve)));
+  const lanPath=`http://127.0.0.1:${lan.address().port}/rooms/${created.value.roomId}/join`;
+  const cameraHeaders={...headers,Host:'192.168.1.20:8097',Origin:'https://192.168.1.20:8097','X-GoAtleta-Live-Role':'camera','X-GoAtleta-Live-Token':created.value.cameraToken};
+  assert.equal((await rawHttp(lanPath,{method:'POST',headers:{...cameraHeaders,...hosted},body:'{}'})).status,403);
+  assert.equal((await rawHttp(lanPath,{method:'POST',headers:cameraHeaders,body:'{}'})).status,200);
+});
+
+test('hosted web needs LAN HTTPS before generating a room and development smoke remains available',async t=>{
+  const f=await fixture(t,{allowGoatletaWeb:true});
+  const response=await f.request('/rooms',{method:'POST',body:{},extra:{Origin:'https://goatleta.com'}});
+  assert.equal(response.status,503);assert.match(response.value.error,/HTTPS local/);assert.equal(f.service.roomCount(),0);
+  assert.equal((await f.room()).cameraUrl,null);
+});
+
 test('capabilities cannot cross roles or rooms, and camera cannot close or create rooms',async t=>{
   const f=await fixture(t), a=await f.room(),b=await f.room(),joined=await f.joinCamera(a);
   assert.equal((await f.request(`/rooms/${b.roomId}/status`,{extra:f.role(a)})).status,401);
@@ -70,6 +118,28 @@ test('capabilities cannot cross roles or rooms, and camera cannot close or creat
   assert.equal((await f.request(`/rooms/${a.roomId}`,{method:'DELETE',extra:f.role(a,'camera',joined.cameraClientId)})).status,405);
   assert.equal((await f.request('/rooms',{method:'POST',body:{},extra:f.role(a,'camera',joined.cameraClientId)})).status,403);
   assert.equal((await f.request(`/rooms/${a.roomId}/status`,{extra:{...f.role(a),Origin:'https://evil.example'}})).status,403);
+});
+
+test('only the paired notebook can extend a native room and the deadline stays bounded',async t=>{
+  let now=10000;const f=await fixture(t,{now:()=>now}),room=await f.room(),other=await f.room();
+  const root=`/rooms/${room.roomId}`,path=`${root}/extend-native`;
+  const extend=(extra,body={})=>f.request(path,{method:'POST',body,extra});
+  assert.equal((await extend(f.role(room))).status,409);
+  const joined=await f.joinCamera(room),camera=f.role(room,'camera',joined.cameraClientId),host=f.role(room);
+  assert.equal((await f.request(`${root}/signals`,{method:'POST',body:{type:'offer',sdp},extra:camera})).status,200);
+  assert.equal((await extend(camera)).status,405);
+  assert.equal((await extend(f.role(other))).status,401);
+  assert.equal((await extend(host,{recordingId:'private'})).status,400);
+  const extended=await extend(host);
+  const deadline=now+6*60*60*1000;
+  assert.equal(extended.value.expiresAt,deadline);
+  now+=30000;
+  assert.equal((await extend(host)).value.expiresAt,deadline);
+  now=room.expiresAt+1;
+  assert.equal((await f.joinCamera(room,joined.cameraClientId)).expiresAt,deadline);
+  assert.equal((await f.request(`/rooms/${other.roomId}/status`,{extra:f.role(other)})).status,410);
+  now=deadline+1;
+  assert.equal((await extend(host)).status,410);
 });
 
 test('one active camera is retained across rejoin and another is allowed only after lease expiry',async t=>{
@@ -254,6 +324,7 @@ test('CLI refuses public hosts, partial TLS configuration, invalid ports and sec
   assert.equal(privateIpv4('192.168.1.10'),true);assert.equal(privateIpv4('172.20.0.2'),true);assert.equal(privateIpv4('8.8.8.8'),false);assert.equal(privateIpv4('127.0.0.1'),false);
   assert.deepEqual(liveCliOptions([]),{httpPort:8096,httpsPort:8097,assetsDirectory:join(process.cwd(),'public/scouting-live')});
   assert.equal(liveCliOptions(['--cert','public.pem','--key','private.pem','--public-host','192.168.1.20']).publicHost,'192.168.1.20');
-  for(const args of [['--cert','x'],['--public-host','192.168.1.20'],['--cert','x','--key','y','--public-host','example.com'],['--http-port','80'],['--http-port','8097'],['--http-port','9000','--http-port','9001'],['--unknown','x']]) assert.throws(()=>liveCliOptions(args));
+  assert.equal(liveCliOptions(['--http-port','8098','--allow-goatleta-web','--https-port','8099']).allowGoatletaWeb,true);
+  for(const args of [['--cert','x'],['--public-host','192.168.1.20'],['--cert','x','--key','y','--public-host','example.com'],['--http-port','80'],['--http-port','8097'],['--http-port','9000','--http-port','9001'],['--unknown','x'],['--allow-goatleta-web','--allow-goatleta-web'],['--allow-goatleta-web','false']]) assert.throws(()=>liveCliOptions(args));
   assert.throws(()=>createLiveService({certificate:'-----BEGIN PRIVATE KEY-----'}));
 });

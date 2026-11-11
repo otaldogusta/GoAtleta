@@ -8,7 +8,7 @@ import { useLiveVideoDraft, type LiveVideoDraftMediaInfo } from './use-live-vide
 import { scoutingActionFundamentals } from '../../../core/scouting';
 import { markRender, measureAsync } from '../../../observability/perf';
 
-export type LiveScoutingVideoProps=Pick<StudioProps,'org'|'userId'|'classId'|'sessionId'|'teamName'|'students'|'active'|'embedded'|'visible'|'bench'|'benchPreviewActive'|'keyboardActive'|'onReturnToLive'|'onBenchReplayChange'|'onBenchStageTarget'|'toolbarTarget'|'onLeaveGuard'|'onClose'> & {
+export type LiveScoutingVideoProps=Pick<StudioProps,'org'|'userId'|'classId'|'sessionId'|'teamName'|'students'|'active'|'embedded'|'visible'|'bench'|'benchPreviewActive'|'keyboardActive'|'onReturnToLive'|'onBenchReplayChange'|'onBenchStageTarget'|'onMenuActionsChange'|'toolbarTarget'|'onLeaveGuard'|'onClose'> & {
     recordings:LiveTimelineRecording[];selectedRecordingId?:string;onSelectRecording:(recordingId:string)=>void;
     loadMedia:(reference:LiveRecordingReference,clip?:LiveTimelineClip)=>Promise<LiveReplayMedia|null>;
     revision:number;onOtherVideos:()=>void;
@@ -123,5 +123,5 @@ function LocalReplayStudio(props:LiveScoutingVideoProps&{recording:LiveTimelineR
         revision:props.revision+refreshVersion,selectRally,playbackState,exportState,onMetadata,mediaError,refresh,onOtherVideos:props.onOtherVideos,
         recordings:props.recordings.map(value=>({value:value.recordingId,label:`${new Date(value.updatedAt).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} · ${value.clips.filter(clip=>clip.active).length} lances`})),recordingId:recording?.recordingId??'',selectRecording};
     return <ScoutingVideoStudio org={props.org} userId={props.userId} classId={props.classId} sessionId={props.sessionId} teamName={props.teamName} students={props.students}
-        active={props.active} embedded={props.embedded} visible={props.visible} bench={props.bench} benchPreviewActive={props.benchPreviewActive} keyboardActive={props.keyboardActive} onReturnToLive={props.onReturnToLive} onBenchReplayChange={props.onBenchReplayChange} onBenchStageTarget={props.onBenchStageTarget} toolbarTarget={props.toolbarTarget} onLeaveGuard={props.onLeaveGuard} onClose={props.onClose} localReplay={localReplay}/>;
+        active={props.active} embedded={props.embedded} visible={props.visible} bench={props.bench} benchPreviewActive={props.benchPreviewActive} keyboardActive={props.keyboardActive} onReturnToLive={props.onReturnToLive} onBenchReplayChange={props.onBenchReplayChange} onBenchStageTarget={props.onBenchStageTarget} onMenuActionsChange={props.onMenuActionsChange} toolbarTarget={props.toolbarTarget} onLeaveGuard={props.onLeaveGuard} onClose={props.onClose} localReplay={localReplay}/>;
 }

@@ -1,30 +1,73 @@
-import {createLiveRoom,getLiveServiceConfig,pollLiveSignals,sendLiveSignal,type LiveRoom} from '../live/live-api';
-const originalFetch=global.fetch, originalWindow=Object.getOwnPropertyDescriptor(globalThis,'window');
-const room:LiveRoom={roomId:'11111111-1111-4111-8111-111111111111',hostToken:'a'.repeat(64),cameraToken:'b'.repeat(64),cameraUrl:null,localCameraUrl:`http://localhost:8096/camera#room=11111111-1111-4111-8111-111111111111&token=${'b'.repeat(64)}`,expiresAt:Date.now()+7200000};
-beforeEach(()=>{Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{origin:'http://localhost:8081'}}});global.fetch=jest.fn();});
-afterEach(()=>{global.fetch=originalFetch;if(originalWindow)Object.defineProperty(globalThis,'window',originalWindow);else Reflect.deleteProperty(globalThis,'window');});
-const ok=(value:unknown)=>({ok:true,json:async()=>value});
-test('creates an anonymous room and never places host capability in a URL',async()=>{
-    (global.fetch as jest.Mock).mockResolvedValue(ok(room));
-    expect(await createLiveRoom(new AbortController().signal)).toEqual(room);
-    expect(global.fetch).toHaveBeenCalledWith('http://127.0.0.1:8096/rooms',expect.objectContaining({body:'{}',headers:expect.objectContaining({'X-GoAtleta-Live':'1'})}));
-    expect(JSON.stringify((global.fetch as jest.Mock).mock.calls)).not.toContain(room.hostToken);
+import { createLiveRoom, liveLocalAvailable, pollLiveSignals, sendLiveSignal } from '../live/live-api';
+
+const roomId = '11111111-1111-4111-8111-111111111111';
+const hostToken = 'a'.repeat(64);
+const cameraToken = 'b'.repeat(64);
+const fragment = `#room=${roomId}&token=${cameraToken}`;
+const room = {
+    roomId, hostToken, cameraToken, expiresAt: 2000000,
+    localCameraUrl: `http://localhost:8096/camera${fragment}`,
+    cameraUrl: `https://192.168.1.10:8097/camera${fragment}`,
+};
+const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
+const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+const request = jest.fn();
+
+function setOrigin(origin: string) {
+    Object.defineProperty(window, 'location', { configurable: true, value: { origin } });
+}
+
+beforeEach(() => {
+    setOrigin('https://goatleta.com');
+    request.mockReset().mockResolvedValue({ ok: true, json: async () => room });
+    Object.defineProperty(globalThis, 'fetch', { configurable: true, value: request });
 });
-test('signaling capabilities stay in role-specific headers, including the negotiation generation',async()=>{
-    (global.fetch as jest.Mock).mockResolvedValue(ok({cursor:2,signals:[]}));
-    await pollLiveSignals(room,2,new AbortController().signal);
-    await sendLiveSignal(room,{type:'answer',sdp:'v=0',generation:3},new AbortController().signal);
-    expect(global.fetch).toHaveBeenLastCalledWith(`http://127.0.0.1:8096/rooms/${room.roomId}/signals`,expect.objectContaining({headers:expect.objectContaining({'X-GoAtleta-Live-Role':'host','X-GoAtleta-Live-Token':room.hostToken}),body:JSON.stringify({type:'answer',sdp:'v=0',generation:3})}));
-    expect((global.fetch as jest.Mock).mock.calls.every(([url])=>!url.includes(room.hostToken))).toBe(true);
+
+afterEach(() => {
+    if (originalLocation) Object.defineProperty(window, 'location', originalLocation);
+    else Reflect.deleteProperty(window, 'location');
+    if (originalFetch) Object.defineProperty(globalThis, 'fetch', originalFetch);
+    else Reflect.deleteProperty(globalThis, 'fetch');
 });
-test('production cannot silently connect to a developer loopback service',async()=>{
-    Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{origin:'https://goatleta.com'}}});
-    await expect(getLiveServiceConfig(new AbortController().signal)).rejects.toThrow('desenvolvimento');
-    expect(global.fetch).not.toHaveBeenCalled();
+
+test('the hosted Studio creates a local room without sending browser credentials', async () => {
+    const { signal } = new AbortController();
+    await expect(createLiveRoom(signal)).resolves.toEqual(room);
+    expect(request).toHaveBeenCalledWith('http://127.0.0.1:8096/rooms', expect.objectContaining({
+        signal, method: 'POST', targetAddressSpace: 'loopback', credentials: 'omit', redirect: 'error',
+        headers: { 'Content-Type': 'application/json', 'X-GoAtleta-Live': '1' }, body: '{}',
+    }));
 });
-test('rejects camera addresses carrying a different room or query capabilities',async()=>{
-    for(const changed of [{...room,localCameraUrl:room.localCameraUrl.replace('/camera#','/camera?token=private#')},{...room,cameraUrl:'https://camera.example/camera#room=foreign&token='+room.cameraToken}]){
-        (global.fetch as jest.Mock).mockResolvedValueOnce(ok(changed));
-        await expect(createLiveRoom(new AbortController().signal)).rejects.toThrow('inválido');
-    }
+
+test('local development still allows the companion without LAN HTTPS', async () => {
+    setOrigin('http://localhost:8081');
+    const localRoom = { ...room, cameraUrl: null };
+    request.mockResolvedValue({ ok: true, json: async () => localRoom });
+    await expect(createLiveRoom(new AbortController().signal)).resolves.toEqual(localRoom);
+    expect(JSON.stringify(request.mock.calls)).not.toContain(hostToken);
+});
+
+test('signaling keeps host capabilities in headers and preserves the negotiation generation', async () => {
+    request.mockResolvedValue({ ok: true, json: async () => ({ cursor: 2, signals: [] }) });
+    const { signal } = new AbortController();
+    await pollLiveSignals(room, 2, signal);
+    const answer = { type: 'answer', sdp: 'v=0', generation: 3 } as const;
+    await sendLiveSignal(room, answer, signal);
+    expect(request).toHaveBeenLastCalledWith(`http://127.0.0.1:8096/rooms/${roomId}/signals`, expect.objectContaining({
+        headers: expect.objectContaining({ 'X-GoAtleta-Live-Role': 'host', 'X-GoAtleta-Live-Token': hostToken }),
+        body: JSON.stringify(answer),
+    }));
+    expect(request.mock.calls.every(([url]) => !url.includes(hostToken))).toBe(true);
+});
+
+test.each(['https://www.goatleta.com', 'https://goatleta.com.example', 'http://goatleta.com'])('rejects the notebook API on %s', async origin => {
+    setOrigin(origin);
+    expect(liveLocalAvailable()).toBe(false);
+    await expect(createLiveRoom(new AbortController().signal)).rejects.toThrow('Abra o Estúdio');
+    expect(request).not.toHaveBeenCalled();
+});
+
+test.each([null, `https://goatleta.com:8097/camera${fragment}`, `https://192.168.1.10:8098/camera${fragment}`, `https://192.168.1.10:8097/camera${fragment}&token=${cameraToken}`, `https://192.168.1.10:8097/camera?token=private${fragment}`, `https://192.168.1.10:8097/camera#room=foreign&token=${cameraToken}`])('rejects an invalid camera QR from the hosted helper', async cameraUrl => {
+    request.mockResolvedValue({ ok: true, json: async () => ({ ...room, cameraUrl }) });
+    await expect(createLiveRoom(new AbortController().signal)).rejects.toThrow();
 });
