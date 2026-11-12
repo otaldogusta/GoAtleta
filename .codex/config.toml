@@ -1,0 +1,4 @@
+# Equipe local: até três subagentes, além do coordenador da conversa.
+# Modelo, esforço e permissões continuam herdados da sessão do usuário.
+[agents]
+max_concurrent_threads_per_session = 3

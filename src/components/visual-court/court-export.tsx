@@ -5,7 +5,7 @@ import type { CourtVisualPayload } from "../../core/visual-court";
 
 export async function exportCourt(p: CourtVisualPayload, _index: number, kind: "png" | "gif" | "pdf" | "json") {
   if (kind !== "json") throw new Error("PNG, GIF e PDF estão disponíveis no navegador. Use a cópia editável neste dispositivo.");
-  const safe = { ...p, editor: { ...p.editor!, actorMeta: Object.fromEntries(Object.entries(p.editor!.actorMeta).map(([id, m]) => [id, { team: m.team, locked: m.locked }])), lessonLink: undefined } };
+  const safe = { ...p, editor: { ...p.editor!, actorMeta: Object.fromEntries(Object.entries(p.editor!.actorMeta).map(([id, m]) => [id, { team: m.team, locked: m.locked, ...(typeof m.hidden === "boolean" ? { hidden: m.hidden } : {}) }])), lessonLink: undefined } };
   const uri = `${FileSystem.cacheDirectory}jogada.goatleta.json`;
   await FileSystem.writeAsStringAsync(uri, JSON.stringify({ format: "goatleta-court", version: 1, payload: safe }));
   if (!await Sharing.isAvailableAsync()) throw new Error("Compartilhamento indisponível neste dispositivo.");

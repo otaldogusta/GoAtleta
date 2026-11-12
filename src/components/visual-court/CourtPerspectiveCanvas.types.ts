@@ -11,4 +11,5 @@ export type CourtPerspectiveCanvasProps = Omit<CourtEditorCanvasProps, "onSimula
   onOpenProperties: () => void;
   /** One completed handle gesture is one canonical history edit. */
   onSimulationHandle?: (edit: CourtPerspectiveHandleEdit) => void;
+  onElevation?: (id: string, value: number) => void;
 };

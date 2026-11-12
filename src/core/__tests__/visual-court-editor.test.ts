@@ -212,8 +212,11 @@ describe("court editor document commands", () => {
     const p = newCourtBoard(), id = p.actors[0].id;
     p.editor!.actorMeta[id].locked = true;
     const moved = moveSelection(p, 0, [id], { x: 100, y: -100 }, false);
+    expect(moved).toBe(p);
     expect(actorPoint(moved, 0, id)).toEqual(actorPoint(p, 0, id));
-    expect(deleteSelection(moved, 0, [id]).timeline.steps[0].visibleActorIds).toContain(id);
+    const deleted = deleteSelection(moved, 0, [id]);
+    expect(deleted).toBe(p);
+    expect(deleted.timeline.steps[0].visibleActorIds ?? deleted.actors.map(actor => actor.id)).toContain(id);
   });
   it("duplicates and removes actors only in the active step", () => {
     const p = duplicateStep(newCourtBoard(), 0).payload;
@@ -280,6 +283,46 @@ describe("court editor document commands", () => {
     expect(pasted.payload.timeline.steps[1].actorPositions[actorId]).toEqual(actorPoint(p, 0, actorId));
     expect(frameDrawings(pasted.payload, 1)).toHaveLength(1);
     expect(frameDrawings(pasted.payload, 1)[0].id).not.toBe("cone");
+  });
+  it.each(["locked", "hidden", "group"] as const)("does not paste over an actor protected by %s after copying and moving it", protection => {
+    let p = newCourtBoard();
+    const actorId = p.actors[0].id;
+    const clipboard = copyStepSelection(p, 0, [actorId]);
+    p = moveSelection(p, 0, [actorId], { x: 0.1, y: 0.05 }, true);
+    if (protection === "group") p.editor!.hiddenLayers = ["actors"];
+    else p.editor!.actorMeta[actorId][protection] = true;
+    const destination = actorPoint(p, 0, actorId);
+    const before = JSON.stringify(p);
+
+    const pasted = pasteStepSelection(p, 0, clipboard);
+
+    expect(destination).not.toEqual(clipboard.actorPositions[actorId]);
+    expect(pasted.payload).toBe(p);
+    expect(actorPoint(pasted.payload, 0, actorId)).toEqual(destination);
+    expect(pasted.payload.editor!.actorMeta).toBe(p.editor!.actorMeta);
+    expect(pasted.selected).toEqual([]);
+    expect(JSON.stringify(p)).toBe(before);
+  });
+  it("still pastes new drawings without changing a protected destination actor or its step", () => {
+    let p = newCourtBoard();
+    const actorId = p.actors[0].id;
+    p = changeDrawings(p, 0, [{ id: "cone", kind: "cone", points: [{ x: 0.4, y: 0.5 }], size: 24, rotation: 0, color: "#ffdc53", locked: true, hidden: true }]);
+    const clipboard = copyStepSelection(p, 0, [actorId, "cone"]);
+    p = moveSelection(p, 0, [actorId], { x: 0.1, y: 0.05 }, true);
+    p.editor!.actorMeta[actorId].locked = true;
+    const before = JSON.stringify(p);
+
+    const pasted = pasteStepSelection(p, 0, clipboard);
+    const drawings = frameDrawings(pasted.payload, 0);
+
+    expect(pasted.payload.timeline).toBe(p.timeline);
+    expect(pasted.payload.editor!.actorMeta).toBe(p.editor!.actorMeta);
+    expect(drawings).toHaveLength(2);
+    expect(drawings[0]).toBe(frameDrawings(p, 0)[0]);
+    expect(drawings[1]).toEqual({ ...clipboard.drawings[0], id: expect.any(String) });
+    expect(drawings[1].id).not.toBe("cone");
+    expect(pasted.selected).toEqual([drawings[1].id]);
+    expect(JSON.stringify(p)).toBe(before);
   });
   it("round-trips a bounded editable document and strips account links", () => {
     const p = newCourtBoard(); p.editor!.actorMeta[p.actors[0].id].studentId = "private-student";

@@ -113,6 +113,7 @@ describe("training session attendance and report composition", () => {
       expect.stringMatching(
         /^\/training_session_attendance\?session_id=eq\.[^&]+&organization_id=eq\.org-1$/,
       ),
+      undefined,
     );
     expect(
       mockSupabasePost.mock.calls.filter(
@@ -151,6 +152,7 @@ describe("training session attendance and report composition", () => {
     ]);
     expect(mockSupabaseDelete).toHaveBeenCalledWith(
       expect.stringContaining("&organization_id=eq.org-1"),
+      undefined,
     );
   });
 
@@ -168,6 +170,25 @@ describe("training session attendance and report composition", () => {
         note: "",
       }),
     ]);
+  });
+
+  it("pins every attendance projection write to the captured session identity", async () => {
+    const identity = { userId: "user-1", generation: 1 };
+
+    await syncTrainingSessionFromAttendance({
+      classInfo,
+      date: attendanceRecord.date,
+      records: [attendanceRecord],
+      organizationId: "org-1",
+      identity,
+    });
+
+    expect(mockSupabasePost.mock.calls).toHaveLength(3);
+    for (const call of mockSupabasePost.mock.calls) expect(call[3]).toBe(identity);
+    expect(mockSupabasePatch.mock.calls).toHaveLength(1);
+    expect(mockSupabasePatch.mock.calls[0][3]).toBe(identity);
+    expect(mockSupabaseDelete.mock.calls).toHaveLength(4);
+    for (const call of mockSupabaseDelete.mock.calls) expect(call[1]).toBe(identity);
   });
 
   it("keeps report description and attendance when attendance is saved first", async () => {
@@ -220,6 +241,8 @@ describe("training session attendance and report composition", () => {
         /^\/training_sessions\?id=eq\.[^&]+&organization_id=eq\.org-1$/,
       ),
       expect.not.objectContaining({ description: expect.anything() }),
+      undefined,
+      undefined,
     );
   });
 

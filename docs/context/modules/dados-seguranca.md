@@ -85,6 +85,11 @@ próprias. Segurança também atravessa cada módulo, não fica restrita a esta 
   Ver [contrato e evidência da correção local](../../operations/consultation-and-rules-sync-local.md).
 - Chamada usa `replace_attendance_records` transacional, sem fallback DELETE/POST.
   Aplicação remota da migration precisa de evidência separada da existência do SQL.
+  A escrita na fila offline deve confirmar persistência antes do aviso de salvo.
+  A leitura da pendência exige a origem exata e não promove cache a autorização.
+  A sincronização automática do rascunho usa `apply_attendance_draft`, com
+  comparação por aluno e preservação da cópia local em conflito.
+  [Contrato offline](../../architecture/offline-write-identity.md#contrato-de-chamada).
 - Scouting por jogada usa `apply_scouting_command`: trava/revisão por sessão,
   recibo idempotente e escrita atômica de pontos, ações e contagens legadas.
   Rascunho e comando pendente incluem usuário/organização/sessão. Migration

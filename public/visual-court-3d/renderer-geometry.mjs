@@ -14,9 +14,10 @@ export function snappedGesture(point,start,anchor,grid,tool,motionMode){
 export function shouldCancelFrameGesture(gesture,next){
  return Boolean(gesture&&(gesture.revision!==next.revision||gesture.tool!==next.tool||next.active===false||next.disabled&&!gesture.cameraDrag));
 }
-export function curvePoints(points,landscape=false){
+export function curvePoints(points,landscape=false,curveMode){
  if(points.length<2)return points;
- const a=points[0],b=points.at(-1),c={x:(a.x+b.x)/2+(landscape?-.65:.65),y:(a.y+b.y)/2,z:(a.z+b.z)/2-.65};
+ const a=points[0],b=points.at(-1),middle=curveMode==='through-point'&&points.length===3?points[1]:null;
+ const c=middle?{x:2*middle.x-(a.x+b.x)/2,y:2*middle.y-(a.y+b.y)/2,z:2*middle.z-(a.z+b.z)/2}:{x:(a.x+b.x)/2+(landscape?-.65:.65),y:(a.y+b.y)/2,z:(a.z+b.z)/2-.65};
  return Array.from({length:33},(_,i)=>{const u=i/32,v=1-u;return {x:v*v*a.x+2*v*u*c.x+u*u*b.x,y:v*v*a.y+2*v*u*c.y+u*u*b.y,z:v*v*a.z+2*v*u*c.z+u*u*b.z};});
 }
 export function editableIds(ids,frame){

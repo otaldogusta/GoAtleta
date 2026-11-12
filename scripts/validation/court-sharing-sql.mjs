@@ -19,9 +19,30 @@ try {
   await db.exec(await readFile(new URL('../../supabase/migrations/20261027134015_court_sharing.sql', import.meta.url), 'utf8'));
   const query = async (sql, args = []) => (await db.query(sql, args)).rows[0]?.value;
   const asUser = async (id, role) => { await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]); await db.exec(`set role ${role}`); };
-  const document = { version: 1, sport: 'volleyball_indoor', actors: [], markers: [], layers: [], court: {}, timeline: { steps: [{ id: 'step' }] },
+  const legacy = { version: 1, sport: 'volleyball_indoor', actors: [{ id: 'player' }], markers: [], layers: [], court: {}, timeline: { steps: [{ id: 'step' }] },
     organizationId: 'private-org', editor: { version: 1, coordinates: 'regulation', title: 'Jogada', drawings: {}, hiddenLayers: [], lessonLink: { private: true }, actorMeta: { player: { team: 'A', studentId: 'private-student' } } } };
-  const publish = (organization, classId, proof = code) => query('select public.publish_court_share($1,$2,$3,$4::jsonb,$5) as value', [organization, classId, 'board', JSON.stringify(document), proof]);
+  const document = {
+    ...legacy, actors: [...legacy.actors, { id: 'visible-player' }, { id: 'reserve' }],
+    timeline: { steps: [{ id: 'step', visibleActorIds: ['player', 'visible-player'], actorElevations: { player: 2 } }, { id: 'next' }] },
+    editor: { ...legacy.editor,
+      drawings: { step: [{ id: 'target', kind: 'target', hidden: true, elevation: 1 }], next: [{ id: 'ball', kind: 'ball' }] },
+      actorMeta: { player: { ...legacy.editor.actorMeta.player, hidden: true }, 'visible-player': { hidden: false }, reserve: { hidden: 'true' } },
+      layerOrder: { step: [
+        { kind: 'actor', id: 'player', studentId: 'private-student' },
+        { kind: 'drawing', id: 'target' },
+        { kind: 'actor', id: 'visible-player' },
+        { kind: 'actor', id: 'player' },
+        { kind: 'actor', id: 'reserve' },
+        { kind: 'drawing', id: 'ball' },
+        { kind: 'student', id: 'private-student' },
+      ], next: { unexpected: true }, unknown: [{ kind: 'actor', id: 'player' }] },
+    },
+  };
+  const publish = (organization, classId, proof = code, payload = document, key = 'board') => query('select public.publish_court_share($1,$2,$3,$4::jsonb,$5) as value', [organization, classId, key, JSON.stringify(payload), proof]);
+  await asUser(staff, 'authenticated');
+  const legacyShare = await publish(org, 'class', code, legacy, 'legacy-board');
+  await db.exec('reset role');
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261112120823_preserve_court_share_layers.sql', import.meta.url), 'utf8'));
   await asUser(staff, 'authenticated');
   const share = await publish(org, 'class');
   assert.ok(share.id);
@@ -32,9 +53,22 @@ try {
   await assert.rejects(db.query('select public.get_court_share($1,$2,$3)', [org, 'class', 'board']), /access denied/);
   await assert.rejects(db.query('select public.revoke_court_share($1,$2,$3,$4)', [org, 'class', 'board', share.id]), /access denied/);
   await asUser('', 'anon');
-  const read = proof => query('select public.read_court_share($1,$2) as value', [share.id, proof]);
+  const read = (proof, id = share.id) => query('select public.read_court_share($1,$2) as value', [id, proof]);
+  const legacyValue = await read(code, legacyShare.id);
+  assert.equal(legacyValue.permission, 'viewer');
+  assert.equal(legacyValue.document.editor.layerOrder, undefined);
+  assert.equal(legacyValue.document.editor.actorMeta.player.hidden, undefined);
   const value = await read(code);
   assert.equal(value.permission, 'viewer');
+  assert.deepEqual(value.document.editor.layerOrder, { step: [
+    { kind: 'actor', id: 'player' }, { kind: 'drawing', id: 'target' }, { kind: 'actor', id: 'visible-player' },
+  ] });
+  assert.equal(value.document.editor.actorMeta.player.hidden, true);
+  assert.equal(value.document.editor.actorMeta['visible-player'].hidden, false);
+  assert.equal(value.document.editor.actorMeta.reserve.hidden, undefined);
+  assert.equal(value.document.editor.drawings.step[0].hidden, true);
+  assert.equal(value.document.editor.drawings.step[0].elevation, 1);
+  assert.equal(value.document.timeline.steps[0].actorElevations.player, 2);
   assert.equal(value.document.editor.actorMeta.player.studentId, undefined);
   assert.equal(value.document.editor.lessonLink, undefined);
   assert.equal(value.document.organizationId, undefined);
@@ -44,13 +78,16 @@ try {
   await assert.rejects(db.query('select * from public.court_shares'), /permission denied/);
   await assert.rejects(db.query("update public.court_shares set document='{}'"), /permission denied/);
   await asUser(staff, 'authenticated');
-  await publish(org, 'class', replacement);
+  assert.equal((await publish(org, 'class', replacement, legacy)).id, share.id);
   await asUser('', 'anon');
   assert.equal(await read(code), null);
-  assert.equal((await read(replacement)).permission, 'viewer');
+  const republished = await read(replacement);
+  assert.equal(republished.permission, 'viewer');
+  assert.equal(republished.document.editor.layerOrder, undefined);
+  assert.equal(republished.document.editor.actorMeta.player.hidden, undefined);
   await asUser(staff, 'authenticated');
   await db.query('select public.revoke_court_share($1,$2,$3,$4)', [org, 'class', 'board', share.id]);
   await asUser('', 'anon');
   assert.equal(await read(replacement), null);
-  console.log('[court-sharing] isolated SQL: scoped publishing, private projection, anonymous readonly access, rotation and revocation passed');
+  console.log('[court-sharing] isolated SQL: scoped publishing, public layer projection, legacy documents, rotation and revocation passed');
 } finally { await db.close(); }

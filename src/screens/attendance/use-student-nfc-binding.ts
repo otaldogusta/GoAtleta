@@ -24,7 +24,7 @@ export function useStudentNfcBinding({ organizationId, userId, canManage }: UseS
     void cancelScan();
   }, [cancelScan]);
 
-  const bindStudentTag = useCallback(async (student: Student) => {
+  const bindStudentTag = useCallback(async (student: Pick<Student, "id" | "name">) => {
     if (!canManage || bindingInProgress.current) return;
     if (!organizationId || !userId) {
       showSaveToast({ message: "Organização ou sessão indisponível.", variant: "error" });

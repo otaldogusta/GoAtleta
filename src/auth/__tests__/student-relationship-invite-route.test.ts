@@ -75,7 +75,7 @@ describe("student relationship invite route contract", () => {
     expect(clearIndex).toBeGreaterThan(claimIndex);
     expect(verifyEmailSource).toContain('receipt.relationshipKind === "athlete"');
     expect(verifyEmailSource).toContain('"/student/home" : "/family/home"');
-    expect(verifyEmailSource).toContain("await Promise.all([refreshUser(), refreshRole()])");
+    expect(verifyEmailSource.indexOf("await refreshCurrentRole.current()", clearIndex)).toBeGreaterThan(clearIndex);
     expect(verifyEmailSource).toContain('pendingRelationshipToken: ""');
   });
 

@@ -32,6 +32,7 @@ import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-developmen
 import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { normalizeUnitKey } from "../../src/core/unit-key";
+import { smartSync } from "../../src/core/smart-sync";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import { ROSTER_FUNDAMENTALS, buildRosterFundamentalsByDay, buildRosterMonthEntries, getBlockForToday, getSuggestedFundamentalsForClass, type RosterFundamental } from "../../src/core/periodization";
 import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getAttendanceByDate, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestTrainingPlanByClass, getSessionLogByDate, getSessionLogsByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
@@ -46,11 +47,13 @@ import { ClassStaffHistoryPanel } from "../../src/screens/classes/components/Cla
 import { getClassEditChangeSet } from "../../src/screens/classes/application/class-edit-change-set";
 import { planClassStaffRoleTransition } from "../../src/screens/classes/application/class-staff-role-transition";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
+import { toLocalDateKey } from "../../src/screens/classes/application/class-session-coverage";
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { useCopilotLesson } from "../../src/copilot/lesson-context";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
 import { FloatingSaveBar } from "../../src/ui/FloatingSaveBar";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
+import { loadOfflineAttendanceEditor } from "../../src/bootstrap/offline-attendance-target";
 import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
 import { parseClassWorkspaceRouteDate, resolveClassSettingsSection, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
 import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
@@ -853,25 +856,32 @@ export default function ClassDetails() {
   const embeddedAttendance = useEmbeddedClassAttendance({
     classId: cls?.id ?? String(id ?? ""),
     date: selectedLessonDateKey,
-    enabled: workspaceSection === "attendance",
+    enabled: workspaceSection === "attendance" && Boolean(cls) && loadedDetailDataScope === detailDataScope,
     onGoToday: (value) => handleLessonDateChange(value),
   });
+  useEffect(() => {
+    if (Platform.OS === "web" && cls && workspaceSection === "attendance" &&
+      loadedDetailDataScope === detailDataScope && !embeddedAttendance.isLoading && !embeddedAttendance.loadFailed) {
+      void loadOfflineAttendanceEditor().catch(() => undefined);
+    }
+  }, [cls, detailDataScope, embeddedAttendance.isLoading, embeddedAttendance.loadFailed, loadedDetailDataScope, workspaceSection]);
   const canManageStudentNfc = (activeOrganization?.role_level ?? 0) >= 50;
   const studentNfcBinding = useStudentNfcBinding({
     organizationId: activeOrganization?.id,
     userId: session?.user?.id,
     canManage: canManageStudentNfc,
   });
+  const attendanceHasUnstoredChanges = embeddedAttendance.hasChanges && !embeddedAttendance.isDraftDurable;
   const requestAttendanceAction = useCallback(
     (action: () => void) => {
-    if (workspaceSection === "attendance" && embeddedAttendance.hasChanges) {
+      if (workspaceSection === "attendance" && attendanceHasUnstoredChanges) {
       pendingAttendanceAction.current = action;
       setShowAttendanceCloseConfirm(true);
       return;
     }
     action();
     },
-    [embeddedAttendance.hasChanges, workspaceSection],
+    [attendanceHasUnstoredChanges, workspaceSection],
   );
   const discardAttendanceChanges = embeddedAttendance.discardChanges;
   const discardAttendanceAndContinue = useCallback(() => {
@@ -891,7 +901,7 @@ export default function ClassDetails() {
   }, []);
 
   useEffect(() => {
-    if (workspaceSection !== "attendance" || !embeddedAttendance.hasChanges) return;
+    if (workspaceSection !== "attendance" || !attendanceHasUnstoredChanges) return;
     const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
       if (allowAttendanceNavigation.current) return;
       event.preventDefault();
@@ -899,17 +909,17 @@ export default function ClassDetails() {
       setShowAttendanceCloseConfirm(true);
     });
     return unsubscribe;
-  }, [embeddedAttendance.hasChanges, navigation, workspaceSection]);
+  }, [attendanceHasUnstoredChanges, navigation, workspaceSection]);
 
   useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined" || workspaceSection !== "attendance" || !embeddedAttendance.hasChanges) return;
+    if (Platform.OS !== "web" || typeof window === "undefined" || workspaceSection !== "attendance" || !attendanceHasUnstoredChanges) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [embeddedAttendance.hasChanges, workspaceSection]);
+  }, [attendanceHasUnstoredChanges, workspaceSection]);
   const selectedLessonWeekday = selectedLessonDate ? (selectedLessonDate.getDay() === 0 ? 7 : selectedLessonDate.getDay()) : undefined;
   const lessonDateLabel = selectedLessonDate ? `${String(selectedLessonDate.getDate()).padStart(2, "0")}/${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}/${selectedLessonDate.getFullYear()}` : "Próxima aula";
   const currentLessonOperationalSnapshot =
@@ -989,26 +999,28 @@ export default function ClassDetails() {
     });
     return summaries.slice(0, 3);
   }, [recentSessionLogs]);
+  const selectLessonDate = useCallback((nextDate: Date) => {
+    setIsLoadingLessonPlan(true);
+    setLessonDate(nextDate);
+    if (Platform.OS === "web" && workspaceSection === "attendance") {
+      router.setParams({ date: toLocalDateKey(nextDate) });
+    }
+  }, [router, workspaceSection]);
   const handleShiftLessonDate = useCallback(
     (direction: -1 | 1) => {
-    requestAttendanceAction(() => {
-      const baseDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
-      if (!baseDate || classDays.length === 0) return;
-      const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
-      if (nextDate) {
-        setIsLoadingLessonPlan(true);
-        setLessonDate(nextDate);
-      }
-    });
+      requestAttendanceAction(() => {
+        const baseDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
+        if (!baseDate || classDays.length === 0) return;
+        const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
+        if (nextDate) selectLessonDate(nextDate);
+      });
     },
-    [classDays, lessonDate, nextClassDate, requestAttendanceAction, requestedLessonDate],
+    [classDays, lessonDate, nextClassDate, requestAttendanceAction, requestedLessonDate, selectLessonDate],
   );
   const handleLessonDateChange = (value: string) => {
     requestAttendanceAction(() => {
       const nextDate = parseIsoDate(value);
-      if (!nextDate) return;
-      setIsLoadingLessonPlan(true);
-      setLessonDate(nextDate);
+      if (nextDate) selectLessonDate(nextDate);
     });
   };
   const classCoachName = clsId ? (coachNameByClass[clsId] ?? "") : "";
@@ -2509,14 +2521,21 @@ export default function ClassDetails() {
     });
   };
 
-  const handleOpenAttendance = () => {
-    setWorkspaceSection("attendance");
-  };
-
   const handleSelectWorkspaceSection = (section: ClassWorkspaceSection) => {
     if (section === workspaceSection) return;
-    requestAttendanceAction(() => setWorkspaceSection(section));
+    requestAttendanceAction(() => {
+      setWorkspaceSection(section);
+      if (Platform.OS === "web") {
+        if (section === "attendance") {
+          router.setParams({ section, date: selectedLessonDateKey || undefined });
+        } else if (workspaceSection === "attendance") {
+          router.setParams({ section: "overview" });
+        }
+      }
+    });
   };
+
+  const handleOpenAttendance = () => handleSelectWorkspaceSection("attendance");
 
   const handleOpenReport = () => {
     requestAttendanceAction(() => setShowReportModal(true));
@@ -2560,6 +2579,7 @@ export default function ClassDetails() {
     try {
       const result = await embeddedAttendance.save();
       if (!result) return;
+      if (result.status === "queued") smartSync.scheduleSyncAfterWrite();
       await loadLessonOperationalSnapshot();
       showSaveToast({
         message: result.status === "queued" ? "Chamada salva no dispositivo. Será enviada quando a internet voltar." : "Chamada sincronizada.",
@@ -2649,7 +2669,37 @@ export default function ClassDetails() {
           showCompactNavigationFab={false}
           activeSection={workspaceSection}
           onSelectSection={handleSelectWorkspaceSection}
-            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasPersistedAttendance={embeddedAttendance.hasPersistedAttendance} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} loadFailed={embeddedAttendance.loadFailed} error={embeddedAttendance.error} onRetry={embeddedAttendance.loadFailed ? () => void embeddedAttendance.reload() : undefined} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined} nfcBindingStudentId={studentNfcBinding.scanningStudentId} />}
+          attendanceContent={({ dense }) => (
+            <ClassAttendanceWorkspacePanel
+              colors={colors}
+              compact={compactClassWorkspace}
+              mobile={mobileClassWorkspace}
+              dense={dense}
+              dateLabel={lessonDateLabel}
+              students={embeddedAttendance.students}
+              statusById={embeddedAttendance.statusById}
+              detailsById={embeddedAttendance.detailsById}
+              markedCount={embeddedAttendance.markedCount}
+              hasPersistedAttendance={embeddedAttendance.hasPersistedAttendance}
+              hasChanges={embeddedAttendance.hasChanges}
+              isLoading={embeddedAttendance.isLoading}
+              isSaving={embeddedAttendance.isSaving}
+              loadFailed={embeddedAttendance.loadFailed}
+              error={embeddedAttendance.error}
+              draftStatus={embeddedAttendance.hasChanges && embeddedAttendance.isDraftDurable ? "Rascunho salvo neste dispositivo" : undefined}
+              onRetry={embeddedAttendance.loadFailed ? () => void embeddedAttendance.reload() : undefined}
+              onDiscardDraft={embeddedAttendance.draftConflict ? discardAttendanceChanges : undefined}
+              onPrevious={() => handleShiftLessonDate(-1)}
+              onNext={() => handleShiftLessonDate(1)}
+              onOpenCalendar={() => setShowLessonDatePicker(true)}
+              onOpenReport={handleOpenReport}
+              onSetStatus={embeddedAttendance.setStudentStatus}
+              onSetDetails={embeddedAttendance.setStudentDetails}
+              onSave={() => void handleSaveEmbeddedAttendance()}
+              onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined}
+              nfcBindingStudentId={studentNfcBinding.scanningStudentId}
+            />
+          )}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
           appliedPlan={appliedPlan}
@@ -2679,11 +2729,11 @@ export default function ClassDetails() {
       </ScrollView>
 
         <FloatingSaveBar
-          visible={workspaceSection === "attendance" && embeddedAttendance.hasChanges}
+          visible={workspaceSection === "attendance" && embeddedAttendance.hasChanges && !embeddedAttendance.draftPendingSync}
           label="Salvar chamada"
           loading={embeddedAttendance.isSaving}
           loadingLabel="Salvando chamada..."
-          disabled={embeddedAttendance.isLoading || embeddedAttendance.isSaving || embeddedAttendance.loadFailed}
+          disabled={embeddedAttendance.isLoading || embeddedAttendance.isSaving || embeddedAttendance.loadFailed || embeddedAttendance.draftConflict}
           onPress={() => void handleSaveEmbeddedAttendance()}
           bottom={insets.bottom + 18}
         />

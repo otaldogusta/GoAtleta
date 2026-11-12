@@ -1,10 +1,11 @@
 import { repairReceptionMiddleIdentity } from './court-reception-middle-identity';
 import { buildRotation5x1Preset, normalizeReceive5x1Timeline, type CourtPoint, type CourtVisualPayload, type CourtVisualStep } from "./visual-court";
 import { normalizeCourtSimulation } from "./court-simulation-model";
-import { configureCourtSimulation, sampleCourtSimulation } from "./court-simulation";
+import { configureCourtSimulation, getCourtSimulation, sampleCourtSimulation } from "./court-simulation";
+import { bringCourtLayersToFront, normalizeCourtLayerOrder, resolveCourtLayers, type CourtLayerRef } from "./court-layers";
 
 export type DrawingKind = "arrow" | "curve" | "pen" | "area" | "text" | "ball" | "cone" | "target" | "ladder";
-export type CourtDrawing = { id: string; kind: DrawingKind; points: CourtPoint[]; color: string; text?: string; dashed?: boolean; size: number; rotation: number; locked?: boolean; motion?: CourtPoint[] };
+export type CourtDrawing = { id: string; kind: DrawingKind; points: CourtPoint[]; curveMode?: "through-point"; startBallId?: string; elevation?: number; color: string; text?: string; dashed?: boolean; size: number; rotation: number; locked?: boolean; hidden?: boolean; motion?: CourtPoint[] };
 export type CourtEditorMetadata = {
   version: 1;
   coordinates: "regulation";
@@ -14,8 +15,9 @@ export type CourtEditorMetadata = {
   favorite: boolean;
   showActorNumbers?: boolean;
   actorRepresentation?: "circle" | "person";
-  actorMeta: Record<string, { team?: "A" | "B"; locked?: boolean; studentId?: string; simulationSupport?: boolean }>;
+  actorMeta: Record<string, { team?: "A" | "B"; locked?: boolean; hidden?: boolean; studentId?: string; simulationSupport?: boolean }>;
   drawings: Record<string, CourtDrawing[]>;
+  layerOrder?: Record<string, CourtLayerRef[]>;
   hiddenLayers: string[];
   lessonLink?: { date: string; block: string; revision: string };
 };
@@ -23,13 +25,23 @@ export type EditorSnapshot = { payload: CourtVisualPayload; stepIndex: number };
 export type CourtSelectionClipboard = {
   actorIds: string[];
   actorPositions: Record<string, CourtPoint>;
+  actorElevations?: Record<string, number>;
   trajectories: NonNullable<CourtVisualStep["trajectories"]>;
   drawings: CourtDrawing[];
+  layerOrder?: CourtLayerRef[];
 };
 export const editorId = () => `board_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 export const limitPoint = (p: CourtPoint): CourtPoint => ({ x: Math.max(-0.2, Math.min(1.2, p.x)), y: Math.max(-0.15, Math.min(1.15, p.y)) });
 /** Half-metre intersections on the 9 × 18 m court, independent of orientation. */
 export const snapCourtPoint = (p: CourtPoint): CourtPoint => ({ x: Math.round(p.x * 18) / 18, y: Math.round(p.y * 36) / 36 });
+export const COURT_ELEVATION_MAX = 8;
+const elevationKinds: readonly DrawingKind[] = ["ball", "cone", "target", "ladder"];
+const validElevation = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= COURT_ELEVATION_MAX;
+const elevationValue = (value: unknown): number => validElevation(value) ? value : 0;
+function withActorElevations(step: CourtVisualStep, actorElevations: Record<string, number>): CourtVisualStep {
+  const { actorElevations: _actorElevations, ...rest } = step;
+  return Object.keys(actorElevations).length ? { ...rest, actorElevations } : rest;
+}
 
 /** Convert legacy didactic/official positions once. View rotation never changes the document. */
 export function upgradeCourtEditor(payload: CourtVisualPayload, title: string): CourtVisualPayload {
@@ -98,14 +110,97 @@ export function newCourtBoard(title = "Nova jogada"): CourtVisualPayload {
 }
 
 export const frameDrawings = (p: CourtVisualPayload, index: number) => p.editor?.drawings[p.timeline.steps[index]?.id] ?? [];
+function withoutStartBall(drawing: CourtDrawing): CourtDrawing {
+  if (drawing.startBallId === undefined) return drawing;
+  const { startBallId: _startBallId, ...detached } = drawing;
+  return detached;
+}
+/** Resolve within one step, after motion sampling. Hidden/locked balls remain valid anchors. */
+export function resolveCourtDrawingAnchors(drawings: CourtDrawing[]): CourtDrawing[] {
+  const balls = new Map(drawings.filter(d => d.kind === "ball" && d.points[0]).map(d => [d.id, d.points[0]]));
+  return drawings.map(drawing => {
+    if (drawing.startBallId === undefined) return drawing;
+    const target = ["arrow", "curve"].includes(drawing.kind) && drawing.points.length >= 2 ? balls.get(drawing.startBallId) : undefined;
+    if (!target) return withoutStartBall(drawing);
+    const start = drawing.points[0], dx = target.x - start.x, dy = target.y - start.y;
+    if (!dx && !dy) return drawing;
+    const points = [...drawing.points]; points[0] = { ...target };
+    // M=(A+2C+B)/4: preserve C within the same document bounds as the edit handles.
+    if (drawing.kind === "curve" && drawing.curveMode === "through-point" && points.length === 3) points[1] = limitPoint({ x: points[1].x + dx / 4, y: points[1].y + dy / 4 });
+    return { ...drawing, points };
+  });
+}
+function sampledAnchoredDrawings(p: CourtVisualPayload, index: number, progress?: number): CourtDrawing[] {
+  const simulation = typeof progress === "number" ? sampleCourtSimulation(p, index, progress) : null;
+  return resolveCourtDrawingAnchors(frameDrawings(p, index).map(d => simulation && d.id === simulation.ballId
+    ? { ...d, points: [{ x: simulation.ball[0] / 9 + .5, y: simulation.ball[2] / 18 + .5 }], motion: undefined }
+    : drawingAtProgress(d, progress)));
+}
+function remapDrawingAnchors(drawings: CourtDrawing[], source: CourtDrawing[], retainExternal = false): CourtDrawing[] {
+  const ids = new Map(source.map((drawing, index) => [drawing.id, drawings[index].id]));
+  return drawings.map(d => !d.startBallId ? d : ids.has(d.startBallId) ? { ...d, startBallId: ids.get(d.startBallId)! } : retainExternal ? d : withoutStartBall(d));
+}
 export const actorPoint = (p: CourtVisualPayload, index: number, id: string) => p.timeline.steps[index]?.actorPositions[id] ?? p.actors.find(a => a.id === id)?.initialPosition ?? { x: 0.5, y: 0.75 };
 export function changeStep(p: CourtVisualPayload, index: number, change: (s: CourtVisualStep) => CourtVisualStep): CourtVisualPayload {
   return { ...p, timeline: { steps: p.timeline.steps.map((s, i) => i === index ? change(s) : s) } };
 }
 export function changeDrawings(p: CourtVisualPayload, index: number, drawings: CourtDrawing[]): CourtVisualPayload {
-  return { ...p, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [p.timeline.steps[index].id]: drawings } } };
+  const old = new Map(resolveCourtDrawingAnchors(frameDrawings(p, index)).map(d => [d.id, d]));
+  const balls = new Set(drawings.filter(d => d.kind === "ball").map(d => d.id));
+  drawings = resolveCourtDrawingAnchors(drawings.map(d => {
+    const previous = old.get(d.id);
+    return d.startBallId && !balls.has(d.startBallId) && previous?.startBallId === d.startBallId
+      ? withoutStartBall({ ...d, points: previous.points }) : d;
+  }));
+  const previous = new Set(frameDrawings(p, index).map(drawing => drawing.id));
+  const added = drawings.filter(drawing => !previous.has(drawing.id)).map(drawing => ({ kind: "drawing" as const, id: drawing.id }));
+  const next = { ...p, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [p.timeline.steps[index].id]: drawings } } };
+  // Seed the legacy stack before appending a first object, so it is placed above actors too.
+  if (added.length && !p.editor?.layerOrder?.[p.timeline.steps[index].id]) next.editor.layerOrder = { ...p.editor?.layerOrder, [p.timeline.steps[index].id]: resolveCourtLayers(p, index) };
+  else if (p.editor?.layerOrder?.[p.timeline.steps[index].id]) next.editor.layerOrder = { ...p.editor.layerOrder, [p.timeline.steps[index].id]: resolveCourtLayers(next, index) };
+  return added.length ? bringCourtLayersToFront(next, index, added) : next;
+}
+/** Authoring commands must ignore stale selections of protected or invisible objects. */
+export function editableCourtSelection(p: CourtVisualPayload, index: number, ids: string[]): string[] {
+  return ids.filter(id => {
+    const actor = p.actors.find(item => item.id === id);
+    const meta = actor ? p.editor?.actorMeta[id] : frameDrawings(p, index).find(item => item.id === id);
+    return (actor || meta) && !meta?.locked && !meta?.hidden && !p.editor?.hiddenLayers.includes(actor ? "actors" : "drawings");
+  });
+}
+/** Height belongs to the active step; engine-controlled objects retain their simulation height. */
+export function editableCourtElevationSelection(p: CourtVisualPayload, index: number, ids: string[]): string[] {
+  const step = p.timeline.steps[index]; if (!step) return [];
+  const simulation = getCourtSimulation(p, index), actors = new Set(p.actors.map(a => a.id));
+  return [...new Set(editableCourtSelection(p, index, ids))].filter(id => {
+    if (actors.has(id)) return (!step.visibleActorIds || step.visibleActorIds.includes(id)) && !simulation?.actorIds.includes(id);
+    return id !== simulation?.ballId && frameDrawings(p, index).some(d => d.id === id && elevationKinds.includes(d.kind));
+  });
+}
+export function courtSelectionElevation(p: CourtVisualPayload, index: number, id: string): number {
+  return p.actors.some(a => a.id === id) ? elevationValue(p.timeline.steps[index]?.actorElevations?.[id])
+    : elevationValue(frameDrawings(p, index).find(d => d.id === id && elevationKinds.includes(d.kind))?.elevation);
+}
+export function setCourtSelectionElevation(p: CourtVisualPayload, index: number, ids: string[], elevation: number): CourtVisualPayload {
+  if (!validElevation(elevation)) return p;
+  const editable = new Set(editableCourtElevationSelection(p, index, ids).filter(id => courtSelectionElevation(p, index, id) !== elevation));
+  if (!editable.size) return p;
+  const actors = p.actors.filter(a => editable.has(a.id));
+  let next = actors.length ? changeStep(p, index, step => {
+    const actorElevations = { ...step.actorElevations };
+    for (const actor of actors) { if (elevation) actorElevations[actor.id] = elevation; else delete actorElevations[actor.id]; }
+    return withActorElevations(step, actorElevations);
+  }) : p;
+  if (frameDrawings(p, index).some(d => editable.has(d.id))) next = changeDrawings(next, index, frameDrawings(p, index).map(d => {
+    if (!editable.has(d.id)) return d;
+    const { elevation: _elevation, ...rest } = d;
+    return elevation ? { ...rest, elevation } : rest;
+  }));
+  return next;
 }
 export function moveSelection(p: CourtVisualPayload, index: number, ids: string[], delta: CourtPoint, animate: boolean, path?: CourtPoint[], progress?: number): CourtVisualPayload {
+  ids = editableCourtSelection(p, index, ids);
+  if (!ids.length) return p;
   const simulation = sampleCourtSimulation(p, index, typeof progress === "number" ? progress : 0);
   if (simulation && ids.some(id => id === simulation.ballId && !frameDrawings(p, index).find(drawing => drawing.id === id)?.locked
     || animate && simulation.config.actorIds.includes(id) && !p.editor?.actorMeta[id]?.locked)) {
@@ -133,12 +228,14 @@ export function moveSelection(p: CourtVisualPayload, index: number, ids: string[
     }
     return { ...s, actorPositions, baselineActorPositions: baseline, trajectories, transitions: undefined };
   });
+  const displayed = new Map(sampledAnchoredDrawings(p, index, progress).map(d => [d.id, d]));
   next = changeDrawings(next, index, frameDrawings(p, index).map(d => {
     if (!ids.includes(d.id) || d.locked) return d;
-    const sampled = drawingAtProgress(d, progress);
+    const sampled = displayed.get(d.id)!;
     const points = sampled.points.map(pt => limitPoint({ x: pt.x + delta.x, y: pt.y + delta.y }));
     const from = typeof progress === "number" ? sampled.points[0] : d.motion?.[0] ?? d.points[0];
-    return { ...d, points, motion: animate && d.kind === "ball" ? path?.length ? path.map(pt => limitPoint({ x: from.x + pt.x, y: from.y + pt.y })) : [from, points[0]] : undefined };
+    const moved = d.startBallId && !ids.includes(d.startBallId) ? withoutStartBall(d) : d;
+    return { ...moved, points, motion: animate && d.kind === "ball" ? path?.length ? path.map(pt => limitPoint({ x: from.x + pt.x, y: from.y + pt.y })) : [from, points[0]] : undefined };
   }));
   if (simulation && !animate && next.timeline.steps[index].simulation) {
     const manualBlockers = [...simulation.config.attackSettings.manualBlockers];
@@ -165,34 +262,51 @@ export function resetStepAnimation(p: CourtVisualPayload, index: number): CourtV
   });
   return changeDrawings(next, index, frameDrawings(next, index).map(d => ({ ...d, points: d.motion?.length ? [d.motion[0]] : d.points, motion: undefined })));
 }
-export function deleteSelection(p: CourtVisualPayload, index: number, ids: string[]) {
-  const next = changeStep(p, index, s => ({ ...s, visibleActorIds: (s.visibleActorIds ?? p.actors.map(a => a.id)).filter(id => !ids.includes(id) || p.editor?.actorMeta[id]?.locked),
+export function deleteSelection(p: CourtVisualPayload, index: number, ids: string[], progress?: number) {
+  ids = editableCourtSelection(p, index, ids);
+  if (!ids.length) return p;
+  const displayed = new Map(sampledAnchoredDrawings(p, index, progress).map(d => [d.id, d]));
+  // Detach at the visible origin before removing its ball or disabling its simulation.
+  p = changeDrawings(p, index, frameDrawings(p, index).map(d => d.startBallId && ids.includes(d.startBallId) ? withoutStartBall(displayed.get(d.id)!) : d));
+  const next = changeStep(p, index, s => withActorElevations({ ...s, visibleActorIds: (s.visibleActorIds ?? p.actors.map(a => a.id)).filter(id => !ids.includes(id) || p.editor?.actorMeta[id]?.locked),
     trajectories: (s.trajectories ?? s.transitions)?.filter(t => !ids.includes(t.actorId) || p.editor?.actorMeta[t.actorId]?.locked), transitions: undefined,
     ...(s.simulation && ids.some(id => (s.simulation!.actorIds.includes(id) && !p.editor?.actorMeta[id]?.locked) || id === s.simulation!.ballId && !frameDrawings(p, index).find(drawing => drawing.id === id)?.locked) ? { simulation: undefined } : {}),
-  }));
+  }, Object.fromEntries(Object.entries(s.actorElevations ?? {}).filter(([id]) => !ids.includes(id)))));
   return changeDrawings(next, index, frameDrawings(next, index).filter(d => !ids.includes(d.id) || d.locked));
 }
-export function duplicateSelection(p: CourtVisualPayload, index: number, ids: string[], offset: CourtPoint = { x: 0.06, y: 0.03 }) {
+export function duplicateSelection(p: CourtVisualPayload, index: number, ids: string[], offset: CourtPoint = { x: 0.06, y: 0.03 }, progress?: number) {
   let next = p;
   const selected: string[] = [];
+  const copies = new Map<string, CourtLayerRef>();
   for (const a of p.actors.filter(a => ids.includes(a.id))) {
     const id = editorId(); selected.push(id);
+    copies.set(`actor:${a.id}`, { kind: "actor", id });
     const point = actorPoint(p, index, a.id);
     const clone = { ...a, id, initialPosition: limitPoint({ x: point.x + offset.x, y: point.y + offset.y }) };
     next = { ...next, actors: [...next.actors, clone], editor: { ...next.editor!, actorMeta: { ...next.editor!.actorMeta, [id]: { ...next.editor!.actorMeta[a.id], locked: false } } } };
     next = { ...next, timeline: { steps: next.timeline.steps.map((s, i) => ({ ...s, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)), ...(i === index ? [id] : [])], actorPositions: i === index ? { ...s.actorPositions, [id]: clone.initialPosition } : s.actorPositions })) } };
+    const elevation = courtSelectionElevation(p, index, a.id);
+    if (elevation) next = changeStep(next, index, s => ({ ...s, actorElevations: { ...s.actorElevations, [id]: elevation } }));
   }
-  const clones = frameDrawings(p, index).filter(d => ids.includes(d.id)).map(d => { const id = editorId(); selected.push(id); return { ...d, id, locked: false, points: d.points.map(pt => limitPoint({ x: pt.x + offset.x, y: pt.y + offset.y })) }; });
-  return { payload: changeDrawings(next, index, [...frameDrawings(next, index), ...clones]), selected };
+  const source = sampledAnchoredDrawings(p, index, progress).filter(d => ids.includes(d.id));
+  const clones = remapDrawingAnchors(source.map(d => { const id = editorId(); selected.push(id); copies.set(`drawing:${d.id}`, { kind: "drawing", id }); return { ...d, id, locked: false, points: d.points.map(pt => limitPoint({ x: pt.x + offset.x, y: pt.y + offset.y })), ...(d.motion ? { motion: d.motion.map(pt => limitPoint({ x: pt.x + offset.x, y: pt.y + offset.y })) } : {}) }; }), source, true);
+  next = changeDrawings(next, index, [...frameDrawings(next, index), ...clones]);
+  return { payload: bringCourtLayersToFront(next, index, resolveCourtLayers(p, index).flatMap(ref => copies.get(`${ref.kind}:${ref.id}`) ?? [])), selected };
+}
+function copiedStepLayerOrder(p: CourtVisualPayload, index: number, id: string, drawings: CourtDrawing[]) {
+  if (!p.editor?.layerOrder?.[p.timeline.steps[index].id]) return p.editor?.layerOrder;
+  const remap = new Map(frameDrawings(p, index).map((drawing, i) => [drawing.id, drawings[i].id]));
+  return { ...p.editor.layerOrder, [id]: resolveCourtLayers(p, index).map(ref => ref.kind === "drawing" ? { ...ref, id: remap.get(ref.id)! } : ref) };
 }
 export function duplicateStep(p: CourtVisualPayload, index: number): EditorSnapshot {
   const source = p.timeline.steps[index];
   const id = editorId();
   const step = { ...JSON.parse(JSON.stringify(source)), id, label: `${source.label} · cópia` } as CourtVisualStep;
   const steps = [...p.timeline.steps]; steps.splice(index + 1, 0, step);
-  const drawings = frameDrawings(p, index).map(d => ({ ...d, id: editorId() }));
+  const sourceDrawings = resolveCourtDrawingAnchors(frameDrawings(p, index));
+  const drawings = remapDrawingAnchors(sourceDrawings.map(d => ({ ...d, id: editorId() })), sourceDrawings);
   if (step.simulation) step.simulation.ballId = drawings[frameDrawings(p, index).findIndex(d => d.id === source.simulation!.ballId)]?.id ?? step.simulation.ballId;
-  return { payload: { ...p, timeline: { steps }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [id]: drawings } } }, stepIndex: index + 1 };
+  return { payload: { ...p, timeline: { steps }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [id]: drawings }, layerOrder: copiedStepLayerOrder(p, index, id, drawings) } }, stepIndex: index + 1 };
 }
 export function continueStepFromEnd(p: CourtVisualPayload, index: number): EditorSnapshot {
   const source = p.timeline.steps[index];
@@ -207,15 +321,13 @@ export function continueStepFromEnd(p: CourtVisualPayload, index: number): Edito
     trajectories: [],
     transitions: undefined,
   } as CourtVisualStep;
-  const drawings = frameDrawings(p, index).map(d => {
-    const end = d.motion?.[d.motion.length - 1];
-    return { ...d, id: editorId(), points: end ? [end] : d.points.map(point => ({ ...point })), motion: undefined };
-  });
+  const sourceDrawings = sampledAnchoredDrawings(p, index, 1);
+  const drawings = remapDrawingAnchors(sourceDrawings.map(d => ({ ...d, id: editorId(), points: d.points.map(point => ({ ...point })), motion: undefined })), sourceDrawings);
   if (step.simulation) step.simulation.ballId = drawings[frameDrawings(p, index).findIndex(d => d.id === source.simulation!.ballId)]?.id ?? step.simulation.ballId;
   const steps = [...p.timeline.steps];
   steps.splice(index + 1, 0, step);
   return {
-    payload: { ...p, timeline: { steps }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [id]: drawings } } },
+    payload: { ...p, timeline: { steps }, editor: { ...p.editor!, drawings: { ...p.editor!.drawings, [id]: drawings }, layerOrder: copiedStepLayerOrder(p, index, id, drawings) } },
     stepIndex: index + 1,
   };
 }
@@ -240,7 +352,9 @@ export function addBlankStep(p: CourtVisualPayload, index: number): EditorSnapsh
 export function removeStep(p: CourtVisualPayload, index: number): EditorSnapshot {
   if (p.timeline.steps.length <= 1) return { payload: p, stepIndex: index };
   const drawings = { ...p.editor!.drawings }; delete drawings[p.timeline.steps[index].id];
-  return { payload: { ...p, timeline: { steps: p.timeline.steps.filter((_, i) => i !== index) }, editor: { ...p.editor!, drawings } }, stepIndex: Math.max(0, index - 1) };
+  const layerOrder = p.editor?.layerOrder ? { ...p.editor.layerOrder } : undefined;
+  if (layerOrder) delete layerOrder[p.timeline.steps[index].id];
+  return { payload: { ...p, timeline: { steps: p.timeline.steps.filter((_, i) => i !== index) }, editor: { ...p.editor!, drawings, layerOrder } }, stepIndex: Math.max(0, index - 1) };
 }
 export function reorderStep(p: CourtVisualPayload, index: number, direction: number): EditorSnapshot {
   const target = Math.max(0, Math.min(p.timeline.steps.length - 1, index + direction));
@@ -257,23 +371,27 @@ export function reorderStepToIndex(p: CourtVisualPayload, from: number, to: numb
   return { payload: { ...p, timeline: { steps } }, stepIndex: target };
 }
 
-export function copyStepSelection(p: CourtVisualPayload, index: number, ids: string[]): CourtSelectionClipboard {
+export function copyStepSelection(p: CourtVisualPayload, index: number, ids: string[], progress?: number): CourtSelectionClipboard {
   const actorIds = p.actors.filter(actor => ids.includes(actor.id)).map(actor => actor.id);
   const selectedActors = new Set(actorIds);
+  const actorElevations = Object.fromEntries(actorIds.flatMap(id => { const value = courtSelectionElevation(p, index, id); return value ? [[id, value]] : []; }));
   return {
     actorIds,
+    ...(Object.keys(actorElevations).length ? { actorElevations } : {}),
+    layerOrder: resolveCourtLayers(p, index).filter(ref => ids.includes(ref.id)),
     actorPositions: Object.fromEntries(actorIds.map(id => [id, { ...actorPoint(p, index, id) }])),
     trajectories: (p.timeline.steps[index].trajectories ?? p.timeline.steps[index].transitions ?? [])
       .filter(trajectory => selectedActors.has(trajectory.actorId))
       .map(trajectory => ({ ...trajectory, points: trajectory.points.map(point => ({ ...point })) })),
-    drawings: frameDrawings(p, index)
+    drawings: sampledAnchoredDrawings(p, index, progress)
       .filter(drawing => ids.includes(drawing.id))
-      .map(drawing => ({ ...drawing, points: drawing.points.map(point => ({ ...point })), motion: drawing.motion?.map(point => ({ ...point })) })),
+      .map(drawing => ({ ...(drawing.startBallId && !ids.includes(drawing.startBallId) ? withoutStartBall(drawing) : drawing), points: drawing.points.map(point => ({ ...point })), motion: drawing.motion?.map(point => ({ ...point })) })),
   };
 }
 
 export function pasteStepSelection(p: CourtVisualPayload, index: number, clipboard: CourtSelectionClipboard): { payload: CourtVisualPayload; selected: string[] } {
-  const actorIds = clipboard.actorIds.filter(id => p.actors.some(actor => actor.id === id));
+  const actorIds = editableCourtSelection(p, index, clipboard.actorIds.filter(id => p.actors.some(actor => actor.id === id)));
+  if (!actorIds.length && !clipboard.drawings.length) return { payload: p, selected: [] };
   const actorSet = new Set(actorIds);
   const step = p.timeline.steps[index];
   const visibleActorIds = [...new Set([...(step.visibleActorIds ?? p.actors.map(actor => actor.id)), ...actorIds])];
@@ -281,21 +399,29 @@ export function pasteStepSelection(p: CourtVisualPayload, index: number, clipboa
     ...(step.trajectories ?? step.transitions ?? []).filter(trajectory => !actorSet.has(trajectory.actorId)),
     ...clipboard.trajectories.filter(trajectory => actorSet.has(trajectory.actorId)).map(trajectory => ({ ...trajectory, id: editorId(), points: trajectory.points.map(point => ({ ...point })) })),
   ];
-  let next = changeStep(p, index, current => ({
+  let next = actorIds.length ? changeStep(p, index, current => ({
     ...current,
     visibleActorIds,
     actorPositions: { ...current.actorPositions, ...Object.fromEntries(actorIds.map(id => [id, { ...clipboard.actorPositions[id] }])) },
     baselineActorPositions: { ...current.baselineActorPositions, ...Object.fromEntries(actorIds.map(id => [id, { ...clipboard.actorPositions[id] }])) },
     trajectories,
     transitions: undefined,
-  }));
-  const drawings = clipboard.drawings.map(drawing => ({
+  })) : p;
+  if (actorIds.length) next = changeStep(next, index, current => {
+    const actorElevations = { ...current.actorElevations };
+    for (const id of actorIds) { const value = elevationValue(clipboard.actorElevations?.[id]); if (value) actorElevations[id] = value; else delete actorElevations[id]; }
+    return withActorElevations(current, actorElevations);
+  });
+  const drawings = remapDrawingAnchors(clipboard.drawings.map(drawing => ({
     ...drawing,
     id: editorId(),
     points: drawing.points.map(point => ({ ...point })),
     motion: drawing.motion?.map(point => ({ ...point })),
-  }));
+  })), clipboard.drawings);
   next = changeDrawings(next, index, [...frameDrawings(next, index), ...drawings]);
+  const drawingIds = new Map(clipboard.drawings.map((drawing, i) => [drawing.id, drawings[i].id]));
+  const copiedOrder = clipboard.layerOrder ?? [...clipboard.drawings.map(drawing => ({ kind: "drawing" as const, id: drawing.id })), ...actorIds.map(id => ({ kind: "actor" as const, id }))];
+  next = bringCourtLayersToFront(next, index, copiedOrder.flatMap(ref => ref.kind === "drawing" ? drawingIds.has(ref.id) ? [{ ...ref, id: drawingIds.get(ref.id)! }] : [] : actorSet.has(ref.id) ? [ref] : []));
   return { payload: next, selected: [...actorIds, ...drawings.map(drawing => drawing.id)] };
 }
 export function pointAlong(points: CourtPoint[], progress: number): CourtPoint {
@@ -373,8 +499,11 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
     const actorPositions = positions(s.actorPositions) ?? Object.fromEntries(actors.map((a: { id: string; initialPosition: CourtPoint }) => [a.id, a.initialPosition]));
     const visibleActorIds = actors.filter((a: { id: string }) => !s.visibleActorIds || s.visibleActorIds.includes(a.id)).map((a: { id: string }) => a.id);
     const rotationIndex = Number(s.rotationIndex);
+    const heights = s.actorElevations && typeof s.actorElevations === "object" && !Array.isArray(s.actorElevations) ? s.actorElevations : undefined;
+    const actorElevations = Object.fromEntries(actors.flatMap((a: { id: string }) => { const elevation = elevationValue(heights?.[a.id]); return elevation ? [[a.id, elevation]] : []; }));
     return {
       id: text(s.id), label: text(s.label), note: text(s.note, 1000), durationMs: Math.max(450, Math.min(30000, Number(s.durationMs) || 1600)), actorPositions, visibleActorIds,
+      ...(Object.keys(actorElevations).length ? { actorElevations } : {}),
       ...(positions(s.baselineActorPositions) ? { baselineActorPositions: positions(s.baselineActorPositions) } : {}),
       ...(positions(s.legalPositions) ? { legalPositions: positions(s.legalPositions) } : {}),
       ...(positions(s.tacticalPositions) ? { tacticalPositions: positions(s.tacticalPositions) } : {}),
@@ -394,8 +523,12 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
   if (new Set(steps.map((s: CourtVisualStep) => s.id)).size !== steps.length) throw new Error("Etapas duplicadas no arquivo.");
   const drawings = Object.fromEntries(steps.map((s: CourtVisualStep) => [s.id, (Array.isArray(p.editor.drawings?.[s.id]) ? p.editor.drawings[s.id] : []).slice(0, 200).map((d: CourtDrawing) => {
     if (!["arrow", "curve", "pen", "area", "text", "ball", "cone", "target", "ladder"].includes(d.kind) || !Array.isArray(d.points) || !d.points.length) throw new Error("Objeto inválido.");
-    return { id: text(d.id), kind: d.kind, points: d.points.slice(0, 500).map(point), text: text(d.text, 200), color: color(d.color), dashed: Boolean(d.dashed), size: Math.max(12, Math.min(80, Number(d.size) || 28)), rotation: Number(d.rotation) % 360 || 0, locked: Boolean(d.locked), motion: d.kind === "ball" && Array.isArray(d.motion) ? d.motion.slice(0, 300).map(point) : undefined };
+    return { id: text(d.id), kind: d.kind, points: d.points.slice(0, 500).map(point), ...(d.kind === "curve" && d.curveMode === "through-point" && d.points.length === 3 ? { curveMode: "through-point" as const } : {}), ...(["arrow", "curve"].includes(d.kind) && d.points.length >= 2 && typeof d.startBallId === "string" && d.startBallId.length > 0 && d.startBallId.length <= 120 ? { startBallId: d.startBallId } : {}), ...(elevationKinds.includes(d.kind) && elevationValue(d.elevation) ? { elevation: d.elevation } : {}), text: text(d.text, 200), color: color(d.color), dashed: Boolean(d.dashed), size: Math.max(12, Math.min(80, Number(d.size) || 28)), rotation: Number(d.rotation) % 360 || 0, locked: Boolean(d.locked), ...(typeof d.hidden === "boolean" ? { hidden: d.hidden } : {}), motion: d.kind === "ball" && Array.isArray(d.motion) ? d.motion.slice(0, 300).map(point) : undefined };
   })]));
+  for (const objects of Object.values(drawings) as CourtDrawing[][]) {
+    if (new Set(objects.map(drawing => drawing.id)).size !== objects.length || objects.some(drawing => actorIds.has(drawing.id))) throw new Error("Objetos com identificadores duplicados no arquivo.");
+  }
+  for (const step of steps) drawings[step.id] = resolveCourtDrawingAnchors(drawings[step.id]);
   steps.forEach((step: CourtVisualStep, index: number) => {
     if (p.timeline.steps[index].simulation === undefined) return;
     const simulation = normalizeCourtSimulation(p.timeline.steps[index].simulation, actors.map((actor: { id: string }) => actor.id),
@@ -410,7 +543,7 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
   const layerKinds = ["zones", "actors", "markers", "arrows", "trajectories", "highlights"];
   const layers = (Array.isArray(p.layers) ? p.layers : []).slice(0, 20).flatMap((layer: { id?: unknown; label?: unknown; kind?: unknown; visibleByDefault?: unknown }) => layerKinds.includes(String(layer.kind)) ? [{ id: text(layer.id), label: text(layer.label, 40), kind: layer.kind, visibleByDefault: Boolean(layer.visibleByDefault) }] : []);
   const markers = (Array.isArray(p.markers) ? p.markers : []).slice(0, 100).flatMap((marker: { id?: unknown; type?: unknown; label?: unknown; position?: unknown; color?: unknown }) => ["cone", "ball", "target"].includes(String(marker.type)) ? [{ id: text(marker.id), type: marker.type, label: text(marker.label, 40), position: point(marker.position), ...(optionalColor(marker.color) ? { color: optionalColor(marker.color) } : {}) }] : []);
-  return {
+  const parsed = {
     version: 1,
     sport: "volleyball_indoor",
     court: {
@@ -425,6 +558,8 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
     markers,
     layers: layers.length ? layers : newCourtBoard().layers,
     timeline: { steps },
-    editor: { version: 1, coordinates: "regulation", title: text(p.editor.title) || "Jogada importada", folder: text(p.editor.folder), tags: text(p.editor.tags), favorite: false, actorMeta: Object.fromEntries(actors.map((a: { id: string }) => [a.id, { team: p.editor.actorMeta?.[a.id]?.team === "B" ? "B" : "A", locked: Boolean(p.editor.actorMeta?.[a.id]?.locked), ...(p.editor.actorMeta?.[a.id]?.simulationSupport === true ? { simulationSupport: true } : {}) }])), hiddenLayers: Array.isArray(p.editor.hiddenLayers) ? p.editor.hiddenLayers.map((id: unknown) => text(id)).slice(0, 20) : [], drawings },
+    editor: { version: 1, coordinates: "regulation", title: text(p.editor.title) || "Jogada importada", folder: text(p.editor.folder), tags: text(p.editor.tags), favorite: false, actorMeta: Object.fromEntries(actors.map((a: { id: string }) => [a.id, { team: p.editor.actorMeta?.[a.id]?.team === "B" ? "B" : "A", locked: Boolean(p.editor.actorMeta?.[a.id]?.locked), ...(typeof p.editor.actorMeta?.[a.id]?.hidden === "boolean" ? { hidden: p.editor.actorMeta[a.id].hidden } : {}), ...(p.editor.actorMeta?.[a.id]?.simulationSupport === true ? { simulationSupport: true } : {}) }])), hiddenLayers: Array.isArray(p.editor.hiddenLayers) ? p.editor.hiddenLayers.map((id: unknown) => text(id)).slice(0, 20) : [], drawings },
   } as CourtVisualPayload;
+  const layerOrder = normalizeCourtLayerOrder(parsed, p.editor.layerOrder);
+  return layerOrder ? { ...parsed, editor: { ...parsed.editor!, layerOrder } } : parsed;
 }

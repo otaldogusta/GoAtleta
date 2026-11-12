@@ -70,6 +70,10 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 - Leitura de papel com falha transitória tem recuperação limitada e nova tentativa
   ao retomar a aba/conexão, sem restaurar autorização de cache após falha.
   [Correção e testes locais de retomada](../../operations/startup-resume-local-2026-10-25.md).
+- No web, a falha de rede ao reabrir uma chamada permite editar a cópia local
+  da turma/data carregada pela sessão vigente. A rota institucional continua
+  aguardando autorização. Na reconexão, a busca de organizações também é refeita.
+  [Contrato offline](../../architecture/offline-write-identity.md#contrato-de-chamada).
   Eventos simultâneos de retomada não reiniciam o contador de uma tentativa já
   iniciada; [revisão do pacote](../../operations/entry-package-review-local-2026-10-25.md).
   Link de equipe só com código encaminha conta existente à validação normal em
@@ -138,6 +142,15 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 - Barra de senha no cadastro usa estimativa local por comprimento e padrões
   previsíveis (`src/auth/password-strength.ts`), sem checklist de composição.
   Não é consulta de vazamentos nem garantia de força; não altera aceite no Auth.
+- No cadastro, o aviso de e-mail usa camada estável para preservar a edição do
+  campo. Avançar com e-mail inválido mantém o foco no e-mail. O ajuste segue o
+  [contrato de formulários](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
+- Em `/verify-email`, o lápis do cadastro pendente permite corrigir o destino.
+  A correção inicia outra tentativa no Auth e mantém a confirmação por código
+  no novo endereço. A tentativa anterior continua pendente, com outro ID.
+  Convites continuam passando pelas validações existentes de destinatário. A
+  senha da tentativa pode ser reaproveitada em memória por até cinco minutos.
+  Após retomar o fluxo sem essa memória, o editor pede a senha do cadastro.
 - Cadastro público permite verificar o código antes de criar a conta, incluindo
   códigos recebidos por link (`inviteCode` ou `/staff-invite#code=`). Extrai
   apenas o código para a consulta. O e-mail do link é sugestão editável quando o

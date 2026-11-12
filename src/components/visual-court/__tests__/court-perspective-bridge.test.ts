@@ -68,6 +68,18 @@ describe("court perspective command boundary", () => {
     else expect(parse({ type: "draw", drawing: { kind: "ball", points: [{ x: 0.2, y: 0.7 }] } }, { payload })).toBeNull();
   });
 
+  it("rejects stale commands for individually hidden actors and drawings while preserving other layers", () => {
+    const payload = fixture();
+    payload.editor!.actorMeta.setter = { hidden: true };
+    payload.editor!.drawings.first.find(item => item.id === "note")!.hidden = true;
+    for (const id of ["setter", "note"]) {
+      expect(parse({ type: "select", ids: [id] }, { payload })).toBeNull();
+      expect(parse({ type: "move", ids: [id], delta: { x: .1, y: 0 }, duplicate: true }, { payload })).toBeNull();
+    }
+    expect(parse({ type: "edit-text", id: "note" }, { payload })).toBeNull();
+    expect(parse({ type: "select", ids: ["middle", "ball"] }, { payload })).toEqual({ type: "select", ids: ["middle", "ball"] });
+  });
+
   it("moves visible objects with copied normalized delta and optional animation path", () => {
     const delta = { x: 0.2, y: -0.1 };
     const path = [{ x: 0, y: 0 }, { x: 0.15, y: 0.05 }, delta];
@@ -77,6 +89,42 @@ describe("court perspective command boundary", () => {
     const result = parse({ type: "move", ids: ["middle"], delta, duplicate: true });
     expect(result).toEqual({ type: "move", ids: ["middle"], delta, duplicate: true });
     if (result?.type === "move") expect(result.delta).not.toBe(delta);
+  });
+
+  it.each(["ball", "setter"])("accepts bounded height only for the single current selection %s", id => {
+    for (const value of [0, 2.4, 8]) {
+      const command = { type: "elevation", id, value };
+      expect(parse(command, { selected: [id] })).toEqual(command);
+      expect(parse(command)).toBeNull();
+      expect(parse(command, { selected: [id, "middle"] })).toBeNull();
+      expect(parse(command, { selected: ["middle"] })).toBeNull();
+      expect(parse(command, { selected: [id], tool: "animate" })).toBeNull();
+      expect(parse(command, { selected: [id], disabled: true })).toBeNull();
+      expect(parse(command, { selected: [id], revision: 5 })).toBeNull();
+    }
+  });
+
+  it.each([NaN, Infinity, -.01, 8.01, "2", null, undefined])("rejects invalid height %s", value => {
+    expect(parse({ type: "elevation", id: "ball", value }, { selected: ["ball"] })).toBeNull();
+  });
+
+  it("rejects height edits for unsupported, foreign, hidden, locked and simulated elements", () => {
+    for (const id of ["note", "foreign", "other-step-ball", "other-step-player"]) {
+      expect(parse({ type: "elevation", id, value: 2 }, { selected: [id] })).toBeNull();
+    }
+    expect(parse({ type: "elevation", id: "ball", value: 2, position: { x: 0, y: 0 } }, { selected: ["ball"] })).toBeNull();
+    for (const id of ["ball", "setter"]) {
+      for (const flag of ["hidden", "locked"] as const) {
+        const payload = fixture();
+        if (id === "ball") payload.editor!.drawings.first[0][flag] = true;
+        else payload.editor!.actorMeta.setter = { [flag]: true };
+        expect(parse({ type: "elevation", id, value: 2 }, { payload, selected: [id] })).toBeNull();
+      }
+      const payload = fixture(); payload.editor!.hiddenLayers = [id === "ball" ? "drawings" : "actors"];
+      expect(parse({ type: "elevation", id, value: 2 }, { payload, selected: [id] })).toBeNull();
+    }
+    const payload = configureCourtSimulation(fixture(), 0, { mode: "attack" });
+    expect(parse({ type: "elevation", id: "setter", value: 2 }, { payload, selected: ["setter"] })).toBeNull();
   });
 
   it.each([

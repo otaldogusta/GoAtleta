@@ -142,6 +142,7 @@ export const GOATLETA_ICON_NAMES = {
   star: "star",
   key: "key-outline",
   lock: "lock-closed-outline",
+  unlock: "lock-open-outline",
   location: "location",
   crosshair: "locate-outline",
   arrowForward: "arrow-forward",

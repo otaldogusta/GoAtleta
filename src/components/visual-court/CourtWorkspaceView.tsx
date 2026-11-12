@@ -2,6 +2,8 @@ import { CourtLibraryBrowser } from "./CourtLibraryBrowser";
 import { CourtEditableTitle } from "./CourtEditableTitle";
 import { CourtWorkspacePanel, type CourtWorkspaceTab } from "./CourtWorkspacePanel";
 import { CourtSaveStatus } from "./CourtSaveStatus";
+import { CourtLayersPanel } from "./CourtLayersPanel";
+import { moveCourtLayer, resolveCourtLayers, setCourtLayerHidden, setCourtLayerLocked, type CourtLayerRef } from "../../core/court-layers";
 import { mobileCourtOverlayLayout } from "./court-overlay-layout";
 import { CourtStepGallery } from "./CourtStepGallery";
 import { courtRoster } from "../../core/court-roster";
@@ -12,13 +14,14 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Clipboard from "expo-clipboard";
 import { useSaveToast } from "../../ui/save-toast";
 import { useAppTheme } from "../../ui/app-theme";
+import { compactUiMetrics } from "../../theme/tokens";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { useDisclosureMotion } from "../../ui/useDisclosureMotion";
 import { createWebPortal } from "../../ui/web-portal";
-import { addBlankStep, alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, removeStep, reorderStep, reorderStepToIndex, type CourtDrawing, type CourtSelectionClipboard, type EditorSnapshot } from "../../core/visual-court-editor";
+import { addBlankStep, alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, editableCourtSelection, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, removeStep, reorderStep, reorderStepToIndex, setCourtSelectionElevation, type CourtDrawing, type CourtSelectionClipboard, type EditorSnapshot } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualActorRole, CourtVisualPayload } from "../../core/visual-court";
 import { CourtEditorCanvas, type CourtEditorCanvasProps, type CourtTool } from "./CourtEditorCanvas";
 import type { useCourtEditor } from "./useCourtEditor";
@@ -45,6 +48,12 @@ const TOOLS: { id: CourtTool; label: string; icon: CourtActionIcon }[] = [
   { id: "text", label: "Adicionar texto", icon: "courtText" },
   { id: "animate", label: "Animar movimento", icon: "courtMotion" },
 ];
+const TOOL_HINTS: Partial<Record<CourtTool, string>> = {
+  player: "Toque para posicionar jogador", ball: "Toque para posicionar bola", cone: "Toque para posicionar cone",
+  target: "Toque para posicionar alvo", ladder: "Toque para posicionar escada", text: "Toque para escrever",
+  arrow: "Arraste para desenhar seta", curve: "Arraste para desenhar curva", pen: "Arraste para desenhar", area: "Arraste para marcar área",
+  animate: "Arraste o jogador para animar", pan: "Arraste para mover a vista",
+};
 const COLORS = ["#19c87b", "#4389ff", "#c5fff0", "#b19cff", "#ff6c71", "#ffdc53", "#ffffff", "#172437"];
 const ROLES: [CourtVisualActorRole, string][] = [["setter", "Levantador"], ["outside", "Ponteiro"], ["middle", "Central"], ["opposite", "Oposto"], ["libero", "Líbero"], ["athlete", "Atleta"]];
 
@@ -124,11 +133,13 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
       window.history.replaceState(window.history.state, "", url.href);
     }
   }, []);
-  const [panel, setPanel] = useState<"properties" | "export" | "tools" | "settings" | "step" | "players" | null>(null);
+  const [panel, setPanel] = useState<"properties" | "export" | "tools" | "settings" | "step" | "players" | "layers" | null>(null);
+  const [layersContentSize, setLayersContentSize] = useState<{ stepId: string; height: number } | null>(null);
   const [motionMode, setMotionMode] = useState<"free" | "straight">("free");
   const [animationToolsOpen, setAnimationToolsOpen] = useState(false);
   const [animationToolY, setAnimationToolY] = useState(0);
   const [tool, setTool] = useState<CourtTool>("select");
+  const [areaMode, setAreaMode] = useState<"free" | "points">("free");
   const [selected, setSelected] = useState<string[]>([]);
   const [color, setColor] = useState("#19c87b");
   const [dashed, setDashed] = useState(true);
@@ -190,6 +201,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const [substitute, setSubstitute] = useState(false);
   const landscape = orientation === "auto" ? width > height : orientation === "landscape";
   const compact = width <= 700;
+  const touchTools = compact || (width <= 1000 && height <= 500);
   const compactWeb = Platform.OS === "web" && compact;
   const denseControls = Platform.OS === "web" || !compact;
   const mobileOverlays = mobileCourtOverlayLayout(width, insets.bottom, uiScale);
@@ -211,17 +223,37 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const toolsTop = insets.top + (compactWeb ? 122 : 136) * uiScale;
   const toolsSpace = Math.max(44, (height - toolsTop - insets.bottom) / uiScale - 70);
   const toolsHeight = Math.min(compactWeb ? 328 : 520, toolsSpace);
+  // Mobile tools use real touch targets, independent of the surrounding chrome's scale.
+  const toolScale = touchTools ? 1 : uiScale;
+  const toolRailHeight = touchTools ? Math.min(374, Math.max(50, height - toolsTop - mobileOverlays.panelBottom - 8)) : toolsHeight;
+  const toolRailTop = touchTools ? Math.max(toolsTop, (height - mobileOverlays.panelBottom - toolRailHeight) / 2) : toolsTop + (toolsSpace - toolsHeight) * uiScale / 2;
   const surface = mode === "dark" ? "rgba(10,25,43,0.94)" : "rgba(247,251,255,0.96)";
   const ink = colors.text;
   const step = payload.timeline.steps[stepIndex];
   const simulation = step.simulation;
   const rotationSequence = useMemo(() => Boolean(simulation) && getReceptionRotationStep(payload, stepIndex, simulation!.rotation) >= 0, [payload, stepIndex, simulation]);
+  const showRotationControls = Boolean(simulation && (simulation.mode === "receive" || rotationSequence));
   const attackArcValue = useMemo(() => sampleCourtSimulation(payload, stepIndex, 0)?.attackArc, [payload, stepIndex]);
   const simulationMode = simulation?.mode ?? (step.phase === "attack_shape" ? "attack" : "receive");
   const payloadRef = useRef(payload);
   useEffect(() => { payloadRef.current = payload; }, [payload]);
   const actor = payload.actors.find(a => a.id === selected[0]);
   const object = frameDrawings(payload, stepIndex).find(d => d.id === selected[0]);
+  const changingCourt = busy || editor.opening || (editor.saving && editor.autosaveStatus !== "saving");
+  const authoringBlocked = readOnly || suspended || playing || changingCourt;
+  const visibleLayerIds = resolveCourtLayers(payload, stepIndex).filter(layer => {
+    const state = layer.kind === "actor" ? payload.editor?.actorMeta[layer.id] : frameDrawings(payload, stepIndex).find(drawing => drawing.id === layer.id);
+    return !state?.hidden && !payload.editor?.hiddenLayers.includes(layer.kind === "actor" ? "actors" : "drawings");
+  }).map(layer => layer.id);
+  const canvasSelected = selected.filter(id => visibleLayerIds.includes(id));
+  const editableSelected = editableCourtSelection(payload, stepIndex, canvasSelected);
+  const selectionColors = [
+    ...payload.actors.filter(item => canvasSelected.includes(item.id)).map(item => item.color ?? (courtView === "3d" ? item.baseColor ?? (payload.editor?.actorMeta[item.id]?.team === "B" ? "#4389ff" : "#19c87b") : "#19c87b")),
+    ...frameDrawings(payload, stepIndex).filter(item => canvasSelected.includes(item.id)).map(item => item.color),
+  ];
+  const commonSelectionColor = selectionColors.length && selectionColors.every(value => value === selectionColors[0]) ? selectionColors[0] : undefined;
+  const selectionSwatchColors = [...new Set(selectionColors)].slice(0, 4);
+  const selectionLocked = Boolean(actor ? payload.editor?.actorMeta[actor.id]?.locked : object?.locked);
   const selectionCanRotate = Boolean(object && ["ladder", "cone", "target", "text"].includes(object.kind));
   const effectiveTitle = payload.editor!.title;
   const linkedOpened = useRef(false);
@@ -264,6 +296,39 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     simulate(p => configureCourtSimulation(p, stepIndex, { mode: simulationMode, ...patch }));
   };
   const metadata = (changes: Partial<NonNullable<CourtVisualPayload["editor"]>>) => edit(p => ({ ...p, editor: { ...p.editor!, ...changes } }));
+  const editLayer = (id: string, update: (p: CourtVisualPayload) => CourtVisualPayload) => {
+    if (authoringBlocked || !editableCourtSelection(payload, stepIndex, [id]).length) return;
+    edit(p => editableCourtSelection(p, stepIndex, [id]).length ? update(p) : p);
+  };
+  const setSelectionColor = (value: string) => {
+    if (authoringBlocked) return;
+    const update = (p: CourtVisualPayload): CourtVisualPayload => {
+      const ids = new Set(editableCourtSelection(p, stepIndex, canvasSelected));
+      let actorsChanged = false, drawingsChanged = false;
+      const actors = p.actors.map(item => {
+        if (!ids.has(item.id) || item.color === value) return item;
+        actorsChanged = true; return { ...item, color: value };
+      });
+      const drawings = frameDrawings(p, stepIndex).map(item => {
+        if (!ids.has(item.id) || item.color === value) return item;
+        drawingsChanged = true; return { ...item, color: value };
+      });
+      const next = actorsChanged ? { ...p, actors } : p;
+      return drawingsChanged ? changeDrawings(next, stepIndex, drawings) : next;
+    };
+    const next = update(payload);
+    if (next !== payload) edit(p => p === payload ? next : update(p));
+  };
+  const setLayerHidden = (layer: CourtLayerRef, hidden: boolean) => {
+    if (authoringBlocked) return;
+    edit(p => setCourtLayerHidden(p, stepIndex, layer, hidden));
+    if (hidden) setSelected(ids => ids.filter(id => id !== layer.id));
+    setActionMenu(null);
+  };
+  const setLayerLocked = (layer: CourtLayerRef, locked: boolean) => {
+    if (authoringBlocked) return;
+    edit(p => setCourtLayerLocked(p, stepIndex, layer, locked)); setActionMenu(null);
+  };
   const simulationDisplayLayer = simulationMode === "attack" ? "movements" : "labels";
   const showSimulationGuides = !payload.editor?.hiddenLayers.includes(simulationDisplayLayer);
   const setSimulationGuides = (value: boolean) => {
@@ -271,13 +336,13 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     if (readOnly) setViewerHiddenLayers(hiddenLayers); else metadata({ hiddenLayers });
   };
   const mutateStep = (result: EditorSnapshot) => { resetPlayback(); setSelected([]); commit(() => result.payload, result.stepIndex); };
-  const select = (ids: string[]) => { if (readOnly) return; setAnimationToolsOpen(false); if (panel === "properties") setPanel(null); setSelected(ids); };
-  const remove = () => { edit(p => deleteSelection(p, stepIndex, selected)); setSelected([]); };
-  const duplicate = () => { const result = duplicateSelection(payload, stepIndex, selected); edit(() => result.payload); setSelected(result.selected); };
-  const selectAll = () => setSelected([...(step.visibleActorIds ?? payload.actors.map(a => a.id)), ...frameDrawings(payload, stepIndex).map(d => d.id)]);
+  const select = (ids: string[]) => { if (readOnly) return; setAnimationToolsOpen(false); if (panel === "properties" || panel === "tools") setPanel(null); setSelected(ids); };
+  const remove = () => { if (authoringBlocked || !editableSelected.length) return; edit(p => deleteSelection(p, stepIndex, editableSelected, progress)); setSelected(ids => ids.filter(id => !editableSelected.includes(id))); };
+  const duplicate = () => { if (authoringBlocked || !editableSelected.length) return; const result = duplicateSelection(payload, stepIndex, editableSelected, undefined, progress); edit(() => result.payload); setSelected(result.selected); };
+  const selectAll = () => setSelected(visibleLayerIds);
   const copySelection = () => {
     const ids = selected.length ? selected : [...(step.visibleActorIds ?? payload.actors.map(a => a.id)), ...frameDrawings(payload, stepIndex).map(d => d.id)];
-    selectionClipboard.current = copyStepSelection(payload, stepIndex, ids);
+    selectionClipboard.current = copyStepSelection(payload, stepIndex, ids, progress);
     editor.setNotice(ids.length ? "Seleção copiada. Abra outra etapa e cole." : "Não há itens para copiar nesta etapa.");
   };
   const pasteSelection = () => {
@@ -287,18 +352,34 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     setSelected(result.selected);
     editor.setNotice("Seleção colada nesta etapa.");
   };
-  const move = (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicateDrag = false) => { if (duplicateDrag) { const result = duplicateSelection(payload, stepIndex, ids, delta); edit(() => result.payload); setSelected(result.selected); return; } edit(p => moveSelection(p, stepIndex, ids, delta, tool === "animate", path, progress)); if (tool === "animate") setProgress(1); };
-  const draw = (d: CourtDrawing) => { edit(p => changeDrawings(p, stepIndex, [...frameDrawings(p, stepIndex), d])); setSelected([d.id]); if (["text", "ball", "cone", "target", "ladder"].includes(d.kind)) setTool("select"); };
-  const editText = (id: string, value: string) => edit(p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => d.id === id ? { ...d, text: value } : d)));
+  const move = (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicateDrag = false) => { if (authoringBlocked) return; ids = editableCourtSelection(payload, stepIndex, ids); if (!ids.length) return; if (duplicateDrag) { const result = duplicateSelection(payload, stepIndex, ids, delta, progress); edit(() => result.payload); setSelected(result.selected); return; } edit(p => moveSelection(p, stepIndex, ids, delta, tool === "animate", path, progress)); if (tool === "animate") setProgress(1); };
+  const changeElevation = (id: string, value: number) => {
+    if (authoringBlocked || courtView !== "3d" || tool !== "select" || canvasSelected.length !== 1 || canvasSelected[0] !== id) return;
+    const next = setCourtSelectionElevation(payload, stepIndex, [id], value);
+    if (next !== payload) edit(() => next);
+  };
+  const draw = (d: CourtDrawing) => { edit(p => changeDrawings(p, stepIndex, [...frameDrawings(p, stepIndex), d])); setSelected([d.id]); if (touchTools || ["text", "ball", "cone", "target", "ladder", "area", "arrow", "curve"].includes(d.kind)) setTool("select"); if (["area", "arrow", "curve"].includes(d.kind) && panel === "tools") setPanel(null); };
+  const editText = (id: string, value: string) => editLayer(id, p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => d.id === id ? { ...d, text: value } : d)));
+  const editArrow: NonNullable<CourtEditorCanvasProps["onEditArrow"]> = (id, shape) => {
+    if (authoringBlocked || tool !== "select" || canvasSelected.length !== 1 || canvasSelected[0] !== id || !["arrow", "curve"].includes(shape.kind)) return;
+    const current = frameDrawings(payload, stepIndex).find(d => d.id === id && ["arrow", "curve"].includes(d.kind));
+    const startBallId = shape.startBallId && frameDrawings(payload, stepIndex).some(d => d.id === shape.startBallId && d.kind === "ball" && d.points[0]) ? shape.startBallId : undefined;
+    if (!current || (current.kind === shape.kind && current.curveMode === shape.curveMode && current.startBallId === startBallId && JSON.stringify(current.points) === JSON.stringify(shape.points))) return;
+    editLayer(id, p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => {
+      if (d.id !== id) return d;
+      const { curveMode: _curveMode, startBallId: _startBallId, ...drawing } = d;
+      return { ...drawing, kind: shape.kind, points: shape.points, ...(shape.kind === "curve" && shape.curveMode === "through-point" ? { curveMode: "through-point" as const } : {}), ...(startBallId ? { startBallId } : {}) };
+    })));
+  };
   const addPlayer = (point: CourtPoint) => {
     const id = editorId();
     const a = { id, role: "athlete" as const, representation: "person" as const, label: "", color: team === "A" ? "#19c87b" : "#4389ff", initialPosition: point };
     edit(p => ({ ...p, actors: [...p.actors, a], editor: { ...p.editor!, actorMeta: { ...p.editor!.actorMeta, [id]: { team } } }, timeline: { steps: p.timeline.steps.map((s, i) => ({ ...s, actorPositions: i === stepIndex ? { ...s.actorPositions, [id]: point } : s.actorPositions, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)), ...(i === stepIndex ? [id] : [])] })) } }));
     setSelected([id]); setTool("select");
   };
-  const changeActor = (changes: Partial<NonNullable<typeof actor>>) => { if (actor) edit(p => ({ ...p, actors: p.actors.map(a => a.id === actor.id ? { ...a, ...changes } : a) })); };
-  const changeObject = (changes: Partial<CourtDrawing>) => { if (object) edit(p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => d.id === object.id ? { ...d, ...changes } : d))); };
-  const setActorMeta = (changes: { team?: "A" | "B"; locked?: boolean; studentId?: string }) => { if (actor) metadata({ actorMeta: { ...payload.editor!.actorMeta, [actor.id]: { ...payload.editor!.actorMeta[actor.id], ...changes } } }); };
+  const changeActor = (changes: Partial<NonNullable<typeof actor>>) => { if (actor) editLayer(actor.id, p => ({ ...p, actors: p.actors.map(a => a.id === actor.id ? { ...a, ...changes } : a) })); };
+  const changeObject = (changes: Partial<CourtDrawing>) => { if (object) editLayer(object.id, p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => d.id === object.id ? { ...d, ...changes } : d))); };
+  const setActorMeta = (changes: { team?: "A" | "B"; studentId?: string }) => { if (actor) editLayer(actor.id, p => ({ ...p, editor: { ...p.editor!, actorMeta: { ...p.editor!.actorMeta, [actor.id]: { ...p.editor!.actorMeta[actor.id], ...changes } } } })); };
   useEffect(() => {
     if (!playing) return;
     let active = true;
@@ -394,7 +475,16 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     commit(() => result.payload, result.stepIndex);
   }, [commit, resetPlayback]);
   const action = (label: string, icon: CourtActionIcon, fn: () => void, active = false, disabled = false, text = false, dragKind?: string) => <CourtActionButton tooltipScale={uiScale} compact={denseControls} key={label} label={label} icon={icon} onPress={fn} active={active} disabled={disabled || (readOnly && !["Reduzir", "Ampliar", "Mover a vista", "Ajustar à tela"].includes(label))} text={text} dragKind={readOnly ? undefined : dragKind} danger={label === "Excluir etapa"} />;
-  const openAnimationTools = () => { stop(); setSelected([]); setPanel(null); setTool("animate"); setAnimationToolsOpen(open => !open); };
+  const chooseTool = (next: CourtTool, nextAreaMode: "free" | "points" = "free") => {
+    if (next === "area" && nextAreaMode === "points" && (readOnly || suspended || changingCourt)) return;
+    stop(); setAnimationToolsOpen(false); setPanel(null); setWorkspacePanelOpen(false);
+    if (next !== "select") setSelected([]);
+    if (next === "cone") setColor("#f97316");
+    if (next === "area") { setAreaMode(nextAreaMode); if (nextAreaMode === "points") setCourtView("2d"); }
+    setTool(next);
+  };
+  const toolAction = (label: string, icon: CourtActionIcon, onPress: () => void, active = false) => <CourtActionButton key={label} label={label} icon={icon} compact={touchTools || denseControls} touchTarget={touchTools} tooltipScale={toolScale} active={active} onPress={onPress} />;
+  const openAnimationTools = () => { stop(); setSelected([]); setPanel(null); setWorkspacePanelOpen(false); setTool("animate"); setAnimationToolsOpen(open => !open); };
   useEffect(() => {
     if (tool === "animate" && !panel && !playing) return;
     let alive = true;
@@ -402,17 +492,15 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     return () => { alive = false; };
   }, [tool, panel, playing]);
   const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <CourtSwitchRow key={label} label={label} value={value} onChange={onChange} />;
-  const toolGrid = (items: [CourtTool, string, CourtActionIcon][]) => <View style={styles.wrap}>{items.map(([id, label, icon]) => <CourtActionButton tooltipScale={uiScale} key={id} label={label} icon={icon} tile onAdd={() => {
+  const toolGrid = (items: [CourtTool, string, CourtActionIcon, ("free" | "points")?][]) => <View style={styles.wrap}>{items.map(([id, label, icon, mode]) => <CourtActionButton tooltipScale={uiScale} key={`${id}-${mode ?? "free"}`} label={label} icon={icon} tile onAdd={() => {
       stop();
-      if (["ball", "cone", "target", "ladder"].includes(id)) { setSelected([]); if (id === "cone") setColor("#f97316"); setTool(id); setPanel(null); return; }
-      if (id === "text") { setSelected([]); setTool("text"); setPanel(null); return; }
+      if (["ball", "cone", "target", "ladder", "text", "area"].includes(id)) { chooseTool(id, mode); return; }
       const kind = id as CourtDrawing["kind"];
       const point = { x: 0.5, y: 0.7 };
       const points = kind === "curve" ? [point, { x: 0.35, y: 0.6 }, { x: 0.55, y: 0.52 }] : ["arrow", "pen", "area"].includes(kind) ? [point, { x: 0.65, y: 0.55 }] : [point];
       draw({ id: editorId(), kind, points, color, dashed, size: 32, rotation: 0, ...(kind === "text" ? { text: "Anotação" } : {}) });
-      setTool("select");
-      setPanel(null);
-    }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id} onPress={() => { stop(); setSelected([]); if (id === "cone") setColor("#f97316"); setTool(id); if (["ball", "cone", "target", "ladder"].includes(id)) setPanel(null); }} />)}</View>;
+      chooseTool("select");
+    }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id && (id !== "area" || areaMode === (mode ?? "free"))} onPress={() => chooseTool(id, mode)} />)}</View>;
   const field = (label: string, value: string, onChange: (value: string) => void, multiline = false) => <View style={{ gap: 6 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text><View style={{ backgroundColor: colors.inputBg, borderRadius: 12, minHeight: 50, paddingHorizontal: 14 }}><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} style={{ color: ink, minHeight: multiline ? 70 : 50, borderRadius: 0, fontSize: 14, ...(Platform.OS === "web" ? { cursor: "text" } as object : {}) }} /></View></View>;
   const heading = (label: string) => <Text style={{ color: ink, fontWeight: "700", fontSize: 15, marginTop: 10 }}>{label}</Text>;
   const openBlankBoard = async () => { const board = newCourtBoard(boardName.trim() || "Nova quadra"); board.actors = []; board.editor!.actorMeta = {}; board.timeline.steps[0].actorPositions = {}; await openPayload(board); setNewBoardOpen(false); };
@@ -427,7 +515,10 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   } catch (e) { editor.setError(e instanceof Error ? e.message : "Arquivo inválido."); } };
   const roster = courtRoster(payload, stepIndex);
   const teamRoster = roster.filter(item => item.team === team);
-  const panelTitle = panel === "export" ? "Exportar" : panel === "tools" ? "Ferramentas" : panel === "settings" ? "Configurações da quadra" : panel === "step" ? `Etapa ${stepIndex + 1}` : panel === "players" ? "Jogadores e banco" : selected.length > 1 ? `${selected.length} itens selecionados` : actor ? "Jogador" : object ? "Objeto" : "Propriedades";
+  const panelTitle = panel === "layers" ? "Camadas" : panel === "export" ? "Exportar" : panel === "tools" ? "Ferramentas" : panel === "settings" ? "Configurações da quadra" : panel === "step" ? `Etapa ${stepIndex + 1}` : panel === "players" ? "Jogadores e banco" : selected.length > 1 ? `${selected.length} itens selecionados` : actor ? "Jogador" : object ? "Objeto" : "Propriedades";
+  const layersTop = touchTools ? insets.top + (compactWeb ? 124 : 100) : sidePanelTop;
+  const layersBottom = touchTools ? (compactWeb ? mobileOverlays.panelBottom : insets.bottom + 76) : sidePanelBottom;
+  const layersHeight = Math.min(Math.max(0, height - layersTop - layersBottom) / (touchTools ? 1 : uiScale), 78 + (layersContentSize?.stepId === step.id ? layersContentSize.height : panel === "layers" ? 82 + resolveCourtLayers(payload, stepIndex).length * 50 : 0));
   const libraryItems = useMemo(() => workspacePanelOpen ? buildCourtLibraryItems(editor.documents, editor.trashedIds, { payload, documentId: editor.activeDocumentId, dirty: editor.dirty }) : [], [workspacePanelOpen, editor.documents, editor.trashedIds, payload, editor.activeDocumentId, editor.dirty]);
   const visibleLibraryItems = useMemo(() => filterCourtLibraryItems(libraryItems, { filter: libraryFilter, query, favorites: onlyFavorites, lessonDate, onlyLesson }), [libraryItems, libraryFilter, query, onlyFavorites, lessonDate, onlyLesson]);
   const libraryGroups: CourtLibraryLocation[] = libraryFilter === "all" ? ["local", "team", "template"] : [libraryFilter];
@@ -445,9 +536,9 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
 
   const narrowHeader = width < (compactWeb ? 360 : 440);
   const headerWidth = Math.min((compactWeb ? 332 : 354) - (readOnly ? 34 : 10), Math.max(0, width - 24 - insets.left - insets.right));
-  const changingCourt = busy || editor.opening || (editor.saving && editor.autosaveStatus !== "saving");
   const changeCourtView = (next: "2d" | "3d") => {
     if (changingCourt) return;
+    if (next === "3d" && tool === "area" && areaMode === "points") setTool("select");
     if (next === "3d") setPerspectiveMounted(true);
     setCourtView(next);
   };
@@ -464,9 +555,9 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     else if (key === "save") void editor.save();
     else if (key === "select-tool") { setTool("select"); setPanel(null); }
     else if (key === "select-all") setSelected([...visible]);
-    else if (key === "copy") selectionClipboard.current = copyStepSelection(payload, stepIndex, ids);
+    else if (key === "copy") selectionClipboard.current = copyStepSelection(payload, stepIndex, ids, progress);
     else if (key === "paste") pasteSelection();
-    else if (key === "delete") edit(p => deleteSelection(p, stepIndex, ids));
+    else if (key === "delete") edit(p => deleteSelection(p, stepIndex, ids, progress));
     else if (key.startsWith("nudge-") && ids.length) {
       const n = shift ? 0.03 : 0.01;
       move(ids, { x: key === "nudge-left" ? -n : key === "nudge-right" ? n : 0, y: key === "nudge-up" ? -n : key === "nudge-down" ? n : 0 });
@@ -527,18 +618,18 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     { label: "Excluir seleção", icon: "trash", command: "delete-selection", danger: true },
   ] : [];
   const canvasProps: CourtEditorCanvasProps = {
-    payload, stepIndex, landscape, selected, readOnly, multiple: multi, onSelect: readOnly ? readonlyNoop : select, onMove: readOnly ? readonlyNoop : move, onDraw: readOnly ? readonlyNoop : draw,
-    onEditText: readOnly ? readonlyNoop : editText, onAddPlayer: readOnly ? readonlyNoop : addPlayer, playerPreviewColor: team === "A" ? "#19c87b" : "#4389ff",
-    tool: readOnly ? "pan" : tool, motionMode, color, dashed, grid, half, plain, progress, zoom, pan, onPan: setPan, onZoom: setZoom,
-    disabled: readOnly || suspended || playing || busy || editor.saving || editor.opening,
+    payload, stepIndex, landscape, selected: canvasSelected, readOnly, multiple: multi, onSelect: readOnly ? readonlyNoop : select, onMove: readOnly ? readonlyNoop : move, onDraw: readOnly ? readonlyNoop : draw,
+    onEditText: readOnly ? readonlyNoop : editText, onEditArrow: readOnly ? undefined : editArrow, onAddPlayer: readOnly ? readonlyNoop : addPlayer, playerPreviewColor: team === "A" ? "#19c87b" : "#4389ff",
+    tool: readOnly ? "pan" : tool, motionMode, areaMode, onCancelArea: () => chooseTool("select"), color, dashed, grid, half, plain, progress, zoom, pan, onPan: setPan, onZoom: setZoom,
+    disabled: readOnly || suspended || playing || changingCourt,
     allowServeHandle: readOnly && !suspended && !playing && !busy,
     onSimulationHandle: edit => { if (readOnly && (edit.kind !== "serve" || suspended || playing || busy)) return; stop(); simulate(p => updateCourtSimulationHandle(p, stepIndex, edit)); },
     selectionTopInset: insets.top + 144 * uiScale,
     selectionBottomInset: compactWeb ? mobileOverlays.zoomBottom + 48 : (compact ? 132 : 84) * uiScale,
-    selectionActions: !playing && !panel ? <View>
+    selectionActions: !authoringBlocked && !panel && editableSelected.length ? <View>
         <Pressable accessibilityRole="button" accessibilityLabel="Editar propriedades da seleção" onPress={() => setPanel("properties")} style={({ hovered, pressed }) => [styles.selectionFab, { backgroundColor: hovered || pressed ? colors.secondaryBg : surface }]}><GoAtletaIcon name="pencil" size={18} color={ink} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Duplicar seleção" onPress={duplicate} style={({ hovered, pressed }) => [styles.selectionFab, { backgroundColor: hovered || pressed ? colors.secondaryBg : surface }]}><GoAtletaIcon name="copy" size={18} color={ink} /></Pressable>
-        <View ref={colorMenuRef} collapsable={false}><Pressable accessibilityRole="button" accessibilityLabel="Escolher cor" accessibilityState={{ expanded: actionMenu === "color" }} onPress={() => toggleActionMenu("color")} style={({ hovered, pressed }) => [styles.selectionFab, { backgroundColor: hovered || pressed ? colors.secondaryBg : surface }]}><View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: actor?.color ?? object?.color ?? color, borderWidth: 1, borderColor: "#ffffff99" }} /></Pressable></View>
+        <View ref={colorMenuRef} collapsable={false}><Pressable accessibilityRole="button" accessibilityLabel="Escolher cor" accessibilityHint={commonSelectionColor ? undefined : "Seleção com cores diferentes."} accessibilityState={{ expanded: actionMenu === "color" }} onPress={() => toggleActionMenu("color")} style={({ hovered, pressed }) => [styles.selectionFab, { backgroundColor: hovered || pressed ? colors.secondaryBg : surface }]}><View style={{ width: 18, height: 18, borderRadius: 9, overflow: "hidden", borderWidth: 1, borderColor: commonSelectionColor ? "#ffffff99" : "#fff" }}><View style={{ position: "absolute", top: -5, bottom: -5, left: 0, right: 0, flexDirection: "row", transform: [{ rotate: commonSelectionColor ? "0deg" : "30deg" }] }}>{selectionSwatchColors.map((value, index) => <View key={value} style={{ flex: 1, backgroundColor: value, borderLeftWidth: index ? 1 : 0, borderColor: "#fff" }} />)}</View></View></Pressable></View>
         <View ref={selectionMenuRef} collapsable={false}><Pressable accessibilityRole="button" accessibilityLabel={selectionCanRotate ? "Opções da seleção" : "Excluir seleção"} onPress={() => { if (selectionCanRotate) toggleActionMenu("selection"); else remove(); }} style={({ hovered, pressed }) => [styles.selectionFab, { backgroundColor: hovered || pressed ? colors.secondaryBg : surface }]}><GoAtletaIcon name={selectionCanRotate ? "ellipsisHorizontal" : "trash"} size={18} color={ink} /></Pressable></View>
       </View> : undefined,
   };
@@ -576,7 +667,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls && !readOnly ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
       <View style={{ flex: 1 }}>
       {courtView === "2d" ? <CourtEditorCanvas {...canvasProps} /> : null}
-      {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d"} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
+      {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d"} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onElevation={readOnly ? undefined : changeElevation} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
       </View>
 
       <View style={[styles.top, overlayScale("top center"), { top: insets.top + 18 * uiScale, borderColor: colors.border, backgroundColor: surface, maxHeight: height * 0.45 / uiScale, width: headerWidth }]}>
@@ -592,18 +683,24 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
       {editor.draftError ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ position: "absolute", top: insets.top + 74 * uiScale, ...overlayScale("top center"), alignSelf: "center", maxWidth: headerWidth, color: colors.dangerText, fontSize: 11 }}>{editor.draftError}</Text> : null}
       <CourtSimulationModes uiScale={uiScale} mode={simulationMode} disabled={changingCourt} top={insets.top + (compactWeb ? 74 : width <= 560 ? 82 : 86) * uiScale} onChange={next => configureSimulation({ mode: next })} />
       <CourtWorkspacePanel readOnly={readOnly} uiScale={uiScale} disabled={changingCourt} tab={workspaceTab} onTabChange={changeWorkspaceTab} open={workspacePanelOpen && !panel} onRequestClose={() => setWorkspacePanelOpen(false)} onToggle={() => { setPanel(null); setWorkspacePanelOpen(value => panel ? true : !value); }} top={insets.top + (compactWeb ? 124 : 144) * uiScale} bottom={compactWeb ? mobileOverlays.panelBottom : insets.bottom + (compact ? 124 : 88) * uiScale}
-        adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={simulationMode === "receive" || rotationSequence} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
+        adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={showRotationControls} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
-      <CourtSimulationTransport uiScale={uiScale} showRotation={simulationMode === "receive" || rotationSequence} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
+      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
 
-      {!readOnly ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, overlayScale("top left"), { width: denseControls ? 40 : 52, top: compactWeb ? Math.max(toolsTop, (height - toolsHeight) / 2) : toolsTop + (toolsSpace - toolsHeight) * uiScale / 2, left: insets.left + 10 * uiScale, maxHeight: toolsHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
-        <ScrollView showsVerticalScrollIndicator={false} onScroll={() => setAnimationToolsOpen(false)} contentContainerStyle={{ gap: 2, padding: 3 }}>
-          {TOOLS.map(t => t.id === "animate" ? <View key={t.id} onLayout={event => setAnimationToolY(event.nativeEvent.layout.y)}>{action(t.label, t.icon, openAnimationTools, tool === t.id)}</View> : action(t.label, t.icon, () => { stop(); setAnimationToolsOpen(false); setSelected([]); if (t.id === "cone") setColor("#f97316"); setTool(t.id); setPanel(null); }, tool === t.id, false, false, t.id === "ball" ? "ball" : undefined))}
-          {action("Mais ferramentas", "dashboard", () => setPanel("tools"))}
+      {!readOnly ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, touchTools ? undefined : overlayScale("top left"), { width: touchTools ? compactUiMetrics.touchTarget + 6 : denseControls ? 40 : 52, top: toolRailTop, left: insets.left + 10 * toolScale, maxHeight: toolRailHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
+        {touchTools ? <View style={{ padding: 3, borderBottomWidth: 1, borderBottomColor: colors.border }}>{toolAction("Selecionar e mover", "navigate", () => chooseTool("select"), tool === "select")}</View> : null}
+        <ScrollView showsVerticalScrollIndicator={touchTools} onScroll={() => setAnimationToolsOpen(false)} contentContainerStyle={{ gap: 2, padding: 3 }}>
+          {TOOLS.filter(t => !touchTools || t.id !== "select").map(t => t.id === "animate" ? <View key={t.id} onLayout={event => setAnimationToolY(event.nativeEvent.layout.y)}>{toolAction(t.label, t.icon, openAnimationTools, tool === t.id)}</View> : <CourtActionButton key={t.id} label={t.label} icon={t.icon} compact={touchTools || denseControls} touchTarget={touchTools} tooltipScale={toolScale} active={tool === t.id} onPress={() => chooseTool(t.id)} dragKind={!touchTools && t.id === "ball" ? "ball" : undefined} />)}
+          {toolAction("Mais ferramentas", "dashboard", () => { setAnimationToolsOpen(false); setPanel("tools"); })}
         </ScrollView>
+        <View style={{ padding: 3, borderTopWidth: 1, borderTopColor: colors.border }}>{toolAction("Camadas", "regulations", () => { stop(); setTool("select"); setAnimationToolsOpen(false); setWorkspacePanelOpen(false); setPanel(panel === "layers" ? null : "layers"); }, panel === "layers")}</View>
       </View> : null}
-      {animationToolsOpen ? <View accessibilityLabel="Trajeto da animação" style={{ position: "absolute", ...overlayScale("top left"), left: insets.left + 64 * uiScale, top: Math.min(height - insets.bottom - 48 * uiScale, toolsTop + (toolsSpace - toolsHeight) * uiScale / 2 + (animationToolY + 2) * uiScale), flexDirection: "row", gap: 2, padding: 3, borderRadius: 11, backgroundColor: surface, borderWidth: 1, borderColor: colors.border, zIndex: 26 }}>
+      {!readOnly && touchTools && tool !== "select" && !(tool === "area" && areaMode === "points") && !panel && !workspacePanelOpen && !animationToolsOpen ? <View accessibilityLabel="Ferramenta ativa" style={{ position: "absolute", top: compact ? toolsTop : toolRailTop, left: insets.left + 66, maxWidth: Math.min(300, width - insets.left - insets.right - 76), flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 16, paddingLeft: 10, paddingRight: 3, backgroundColor: surface, zIndex: 25 }}>
+        <Text accessibilityLiveRegion="polite" style={{ flex: 1, color: ink, fontSize: 12 }}>{TOOL_HINTS[tool]}</Text>
+        <CourtActionButton label="Selecionar" icon="navigate" text compact touchTarget onPress={() => chooseTool("select")} />
+      </View> : null}
+      {animationToolsOpen ? <View accessibilityLabel="Trajeto da animação" style={{ position: "absolute", ...(touchTools ? {} : overlayScale("top left")), left: insets.left + 64 * toolScale, top: touchTools ? toolRailTop : Math.min(height - insets.bottom - 48 * uiScale, toolRailTop + (animationToolY + 2) * uiScale), flexDirection: "row", gap: 2, padding: 3, borderRadius: 11, backgroundColor: surface, borderWidth: 1, borderColor: colors.border, zIndex: 26 }}>
         {([ ["free", "Livre"], ["straight", "Reto"] ] as const).map(([modeOption, label]) => <Pressable key={modeOption} accessibilityRole="button" accessibilityLabel={`Trajeto ${label.toLowerCase()}`} accessibilityState={{ selected: motionMode === modeOption }} onPress={() => { setMotionMode(modeOption); setAnimationToolsOpen(false); }} style={({ hovered, pressed }) => ({ minWidth: 56, minHeight: 40, paddingHorizontal: 8, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: motionMode === modeOption ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent" })}><Text style={{ color: motionMode === modeOption ? colors.primaryText : ink, fontSize: 12, fontWeight: motionMode === modeOption ? "700" : "500" }}>{label}</Text></Pressable>)}
       </View> : null}
       <View accessibilityLabel="Controles da vista" style={[styles.history, overlayScale("bottom right"), { right: insets.right + 10 * uiScale, bottom: historyBottom, backgroundColor: surface, flexDirection: compactWeb && mobileOverlays.zoomVertical ? "column" : "row", alignItems: "center", width: compactWeb ? mobileOverlays.zoomWidth : undefined, padding: compactWeb ? 3 : 0, maxWidth: compactWeb ? undefined : width < 700 ? Math.max(44, width / 2 - 84 - insets.right) : width - 20, flexWrap: compactWeb ? "nowrap" : "wrap" }]}>
@@ -616,13 +713,23 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         {action("Ajustar à tela", "expand", () => { setZoom(1); setPan({ x: 0, y: 0 }); setCameraReset(value => value + 1); })}
       </View>
 
-      {panel ? <Animated.View accessibilityLabel={`Painel ${panelTitle}`} style={[styles.panel, panelMotion.style, sidePanelLayout, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      {panel ? <Animated.View accessibilityLabel={`Painel ${panelTitle}`} style={[styles.panel, panelMotion.style, sidePanelLayout, panel === "layers" ? { top: layersTop, bottom: undefined, height: layersHeight, padding: 12, ...(touchTools ? { right: insets.right + 10, width: Math.min(320, width - 84), transform: panelMotion.style.transform } : {}) } : null, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.row}>
           <Text style={{ flex: 1, fontSize: denseControls ? 14 : 16, fontWeight: "600", color: ink }}>{panelTitle}</Text>
-          {action("Fechar painel", "close", () => setPanel(null))}
+          {panel === "layers" ? <CourtActionButton label="Fechar painel" icon="close" compact touchTarget onPress={() => setPanel(null)} /> : action("Fechar painel", "close", () => setPanel(null))}
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+        {panel === "layers" ? <CourtLayersPanel payload={payload} stepIndex={stepIndex} selected={selected} disabled={changingCourt || suspended || playing} readOnly={readOnly} perspective={courtView === "3d"} visualScale={touchTools ? 1 : uiScale}
+          onContentHeight={height => setLayersContentSize(previous => previous?.stepId === step.id && Math.abs(previous.height - height) < .5 ? previous : { stepId: step.id, height })}
+          onSelect={layer => { if (authoringBlocked) return; stop(); setTool("select"); setAnimationToolsOpen(false); setSelected([layer.id]); }}
+          onMove={(layer, destinationIndex) => { if (!authoringBlocked) edit(p => moveCourtLayer(p, stepIndex, layer, destinationIndex)); }}
+          onSetHidden={setLayerHidden} onSetLocked={setLayerLocked}
+          onView2D={() => changeCourtView("2d")} /> : <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
           {panel === "properties" ? <>
+            {editableSelected.length ? <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Cor ${c}`} accessibilityState={{ selected: commonSelectionColor === c, disabled: authoringBlocked }} disabled={authoringBlocked} onPress={() => setSelectionColor(c)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: commonSelectionColor === c ? ink : "transparent" }} />)}</View> : null}
+            {selectionLocked ? <>
+            <Text style={{ color: colors.muted }}>Camada bloqueada.</Text>
+            {action("Desbloquear camada", "unlock", () => { if (actor || object) setLayerLocked({ kind: actor ? "actor" : "drawing", id: (actor ?? object)!.id }, false); }, false, authoringBlocked, true)}
+          </> : <>
             {actor ? <>
               {toggle("Representar como bolinha", (actor.representation ?? payload.editor?.actorRepresentation ?? "circle") === "circle", enabled => changeActor({ representation: enabled ? "circle" : "person" }))}
               {field("Rótulo do jogador", actor.label, label => changeActor({ label }))}
@@ -640,8 +747,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
                 changeActor({ role, ...appearance[role] });
               }, actor.role === role, false, true))}</View>
               <View style={styles.row}>{["A", "B"].map(t => action(`Equipe ${t}`, "students", () => setActorMeta({ team: t as "A" | "B" }), payload.editor!.actorMeta[actor.id]?.team === t, false, true))}</View>
-              <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Cor ${c}`} onPress={() => changeActor({ color: c })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: actor.color === c ? ink : "transparent" }} />)}</View>
-              {action("Bloquear jogador", "lock", () => setActorMeta({ locked: !payload.editor!.actorMeta[actor.id]?.locked }), !!payload.editor!.actorMeta[actor.id]?.locked, false, true)}
+              {action("Bloquear jogador", "lock", () => setLayerLocked({ kind: "actor", id: actor.id }, true), false, authoringBlocked, true)}
               {heading("Elenco da turma")}
               <CourtRosterPicker key={actor.id} roster={editor.roster} selectedId={payload.editor!.actorMeta[actor.id]?.studentId} onChange={studentId => setActorMeta({ studentId })} />
               {action("Enviar ao banco", "students", () => { edit(p => deleteSelection(p, stepIndex, [actor.id])); setSelected([]); }, false, false, true)}
@@ -650,18 +756,18 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
               {object.kind === "text" ? field("Texto", object.text || "", text => changeObject({ text })) : null}
               <CourtSizeControl key={object.id} value={object.size} onChange={size => changeObject({ size })} />
               {action("Girar 45 graus", "repeat", () => changeObject({ rotation: (object.rotation + 45) % 360 }), false, false, true)}
-              <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Cor ${c}`} onPress={() => changeObject({ color: c })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c }} />)}</View>
               {action("Linha tracejada", "trend", () => changeObject({ dashed: !object.dashed }), !!object.dashed, false, true)}
-              {action("Bloquear objeto", "lock", () => changeObject({ locked: !object.locked }), !!object.locked, false, true)}
+              {action("Bloquear objeto", "lock", () => setLayerLocked({ kind: "drawing", id: object.id }, true), false, authoringBlocked, true)}
             </> : <Text style={{ color: colors.muted }}>Selecione um jogador ou objeto na quadra.</Text>}
             {selected.length ? <View style={styles.wrap}>{action("Duplicar seleção", "copy", duplicate, false, false, true)}{action("Apagar seleção", "trash", remove, false, false, true)}</View> : null}
             {selected.length > 1 ? <View style={styles.wrap}>{action("Alinhar na horizontal", "remove", () => edit(p => alignSelection(p, stepIndex, selected, landscape ? "x" : "y")), false, false, true)}{action("Alinhar na vertical", "move", () => edit(p => alignSelection(p, stepIndex, selected, landscape ? "y" : "x")), false, false, true)}</View> : null}
+          </>}
           </> : null}
           {panel === "tools" ? <>
             {heading("Materiais de treino")}
             {toolGrid([["ball", "Bola", "courtBall"], ["cone", "Cone", "courtCone"], ["target", "Alvo", "courtTarget"], ["ladder", "Escada", "courtLadder"]])}
             {heading("Desenho e anotações")}
-            {toolGrid([["arrow", "Seta reta", "courtArrow"], ["curve", "Seta curva", "courtCurve"], ["pen", "Traço livre", "pencil"], ["area", "Área", "courtArea"], ["text", "Texto", "courtText"]])}
+            {toolGrid([["arrow", "Seta reta", "courtArrow"], ["curve", "Seta curva", "courtCurve"], ["pen", "Traço livre", "pencil"], ["area", "Área livre", "courtArea", "free"], ["area", "Área por pontos", "courtArea", "points"], ["text", "Texto", "courtText"]])}
             {["ball", "cone", "target", "ladder", "arrow", "curve", "pen", "area", "text"].includes(tool) ? <>
               {heading("Estilo da ferramenta")}
               <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Usar cor ${c}`} onPress={() => setColor(c)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: color === c ? ink : "transparent" }} />)}</View>
@@ -704,7 +810,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             <Text style={{ color: colors.muted, fontSize: 12 }}>Selecione uma equipe para ver seus jogadores.</Text>
             <View style={styles.wrap}>{["A", "B"].map(t => <CourtActionButton tooltipScale={uiScale} key={t} label={`Equipe ${t}`} icon="students" tile active={team === t} onPress={() => { setTeam(t as "A" | "B"); }} />)}</View>
             <Text style={{ color: colors.muted, fontSize: 12 }}>{landscape ? "Lado A: esquerda · Lado B: direita" : "Lado A: abaixo da rede · Lado B: acima da rede"}</Text>
-            {action(`Adicionar à equipe ${team}`, "addStudent", () => { stop(); setSelected([]); setPanel(null); setTool("player"); editor.setNotice(`Clique ou toque na quadra para posicionar um jogador da equipe ${team}.`); }, tool === "player", false, true)}
+            {action(`Adicionar à equipe ${team}`, "addStudent", () => { chooseTool("player"); editor.setNotice(`Clique ou toque na quadra para posicionar um jogador da equipe ${team}.`); }, tool === "player", false, true)}
             {tool === "player" ? <>
               <Text accessibilityLiveRegion="polite" style={{ color: ink, fontSize: 12 }}>Clique ou toque na quadra para posicionar o jogador da equipe {team}.</Text>
               {action("Cancelar adição", "close", () => setTool("select"), false, false, true)}
@@ -717,8 +823,9 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             {!teamRoster.some(item => item.inCourt) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Nenhum jogador desta equipe em quadra.</Text> : null}
             {heading("Banco nesta etapa")}
             {teamRoster.filter(item => !item.inCourt).map(({ actor: a }) => action(`${substitute && actor ? "Trocar por" : "Colocar"} ${a.label}`, "addStudent", () => {
-              edit(p => changeStep(p, stepIndex, s => ({ ...s, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)).filter(id => !(substitute && actor && id === actor.id)), a.id], actorPositions: { ...s.actorPositions, [a.id]: substitute && actor ? actorPoint(p, stepIndex, actor.id) : a.initialPosition } }))); setSubstitute(false); setSelected([a.id]);
-            }, false, false, true))}
+              if (authoringBlocked || !editableCourtSelection(payload, stepIndex, [a.id]).length || (substitute && actor && !editableCourtSelection(payload, stepIndex, [actor.id]).length)) return;
+              edit(p => !editableCourtSelection(p, stepIndex, [a.id]).length || (substitute && actor && !editableCourtSelection(p, stepIndex, [actor.id]).length) ? p : changeStep(p, stepIndex, s => ({ ...s, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)).filter(id => !(substitute && actor && id === actor.id)), a.id], actorPositions: { ...s.actorPositions, [a.id]: substitute && actor ? actorPoint(p, stepIndex, actor.id) : a.initialPosition } }))); setSubstitute(false); setSelected([a.id]);
+            }, false, authoringBlocked || Boolean(payload.editor?.actorMeta[a.id]?.locked || payload.editor?.actorMeta[a.id]?.hidden) || (substitute && selectionLocked), true))}
 
             {!teamRoster.some(item => !item.inCourt) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Nenhum jogador desta equipe no banco.</Text> : null}
           </> : null}
@@ -730,7 +837,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             {action("Cópia editável JSON", "download", () => void runExport("json"), false, busy, true)}
             {busy ? <ActivityIndicator color={ink} /> : null}
           </> : null}
-        </ScrollView>
+        </ScrollView>}
 
       </Animated.View> : null}
       <AnchoredDropdown visualScale={uiScale} visible={workspacePanelOpen && !panel && workspaceTab === "library" && !libraryDetails && Boolean(libraryMenuItem?.document)} layout={libraryMenuLayout} container={null} animationStyle={{}} zIndex={6100} maxHeight={libraryMenuItem?.location === "team" ? 98 : 54} nestedScrollEnabled density="menu" preferredWidth={188} showVerticalScrollIndicator={false} onRequestClose={() => closeCourtMenu("court-library-menu", libraryMenuTriggerRef.current, () => setLibraryMenuId(null))} interactiveRefs={[libraryMenuTriggerRef]}>
@@ -745,7 +852,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
       <AnchoredDropdown visualScale={uiScale} visible={Boolean(actionMenu)} layout={actionMenuLayout} container={null} animationStyle={{}} zIndex={6100} maxHeight={actionMenu === "color" ? (compact ? 142 : 118) : menuOptions.length * (denseControls ? 34 : 40) + Math.max(0, menuOptions.length - 1) * 4 + 22 + (actionMenu === "document" ? 66 : 0)} nestedScrollEnabled density="menu" preferredWidth={actionMenu === "color" ? (compact ? 144 : 120) : 220} onRequestClose={() => closeCourtMenu("court-action-menu", actionMenuTrigger.current, () => setActionMenu(null))} interactiveRefs={[actionMenuTrigger]}>
         <CourtMenuContents id="court-action-menu">
         {actionMenu === "document" ? <View style={{ padding: denseControls ? 6 : 8, gap: 3, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 4 }}><CourtEditableTitle compact={denseControls} key={editor.activeDocumentId ?? "new"} title={effectiveTitle} color={ink} disabled={editor.saving || editor.opening} onCommit={title => metadata({ title })} /><Text numberOfLines={1} style={{ color: editor.draftError ? colors.dangerText : colors.muted, fontSize: 12 }} accessibilityLiveRegion="polite">{editor.draftError || editor.cls?.name || "Somente leitura"}</Text></View> : null}
-        {actionMenu === "color" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>{[...COLORS, "#f97316"].map(value => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Aplicar cor ${value}`} accessibilityState={{ selected: value === (actor?.color ?? object?.color) }} onPress={() => { if (actor) changeActor({ color: value }); else changeObject({ color: value }); setActionMenu(null); }} style={{ width: compact ? 40 : 32, height: compact ? 40 : 32, borderRadius: compact ? 20 : 16, backgroundColor: value, borderWidth: value === (actor?.color ?? object?.color) ? 2 : 1, borderColor: "#ffffff99" }} />)}</View> : null}
+        {actionMenu === "color" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>{[...COLORS, "#f97316"].map(value => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Aplicar cor ${value}`} accessibilityState={{ selected: value === commonSelectionColor, disabled: authoringBlocked || !editableSelected.length }} disabled={authoringBlocked || !editableSelected.length} onPress={() => { setSelectionColor(value); setActionMenu(null); }} style={{ width: compact ? 40 : 32, height: compact ? 40 : 32, borderRadius: compact ? 20 : 16, backgroundColor: value, borderWidth: value === commonSelectionColor ? 2 : 1, borderColor: "#ffffff99" }} />)}</View> : null}
         {menuOptions.map(option => <AnchoredDropdownOption key={option.label} active={false} accessibilityLabel={option.label} disabled={option.disabled || editor.saving} density="compact" style={{ minHeight: denseControls ? 34 : 40, borderRadius: denseControls ? 999 : 12, justifyContent: "center", backgroundColor: "transparent", borderWidth: 0 }} onPress={() => { closeCourtMenu("court-action-menu", actionMenuTrigger.current, () => setActionMenu(null)); runMenuCommand(option.command); }}><View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><CourtToolIcon name={option.icon} size={denseControls ? 16 : 18} color={option.danger ? colors.dangerText : ink} /><Text style={{ fontSize: denseControls ? 12 : 13, color: option.danger ? colors.dangerText : ink }}>{option.label}</Text></View></AnchoredDropdownOption>)}
 
         </CourtMenuContents>

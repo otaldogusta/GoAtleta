@@ -1,4 +1,5 @@
 import type { AttendanceRecord, ScoutingLog } from "../../core/models";
+import { resolveAttendanceStudentsForDate } from "../../screens/attendance/attendance-roster";
 import type { PendingWrite } from "../pending-write-storage";
 
 const mockValues = new Map<string, string>();
@@ -162,6 +163,106 @@ test("attendance calls only the atomic RPC and retains old data if it fails", as
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(fetchMock.mock.calls[0][0]).toContain("/rpc/replace_attendance_records");
   expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
+});
+
+test("an offline attendance save fails when the device cannot persist its queue", async () => {
+  const { storage } = await setup();
+  const { saveAttendanceRecords } = jest.requireActual<typeof import("../students")>("../students");
+  jest.spyOn(global, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+  const writeToDevice = mockStorage.setItem.getMockImplementation()!;
+  mockStorage.setItem.mockImplementation(async (key, value) => {
+    if (key === "pending_writes_v1") throw new Error("Storage unavailable");
+    await writeToDevice(key, value);
+  });
+  try {
+    await expect(saveAttendanceRecords("class-1", "2026-09-05", [])).rejects.toThrow("Storage unavailable");
+    expect(await storage.readWriteQueue()).toEqual([]);
+  } finally {
+    mockStorage.setItem.mockImplementation(writeToDevice);
+  }
+});
+
+const attendanceClass = "class-1";
+const attendanceDay = "2026-10-05";
+const attendanceRecord: AttendanceRecord = {
+  id: "record-1", classId: attendanceClass, studentId: "student-1", date: attendanceDay,
+  status: "presente", note: "", painScore: 0, createdAt: "2026-10-05T12:00:00Z",
+};
+const attendanceRoster = (url: string) => {
+  if (url.includes("/student_class_enrollments?")) return [{ student_id: "student-1" }];
+  if (url.includes("/students?") && url.includes("id=in.")) return [{
+    id: "student-1", name: "Student One", organization_id: "org-A", phone: "private-phone",
+    photo_url: "https://example.test/private-photo",
+  }];
+  return [];
+};
+const getAttendanceEditor = () => {
+  const { loadEmbeddedAttendance } = jest.requireActual<typeof import("../students")>("../students");
+  return () => loadEmbeddedAttendance(attendanceClass, attendanceDay, resolveAttendanceStudentsForDate);
+};
+
+test("reopens a locally saved attendance from a checked roster when the API is unreachable", async () => {
+  const { auth } = await setup();
+  const { getCachedAttendanceEditor, saveAttendanceRecords } = jest.requireActual<typeof import("../students")>("../students");
+  const open = getAttendanceEditor();
+  const fetchMock = jest.spyOn(global, "fetch").mockImplementation(async (url) => response(attendanceRoster(String(url))));
+  await expect(open()).resolves.toMatchObject({ students: [{ id: "student-1" }], records: [] });
+  await expect(getCachedAttendanceEditor(attendanceClass)).resolves.toMatchObject({
+    date: attendanceDay, students: [{ id: "student-1", name: "Student One" }], records: [],
+  });
+
+  fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+  await expect(open()).resolves.toMatchObject({ offline: true, students: [{ id: "student-1" }], records: [] });
+  await expect(saveAttendanceRecords(attendanceClass, attendanceDay, [attendanceRecord])).resolves.toEqual({ status: "queued" });
+  await expect(open()).resolves.toMatchObject({
+    students: [{ id: "student-1", name: "Student One" }], records: [attendanceRecord],
+  });
+  mockValues.set("active-org-id", "org-B");
+  await expect(open()).rejects.toThrow("Failed to fetch");
+  mockValues.set("active-org-id", "org-A");
+  await auth.saveSession(sessionFor("B"));
+  await expect(open()).rejects.toThrow("Failed to fetch");
+});
+
+test("a queued empty attendance wins over the server, but a 403 prevents reuse of the cached roster", async () => {
+  const { storage } = await setup();
+  const { saveAttendanceRecords } = jest.requireActual<typeof import("../students")>("../students");
+  const open = getAttendanceEditor();
+  const dayResponse = [{
+    id: attendanceRecord.id, classid: attendanceClass, studentid: attendanceRecord.studentId,
+    date: attendanceDay, status: "presente", createdat: attendanceRecord.createdAt,
+  }];
+  const fetchMock = jest.spyOn(global, "fetch").mockImplementation(async (url) => response(
+    String(url).includes("date=eq.") ? dayResponse : attendanceRoster(String(url)),
+  ));
+  await expect(open()).resolves.toMatchObject({ records: [attendanceRecord] });
+  const origin = { userId: "A", organizationId: "org-A" };
+  await storage.enqueueWrite({
+    id: "pending", kind: "attendance_records", origin,
+    payload: { classId: attendanceClass, date: attendanceDay, records: [attendanceRecord] }, createdAt: attendanceRecord.createdAt,
+  });
+  fetchMock.mockClear();
+  await expect(saveAttendanceRecords(attendanceClass, attendanceDay, [], { origin })).resolves.toEqual({ status: "queued" });
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(await storage.readWriteQueue()).toHaveLength(1);
+  await expect(open()).resolves.toMatchObject({ records: [] });
+
+  // A 200 with an empty roster after revocation must hide cached names.
+  fetchMock.mockImplementation(async (url) => {
+    if (String(url).includes("/attendance_logs?")) throw new TypeError("Failed to fetch");
+    return response([]);
+  });
+  await expect(open()).resolves.toMatchObject({ students: [] });
+  fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+  await expect(open()).resolves.toMatchObject({ students: [] });
+
+  fetchMock.mockImplementation(async (url) => {
+    if (String(url).includes("order=date.desc")) return response({}, 403);
+    throw new TypeError("Failed to fetch");
+  });
+  await expect(open()).rejects.toThrow("403");
+  fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+  await expect(open()).rejects.toThrow("Failed to fetch");
 });
 
 test("invalid queued data is durably archived without being reported as synchronized", async () => {

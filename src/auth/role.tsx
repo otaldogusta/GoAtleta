@@ -253,7 +253,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       if (!isSilent) {
         setLoading(true);
       }
-      setError(null);
+      let failed = false;
       try {
         const preview = canUseProfilePreview(refreshSession?.user?.email)
           ? await getDevProfilePreview() : "auto";
@@ -434,6 +434,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setStudent(null);
       } catch (caughtError) {
         if (!isCurrentRefresh()) return;
+        failed = true;
         const parsedError =
           caughtError instanceof Error
             ? caughtError
@@ -453,6 +454,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setSelectedFamilyStudent(null);
       } finally {
         if (isCurrentRefresh()) {
+          if (!failed) setError(null);
           setLoading(false);
         }
       }

@@ -6,7 +6,7 @@ export function publishableCourt(payload: CourtVisualPayload): CourtVisualPayloa
   const parsed = parseEditorImport(JSON.stringify({ format: 'goatleta-court', version: 1, payload }));
   return { ...parsed, editor: { ...parsed.editor!, folder: '', tags: '', favorite: false, lessonLink: undefined,
     actorMeta: Object.fromEntries(Object.entries(parsed.editor!.actorMeta).map(([id, meta]) => [id, {
-      team: meta.team, locked: meta.locked, simulationSupport: meta.simulationSupport,
+      team: meta.team, locked: meta.locked, ...(typeof meta.hidden === "boolean" ? { hidden: meta.hidden } : {}), simulationSupport: meta.simulationSupport,
     }])) } };
 }
 export function courtShareLink(id: string, code: string) {

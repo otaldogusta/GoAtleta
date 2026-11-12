@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react-native";
+import { flushOfflineAttendanceDrafts } from "../db/attendance-draft-sync";
 import { flushPendingWrites, getPendingWritesCount } from "../db/seed";
 
 const isSyncPausedError = (message: string) =>
@@ -47,6 +48,10 @@ class SmartSyncService {
   private isInitialized = false;
   private syncGeneration = 0;
 
+  private syncOnReconnect = () => {
+    if (!this.status.syncPausedReason) this.scheduleSyncSoon("network_online");
+  };
+
   /**
    * Initialize smart sync: listen to app state changes
    */
@@ -59,6 +64,9 @@ class SmartSyncService {
 
     // Initial sync after init
     this.scheduleSyncSoon("app_init");
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("online", this.syncOnReconnect);
+    }
 
     Sentry.addBreadcrumb({
       category: "sync",
@@ -71,6 +79,9 @@ class SmartSyncService {
    * Cleanup listeners and timers
    */
   destroy() {
+    if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+      window.removeEventListener("online", this.syncOnReconnect);
+    }
     if (this.syncTimer) {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
@@ -187,6 +198,9 @@ class SmartSyncService {
         });
 
         const result = await flushPendingWrites();
+        if (generationAtStart === this.syncGeneration) {
+          result.flushed += await flushOfflineAttendanceDrafts();
+        }
         const elapsedMs = Date.now() - startedAt;
 
         if (generationAtStart !== this.syncGeneration) {

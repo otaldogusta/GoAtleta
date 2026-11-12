@@ -31,11 +31,13 @@ import { ScreenBackdrop } from "../../components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Button } from "../../ui/Button";
+import { AuthFieldError } from "../../ui/AuthFieldError";
 import { StaffInviteUnavailableError, refreshStaffSignupSession, resumeStaffSignup, type StaffInviteResult, type StaffSignupFields } from "../../api/staff-invite";
 import type { StaffInviteProof } from "../../auth/staff-invite-link";
 import { useOrganization } from "../../providers/organization-context";
 
 import { estimatePasswordStrength } from "../../auth/password-strength";
+import { hasValidEmailFormat } from "../../auth/email-format";
 import { SignupInviteCode } from "./SignupInviteCode";
 
 export type SignupCompletion = {
@@ -46,9 +48,6 @@ export type SignupCompletion = {
   onSubmit: (fields: StaffSignupFields) => Promise<void>;
   onCancel: () => void;
 };
-
-const hasValidEmailFormat = (value: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
 
 // perf-check: ignore-measure - this form has no automatic asynchronous screen load.
 export default function SignupScreen({ completion }: { completion?: SignupCompletion } = {}) {
@@ -112,6 +111,7 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   const [shakeAnim] = useState(() => new Animated.Value(0));
   const [formShakeAnim] = useState(() => new Animated.Value(0));
   const emailInputRef = useRef<TextInput | null>(null);
+  const passwordInputRef = useRef<TextInput | null>(null);
   const [emailError, setEmailError] = useState<"missing" | "invalid" | null>(
     null,
   );
@@ -192,24 +192,22 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }, [confirm, password]);
 
+  const validateEmail = (value: string) => {
+    if (hasValidEmailFormat(value)) {
+      setEmailError(null);
+      return true;
+    }
+    setMessage("");
+    setEmailError(value.trim() ? "invalid" : "missing");
+    runShake(emailShakeAnim);
+    emailInputRef.current?.focus();
+    return false;
+  };
+
   const handleSignup = async () => {
     if (busy || submitting.current || inviteNeedsVerification) return;
     const normalizedEmail = email.trim();
-    if (!normalizedEmail) {
-      setMessage("");
-      setEmailError("missing");
-      runShake(emailShakeAnim);
-      emailInputRef.current?.focus();
-      return;
-    }
-    if (!hasValidEmailFormat(normalizedEmail)) {
-      setMessage("");
-      setEmailError("invalid");
-      runShake(emailShakeAnim);
-      emailInputRef.current?.focus();
-      return;
-    }
-    setEmailError(null);
+    if (!validateEmail(normalizedEmail)) return;
     if (!password.trim()) {
       setMessage("Informe sua senha.");
       return;
@@ -448,74 +446,11 @@ useEffect(() => {
               <Animated.View
                 style={{
                   position: "relative",
-                  zIndex: emailError ? 50 : 1,
+                  // Keep the native input in the same drawing order when its error changes.
+                  zIndex: 50,
                   transform: [{ translateX: emailShakeAnim }],
                 }}
               >
-                {emailError ? (
-                  <View
-                    accessibilityRole="alert"
-                    style={{
-                      position: "absolute",
-                      top: -38,
-                      left: 0,
-                      zIndex: 60,
-                      ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                        backgroundColor: colors.dangerSolidBg,
-                        borderRadius: 8,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        alignSelf: "flex-start",
-                        ...(Platform.OS === "web"
-                          ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
-                          : {
-                              shadowColor: "#000",
-                              shadowOpacity: 0.24,
-                              shadowRadius: 6,
-                              shadowOffset: { width: 0, height: 3 },
-                              elevation: 6,
-                            }),
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name="warningCircle"
-                        size={14}
-                        color={colors.dangerSolidText}
-                      />
-                      <Text
-                        style={{
-                          color: colors.dangerSolidText,
-                          fontSize: 12,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {emailError === "missing"
-                          ? "Digite seu e-mail"
-                          : "Digite um e-mail válido"}
-                      </Text>
-                    </View>
-                    <View
-                      style={{
-                        width: 0,
-                        height: 0,
-                        marginLeft: 14,
-                        borderLeftWidth: 6,
-                        borderRightWidth: 6,
-                        borderTopWidth: 6,
-                        borderLeftColor: "transparent",
-                        borderRightColor: "transparent",
-                        borderTopColor: colors.dangerSolidBg,
-                      }}
-                    />
-                  </View>
-                ) : null}
                 <View
                   style={{
                     borderWidth: emailError ? 2 : 1,
@@ -547,6 +482,14 @@ useEffect(() => {
                       setEmail(value);
                       if (emailError) setEmailError(null);
                     }}
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    blurOnSubmit={false}
+                    onSubmitEditing={({ nativeEvent }) => {
+                      if (!completion && !busy && validateEmail(nativeEvent.text)) {
+                        passwordInputRef.current?.focus();
+                      }
+                    }}
                     placeholderTextColor={colors.placeholder}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -566,18 +509,21 @@ useEffect(() => {
                     }}
                   />
                 </View>
+                {emailError ? (
+                  <AuthFieldError message={emailError === "missing" ? "Digite seu e-mail" : "Digite um e-mail válido"} />
+                ) : null}
               </Animated.View>
 
-              <Animated.View style={{ position: "relative", zIndex: passwordTooShort ? 50 : 1, transform: [{ translateX: passwordShakeAnim }] }}>
+              <Animated.View style={{ position: "relative", zIndex: 50, transform: [{ translateX: passwordShakeAnim }] }}>
                 {passwordTooShort ? (
                   <View
                     accessibilityRole="alert"
+                    pointerEvents="none"
                     style={{
                       position: "absolute",
                       top: -38,
                       left: 0,
                       zIndex: 60,
-                      ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
                     }}
                   >
                     <View
@@ -637,6 +583,7 @@ useEffect(() => {
                 >
 
                   <TextInput
+                    ref={passwordInputRef}
                     accessibilityLabel="Senha"
                     placeholder="Senha"
                     autoComplete="new-password"
@@ -693,16 +640,16 @@ useEffect(() => {
               </Animated.View>
 
               { password.length > 0 ? (
-                <Animated.View style={{ position: "relative", zIndex: confirmError ? 50 : 1, transform: [{ translateX: shakeAnim }] }}>
+                <Animated.View style={{ position: "relative", zIndex: 50, transform: [{ translateX: shakeAnim }] }}>
                   {confirmError ? (
                     <View
                       accessibilityRole="alert"
+                      pointerEvents="none"
                       style={{
                         position: "absolute",
                         top: -38,
                         left: 0,
                         zIndex: 60,
-                        ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
                       }}
                     >
                       <View

@@ -1,5 +1,5 @@
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
-import { frameDrawings, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
+import { editableCourtElevationSelection, frameDrawings, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
 import type { CourtTool } from "./CourtEditorCanvas";
 import { getCourtSimulation } from "../../core/court-simulation";
 import type { CourtWorldPoint } from "../../core/visual-court-perspective";
@@ -16,6 +16,7 @@ export type CourtPerspectiveCommand =
   | { type: "draw"; drawing: Omit<CourtDrawing, "id" | "locked" | "motion"> }
   | { type: "add-player"; point: CourtPoint }
   | { type: "edit-text"; id: string }
+  | { type: "elevation"; id: string; value: number }
   | ({ type: "simulation-handle" } & CourtPerspectiveHandleEdit)
   | { type: "shortcut"; key: CourtPerspectiveShortcut; shift?: boolean };
 
@@ -27,6 +28,7 @@ export type CourtPerspectiveCommandContext = {
   disabled?: boolean;
   allowServeHandle?: boolean;
   tool?: CourtTool;
+  selected?: string[];
 };
 
 const DRAWING_KINDS: readonly DrawingKind[] = ["arrow", "curve", "pen", "area", "text", "ball", "cone", "target", "ladder"];
@@ -93,8 +95,8 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
   if (context.disabled && !(context.allowServeHandle && value.type === "simulation-handle" && value.kind === "serve") && !(value.type === "shortcut" && ["escape", "play"].includes(String(value.key)))) return null;
   const fields = (extras: string[]) => onlyFields(value, [...ENVELOPE_FIELDS, ...extras]);
   const hidden = context.payload.editor?.hiddenLayers ?? [];
-  const currentDrawings = hidden.includes("drawings") ? [] : frameDrawings(context.payload, context.stepIndex);
-  const actors = hidden.includes("actors") ? [] : context.payload.actors.filter(actor => !step.visibleActorIds || step.visibleActorIds.includes(actor.id));
+  const currentDrawings = hidden.includes("drawings") ? [] : frameDrawings(context.payload, context.stepIndex).filter(item => !item.hidden);
+  const actors = hidden.includes("actors") ? [] : context.payload.actors.filter(actor => !context.payload.editor?.actorMeta[actor.id]?.hidden && (!step.visibleActorIds || step.visibleActorIds.includes(actor.id)));
   const known = new Set([...actors.map(actor => actor.id), ...currentDrawings.map(item => item.id)]);
   const ids = (): string[] | null => {
     if (!Array.isArray(value.ids) || value.ids.length > 300) return null;
@@ -105,6 +107,13 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
   const locked = (id: string) => actors.some(actor => actor.id === id)
     ? !!context.payload.editor?.actorMeta[id]?.locked
     : !!currentDrawings.find(item => item.id === id)?.locked;
+
+  if (value.type === "elevation") {
+    if (!fields(["id", "value"]) || context.tool !== "select" || typeof value.id !== "string" || !finite(value.value, 0, 8)
+      || context.selected?.length !== 1 || context.selected[0] !== value.id
+      || !editableCourtElevationSelection(context.payload, context.stepIndex, [value.id]).length) return null;
+    return { type: "elevation", id: value.id, value: value.value };
+  }
 
   if (value.type === "simulation-handle") {
     if (!fields(["kind", "point", "value"]) || hidden.includes("movements")) return null;

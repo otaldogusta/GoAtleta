@@ -1,6 +1,6 @@
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 
 import { clearAiCache } from "../api/ai";
@@ -12,6 +12,7 @@ import { verifySignupEmailCode } from "../api/email-verification";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import { safeJsonParse } from "../utils/safe-json";
+import { createClientId } from "../core/client-id";
 import {
   getProfileNameValidationError,
   normalizeProfileName,
@@ -27,10 +28,14 @@ import { hasConfirmedPhone } from "./phone-verification";
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
 import { getGoogleLinkUrl } from "../api/auth-link-google";
 import { revokeAuthSession } from "./auth-signout";
+import { hasValidEmailFormat } from "./email-format";
+import { hasVerifiedEmailAccess } from "./email-verification-state";
 import { clearPendingInvites } from "./pending-invite";
-import type { AuthSession } from "./session";
+import type { AuthSession, SessionIdentity } from "./session";
 import {
+  assertSessionIdentity,
   forceRefreshAccessToken,
+  getSessionIdentity,
   getValidAccessToken,
   loadSession,
   loadValidatedSession,
@@ -55,6 +60,8 @@ type AuthContextValue = {
   acceptStaffInvite: (proof: StaffInviteProof) => Promise<StaffInviteResult>;
   completeStaffInvite: (code: string, setup: StaffInviteResult, fields: StaffSignupFields) => Promise<StaffInviteResult>;
   resendSignupCode: (email: string, redirectPath?: string) => Promise<void>;
+  canReuseSignupPassword: (email: string) => boolean;
+  correctPendingSignupEmail: (currentEmail: string, nextEmail: string, password?: string) => Promise<{ deliveryFailed: boolean }>;
   verifySignupCode: (email: string, code: string) => Promise<AuthSession | null>;
   unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
   linkGoogleIdentity: () => Promise<void>;
@@ -70,6 +77,25 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const SIGNUP_PASSWORD_TTL_MS = 5 * 60 * 1000;
+
+type SignupAttempt = {
+  email: string;
+  userId: string | null;
+  password: string;
+  fullName: string;
+  expiresAt: number;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+const normalizeSignupEmail = (email: string) => email.trim().toLowerCase();
+
+const matchesSignupSession = (attempt: SignupAttempt, session: AuthSession | null) => {
+  if (!session) return attempt.userId === null;
+  return attempt.userId === session.user.id
+    && attempt.email === normalizeSignupEmail(session.user.email ?? "")
+    && !hasVerifiedEmailAccess(session.user);
+};
 
 const normalizeAuthSession = (payload: Record<string, any>): AuthSession => {
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -355,13 +381,30 @@ export function AuthProvider({
   const [loading, setLoading] = useState(
     initialSession === undefined
   );
-  useEffect(() => subscribeSession(setSession), []);
+  const signupAttempt = useRef<SignupAttempt | null>(null);
+  const clearSignupAttempt = useCallback(() => {
+    if (signupAttempt.current) clearTimeout(signupAttempt.current.timer);
+    signupAttempt.current = null;
+  }, []);
+  const applySession = useCallback((next: AuthSession | null) => {
+    const attempt = signupAttempt.current;
+    if (attempt && !matchesSignupSession(attempt, next)) clearSignupAttempt();
+    setSession(next);
+  }, [clearSignupAttempt]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSession(applySession);
+    return () => {
+      unsubscribe();
+      clearSignupAttempt();
+    };
+  }, [applySession, clearSignupAttempt]);
 
   useEffect(() => {
     let alive = true;
     if (initialSession !== undefined) {
       Promise.resolve().then(() => {
-        setSession(initialSession ?? null);
+        applySession(initialSession ?? null);
       });
       Promise.resolve().then(() => {
         setLoading(false);
@@ -373,13 +416,13 @@ export function AuthProvider({
     (async () => {
       const stored = await loadValidatedSession();
       if (!alive) return;
-      setSession(stored);
+      applySession(stored);
       setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, [initialSession]);
+  }, [applySession, initialSession]);
 
   useEffect(() => {
     const userId = session?.user?.id;
@@ -406,7 +449,13 @@ export function AuthProvider({
     await saveSession(next);
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, redirectPath: string, fullName?: string) => {
+  const signUp = useCallback(async (
+    email: string,
+    password: string,
+    redirectPath: string,
+    fullName?: string,
+    correctionIdentity?: SessionIdentity,
+  ) => {
     await setDevProfilePreview("auto");
     const redirectTo = redirectPath
       ? Platform.OS === "web"
@@ -414,6 +463,7 @@ export function AuthProvider({
         : buildRedirectUrl(redirectPath)
       : undefined;
     const cleanFullName = (fullName ?? "").trim();
+    const signupAttemptId = correctionIdentity ? createClientId() : undefined;
     const body: Record<string, unknown> = {
       email,
       password,
@@ -423,27 +473,54 @@ export function AuthProvider({
       name: cleanFullName || undefined,
       requires_email_hybrid_verification: true,
       email_verified_hybrid_at: null,
+      ...(signupAttemptId ? { signup_attempt_id: signupAttemptId } : {}),
     };
+    if (correctionIdentity) assertSessionIdentity(correctionIdentity);
     const payload = await authFetch(
       "/auth/v1/signup",
       body,
       redirectTo ? { redirectTo } : undefined
     );
+    let next: AuthSession | null = null;
     if (payload.access_token) {
       const normalized = normalizeAuthSession(payload);
-      const hydratedUser = await fetchUser(normalized.access_token);
-      const next: AuthSession = {
+      const hydratedUser = await fetchUser(normalized.access_token).catch((error: unknown) => {
+        if (correctionIdentity) return null;
+        throw error;
+      });
+      next = {
         ...normalized,
         user: hydratedUser ?? normalized.user,
       };
-      setSession(next);
-      await saveSession(next, true);
-      return next;
     }
-    setSession(null);
-    await saveSession(null, false);
-    return null;
-  }, []);
+    const user: AuthSession["user"] = next?.user ?? payload.user ?? payload;
+    const normalizedEmail = normalizeSignupEmail(email);
+    const signupAccepted = Boolean(user.id)
+      && normalizeSignupEmail(user.email ?? "") === normalizedEmail
+      && !hasVerifiedEmailAccess(user)
+      && Boolean(next || user.identities?.some((identity) => identity.provider === "email"));
+    if (correctionIdentity) {
+      assertSessionIdentity(correctionIdentity);
+      if (!signupAccepted || user.id === correctionIdentity.userId
+        || user.user_metadata?.signup_attempt_id !== signupAttemptId) {
+        throw new Error("Não foi possível iniciar o cadastro com este e-mail.");
+      }
+    }
+    clearSignupAttempt();
+    if (signupAccepted) {
+      signupAttempt.current = {
+        email: normalizedEmail,
+        userId: next?.user.id ?? null,
+        password,
+        fullName: cleanFullName,
+        expiresAt: Date.now() + SIGNUP_PASSWORD_TTL_MS,
+        timer: setTimeout(clearSignupAttempt, SIGNUP_PASSWORD_TTL_MS),
+      };
+    }
+    setSession(next);
+    await saveSession(next, Boolean(next));
+    return next;
+  }, [clearSignupAttempt]);
 
   const signInWithOAuth = useCallback(
     async (provider: "google" | "facebook" | "apple", redirectPath: string) => {
@@ -712,6 +789,45 @@ export function AuthProvider({
     );
   }, []);
 
+  const getSignupAttempt = useCallback((email: string) => {
+    const attempt = signupAttempt.current;
+    if (!attempt || attempt.expiresAt <= Date.now() || attempt.email !== normalizeSignupEmail(email)
+      || !matchesSignupSession(attempt, session)) return null;
+    return attempt;
+  }, [session]);
+
+  const canReuseSignupPassword = useCallback((email: string) => Boolean(getSignupAttempt(email)), [getSignupAttempt]);
+
+  const correctPendingSignupEmail = useCallback(async (currentEmail: string, nextEmail: string, password?: string) => {
+    const current = normalizeSignupEmail(currentEmail);
+    const next = normalizeSignupEmail(nextEmail);
+    if (!hasValidEmailFormat(next) || next.length > 320) throw new Error("Informe um e-mail válido.");
+    if (next === current) throw new Error("Informe um e-mail diferente para continuar.");
+    if (session && (session.user.app_metadata?.provider !== "email" || hasVerifiedEmailAccess(session.user)
+      || session.user.app_metadata?.staff_invite_setup_required === true
+      || normalizeSignupEmail(session.user.email ?? "") !== current)) {
+      throw new Error("A correção está disponível durante a confirmação do cadastro.");
+    }
+    const identity = getSessionIdentity();
+    if (identity.userId !== (session?.user.id ?? "")) throw new Error("A sessão mudou. Abra novamente esta operação.");
+    const attempt = getSignupAttempt(current);
+    const signupPassword = password ?? attempt?.password;
+    if (!signupPassword || signupPassword.length < 6) throw new Error("Informe a senha do cadastro.");
+
+    const fullName = attempt?.fullName ?? session?.user.user_metadata?.full_name ?? undefined;
+    const newSession = await signUp(next, signupPassword, "verify-email", fullName, identity);
+    if (getSessionIdentity().userId !== (newSession?.user.id ?? "")) {
+      throw new Error("A sessão mudou. Abra novamente esta operação.");
+    }
+    if (!newSession) return { deliveryFailed: false };
+    try {
+      await resendSignupCode(next, "verify-email");
+      return { deliveryFailed: false };
+    } catch {
+      return { deliveryFailed: true };
+    }
+  }, [getSignupAttempt, resendSignupCode, session, signUp]);
+
   const verifySignupCode = useCallback(async (email: string, code: string) => {
     const cleanEmail = (email ?? "").trim();
     const cleanCode = (code ?? "").trim();
@@ -722,7 +838,9 @@ export function AuthProvider({
       throw new Error("Informe o código recebido por e-mail.");
     }
 
+    const identity = getSessionIdentity();
     const payload = await verifySignupEmailCode(cleanEmail, cleanCode);
+    assertSessionIdentity(identity);
 
     if (payload?.access_token) {
       const normalized = normalizeAuthSession(payload);
@@ -731,6 +849,8 @@ export function AuthProvider({
         ...normalized,
         user: hydratedUser ?? normalized.user,
       };
+      assertSessionIdentity(identity);
+      clearSignupAttempt();
       setSession(next);
       await saveSession(next, true);
       return next;
@@ -738,18 +858,20 @@ export function AuthProvider({
 
     if (session?.access_token) {
       const user = await fetchUser(session.access_token);
+      assertSessionIdentity(identity);
       if (user) {
         const next: AuthSession = {
           ...session,
           user,
         };
+        clearSignupAttempt();
         setSession(next);
         await saveSession(next, true);
         return next;
       }
     }
     return null;
-  }, [session]);
+  }, [clearSignupAttempt, session]);
 
   const linkGoogleIdentity = useCallback(async () => {
     const redirectTo = Platform.OS === "web"
@@ -809,6 +931,7 @@ export function AuthProvider({
 
   const signOut = useCallback(async () => {
     const accessToken = session?.access_token ?? "";
+    clearSignupAttempt();
     clearAiCache();
     setSession(null);
     await Promise.all([saveSession(null, false), clearPendingInvites()]);
@@ -821,7 +944,7 @@ export function AuthProvider({
         console.warn("Could not revoke the remote auth session.", error);
       }
     }
-  }, [session?.access_token]);
+  }, [clearSignupAttempt, session?.access_token]);
 
   const value = useMemo(
     () => ({
@@ -835,6 +958,8 @@ export function AuthProvider({
       acceptStaffInvite,
       completeStaffInvite,
       resendSignupCode,
+      canReuseSignupPassword,
+      correctPendingSignupEmail,
       verifySignupCode,
       unlinkIdentityProvider,
       linkGoogleIdentity,
@@ -851,7 +976,9 @@ export function AuthProvider({
     [
       consumeAuthUrl,
       acceptStaffInvite,
+      canReuseSignupPassword,
       completeStaffInvite,
+      correctPendingSignupEmail,
       exchangeCodeForSession,
       loading,
       refreshUser,
@@ -890,6 +1017,10 @@ export const useAuth = () => {
         throw new Error("AuthProvider indisponível.");
       },
       resendSignupCode: async () => {},
+      canReuseSignupPassword: (_email: string) => false,
+      correctPendingSignupEmail: async (_currentEmail: string, _nextEmail: string, _password?: string): Promise<{ deliveryFailed: boolean }> => {
+        throw new Error("Autenticação indisponível.");
+      },
       verifySignupCode: async () => null,
       unlinkIdentityProvider: async () => {},
       linkGoogleIdentity: async () => {},

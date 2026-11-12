@@ -64,6 +64,11 @@ operacionais. O scanner QR existente é uma ferramenta mobile de leitura de cont
   marcados em falta por efeito de renderização ou leitura incompleta.
 - Ao salvar a chamada visível, preservar registros carregados de alunos ocultos;
   alunos com registro naquela data permanecem acessíveis no recorte histórico.
+- A chamada incorporada guarda marcações e observações concluídas como rascunho
+  por conta, organização, turma e data. No web, uma chamada já aberta pode ser
+  retomada offline na data selecionada. Falhas de gravação local mantêm o aviso
+  até recuperar ou descartar a edição. As edições offline sincronizam ao reconectar
+  se o servidor confirmar a versão. [Contrato offline](../../architecture/offline-write-identity.md#contrato-de-chamada).
 - A data inicial procura a aula agendada recente ainda incompleta, considerando
   criação dos alunos. Alterações posteriores passam pela guarda de data da chamada.
 - Check-in NFC conserva organização/turma/aluno e chave idempotente por data UTC

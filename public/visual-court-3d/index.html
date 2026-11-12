@@ -9,10 +9,16 @@ canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
 #labels{position:absolute;inset:0;pointer-events:none}
 .actor-label{position:absolute;transform:translate(-50%,-100%);border:0;background:#0a112366;color:#e4edfa;padding:3px 5px;border-radius:5px;font:12px Arial,sans-serif;pointer-events:auto;cursor:pointer;white-space:nowrap}
 .actor-label:focus-visible{outline:2px solid #8fbeff;outline-offset:2px}
+.actor-label[data-hovered=true]{background:#224263aa;color:#fff}
 .guide-handle{position:absolute;z-index:5;width:44px;height:44px;padding:0;transform:translate(-50%,-50%);touch-action:none;cursor:grab;background:transparent;border:0;border-radius:50%;pointer-events:auto}
 .guide-handle::after{content:'';position:absolute;inset:15px;border:2px solid #9dcbf1;border-radius:50%;box-shadow:0 0 0 1px #07101e}
 .guide-handle.apex::after{inset:18px;background:#72b6ef;border:0}.guide-handle.target::after{inset:11px;border-style:dashed}.guide-handle.serve::after{border-color:#c48d8f}
 .guide-handle:active{cursor:grabbing}.guide-handle:hover{background:#73b5f01f}.guide-handle:focus-visible{outline:2px solid #8fbeff;outline-offset:1px}
+.guide-handle.elevation::after{content:'↕';inset:10px;border:1px solid #9dcbf1;border-radius:6px;background:#0a1123;color:#b9e0ff;font:20px/22px Arial,sans-serif;text-align:center}
+.elevation-label{position:absolute;top:12px;left:40px;white-space:nowrap;pointer-events:none;padding:3px 5px;border-radius:5px;background:#0a1123dd;color:#dce9fc;font:11px Arial,sans-serif}
+.guide-handle[data-label-side=left] .elevation-label{left:auto;right:40px}
+.guide-handle[data-label-side=above] .elevation-label{left:50%;top:-14px;transform:translateX(-50%)}
+.elevation-tether{position:absolute;z-index:4;height:1px;background:#9dcbf166;transform-origin:0 50%;pointer-events:none}
 #simulation-feedback{position:absolute;bottom:25px;left:20px;z-index:3;color:#9dc5e8;font-size:12px;pointer-events:none}#simulation-feedback[data-blocked=true]{color:#ec9a9f}
 @media(max-width:700px){#simulation-feedback{top:auto;bottom:116px;left:12px;transform:none;white-space:nowrap;font-size:11px}}
 @media(max-width:380px){#simulation-feedback{bottom:152px}}
@@ -21,8 +27,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
 </style>
 <canvas id="scene" tabindex="0" aria-label="Quadra 3D interativa. Arraste jogadores e materiais. Arraste o fundo para girar. Use a rolagem para aproximar."></canvas>
 <div id="labels" aria-label="Jogadores da quadra"></div>
-<div id="simulation-handles" aria-label="Ajustes das trajetórias"></div>
+<div id="simulation-handles" aria-label="Ajustes da quadra"></div>
 <output id="simulation-feedback" aria-live="polite" hidden></output>
 <div id="error" hidden role="status"></div>
-<script type="module" src="./renderer.mjs?v=resume-lifecycle-20261027"></script>
+<script type="module" src="./renderer.mjs?v=interaction-hover-20261112"></script>
 </html>

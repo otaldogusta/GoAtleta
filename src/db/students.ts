@@ -56,7 +56,8 @@ import {
     writeCache,
 } from "./client";
 import { enqueueWrite } from "./pending-write-queue";
-import { capturePendingWriteContext, type PendingWriteOrigin } from "./pending-write-identity";
+import { capturePendingWriteContext, type PendingWriteContext, type PendingWriteOrigin } from "./pending-write-identity";
+import { getPendingAttendanceRecords } from "./pending-attendance";
 import { resolveTrainingPlanForDate, syncTrainingSessionFromAttendance } from "./training-sessions";
 import { getTrainingPlans } from "./training";
 import type {
@@ -325,7 +326,8 @@ const cacheAttendanceByDate = async (
   classId: string,
   date: string,
   records: AttendanceRecord[],
-  organizationId: string | null | undefined
+  organizationId: string | null | undefined,
+  identity?: StudentReadContext["identity"],
 ) => {
   try {
     const store = await readAttendanceCacheStore();
@@ -335,6 +337,11 @@ const cacheAttendanceByDate = async (
     nextClassStore[date] = records;
     nextOrgStore[classId] = nextClassStore;
     store[orgKey] = nextOrgStore;
+    if (identity) {
+      const activeOrganizationId = await getActiveOrganizationId();
+      assertSessionIdentity(identity);
+      if (organizationId !== activeOrganizationId) return;
+    }
     await writeAttendanceCacheStore(store);
   } catch {
     // ignore cache write failures
@@ -1395,7 +1402,7 @@ export async function getAttendanceExportStudents(
 
 export async function getStudentsByClass(
   classId: string,
-  options: { organizationId?: string | null; includeInactive?: boolean } = {}
+  options: { organizationId?: string | null; includeInactive?: boolean; freshContext?: StudentReadContext } = {}
 ): Promise<Student[]> {
   try {
     const activeOrganizationId =
@@ -1407,7 +1414,8 @@ export async function getStudentsByClass(
             "&organization_id=eq." +
             encodeURIComponent(activeOrganizationId) +
             "&order=name.asc"
-        : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
+        : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc",
+      options.freshContext?.identity,
     );
     const directStudents = rows.map((row) => mapStudentRow(row, activeOrganizationId));
     const byId = new Map(directStudents.map((student) => [student.id, student]));
@@ -1416,7 +1424,8 @@ export async function getStudentsByClass(
       const enrollmentRows = await supabaseGet<StudentClassEnrollmentRow[]>(
         activeOrganizationId
           ? `/student_class_enrollments?select=student_id&class_id=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&status=eq.active`
-          : `/student_class_enrollments?select=student_id&class_id=eq.${encodeURIComponent(classId)}&status=eq.active`
+          : `/student_class_enrollments?select=student_id&class_id=eq.${encodeURIComponent(classId)}&status=eq.active`,
+        options.freshContext?.identity,
       );
       const missingIds = Array.from(
         new Set(
@@ -1432,7 +1441,8 @@ export async function getStudentsByClass(
           const enrolledRows = await supabaseGet<StudentRow[]>(
             activeOrganizationId
               ? `/students?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&id=in.(${inFilter})&order=name.asc`
-              : `/students?select=*&id=in.(${inFilter})&order=name.asc`
+              : `/students?select=*&id=in.(${inFilter})&order=name.asc`,
+            options.freshContext?.identity,
           );
           for (const row of enrolledRows) {
             const mapped = mapStudentRow(row, activeOrganizationId);
@@ -1449,12 +1459,13 @@ export async function getStudentsByClass(
     const filteredStudents = Array.from(byId.values())
       .filter((student) => options.includeInactive || student.membershipStatus !== "inactive")
       .sort((a, b) => a.name.localeCompare(b.name));
+    if (options.freshContext) return filteredStudents;
     return hydrateStudentFinancialStatuses(
       filteredStudents,
       activeOrganizationId
     );
   } catch (error) {
-    if (isNetworkError(error)) {
+    if (!options.freshContext && isNetworkError(error)) {
       const activeOrganizationId =
         options.organizationId ?? (await getActiveOrganizationId());
       const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
@@ -2558,6 +2569,26 @@ export async function saveAttendanceRecords(
   const allowQueue = options?.allowQueue !== false;
   const context = await capturePendingWriteContext(options?.organizationId, options?.origin);
   const organizationId = context.origin.organizationId;
+  const savePending = async () => {
+    const now = Date.now();
+    await enqueueWrite({
+      id: "queue_att_" + now,
+      kind: "attendance_records",
+      origin: context.origin,
+      payload: { classId, date, records },
+      createdAt: new Date(now).toISOString(),
+    });
+    // The queue belongs to the captured owner, even if a session changed
+    // during the request. Do not copy its records into the next owner's cache.
+    await cacheAttendanceByDate(classId, date, records, organizationId, context.identity);
+    return { status: "queued" as const };
+  };
+  // An edit of a queued attendance must replace the draft in the same stream.
+  // Sending it directly would let the older pending payload overwrite it.
+  if (allowQueue && options?.origin && await getPendingAttendanceRecords(classId, date)) {
+    assertSessionIdentity(context.identity);
+    return savePending();
+  }
   try {
     const rows: AttendanceRow[] = records.map((record) => ({
       id: record.id,
@@ -2583,14 +2614,18 @@ export async function saveAttendanceRecords(
       throw new Error("O servidor não confirmou a chamada. Atualize a lista e tente novamente.");
     }
 
-    await cacheAttendanceByDate(classId, date, records, organizationId);
+    await cacheAttendanceByDate(classId, date, records, organizationId, context.identity);
 
     try {
+      const activeOrganizationId = await getActiveOrganizationId();
+      assertSessionIdentity(context.identity);
+      if (activeOrganizationId !== organizationId) return { status: "synced" };
       const [classInfo, plans] = await Promise.all([
         getClassById(classId, { organizationId }),
         getTrainingPlans({ organizationId, classId }),
       ]);
       if (classInfo) {
+        await capturePendingWriteContext(undefined, context.origin);
         const plan = resolveTrainingPlanForDate(plans, classInfo.id, date);
         await syncTrainingSessionFromAttendance({
           classInfo,
@@ -2598,6 +2633,7 @@ export async function saveAttendanceRecords(
           records,
           plan,
           organizationId,
+          identity: context.identity,
         });
       }
     } catch {
@@ -2606,15 +2642,7 @@ export async function saveAttendanceRecords(
     return { status: "synced" };
   } catch (error) {
     if (allowQueue && isDeferredWriteError(error)) {
-      await cacheAttendanceByDate(classId, date, records, organizationId);
-      await enqueueWrite({
-        id: "queue_att_" + Date.now(),
-        kind: "attendance_records",
-        origin: context.origin,
-        payload: { classId, date, records },
-        createdAt: new Date().toISOString(),
-      });
-      return { status: "queued" };
+      return savePending();
     }
     throw error;
   }
@@ -2622,24 +2650,135 @@ export async function saveAttendanceRecords(
 
 export async function getAttendanceByClass(
   classId: string,
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; freshContext?: StudentReadContext } = {}
 ): Promise<AttendanceRecord[]> {
   const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<AttendanceRow[]>(
     organizationId
       ? `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc`
-      : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&order=date.desc`
+      : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&order=date.desc`,
+    options.freshContext?.identity,
   );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    studentId: row.studentid,
-    date: row.date,
-    status: row.status === "faltou" ? "faltou" : "presente",
-    note: row.note ?? "",
-    painScore: row.pain_score ?? 0,
-    createdAt: row.createdat,
-  }));
+  return rows.map(mapAttendanceRecord);
+}
+
+const mapAttendanceRecord = (row: AttendanceRow): AttendanceRecord => ({
+  id: row.id,
+  classId: row.classid,
+  studentId: row.studentid,
+  date: row.date,
+  status: row.status === "faltou" ? "faltou" : "presente",
+  note: row.note ?? "",
+  painScore: row.pain_score ?? 0,
+  createdAt: row.createdat,
+});
+
+async function readAttendanceDay(
+  classId: string, date: string, organizationId: string | null,
+  identity?: StudentReadContext["identity"],
+) {
+  const query = `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}`;
+  const rows = await supabaseGet<AttendanceRow[]>(
+    organizationId ? `${query}&organization_id=eq.${encodeURIComponent(organizationId)}` : query,
+    identity,
+  );
+  return rows.map(mapAttendanceRecord);
+}
+
+export async function refreshSessionFromSyncedAttendance(classId: string, date: string, context: PendingWriteContext) {
+  const { organizationId } = context.origin;
+  const [classInfo, plans, records] = await Promise.all([
+    getClassById(classId, { organizationId }),
+    getTrainingPlans({ organizationId, classId }),
+    readAttendanceDay(classId, date, organizationId, context.identity),
+  ]);
+  await capturePendingWriteContext(undefined, context.origin);
+  assertSessionIdentity(context.identity);
+  await cacheAttendanceByDate(classId, date, records, organizationId, context.identity);
+  if (classInfo) {
+    await capturePendingWriteContext(undefined, context.origin);
+    const plan = resolveTrainingPlanForDate(plans, classInfo.id, date);
+    await syncTrainingSessionFromAttendance({ classInfo, date, records, plan, organizationId, identity: context.identity });
+  }
+}
+
+export type AttendanceEditorStudent = Pick<Student, "id" | "name" | "photoUrl">;
+
+type ResolveAttendanceRoster = (students: Student[], records: AttendanceRecord[], history: AttendanceRecord[]) => Student[];
+type CachedAttendanceEditor = { students: AttendanceEditorStudent[]; records: AttendanceRecord[] };
+const attendanceEditorKey = (classId: string) => `${CACHE_KEYS.attendanceRecords}_editor_${encodeURIComponent(classId)}`;
+
+export async function getCachedAttendanceEditor(classId: string, date?: string) {
+  const context = await captureStudentReadContext(undefined, "attendance-editor-cache");
+  if (!context) return null;
+  const key = attendanceEditorKey(classId);
+  const recent = date ?? await readCache<string>(`${key}_recent`);
+  const pending = await getPendingAttendanceRecords(classId, recent ?? undefined);
+  const editorDate = recent ?? pending?.date;
+  if (!editorDate) return null;
+  const cached = await readCache<CachedAttendanceEditor>(`${key}_${editorDate}`);
+  await context.assertCurrent();
+  if (!cached) return null;
+  return {
+    date: editorDate, students: cached.students, records: pending?.records ?? cached.records,
+    origin: { userId: context.identity.userId, organizationId: context.organizationId },
+    assertCurrent: context.assertCurrent,
+  };
+}
+
+/** Load the entire editor before allowing an atomic replacement of the day. */
+export async function loadEmbeddedAttendance(classId: string, date: string, resolveRoster: ResolveAttendanceRoster) {
+  const context = await captureStudentReadContext(undefined, "attendance-editor");
+  if (!context) throw new Error("Organização indisponível.");
+  const { identity, organizationId, assertCurrent } = context;
+  const origin = { userId: identity.userId, organizationId };
+  const editorKey = attendanceEditorKey(classId);
+  const key = `${editorKey}_${date}`;
+  const pendingAtStart = await getPendingAttendanceRecords(classId, date);
+  await assertCurrent();
+
+  // Wait for all reads: a permission error must prevent use of the cache even
+  // when another request fails first due to a network interruption.
+  const [roster, day, history] = await Promise.allSettled([
+    getStudentsByClass(classId, { includeInactive: true, organizationId, freshContext: context }),
+    readAttendanceDay(classId, date, organizationId, identity),
+    getAttendanceByClass(classId, { organizationId, freshContext: context }),
+  ]);
+  await assertCurrent();
+  const pending = (await getPendingAttendanceRecords(classId, date)) ?? pendingAtStart;
+  await assertCurrent();
+
+  if (roster.status === "fulfilled" && day.status === "fulfilled" && history.status === "fulfilled") {
+    const records = pending?.records ?? day.value;
+    const students = resolveRoster(roster.value, records, history.value).map(({ id, name, photoUrl }) => ({ id, name, photoUrl }));
+    await writeCache(key, { students: students.map(({ id, name }) => ({ id, name })), records: day.value });
+    await assertCurrent();
+    await writeCache(`${editorKey}_recent`, date);
+    await assertCurrent();
+    return { students, records, origin, assertCurrent, offline: false };
+  }
+
+  const failures = [roster, day, history].filter((result) => result.status === "rejected");
+  const nonNetworkFailure = failures.find(({ reason }) => isAuthError(reason) || !isNetworkError(reason));
+  if (nonNetworkFailure) {
+    await writeCache(key, null);
+    throw nonNetworkFailure.reason;
+  }
+  const cached = await readCache<CachedAttendanceEditor>(key);
+  await assertCurrent();
+  // A complete previously loaded day can be edited locally. An empty day is
+  // a known baseline and is distinct from the absence of a snapshot.
+  if (!cached) throw failures[0].reason;
+  let students = cached.students;
+  if (roster.status === "fulfilled") {
+    // A fresh, RLS-filtered roster remains authoritative for identity. Preserve
+    // the checked eligibility set while removing any newly inaccessible students.
+    const checkedIds = new Set(cached.students.map(({ id }) => id));
+    students = roster.value.filter(({ id }) => checkedIds.has(id)).map(({ id, name }) => ({ id, name }));
+    await writeCache(key, { ...cached, students });
+    await assertCurrent();
+  }
+  return { students, records: pending?.records ?? cached.records, origin, assertCurrent, offline: true };
 }
 
 export async function getAttendanceByDate(
@@ -2649,21 +2788,7 @@ export async function getAttendanceByDate(
 ): Promise<AttendanceRecord[]> {
   const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   try {
-    const rows = await supabaseGet<AttendanceRow[]>(
-      organizationId
-        ? `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}&organization_id=eq.${encodeURIComponent(organizationId)}`
-        : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}`
-    );
-    const records: AttendanceRecord[] = rows.map((row) => ({
-      id: row.id,
-      classId: row.classid,
-      studentId: row.studentid,
-      date: row.date,
-      status: row.status === "faltou" ? "faltou" : "presente",
-      note: row.note ?? "",
-      painScore: row.pain_score ?? 0,
-      createdAt: row.createdat,
-    }));
+    const records = await readAttendanceDay(classId, date, organizationId);
     await cacheAttendanceByDate(classId, date, records, organizationId);
     return records;
   } catch (error) {

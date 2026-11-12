@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, TextInput } from "react-native";
 import { semanticColors } from "../../../theme/tokens";
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import SignupScreen, { type SignupCompletion } from "../SignupScreen";
@@ -34,7 +34,7 @@ const completion = (overrides: Partial<SignupCompletion> = {}): SignupCompletion
 
 describe("canonical signup screen", () => {
   beforeEach(() => { jest.clearAllMocks(); mockCurrentSession = null; jest.useFakeTimers(); });
-  afterEach(() => { cleanup(); jest.clearAllTimers(); jest.useRealTimers(); });
+  afterEach(() => { cleanup(); jest.restoreAllMocks(); jest.clearAllTimers(); jest.useRealTimers(); });
 
   it.each(["INVITE_INVALID", "AUTH_LINK_EXPIRED"] as const)("shows the field balloon and offers resend only for an expired access code: %s", async (reason) => {
     mockValidateInvite.mockResolvedValue(undefined);
@@ -140,6 +140,27 @@ describe("canonical signup screen", () => {
 
   it("uses the exact same component for the public signup route", () => {
     expect(SignupRoute).toBe(SignupScreen);
+  });
+
+  it("keeps an invalid email editable and advances to the password only after correction", () => {
+    const focus = jest.spyOn(TextInput.prototype, "focus");
+    const screen = render(React.createElement(SignupScreen));
+    const email = screen.getByLabelText("E-mail");
+    expect(email.props.submitBehavior).toBe("submit");
+    expect(email.props.blurOnSubmit).toBe(false);
+    fireEvent.changeText(email, "invalido");
+    act(() => jest.advanceTimersByTime(800));
+    expect(screen.getByText("Digite um e-mail válido")).toBeTruthy();
+    expect(email.props.editable).toBe(true);
+
+    fireEvent(email, "submitEditing", { nativeEvent: { text: "invalido" } });
+    expect(focus.mock.contexts.map((input) => input.props.accessibilityLabel)).toEqual(["E-mail"]);
+
+    fireEvent.changeText(email, "atleta@example.com");
+    expect(screen.queryByText("Digite um e-mail válido")).toBeNull();
+    fireEvent(email, "submitEditing", { nativeEvent: { text: "atleta@example.com" } });
+    expect(focus.mock.contexts.map((input) => input.props.accessibilityLabel)).toEqual(["E-mail", "Senha"]);
+    expect(mockSignUp).not.toHaveBeenCalled();
   });
 
   it("locks the recipient and hides unrelated account creation actions", () => {

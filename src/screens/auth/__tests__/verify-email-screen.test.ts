@@ -3,20 +3,27 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import VerifyEmailScreen from "../../../../app/verify-email";
 
 const mockReplace = jest.fn();
+const mockSetParams = jest.fn();
 const mockVerify = jest.fn();
 const mockResend = jest.fn();
+const mockCorrectEmail = jest.fn();
+const mockCanReuseSignupPassword = jest.fn();
 const mockRefresh = jest.fn();
+const mockRefreshRole = jest.fn();
 const mockClaimRelationship = jest.fn();
 let mockSession: any = null;
+let mockRouteParams: { email: string; delivery?: string };
 let mockPendingTrainer = "";
 let mockPendingFamily = "";
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ replace: mockReplace, canGoBack: () => false }),
-  useLocalSearchParams: () => ({ email: "new@example.test" }),
+  useRouter: () => ({ replace: mockReplace, setParams: mockSetParams, canGoBack: () => false }),
+  useLocalSearchParams: () => mockRouteParams,
 }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: mockSession,
-  verifySignupCode: mockVerify, resendSignupCode: mockResend, refreshUser: mockRefresh }) }));
-jest.mock("../../../auth/role", () => ({ useRole: () => ({ refresh: mockRefresh }) }));
+  verifySignupCode: mockVerify, resendSignupCode: mockResend,
+  correctPendingSignupEmail: mockCorrectEmail, canReuseSignupPassword: mockCanReuseSignupPassword,
+  refreshUser: mockRefresh }) }));
+jest.mock("../../../auth/role", () => ({ useRole: () => ({ refresh: mockRefreshRole }) }));
 jest.mock("../../../auth/pending-invite", () => ({
   ...jest.requireActual("../../../auth/pending-invite"),
   getPendingInvite: jest.fn().mockResolvedValue(""),
@@ -37,11 +44,16 @@ jest.mock("../../../ui/Button", () => ({ Button: ({ label, disabled, onPress }: 
 beforeEach(() => {
   jest.clearAllMocks();
   mockSession = null;
+  mockRouteParams = { email: "new@example.test" };
+  mockSetParams.mockImplementation((params) => { mockRouteParams = { ...mockRouteParams, ...params }; });
   mockPendingTrainer = "";
   mockPendingFamily = "";
   mockVerify.mockResolvedValue({ user: { id: "new-user" } });
   mockResend.mockResolvedValue(undefined);
+  mockCorrectEmail.mockResolvedValue({ deliveryFailed: false });
+  mockCanReuseSignupPassword.mockReturnValue(true);
   mockRefresh.mockResolvedValue(undefined);
+  mockRefreshRole.mockResolvedValue(undefined);
 });
 
 const mount = async () => {
@@ -81,6 +93,70 @@ it("confirms the authenticated email instead of a conflicting query suggestion",
   expect(mockVerify).toHaveBeenCalledWith("invited@example.test", "123456");
 });
 
+it("edits a pending authenticated email inline, clears the old code and verifies the corrected address", async () => {
+  mockSession = { user: { email: "typo@example.test", app_metadata: { provider: "email" } } };
+  mockCorrectEmail.mockImplementationOnce(async (_oldEmail, newEmail) => {
+    mockSession = { user: { ...mockSession.user, email: newEmail } };
+    return { deliveryFailed: false };
+  });
+  const view = await mount();
+  fireEvent.changeText(view.getByLabelText("Código de confirmação"), "123456");
+  fireEvent.press(view.getByRole("button", { name: "Editar e-mail" }));
+  const input = view.getByLabelText("E-mail");
+  expect(input.props.value).toBe("typo@example.test");
+  fireEvent.changeText(input, "corrigido@");
+  fireEvent(input, "submitEditing", { nativeEvent: { text: "corrigido@" } });
+  expect(view.getByText("Digite um e-mail válido")).toBeTruthy();
+  expect(mockCorrectEmail).not.toHaveBeenCalled();
+
+  fireEvent.changeText(input, "corrigido@example.test");
+  expect(view.queryByText("Digite um e-mail válido")).toBeNull();
+  await act(async () => fireEvent.press(view.getByText("Enviar código")));
+  expect(mockCorrectEmail).toHaveBeenCalledWith("typo@example.test", "corrigido@example.test", undefined);
+  expect(view.getByText("corrigido@example.test")).toBeTruthy();
+  expect(view.getByLabelText("Código de confirmação").props.value).toBe("");
+
+  fireEvent.changeText(view.getByLabelText("Código de confirmação"), "654321");
+  await act(async () => fireEvent.press(view.getByRole("button", { name: "Continuar" })));
+  expect(mockVerify).toHaveBeenCalledWith("corrigido@example.test", "654321");
+  expect(mockReplace).toHaveBeenCalledWith("/");
+});
+
+it("preserves the current recipient if the corrected email is already registered", async () => {
+  mockSession = { user: { email: "typo@example.test", app_metadata: { provider: "email" } } };
+  mockCorrectEmail.mockRejectedValueOnce(new Error("Email already registered"));
+  const view = await mount();
+  fireEvent.press(view.getByRole("button", { name: "Editar e-mail" }));
+  fireEvent.changeText(view.getByLabelText("E-mail"), "occupied@example.test");
+  await act(async () => fireEvent.press(view.getByText("Enviar código")));
+  expect(view.getByText("Este e-mail já está em uso.")).toBeTruthy();
+  fireEvent.press(view.getByText("Cancelar"));
+  expect(view.getByText("typo@example.test")).toBeTruthy();
+  expect(mockResend).not.toHaveBeenCalled();
+});
+
+it("asks for the signup password after resuming and retries a failed delivery at the corrected address", async () => {
+  mockCanReuseSignupPassword.mockReturnValue(false);
+  mockCorrectEmail.mockResolvedValueOnce({ deliveryFailed: true });
+  const view = await mount();
+  fireEvent.press(view.getByRole("button", { name: "Editar e-mail" }));
+  fireEvent.changeText(view.getByLabelText("E-mail"), "corrigido@example.test");
+  fireEvent.changeText(view.getByLabelText("Senha do cadastro"), "Synthetic123!");
+  await act(async () => fireEvent.press(view.getByText("Enviar código")));
+  expect(mockCorrectEmail).toHaveBeenCalledWith("new@example.test", "corrigido@example.test", "Synthetic123!");
+  expect(view.getByText("corrigido@example.test")).toBeTruthy();
+  expect(view.getByText("Não foi possível enviar o código. Toque em Reenviar.")).toBeTruthy();
+  await act(async () => fireEvent.press(view.getByText("Reenviar e-mail")));
+  expect(mockResend).toHaveBeenCalledWith("corrigido@example.test", "verify-email");
+});
+
+it("does not offer signup correction to an account with trusted verification", async () => {
+  mockSession = { user: { email: "confirmed@example.test", app_metadata: { email_verified_hybrid_at: "2026-11-12" } } };
+  const view = await mount();
+  expect(view.getByText("confirmed@example.test")).toBeTruthy();
+  expect(view.queryByRole("button", { name: "Editar e-mail" })).toBeNull();
+});
+
 it("keeps the family receipt destination and recovers a failed claim through its invite", async () => {
   mockPendingFamily = "family-token";
   mockClaimRelationship.mockRejectedValueOnce(new Error("offline"));
@@ -88,6 +164,20 @@ it("keeps the family receipt destination and recovers a failed claim through its
   fireEvent.changeText(view.getByLabelText("Código de confirmação"), "123456");
   await act(async () => fireEvent.press(view.getByRole("button", { name: "Continuar" })));
   expect(mockReplace).toHaveBeenCalledWith("/family-invite/family-token");
+});
+
+it("claims the relationship after OTP and refreshes the role without reloading the pending user", async () => {
+  mockPendingFamily = "family-token";
+  mockClaimRelationship.mockResolvedValueOnce({ relationshipKind: "guardian" });
+  const view = await mount();
+
+  fireEvent.changeText(view.getByLabelText("Código de confirmação"), "123456");
+  await act(async () => fireEvent.press(view.getByRole("button", { name: "Continuar" })));
+
+  expect(mockClaimRelationship).toHaveBeenCalledWith("family-token");
+  expect(mockRefresh).not.toHaveBeenCalled();
+  expect(mockRefreshRole.mock.invocationCallOrder[0]).toBeGreaterThan(mockClaimRelationship.mock.invocationCallOrder[0]);
+  expect(mockReplace).toHaveBeenCalledWith("/family/home");
 });
 
 it("prevents repeated resends during the countdown", async () => {

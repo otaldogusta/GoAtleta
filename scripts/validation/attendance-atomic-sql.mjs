@@ -107,6 +107,41 @@ try {
   await asUser(admin);
   assert.equal((await replace([])).rows[0].saved_count, 0);
   assert.deepEqual(await snapshot(), []); checks += 1;
+
+  await db.exec('reset role');
+  await db.exec(await migration('20261112103438_apply_attendance_draft.sql'));
+  await asUser(admin);
+  const draft = (edits, org = orgA) => db.query(
+    'select public.apply_attendance_draft($1, $2, $3, $4::jsonb)',
+    [org, 'class-A', '2026-09-05', JSON.stringify(edits)]);
+  const mark = (status, note = '') => ({ status, note, painScore: 0 });
+  const edit = (studentId, before, after) => ({ studentId, before, after });
+
+  await replace([row('historical', 's2', 'preserve')]);
+  await db.exec("reset role; update students set classid = 'class-B' where id = 's2';");
+  const history = async () => (await db.query("select * from attendance_logs where id = 'historical'")).rows;
+  const historicalRow = await history();
+  await asUser(admin);
+  const firstDraft = [edit('s1', null, mark('presente', 'local'))];
+  await draft(firstDraft);
+  await draft(firstDraft);
+  assert.deepEqual(await history(), historicalRow); checks += 1;
+  assert.equal((await snapshot()).length, 2); checks += 1;
+  assert.equal((await snapshot()).find(({ studentid }) => studentid === 's1').note, 'local'); checks += 1;
+
+  const beforeConflict = await snapshot();
+  await assert.rejects(draft([edit('s1', mark('presente', 'old'), mark('faltou'))]), /ATTENDANCE_DRAFT_CONFLICT/);
+  assert.deepEqual(await snapshot(), beforeConflict); checks += 1;
+  await assert.rejects(draft([edit('s2', mark('presente', 'preserve'), mark('faltou'))]), /student scope changed/); checks += 1;
+  await assert.rejects(draft(firstDraft, orgB), /Attendance access denied/); checks += 1;
+  await asUser(outsider);
+  await assert.rejects(draft(firstDraft), /Attendance access denied/); checks += 1;
+  await asUser(admin);
+  await draft([edit('s1', mark('presente', 'local'), null)]);
+  await draft([edit('s1', mark('presente', 'local'), null)]);
+  assert.deepEqual(await history(), historicalRow);
+  assert.equal((await snapshot()).length, 1); checks += 1;
+
   console.log(JSON.stringify({ suite: 'attendance-atomic-sql', checks, status: 'passed', runtime: 'isolated PGlite PostgreSQL' }));
 } finally {
   await db.close();

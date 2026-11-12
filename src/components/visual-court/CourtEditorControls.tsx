@@ -5,7 +5,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { createWebPortal } from "../../ui/web-portal";
-import { radius, spacing } from "../../theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 
 import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
 
@@ -33,8 +33,8 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
 }
 
 const SHORTCUTS: Record<string, string> = { "Selecionar e mover": "V · Arraste no vazio para selecionar", Desfazer: "Ctrl/Cmd + Z", Refazer: "Ctrl/Cmd + Shift + Z", "Apagar seleção": "Delete" };
-export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false, dragKind, onAdd, compact = false, tooltipScale = 1 }: {
-  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; tooltipScale?: number;
+export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1 }: {
+  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; touchTarget?: boolean; tooltipScale?: number;
 }) {
   const { colors } = useAppTheme();
   const tipScale = Number.isFinite(tooltipScale) && tooltipScale > 0 ? tooltipScale : 1;
@@ -51,7 +51,7 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     return () => { window.removeEventListener("resize", hide); window.removeEventListener("scroll", hide, true); window.removeEventListener("keydown", key); };
   }, [visibleTip]);
   const show = (event: unknown) => {
-    if (Platform.OS !== "web" || text || tile) return;
+    if (Platform.OS !== "web" || text || tile || touchTarget) return;
     const rect = (event as { currentTarget?: HTMLElement }).currentTarget?.getBoundingClientRect?.();
     if (!rect) return;
     // The button's DOM rect already includes its parent's scale; only the portal's
@@ -85,7 +85,7 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     <Pressable suppressWebHoverFeedback={compact} disableWebPressScale={compact} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
       onHoverIn={show} onHoverOut={() => setTip(null)} onFocus={show} onBlur={() => setTip(null)}
       onPress={() => { setTip(null); onPress(); }}
-      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: 34, minHeight: 34, ...(!text ? { width: 34 } : {}), borderRadius: 999, overflow: "hidden" }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
+      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: 34, minHeight: 34, ...(!text ? { width: 34 } : {}), borderRadius: 999, overflow: "hidden" }, touchTarget && !tile && { minWidth: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, ...(!text ? { width: compactUiMetrics.touchTarget } : {}) }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
       <CourtToolIcon name={icon} size={tile ? 22 : compact ? 18 : 21} color={ink} />
       {text || tile ? <Text style={{ color: ink, fontSize: 12, fontWeight: "600", textAlign: tile ? "center" : "left" }}>{label}</Text> : null}
     </Pressable>

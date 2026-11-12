@@ -23,6 +23,33 @@ test('curve control follows the same portrait and landscape projection as 2D',()
  assert.equal(portrait[16].z,landscape[16].z);
  assert.deepEqual(landscape[0],points[0]);assert.deepEqual(landscape.at(-1),points.at(-1));
 });
+test('through-point curves pass through the authored midpoint and retain endpoints in either orientation',()=>{
+ const points=[{x:-3,y:.025,z:5},{x:2,y:.025,z:-3},{x:1,y:.025,z:3}];
+ for(const landscape of [false,true]){
+  const stroke=curvePoints(points,landscape,'through-point');
+  assert.deepEqual(stroke[0],points[0]);assert.deepEqual(stroke.at(-1),points.at(-1));
+  for(const axis of ['x','y','z'])assert.ok(Math.abs(stroke[16][axis]-points[1][axis])<1e-12);
+  assert.ok(stroke.every(point=>Math.abs(point.y-.025)<1e-12));
+ }
+ assert.deepEqual(curvePoints(points,false,'through-point'),curvePoints(points,true,'through-point'));
+});
+test('legacy curves still ignore extra midpoint data unless the valid explicit mode is present',()=>{
+ const a={x:-3,y:.03,z:5},b={x:2,y:.03,z:1},m={x:4,y:.03,z:-5};
+ for(const landscape of [false,true]){
+  const legacy=curvePoints([a,b],landscape);
+  assert.deepEqual(curvePoints([a,m,b],landscape),legacy);
+  assert.deepEqual(curvePoints([a,m,b],landscape,'unknown'),legacy);
+  assert.deepEqual(curvePoints([a,m,m,b],landscape,'through-point'),legacy);
+  assert.deepEqual(curvePoints([a,b],landscape,'through-point'),legacy);
+ }
+});
+test('an aligned through-point curve has no artificial bend',()=>{
+ const points=[{x:-3,y:.025,z:5},{x:-1,y:.025,z:3},{x:1,y:.025,z:1}];
+ curvePoints(points,false,'through-point').forEach((point,index)=>{
+  assert.ok(Math.abs(point.x-(-3+4*index/32))<1e-12);
+  assert.ok(Math.abs(point.z-(5-4*index/32))<1e-12);
+ });
+});
 test('locked, unknown and removed objects cannot be dragged',()=>{
  assert.deepEqual(editableIds(['a','locked','deleted','drawing'],{actors:[{id:'a'},{id:'locked',locked:true}],drawings:[{id:'drawing'}]}),['a','drawing']);
 });

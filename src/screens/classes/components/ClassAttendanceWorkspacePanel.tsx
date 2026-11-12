@@ -4,14 +4,13 @@ import { ActivityIndicator, Image, StyleSheet, TextInput, View } from "react-nat
 import { OperationalText as Text } from "../../../ui/OperationalText";
 import Svg, { Path } from "react-native-svg";
 
-import type { Student } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useConfirmDialog } from "../../../ui/confirm-dialog";
 import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
-import type { EmbeddedAttendanceDetails, EmbeddedAttendanceStatus } from "../../attendance/use-embedded-class-attendance";
+import type { EmbeddedAttendanceDetails, EmbeddedAttendanceStatus, EmbeddedAttendanceStudent } from "../../attendance/use-embedded-class-attendance";
 import { StudentPhotoViewerModal } from "../../students/components/StudentPhotoViewerModal";
 import { ClassLessonDateNavigator } from "./ClassLessonDateNavigator";
 
@@ -69,7 +68,7 @@ type ClassAttendanceWorkspacePanelProps = {
   mobile: boolean;
   dense: boolean;
   dateLabel: string;
-  students: Student[];
+  students: EmbeddedAttendanceStudent[];
   statusById: Record<string, EmbeddedAttendanceStatus>;
   detailsById: Record<string, EmbeddedAttendanceDetails>;
   markedCount: number;
@@ -80,6 +79,7 @@ type ClassAttendanceWorkspacePanelProps = {
   loadFailed?: boolean;
   error: string | null;
   onRetry?: () => void;
+  onDiscardDraft?: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onOpenCalendar: () => void;
@@ -88,7 +88,9 @@ type ClassAttendanceWorkspacePanelProps = {
   onSetDetails: (studentId: string, details: EmbeddedAttendanceDetails) => void;
   onSave: () => void;
   floatingSave?: boolean;
-  onBindStudentNfc?: (student: Student) => void;
+  localDraftOnly?: boolean;
+  draftStatus?: string;
+  onBindStudentNfc?: (student: EmbeddedAttendanceStudent) => void;
   nfcBindingStudentId?: string | null;
 };
 
@@ -104,7 +106,7 @@ function initials(value: string) {
   );
 }
 
-function StudentAvatar({ student, colors, dense = false, onOpenPhoto }: { student: Student; colors: ThemeColors; dense?: boolean; onOpenPhoto?: () => void }) {
+function StudentAvatar({ student, colors, dense = false, onOpenPhoto }: { student: EmbeddedAttendanceStudent; colors: ThemeColors; dense?: boolean; onOpenPhoto?: () => void }) {
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
   const photoUrl = student.photoUrl?.trim();
   const showPhoto = Boolean(photoUrl && failedPhotoUrl !== photoUrl);
@@ -135,11 +137,11 @@ function StudentAvatar({ student, colors, dense = false, onOpenPhoto }: { studen
   );
 }
 
-export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasPersistedAttendance = false, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, floatingSave = true, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
+export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasPersistedAttendance = false, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onDiscardDraft, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, floatingSave = true, localDraftOnly = false, draftStatus, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
   const { confirm } = useConfirmDialog();
   const { containerRef, onLayout, width } = useContainerResponsiveLayout("content");
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [photoPreviewStudent, setPhotoPreviewStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<EmbeddedAttendanceStudent | null>(null);
+  const [photoPreviewStudent, setPhotoPreviewStudent] = useState<EmbeddedAttendanceStudent | null>(null);
   const [hoveredStudentId, setHoveredStudentId] = useState<string | null>(null);
   const [hoveredActionsId, setHoveredActionsId] = useState<string | null>(null);
   const [draftNote, setDraftNote] = useState("");
@@ -153,6 +155,14 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
   const savedEditingUnlocked = unlockedAttendanceDate === dateLabel;
   const savedAttendanceProtected = hasPersistedAttendance && !hasChanges && !savedEditingUnlocked;
   const visibleError = error ?? (loadFailed ? "Não foi possível carregar a chamada." : null);
+  const handleAttendanceError = onRetry ?? (onDiscardDraft ? () => void confirm({
+    title: "Descartar rascunho da chamada?",
+    message: "As alterações deste dispositivo serão descartadas. A chamada salva será mantida.",
+    confirmLabel: "Descartar rascunho",
+    cancelLabel: "Cancelar",
+    tone: "danger",
+    onConfirm: onDiscardDraft,
+  }) : undefined);
   const selectedStudentStatus = selectedStudent ? statusById[selectedStudent.id] : undefined;
   const requestSavedAttendanceEdit = useCallback(
     (action: () => void) => {
@@ -174,7 +184,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
     [confirm, dateLabel, savedAttendanceProtected]
   );
 
-  const openStudentDetails = (student: Student) => {
+  const openStudentDetails = (student: EmbeddedAttendanceStudent) => {
     const details = detailsById[student.id] ?? { note: "", painScore: 0 };
     setDraftNote(details.note);
     setDraftPainScore(details.painScore);
@@ -194,17 +204,19 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
     closeStudentDetails();
   };
 
-  const renderStudentRow = (student: Student) => {
+  const renderStudentRow = (student: EmbeddedAttendanceStudent) => {
     const status = statusById[student.id];
     return (
       <View key={student.id} onPointerEnter={() => setHoveredStudentId(student.id)} onPointerLeave={() => setHoveredStudentId(null)} style={[hoveredStudentId === student.id && hoveredActionsId !== student.id ? { backgroundColor: "rgba(148, 163, 184, 0.1)" } : null, styles.studentRow, mobile ? styles.studentRowMobile : null, stacked ? styles.studentRowStacked : null, densePanel && !mobile ? styles.studentRowDense : null, { borderBottomColor: colors.border }]}>
         <View style={[styles.studentIdentity, mobile ? styles.studentIdentityMobile : null, stacked ? styles.studentIdentityStacked : null]}>
           <StudentAvatar student={student} colors={colors} dense={densePanel || mobile} onOpenPhoto={() => setPhotoPreviewStudent(student)} />
-          <Pressable suppressWebHoverFeedback onPress={() => requestSavedAttendanceEdit(() => openStudentDetails(student))} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Abrir dor e observações de ${student.name}`} style={({ pressed }) => [styles.studentNameButton, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
+          {localDraftOnly ? (
+            <Text numberOfLines={mobile ? 2 : 1} style={[styles.studentName, { color: colors.text }]}>{student.name}</Text>
+          ) : <Pressable suppressWebHoverFeedback onPress={() => requestSavedAttendanceEdit(() => openStudentDetails(student))} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Abrir dor e observações de ${student.name}`} style={({ pressed }) => [styles.studentNameButton, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
             <Text numberOfLines={mobile ? 2 : 1} style={[styles.studentName, styles.studentNameButtonLabel, mobile ? styles.studentNameMobile : null, densePanel && !mobile ? styles.studentNameDense : null, { color: colors.text }]}>
               {student.name}
             </Text>
-          </Pressable>
+          </Pressable>}
         </View>
         <View onPointerEnter={() => setHoveredActionsId(student.id)} onPointerLeave={() => setHoveredActionsId(null)} style={[styles.rowActions, mobile ? styles.rowActionsMobile : null, stacked ? styles.rowActionsStacked : null, densePanel && !mobile ? styles.rowActionsDense : null]}>
           <View style={[styles.segmentedControl, mobile ? styles.segmentedControlMobile : null, stacked ? styles.segmentedControlStacked : null, densePanel && !mobile ? styles.segmentedControlDense : null, { borderColor: colors.border }]}>
@@ -223,7 +235,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
   return (
     <>
     <View ref={containerRef} onLayout={onLayout} testID="embedded-attendance-section" style={styles.attendanceSection}>
-      <ClassLessonDateNavigator
+      {!localDraftOnly ? <ClassLessonDateNavigator
         colors={colors}
         dateLabel={dateLabel}
         onPrevious={onPrevious}
@@ -233,9 +245,9 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
         isLoading={isLoading}
         calendarAccessibilityLabel="Selecionar data da chamada"
         testID="attendance-date-navigator"
-      />
+      /> : null}
       <View style={[styles.panel, mobile ? styles.panelMobile : null, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.toolbar, mobile ? styles.toolbarMobile : compactDesktop ? styles.toolbarCompact : null, densePanel && !mobile ? styles.toolbarDense : null, { borderBottomColor: colors.border }]}>
+      <View style={[styles.toolbar, mobile || localDraftOnly ? styles.toolbarMobile : compactDesktop ? styles.toolbarCompact : null, densePanel && !mobile ? styles.toolbarDense : null, { borderBottomColor: colors.border }]}>
         <View style={[styles.toolbarActions, mobile ? styles.toolbarActionsMobile : compactDesktop ? styles.toolbarActionsCompact : null, stacked ? styles.toolbarActionsStacked : null, densePanel && !mobile ? styles.toolbarActionsDense : null]}>
           <View style={[styles.syncSummary, stacked ? styles.syncSummaryStacked : null]}>
             {!loadFailed ? (
@@ -254,7 +266,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
               </>
             ) : null}
           </View>
-          <View style={[styles.toolbarButtons, mobile ? styles.toolbarButtonsMobile : null, stacked ? styles.toolbarButtonsStacked : null]}>
+          {!localDraftOnly ? <View style={[styles.toolbarButtons, mobile ? styles.toolbarButtonsMobile : null, stacked ? styles.toolbarButtonsStacked : null]}>
             <Pressable onPress={onOpenReport} hitSlop={mobile ? 2 : undefined} accessibilityRole="button" accessibilityLabel="Abrir relatório" style={({ pressed }) => [styles.reportButton, mobile ? styles.reportButtonMobile : compactDesktop ? styles.reportButtonCompact : null, stacked ? styles.toolbarButtonStacked : null, densePanel && !mobile ? styles.reportButtonDense : null, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}>
               <GoAtletaIcon name="document" size={16} color={colors.text} />
               <Text style={[styles.reportButtonLabel, mobile || densePanel ? styles.reportButtonLabelDense : null, { color: colors.text }]}>Abrir relatório</Text>
@@ -279,8 +291,9 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
                 {isSaving ? "Salvando..." : "Salvar chamada"}
               </Text>
             </Pressable> : null}
-          </View>
+          </View> : null}
         </View>
+        {draftStatus ? <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>{draftStatus}</Text> : null}
       </View>
 
         <View style={loadFailed && !isLoading ? styles.loadFailureState : null}>
@@ -295,22 +308,22 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
               ]}
             >
               <Text style={{ minWidth: 0, flex: 1, color: colors.dangerText, fontWeight: "700" }}>{visibleError}</Text>
-              {onRetry ? (
+              {handleAttendanceError ? (
                 <Pressable
-                  onPress={onRetry}
-                  disabled={isLoading}
+                  onPress={handleAttendanceError}
+                  disabled={isLoading || isSaving}
                   accessibilityRole="button"
-                  accessibilityLabel="Tentar carregar a chamada novamente"
+                  accessibilityLabel={onRetry ? "Tentar carregar a chamada novamente" : "Descartar rascunho"}
                   style={({ pressed }) => [
                     styles.retryButton,
                     {
                       backgroundColor: colors.secondaryBg,
                       borderColor: colors.dangerBorder,
-                      opacity: isLoading ? 0.55 : pressed ? 0.72 : 1,
+                      opacity: isLoading || isSaving ? 0.55 : pressed ? 0.72 : 1,
                     },
                   ]}
                 >
-                  <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "900" }}>Tentar novamente</Text>
+                  <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "900" }}>{onRetry ? "Tentar novamente" : "Descartar rascunho"}</Text>
                 </Pressable>
               ) : null}
             </View>

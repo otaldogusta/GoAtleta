@@ -118,6 +118,8 @@ export type CourtVisualStep = {
   phase?: CourtVisualPhase;
   formationKind?: CourtVisualFormationKind;
   actorPositions: Record<string, CourtPoint>;
+  /** Authored vertical offset in metres; absent/zero keeps the floor position. */
+  actorElevations?: Record<string, number>;
   baselineActorPositions?: Record<string, CourtPoint>;
   legalPositions?: Record<string, CourtPoint>;
   tacticalPositions?: Record<string, CourtPoint>;

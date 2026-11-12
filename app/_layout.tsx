@@ -11,7 +11,7 @@ import "../src/navigation/browser-pending-edits";
 import { withWebStackHistory } from "../src/navigation/web-stack-history";
 import { StatusBar } from "expo-status-bar";
 import * as Updates from "expo-updates";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, LogBox, Platform, View } from "react-native";
 import { OperationalText as Text } from "../src/ui/OperationalText";
 import { Pressable } from "../src/ui/Pressable";
@@ -39,6 +39,7 @@ import {
 import { RoleProvider, useRole } from "../src/auth/role";
 import { resolvePlatformRouteAccess } from "../src/auth/platform-route-access";
 import { usePlatformAdminAccessState } from "../src/auth/use-platform-admin-access";
+import { isTransientRoleError } from "../src/auth/use-role-recovery";
 import {
   getTrainerPermissionKey,
   hasOrganizationAdminAccess,
@@ -49,6 +50,7 @@ import {
   useBootstrap,
 } from "../src/bootstrap/BootstrapProvider";
 import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
+import { getAttendanceReceiptTarget, loadOfflineAttendanceEditor } from "../src/bootstrap/offline-attendance-target";
 import { resolveBootstrapInitialSession } from "../src/bootstrap/bootstrap-auth";
 import {
   resolveBootStatus,
@@ -58,6 +60,7 @@ import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-c
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
+import { scheduleEffectTask } from "../src/hooks/schedule-effect-task";
 import { useBirthdayNotifications } from "../src/hooks/use-birthday-notifications";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { logNavigation } from "../src/observability/breadcrumbs";
@@ -93,6 +96,9 @@ import { ptBR } from "../src/constants/copy/pt-br";
 import { requiresFirstAccessProfile } from "../src/core/profile-name";
 
 const enableSentryPii = __DEV__;
+const OfflineAttendanceEditor = lazy(() => loadOfflineAttendanceEditor().catch(() => ({
+  default: ({ fallback }: { fallback: ReactNode }) => <>{fallback}</>,
+})));
 const enableSentryLogs = __DEV__;
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 const phoneVideoSenderPath = "/scouting/enviar-video";
@@ -233,10 +239,22 @@ function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { inviteCode: entryInviteCode, next: entryNext } = useGlobalSearchParams<{
+  const { inviteCode: entryInviteCode, next: entryNext, date: routeDate, section: routeSection } = useGlobalSearchParams<{
     inviteCode?: string;
     next?: string;
+    date?: string;
+    section?: string;
   }>();
+  const [initialAttendanceTarget] = useState(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return null;
+    const documentUrl = window.performance?.getEntriesByType?.("navigation")[0]?.name;
+    const initialUrl = new URL(documentUrl ?? window.location.href);
+    return initialUrl.origin === window.location.origin ? getAttendanceReceiptTarget(initialUrl) : null;
+  });
+  const [lastAuthorizedRoute, setLastAuthorizedRoute] = useState<{
+    userId: string;
+    target: ReturnType<typeof getAttendanceReceiptTarget>;
+  } | null>(null);
   const lastPathRef = useRef<string | null>(null);
   const {
     loading: bootstrapLoading,
@@ -260,6 +278,16 @@ function RootLayoutContent() {
     retry: retryRole,
   } = useRole();
   const effectiveProfile = useEffectiveProfile();
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || !role || roleLoading || roleError || Platform.OS !== "web" || typeof window === "undefined") return;
+    const target = getAttendanceReceiptTarget(new URL(window.location.href));
+    return scheduleEffectTask(() => {
+      setLastAuthorizedRoute((previous) => previous?.userId === userId &&
+        previous.target?.classId === target?.classId && previous.target?.date === target?.date
+        ? previous : { userId, target });
+    });
+  }, [pathname, routeDate, routeSection, role, roleError, roleLoading, session?.user.id]);
   const organization = useOptionalOrganization();
   const {
     organizations,
@@ -748,7 +776,7 @@ function RootLayoutContent() {
     }
 
     let redirectTo: string | null = null;
-    if (roleLoading) return;
+    if (roleLoading || roleError) return;
 
     if (normalizedPathname === "/onboarding") {
       redirectTo = "/welcome";
@@ -883,6 +911,7 @@ function RootLayoutContent() {
     router,
     role,
     roleLoading,
+    roleError,
     session,
     hasOrgAdminAccess,
     isAdminProfile,
@@ -1148,7 +1177,29 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
   ]);
 
   if (bootstrapError || roleError) {
-    return (
+    const roleStatus = (roleError as (Error & { status?: number }) | null)?.status;
+    const webUrl = Platform.OS === "web" && typeof window !== "undefined" ? new URL(window.location.href) : null;
+    // The web navigator may reset to its home route when the authorization gate unmounts it.
+    const resetToHome = webUrl && ["/", "/index", "/prof/home"].includes(webUrl.pathname);
+    const lastAttendanceTarget = lastAuthorizedRoute?.userId === session?.user.id
+      ? lastAuthorizedRoute?.target : null;
+    const attendanceTarget = (webUrl && getAttendanceReceiptTarget(webUrl)) ??
+      (resetToHome ? (lastAuthorizedRoute ? lastAttendanceTarget : initialAttendanceTarget) : null);
+    const showOfflineEditor = !bootstrapError && session &&
+      hasVerifiedEmailAccess(session.user) &&
+      isTransientRoleError(roleError) && roleStatus !== 429 &&
+      attendanceTarget;
+    const errorCopy = (
+      <>
+        <Text style={{ color: colors.text, fontWeight: "700" }}>
+          {showOfflineEditor ? "Sem conexão" : "Ocorreu um erro ao iniciar"}
+        </Text>
+        <Text style={{ color: colors.muted, textAlign: "center" }}>
+          {showOfflineEditor ? "Conecte-se para abrir esta chamada." : "Tente novamente. Se persistir, reinicie o app."}
+        </Text>
+      </>
+    );
+    const fallback = (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScreenBackdrop variant="boot" />
         <View
@@ -1160,18 +1211,14 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
             gap: 12,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Ocorreu um erro ao iniciar
-          </Text>
-          <Text style={{ color: colors.muted, textAlign: "center" }}>
-            Tente novamente. Se persistir, reinicie o app.
-          </Text>
+          {errorCopy}
           <Pressable
             onPress={() => {
               if (bootstrapError) {
                 retryBootstrap();
                 return;
               }
+              void organization?.fetchOrganizations();
               void retryRole();
             }}
             style={{
@@ -1187,6 +1234,18 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
           </Pressable>
         </View>
       </View>
+    );
+    if (!showOfflineEditor) return fallback;
+    return (
+      <Suspense fallback={fallback}>
+        <OfflineAttendanceEditor
+          key={`${session.user.id}:${attendanceTarget.classId}:${attendanceTarget.date ?? ""}`}
+          classId={attendanceTarget.classId}
+          date={attendanceTarget.date}
+          expiresAt={session.expires_at}
+          fallback={fallback}
+        />
+      </Suspense>
     );
   }
 

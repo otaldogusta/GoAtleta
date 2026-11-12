@@ -42,6 +42,61 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- Camadas têm ordem opcional por etapa em `editor.layerOrder`; lista da frente
+  para o fundo, renderização e seleção 2D resolvidas pela mesma ordem. Arraste
+  acompanha o gesto e abre espaço no destino, respeitando movimento reduzido;
+  confirma uma edição no fim. Importação e cópias preservam referências válidas.
+  Olho e cadeado controlam cada item: ocultos ficam na lista, fora da cena e do
+  toque 2D/3D; bloqueados impedem edição direta até desbloquear. Estados opcionais
+  no JSON existente, preservados por importação e exportação. Novos links usam
+  a projeção da [migration de camadas](../../../supabase/migrations/20261112120823_preserve_court_share_layers.sql)
+  para conservar ordem e ocultação. A aplicação remota está pendente.
+  O 3D conserva profundidade por decisão do usuário. Seleção móvel permanece
+  acessível com alvos de 44 px; contornos acompanham o formato selecionado e
+  autosave não bloqueia gestos. [Contrato e limites
+  locais](../../ui/QUADRA_CAMADAS_MOBILE_2026-11-11.md).
+
+- Na vista 3D, o centro e os anéis do alvo pertencem à mesma superfície de
+  seleção, inclusive elevados. Hover usa o mesmo picking por profundidade e
+  realça discretamente jogadores, materiais e desenhos; ocultos ficam fora,
+  bloqueados continuam selecionáveis e gestos suspendem o destaque.
+
+- No 2D, hover usa o mesmo resolvedor do clique e a ordem das camadas, incluindo
+  a prioridade da bola sob uma seta vinculada. O realce de jogadores, materiais
+  e desenhos é efêmero: não muda seleção, histórico, cores salvas ou exportações.
+  Toque, gestos e controles sobrepostos não mantêm destaque de objetos por baixo.
+
+- A cor da seleção é aplicada a todos os itens editáveis em uma única edição;
+  bloqueios/ocultação são respeitados e a seleção permanece disponível.
+
+- Setas autorais têm alças de início, meio e ponta na seleção 2D. Um gesto gera
+  uma edição; duplo clique/dois toques no meio ou Enter com foco nessa alça
+  endireitam mantendo as pontas atuais. Bloqueios e cancelamentos são preservados.
+  `curveMode: "through-point"`
+  distingue curvas ajustáveis com três pontos das legadas; parser, picking,
+  exportadores e 3D mantêm o mesmo traço. [Contrato e evidência local](../../ui/QUADRA_SETAS_TRES_PONTOS_2026-11-11.md).
+
+- O início de uma seta pode encaixar numa bola visível. `startBallId` referencia
+  a bola da mesma etapa e acompanha sua posição amostrada em 2D/3D; afastar o
+  início solta. Exclusão materializa a posição, e cópias remapeiam referências.
+  [Contrato e validação local](../../ui/QUADRA_SETAS_VINCULO_BOLA_2026-11-12.md).
+
+- Altura autoral em 3D usa `CourtDrawing.elevation` para materiais e
+  `CourtVisualStep.actorElevations` para jogadores, de 0 a 8 m acima da base.
+  O 2D conserva X/Z; simulação mantém seu próprio Y. Alça vertical separada do
+  corpo e comando validado geram uma edição por gesto. Inícios ligados seguem
+  a bola também em altura. [Contrato e limites locais](../../ui/QUADRA_ALTURA_3D_2026-11-12.md).
+
+- Área permite desenho livre ou vértices por cliques/toques em 2D. O rascunho
+  por pontos fecha com três ou mais vértices válidos em uma edição; voltar e
+  cancelar não gravam áreas parciais. Concluir retorna à seleção em desktop e
+  celular; selecionar na quadra fecha Ferramentas e libera ações contextuais.
+  Mantém `kind: "area"` e descarta rascunhos
+  ao trocar contexto. [Contrato e validação local](../../ui/QUADRA_AREA_POR_PONTOS_2026-11-11.md).
+
+- Rodízio no transporte e em Ajustes requer simulação real (recepção individual
+  ou sequência canônica). Quadra livre não exibe P1 por padrão.
+
 - Edições autorais da quadra armam autosave após 800 ms, com uma solicitação
   por vez e confirmação pela linha retornada de um upsert atômico. Timeout/rede
   permite uma tentativa extra após 1,5 s; sem loop em falha persistente.

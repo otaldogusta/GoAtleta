@@ -7,7 +7,7 @@ import type {
   StudentScoutingLog,
 } from "../core/models";
 import { safeJsonParse } from "../utils/safe-json";
-import { readCache, writeCache, type PendingWriteErrorKind } from "./client";
+import { readCache, type PendingWriteErrorKind } from "./client";
 import type { PendingWriteRow } from "./row-types";
 import { db } from "./sqlite";
 import { samePendingWriteOrigin, type PendingWriteOrigin } from "./pending-write-identity";
@@ -247,7 +247,7 @@ export const writeQueue = async (queue: PendingWrite[]) => {
       );
     }
   } catch {
-    await writeCache(WRITE_QUEUE_KEY, queue);
+    await AsyncStorage.setItem(WRITE_QUEUE_KEY, JSON.stringify(queue));
   }
 };
 

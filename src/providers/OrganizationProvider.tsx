@@ -402,7 +402,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setOrganizations([]);
         setActiveOrgId(null);
       }
-      hasLoadedOrganizationsRef.current = true;
       lastFetchErrorAtRef.current = Date.now();
     } finally {
       if (fetchControllerRef.current === controller) {
@@ -453,6 +452,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       void fetchOrganizations();
     });
   }, [fetchOrganizations]);
+
+  useEffect(() => {
+    if (!hasAuthorizedSession || Platform.OS !== "web" || typeof window === "undefined") return;
+    const retryAfterReconnect = () => {
+      if (!lastFetchErrorAtRef.current) return;
+      lastFetchErrorAtRef.current = 0;
+      void fetchOrganizations();
+    };
+    window.addEventListener("online", retryAfterReconnect);
+    return () => window.removeEventListener("online", retryAfterReconnect);
+  }, [fetchOrganizations, hasAuthorizedSession]);
 
   useEffect(() => {
     return () => {

@@ -2,6 +2,7 @@
 // Training sessions (multi-class) domain module
 // ---------------------------------------------------------------------------
 
+import type { SessionIdentity } from "../auth/session";
 import type {
   AttendanceRecord,
   ClassGroup,
@@ -293,16 +294,17 @@ export async function syncTrainingIntegrationRuleFromSession(
 
 export async function deleteTrainingIntegrationRuleBySession(
   sessionId: string,
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; identity?: SessionIdentity } = {}
 ) {
   const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   if (!organizationId) return;
   const ruleId = buildTrainingIntegrationRuleId(sessionId);
   try {
-    await supabaseDelete(buildIntegrationRuleFilter(ruleId, organizationId));
+    await supabaseDelete(buildIntegrationRuleFilter(ruleId, organizationId), options.identity);
     await supabaseDelete(
       `/training_session_integration_rules?id=eq.${encodeURIComponent(ruleId)}` +
-        `&organization_id=eq.${encodeURIComponent(organizationId)}`
+        `&organization_id=eq.${encodeURIComponent(organizationId)}`,
+      options.identity,
     );
   } catch (error) {
     if (isMissingRelation(error, "training_session_integration_rules")) return;
@@ -311,7 +313,7 @@ export async function deleteTrainingIntegrationRuleBySession(
   }
 }
 
-export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
+export async function upsertTrainingSession(params: TrainingSessionSyncParams, identity?: SessionIdentity) {
   const organizationId = params.organizationId ?? (await getActiveOrganizationId());
   const classIds = normalizeClassIds(params.classIds);
   if (!classIds.length) return null;
@@ -346,7 +348,8 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
       await supabasePost(
         "/training_sessions?on_conflict=id",
         [sessionPayload],
-        { Prefer: "resolution=ignore-duplicates" }
+        { Prefer: "resolution=ignore-duplicates" },
+        identity,
       );
       await supabasePatch(buildTrainingSessionFilter(sessionId, organizationId), {
         title: sessionPayload.title,
@@ -356,16 +359,17 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
         source: sessionPayload.source,
         plan_id: sessionPayload.plan_id,
         updated_at: sessionPayload.updated_at,
-      });
+      }, undefined, identity);
     } else {
       await supabasePost(
         "/training_sessions?on_conflict=id",
         [sessionPayload],
-        { Prefer: "resolution=merge-duplicates" }
+        { Prefer: "resolution=merge-duplicates" },
+        identity,
       );
     }
 
-    await supabaseDelete(buildSessionFilter(sessionId, organizationId));
+    await supabaseDelete(buildSessionFilter(sessionId, organizationId), identity);
     if (classIds.length) {
       await supabasePost(
         "/training_session_classes",
@@ -376,12 +380,13 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
           organization_id: organizationId ?? undefined,
           created_at: params.createdAt ?? nowIso,
         })),
-        { Prefer: "resolution=merge-duplicates" }
+        { Prefer: "resolution=merge-duplicates" },
+        identity,
       );
     }
 
     if (params.attendance !== undefined) {
-      await supabaseDelete(buildAttendanceFilter(sessionId, organizationId));
+      await supabaseDelete(buildAttendanceFilter(sessionId, organizationId), identity);
       if (params.attendance.length) {
         await supabasePost(
           "/training_session_attendance",
@@ -400,7 +405,8 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
             created_at: item.createdAt ?? nowIso,
             updated_at: item.updatedAt ?? nowIso,
           })),
-          { Prefer: "resolution=merge-duplicates" }
+          { Prefer: "resolution=merge-duplicates" },
+          identity,
         );
       }
     }
@@ -416,7 +422,7 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
         updatedAt: params.updatedAt ?? nowIso,
       });
     } else {
-      await deleteTrainingIntegrationRuleBySession(sessionId, { organizationId });
+      await deleteTrainingIntegrationRuleBySession(sessionId, { organizationId, identity });
     }
 
     return mapTrainingSessionRow(
@@ -449,6 +455,7 @@ export async function syncTrainingSessionFromAttendance(params: {
   records: AttendanceRecord[];
   plan?: TrainingPlan | null;
   organizationId?: string | null;
+  identity?: SessionIdentity;
 }) {
   const startAt = buildTrainingSessionWindow(
     params.date,
@@ -495,7 +502,7 @@ export async function syncTrainingSessionFromAttendance(params: {
       createdAt: record.createdAt,
       updatedAt: record.createdAt,
     })),
-  });
+  }, params.identity);
 }
 
 export async function syncTrainingSessionFromReport(params: {

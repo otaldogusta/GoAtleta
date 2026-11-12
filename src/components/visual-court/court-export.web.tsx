@@ -74,7 +74,7 @@ async function exportCourtGif(p: CourtVisualPayload, stepIndex: number) {
 
 export async function exportCourt(p: CourtVisualPayload, index: number, kind: "png" | "gif" | "pdf" | "json") {
   if (kind === "json") {
-    const safe = { ...p, editor: { ...p.editor!, actorMeta: Object.fromEntries(Object.entries(p.editor!.actorMeta).map(([id, m]) => [id, { team: m.team, locked: m.locked }])), lessonLink: undefined } };
+    const safe = { ...p, editor: { ...p.editor!, actorMeta: Object.fromEntries(Object.entries(p.editor!.actorMeta).map(([id, m]) => [id, { team: m.team, locked: m.locked, ...(typeof m.hidden === "boolean" ? { hidden: m.hidden } : {}) }])), lessonLink: undefined } };
     download(new Blob([JSON.stringify({ format: "goatleta-court", version: 1, payload: safe }, null, 2)], { type: "application/json" }), "jogada.goatleta.json"); return;
   }
   if (kind === "png") { const data = await courtPng(p, index); download(await (await fetch(data)).blob(), "quadra.png"); return; }

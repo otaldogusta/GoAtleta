@@ -42,6 +42,11 @@ a primitive não reserva altura nem contém mensagem de sucesso.
   Ponta de 6 px com margem esquerda 14 e cor igual ao fundo.
 - Overlay absoluto, `top: -38`, sem deslocar o formulário; borda do campo em
   `colors.dangerSolidBg`. Limpar o erro imediatamente ao digitar.
+- No cadastro, manter a ordem de empilhamento dos campos quando o erro aparece
+  ou some. O balão deixa o toque passar e Avançar leva à senha só com e-mail válido.
+- Na confirmação de cadastro, o endereço e o lápis abrem o editor na mesma
+  posição. Validar com a mesma regra do cadastro. Reservar espaço acima do campo
+  enquanto o editor estiver aberto para o balão ficar abaixo da instrução do código.
 - Elevar o contêiner externo do campo com erro acima dos irmãos (na autenticação,
   zIndex 50 e balão 60), além de preservar overflow visível. Aumentar só o zIndex
   do balão não supera o contexto de empilhamento do pai.

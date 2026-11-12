@@ -10,6 +10,7 @@ do produto, nem concede acesso ao banco ou autorização para publicar.
 
 | Entrada | Responsabilidade |
 | --- | --- |
+| [Equipe local do Codex](../../operations/equipe-codex.md), [perfis](../../../.codex/agents/goatleta_implementacao.toml) | 16 especialidades de produto, design, engenharia e marketing, incluindo implementação, revisão e testes; Habblaud acompanha, Obsidian registra resumos |
 | [explain-skill-selection.py](../../../scripts/explain-skill-selection.py), [skill-routing.json](../../operations/skill-routing.json) | Sugestão limitada por impacto e registro de uso efetivo |
 | [goatleta-engineer.py](../../../scripts/goatleta-engineer.py) | CLI de preparação e ciclo de execução |
 | [engineer_preflight.py](../../../scripts/engineer_preflight.py), [engineer_runtime.py](../../../scripts/engineer_runtime.py) | Pré-condições e runtime dedicado |
@@ -18,6 +19,18 @@ do produto, nem concede acesso ao banco ou autorização para publicar.
 | [engineer_vnext.py](../../../scripts/engineer_vnext.py), [engineer_ui_runtime.py](../../../scripts/engineer_ui_runtime.py) | Coordenação, evidência visual e runtime local |
 
 ## Contratos a preservar
+
+- Equipe local: um escritor por arquivo, escopo atribuído e revisão estável para
+  checks finais. Perfis herdam permissões; `task_name` não seleciona `agent_type`.
+  Em chats sem seletor, transmitir as instruções do perfil e declarar esse modo.
+  O [guia da equipe](../../operations/equipe-codex.md) separa essa operação do
+  runtime remoto do Engineer e mantém o repositório como fonte técnica.
+  O coordenador escolhe e aciona especialistas automaticamente conforme a tarefa,
+  sem exigir funções no pedido; microajustes podem seguir diretamente. Até três
+  subagentes simultâneos; entregas de
+  marketing são planos/rascunhos, sem autorização de publicação, mensagens,
+  gastos ou rastreio. A seleção nativa dos 13 perfis novos deve ser comprovada
+  separadamente do ensaio já concluído dos três perfis de engenharia.
 
 - Até seis skills principais por etapa, sem mínimo: núcleo local, engenharia
   da tecnologia envolvida, auxiliares somente para necessidade concreta. Registrar
