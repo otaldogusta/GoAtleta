@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
@@ -16,6 +16,7 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
+import { HomeSearchModal, type HomeSearchEntry } from "../home/components/HomeSearchModal";
 import {
   platformListInstitutions,
   platformUpdateInstitutionAccount,
@@ -108,6 +109,8 @@ export function PlatformDashboard() {
   const { containerRef: listRef, onLayout: onListLayout, measuredWidth: listWidth, layout } = useContainerResponsiveLayout("dashboard");
   const usesTable = listWidth >= 760;
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  useFocusEffect(useCallback(() => () => setSearchOpen(false), []));
   const [filter, setFilter] = useState<"all" | InstitutionStatus>("all");
   const [selectedId, setSelectedId] = useState("");
   const [items, setItems] = useState<Institution[]>([]);
@@ -178,6 +181,44 @@ export function PlatformDashboard() {
   const selectedSource = sourceItems.find(
     (item) => item.organizationId === selected?.id,
   );
+  const searchEntries = useMemo<HomeSearchEntry[]>(() => {
+    if (!searchOpen) return [];
+    const entries: HomeSearchEntry[] = [
+      { id: "/platform/accesses", title: "Acessos", section: "Áreas do app", keywords: "solicitações convites" },
+    ];
+    if (!loading && !loadFailed) {
+      for (const item of items) {
+        entries.push({ id: item.id, title: item.name, section: "Instituições" });
+      }
+    }
+    return entries;
+  }, [searchOpen, loading, loadFailed, items]);
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    if (Platform.OS === "web") {
+      requestAnimationFrame(() => document.getElementById("platform-search-trigger")?.focus());
+    }
+  };
+
+  const selectSearchEntry = (entry: HomeSearchEntry) => {
+    if (!searchOpen || !searchEntries.includes(entry)) return;
+    if (entry.id === "/platform/accesses") {
+      setSearchOpen(false);
+      router.push("/platform/accesses");
+      return;
+    }
+    const institution = items.find((item) => item.id === entry.id);
+    if (!institution) return;
+    setSearchOpen(false);
+    setQuery("");
+    setFilter(institution.status === "cancelled" ? "cancelled" : "all");
+    setSelectedId(institution.id);
+    if (Platform.OS === "web") {
+      requestAnimationFrame(() => document.getElementById("platform-institution-details")?.focus());
+    }
+  };
+
   const startEditing = () => {
     if (!selected.id) return;
     setEditProduct(selected.product);
@@ -327,6 +368,24 @@ export function PlatformDashboard() {
       <ScreenPageHeader
         title="Painel"
         subtitle="Operação SaaS das instituições"
+        right={
+          <Pressable
+            nativeID="platform-search-trigger"
+            accessibilityRole="button"
+            accessibilityLabel="Pesquisar no app"
+            accessibilityState={{ expanded: searchOpen }}
+            onPress={() => setSearchOpen(true)}
+            disabled={editing || busy}
+            style={{
+              width: compactUiMetrics.touchTarget,
+              height: compactUiMetrics.touchTarget,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <GoAtletaIcon name="search" size={compactUiMetrics.iconSize} color={colors.text} />
+          </Pressable>
+        }
         onBack={() => router.replace("/coord/dashboard")}
         horizontalBleed={0}
         fadeHeight={10}
@@ -690,6 +749,8 @@ export function PlatformDashboard() {
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
+                    nativeID="platform-institution-details"
+                    tabIndex={Platform.OS === "web" ? -1 : undefined}
                     style={{
                       color: colors.text,
                       fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight,
@@ -847,6 +908,17 @@ export function PlatformDashboard() {
           </ResponsiveGrid>
         </ResponsivePage>
       </ScrollView>
+      {searchOpen ? (
+        <HomeSearchModal
+          visible
+          colors={colors}
+          entries={searchEntries}
+          loading={loading}
+          partialFailure={loadFailed}
+          onClose={closeSearch}
+          onSelect={selectSearchEntry}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

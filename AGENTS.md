@@ -53,6 +53,7 @@
 ## Delivery flow
 
 - Use `http://localhost:8081` as the first UI/UX validation loop. Do not use a Vercel preview as the first place to decide whether an interface is correct.
+- Register visual UI/UX changes in the same Inventário Visual HTML. Include the real local QA preview for each affected profile and before/after screenshots in light and dark themes. Capture the baseline before editing and label any evidence gaps or same-version states explicitly. See `docs/ui/README.md`.
 - Keep changes local when the user asks for an "ajuste local". Commit, push, pull requests, previews, merges, promotions, and production deploys require the scope requested in the current task.
 - Prefer a Vercel preview for remote validation. Never deploy or promote to production, merge a release-triggering change, or run a production release command without explicit user authorization in the current task.
 - Classify every change with the validation ladder in `docs/operations/validation-ladder.md` before running checks. A micro UI/copy/style adjustment uses the fast loop only; do not automatically run build, organization-scope, performance, the complete viewport matrix, or a broad browser smoke for it.

@@ -15,12 +15,14 @@ import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 export function FamilyScreenShell({
   title,
   subtitle,
+  headerAction,
   children,
   refreshing = false,
   onRefresh,
 }: {
   title: string;
   subtitle?: string;
+  headerAction?: ReactNode;
   children: ReactNode;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
@@ -99,6 +101,7 @@ export function FamilyScreenShell({
                 </Text>
               ) : null}
             </View>
+            {headerAction}
           </View>
           {children}
         </ResponsivePage>

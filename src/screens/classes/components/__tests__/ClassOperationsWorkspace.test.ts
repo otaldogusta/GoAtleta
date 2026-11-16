@@ -78,6 +78,25 @@ it("hides empty operations and training history for a class without athletes", (
   expect(screen.queryByText("Pendente")).toBeNull();
 });
 
+it("shows a day without class independently from past training reports", () => {
+  const { screen, onGeneratePlan } = renderWorkspace(false, null, {
+    showSelectedLesson: false,
+    recentTrainings: [{ id: "r1", dateKey: "2026-11-13", dateLabel: "13/11/2026", title: "Recepção" }],
+  });
+  expect(screen.getByText("Sem aula nesta data.")).toBeTruthy();
+  fireEvent.press(screen.getByRole("button", { name: "Montar plano" }));
+  expect(onGeneratePlan).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Plano da aula")).toBeTruthy();
+  expect(screen.queryByText("Operação da aula")).toBeNull();
+  expect(screen.getByText("Relatórios recentes")).toBeTruthy();
+});
+
+it("shows planning for an upcoming lesson without attendance or report status", () => {
+  const { screen } = renderWorkspace(false, null, { showLessonOperations: false });
+  expect(screen.getByText("Plano da aula")).toBeTruthy();
+  expect(screen.queryByText("Operação da aula")).toBeNull();
+});
+
 function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: Record<string, unknown> = {}) {
   const onOpenPlanning = jest.fn();
   const onOpenLessonCalendar = jest.fn();

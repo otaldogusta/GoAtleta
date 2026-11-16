@@ -10,6 +10,9 @@ a instituição de trabalho. Coordenação administra pessoas da própria instit
 plataforma tem uma fronteira de acesso própria. Leia este módulo ao alterar login,
 recuperação, `/pending`, provedores globais, permissões ou navegação por papel.
 
+A busca no Painel da Plataforma reutiliza os nomes de instituições já carregadas
+pela tela autorizada e oferece o atalho para Acessos.
+
 | Arquivo principal | Responsabilidade atual |
 | --- | --- |
 | [app/_layout.tsx](../../../app/_layout.tsx) | Bootstrap, composição dos provedores, interceptação de links e bloqueios de rota. |

@@ -1,4 +1,6 @@
 import { memo } from "react";
+import { professorShortcuts } from "./professor-shortcuts";
+import { coordinationShortcuts } from "./coordination-shortcuts";
 
 import { Platform, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
@@ -133,82 +135,18 @@ function HomeProfessorBelowFoldBase({
   const navigateToShortcut = (href: string) =>
     navigateToPrimaryRoute({ router, href });
 
-  if (variant === "coordination") {
-    const coordinationShortcuts = [
-      {
-        label: "Turmas",
-        description: "Cadastros e ciclos",
-        icon: "classes",
-        route: "/coord/classes",
-      },
-      {
-        label: "Atletas",
-        description: "Cadastros e vínculos",
-        icon: "students",
-        route: "/coord/students",
-      },
-      {
-        label: "Planejamento",
-        description: "Planos e aulas",
-        icon: "planning",
-        route: "/coord/planning",
-      },
-      {
-        label: "Agenda",
-        description: "Aulas e eventos",
-        icon: "calendar",
-        route: "/coord/calendar",
-      },
-      {
-        label: "Gestão",
-        description: "Configurações da operação",
-        icon: "management",
-        route: "/coord/management",
-      },
-      {
-        label: "Financeiro",
-        description: "Mensalidades e recebimentos",
-        icon: "payments",
-        route: "/coord/finance",
-      },
-      {
-        label: "Presença NFC",
-        description: "Registrar por UID",
-        icon: "nfc",
-        route: "/coord/nfc-attendance",
-      },
-      {
-        label: "Comunicados",
-        description: "Avisos para a organização",
-        icon: "communications",
-        route: "/coord/communications",
-      },
-      {
-        label: "Periodização",
-        description: "Ciclos e cargas",
-        icon: "periodization",
-        route: "/coord/periodization",
-      },
-      {
-        label: "Regulamentos",
-        description: "Fontes e histórico",
-        icon: "regulations",
-        route: "/coord/regulation-history",
-      },
-      {
-        label: "Assistente",
-        description: "Apoio à coordenação",
-        icon: "assistant",
-        route: "/coord/assistant",
-      },
-      {
-        label: "Perfil",
-        description: "Conta e configurações",
-        icon: "profile",
-        route: "/coord/profile",
-      },
-    ] as const;
+  const professorShortcutAccess = {
+    canOpenClassesShortcut,
+    canOpenStudentsShortcut,
+    canOpenTrainingShortcut,
+    canOpenCalendarShortcut,
+    canOpenAbsenceNoticesShortcut,
+    canOpenPeriodizationShortcut,
+    canOpenAssistantShortcut,
+    canOpenRegulationHistoryShortcut,
+  };
 
+  if (variant === "coordination") {
     return (
       <View style={{ gap: 10 }}>
         <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
@@ -234,115 +172,16 @@ function HomeProfessorBelowFoldBase({
       <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {canOpenClassesShortcut ? (
+        {professorShortcuts.filter(({ gate }) => professorShortcutAccess[gate]).map((shortcut) => (
           <ShortcutCard
-            label="Turmas"
-            description="Cadastros e lista"
-            icon="classes"
+            key={shortcut.route}
+            label={shortcut.label}
+            description={shortcut.description}
+            icon={shortcut.icon}
             mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/classes")}
+            onPress={() => navigateToShortcut(shortcut.route)}
           />
-        ) : null}
-
-        {canOpenStudentsShortcut ? (
-          <ShortcutCard
-            label="Alunos"
-            description="Lista e chamada"
-            icon="students"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/students")}
-          />
-        ) : null}
-
-        {canOpenTrainingShortcut ? (
-          <ShortcutCard
-            label="Planejamento"
-            description="Modelos e planejamentos"
-            icon="planning"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/planning")}
-          />
-        ) : null}
-
-        {canOpenCalendarShortcut ? (
-          <ShortcutCard
-            label="Agenda"
-            description="Aulas e chamada"
-            icon="calendar"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/calendar")}
-          />
-        ) : null}
-
-        {canOpenClassesShortcut ? (
-          <ShortcutCard
-            label="Presença NFC"
-            description="Registrar por UID"
-            icon="nfc"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/nfc-attendance")}
-          />
-        ) : null}
-
-        {canOpenAbsenceNoticesShortcut ? (
-          <ShortcutCard
-            label="Notificações"
-            description="Atualizações e ausências"
-            icon="absenceNotices"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/absence-notices")}
-          />
-        ) : null}
-
-        {canOpenTrainingShortcut ? (
-          <ShortcutCard
-            label="Exercícios"
-            description="Biblioteca com vídeos"
-            icon="exercises"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/exercises")}
-          />
-        ) : null}
-
-        {canOpenPeriodizationShortcut ? (
-          <ShortcutCard
-            label="Periodização"
-            description="Ciclos e cargas"
-            icon="periodization"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/periodization")}
-          />
-        ) : null}
-
-        {canOpenStudentsShortcut ? (
-          <ShortcutCard
-            label="Consultoria online"
-            description="Prescrição individual"
-            icon="consultation"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/consultation")}
-          />
-        ) : null}
-
-        {canOpenAssistantShortcut ? (
-          <ShortcutCard
-            label="Assistente IA"
-            description="Apoio ao professor"
-            icon="assistant"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/assistant")}
-          />
-        ) : null}
-
-        {canOpenRegulationHistoryShortcut ? (
-          <ShortcutCard
-            label="Regulamentos"
-            description="Fontes e histórico"
-            icon="regulations"
-            mobile={mobile}
-            onPress={() => navigateToShortcut("/prof/regulation-history")}
-          />
-        ) : null}
+        ))}
       </View>
     </View>
   );

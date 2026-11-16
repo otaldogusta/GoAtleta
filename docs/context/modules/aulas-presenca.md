@@ -9,6 +9,13 @@ A aula datada relaciona plano, execução, chamada e relatório. A frequência m
 e o check-in NFC têm persistências distintas; exportações apresentam recortes
 operacionais. O scanner QR existente é uma ferramenta mobile de leitura de conteúdo.
 
+A Visão geral abre na data de hoje. Plano da aula mantém Montar plano
+disponível para a data selecionada, inclusive em dias sem aula.
+O marcador Hoje aparece junto à data somente quando ela é a data atual. A
+operação da aula fica oculta nas datas futuras. Ao entrar na Chamada em um
+dia sem aula, a entrada usa a última data configurada. A contagem da Visão
+geral usa o elenco elegível e os registros da Chamada para a mesma data.
+
 ## Onde começar
 
 | Arquivo | Responsabilidade |

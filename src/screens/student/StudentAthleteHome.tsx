@@ -23,6 +23,7 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useNativeSidebarController } from "../../ui/native-sidebar-controller";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import { HomeShortcutSearch, type HomeSearchShortcut } from "../home/components/HomeShortcutSearch";
 import { StudentAction, studentHighlighted } from "./StudentUi";
 import {
   formatImportantStudentFields,
@@ -50,6 +51,13 @@ const parseTime = (value: string) => {
 };
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+const studentSearchShortcuts: readonly HomeSearchShortcut[] = [
+  { id: "agenda", section: "Áreas do app", title: "Agenda", keywords: "treinos aulas plano da aula", href: "/student/agenda" },
+  { id: "achievements", section: "Áreas do app", title: "Conquistas", keywords: "evolução desempenho", href: "/student/achievements" },
+  { id: "communications", section: "Áreas do app", title: "Comunicados", keywords: "notificações avisos", href: "/communications" },
+  { id: "profile", section: "Áreas do app", title: "Perfil", keywords: "conta configurações", href: getScopedProfilePath("/student/home") },
+];
 
 export function StudentAthleteHome() {
   const router = useRouter();
@@ -188,6 +196,22 @@ export function StudentAthleteHome() {
     return result.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   }, [currentSchedule, now]);
 
+  const searchShortcuts = useMemo<readonly HomeSearchShortcut[]>(() => [
+    ...studentSearchShortcuts,
+    ...weekDays.flatMap(({ key: date }): HomeSearchShortcut[] => {
+      const item = schedule[resolveTrainingIndexForDate(schedule, date)];
+      if (!item) return [];
+      return [{
+        id: `lesson:${item.classId}:${date}`,
+        section: "Aulas da semana",
+        title: item.className,
+        description: `${item.startsAt.toLocaleDateString("pt-BR")} · ${item.timeLabel}`,
+        keywords: item.unit,
+        href: { pathname: "/student-plan", params: { classId: item.classId, date } },
+      }];
+    }),
+  ], [schedule, weekDays]);
+
   const defaultTrainingIndex = Math.max(0, schedule.findIndex((item) => item.endsAt.getTime() > now.getTime()));
   const defaultTraining = schedule[defaultTrainingIndex] ?? null;
   const effectiveSelectedDateKey = selectedDateKey ?? (defaultTraining ? toLocalDateKey(defaultTraining.startsAt) : toLocalDateKey(now));
@@ -302,6 +326,9 @@ export function StudentAthleteHome() {
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.smallGap }}>
+                  {role === "student" && session?.user.id && (!shouldGuideProfile || guidanceDismissed) ? (
+                    <HomeShortcutSearch key={scope} triggerId="student-home-search-trigger" entries={searchShortcuts} />
+                  ) : null}
                   <Pressable accessibilityLabel="Abrir notificações" onPress={() => router.push("/communications")} suppressWebHoverFeedback disableWebPressScale style={state => ({ width: metrics.touchTarget, height: metrics.touchTarget, borderRadius: 22, alignItems: "center", justifyContent: "center", ...rowFeedback(state) })}>
                     <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}><GoAtletaIcon name="notifications" size={metrics.iconSize} color={colors.successText} /></View>
                   </Pressable>

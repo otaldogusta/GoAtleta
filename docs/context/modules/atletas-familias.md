@@ -9,6 +9,10 @@ Manter o cadastro institucional do atleta, matrícula, perfil e acesso de login;
 apresentar perfis da equipe; administrar convites e relações familiares com capacidades
 explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos ou troca de filho.
 
+Na Home, a lupa do aluno oferece atalhos do próprio perfil e aulas da semana
+já carregadas na tela. Na família, Agenda
+e Pagamentos dependem das capacidades do vínculo selecionado.
+
 | Arquivo principal | Responsabilidade atual |
 | --- | --- |
 | [students/index.tsx](../../../app/students/index.tsx), [screens/students](../../../src/screens/students/) | Lista, cadastro, edição, importação e ações operacionais. |

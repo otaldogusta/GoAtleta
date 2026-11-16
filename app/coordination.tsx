@@ -1385,7 +1385,6 @@ function CoordinationScreenContent() {
             <>
               <ScreenPageHeader
                 title="Gestão"
-                subtitle={organizationName}
                 right={openAssistant && usesManagementAssistantButton(screenPathname, width) ? (
                   <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Gestão" onPress={openAssistant}
                     style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>

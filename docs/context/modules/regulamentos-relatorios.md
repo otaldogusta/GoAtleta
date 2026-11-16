@@ -5,6 +5,12 @@ contratos locais; não atesta atualização das fontes nem execução remota de 
 
 ## Responsabilidades e entradas
 
+Na Home da coordenação e do professor, a lupa agrupa atalhos, turmas, atletas, planos de aula e
+eventos da Agenda. Consulta registros somente ao abrir, conforme as permissões
+e a organização ativa. Os eventos cobrem um ano antes e um ano depois da data
+atual. A consulta digitada e os resultados são descartados ao fechar ou trocar
+o contexto. O modal mantém o tamanho e deixa a rolagem na lista.
+
 Atualizações recentes usam nome/papel de link; Enter web chama a abertura
 existente sem repetição ao manter a tecla pressionada. Respostas de verificação
 foram simuladas, sem sync externo. [Conferência de 14/11](../../ui/INVENTARIO_ORGANIZADO_2026-11-14.md).

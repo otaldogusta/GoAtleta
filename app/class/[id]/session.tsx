@@ -2248,7 +2248,7 @@ export function SessionScreen({
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       showSaveToast({
-        message: message || ptBR.session.errors.textImproveFailed,
+        message: ptBR.session.errors.textImproveFailed,
         variant: "error",
       });
       logAction("IA melhorar texto falha", {

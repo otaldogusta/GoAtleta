@@ -35,7 +35,7 @@ function ScopedAssistantComposer(props: Props) {
   const canSend = Boolean(props.value.trim()) && !props.busy && !voiceActive;
   const compact = props.compact === true && !page;
   const stacked = page || (Boolean(props.trailingControl) && width < 520);
-  return <View ref={containerRef} onLayout={onLayout} testID="assistant-composer" style={[styles.row, compact && { gap: 4, alignItems: "center" }, stacked && styles.stacked, page && [styles.page, { backgroundColor: colors.card, borderColor: colors.border }], { minHeight: compact ? 36 : props.value ? Math.max(44, inputHeight) : 44 }]}>
+  return <View ref={containerRef} onLayout={onLayout} testID="assistant-composer" style={[styles.row, compact && { gap: 4, alignItems: "center" }, stacked && styles.stacked, page && [styles.page, { backgroundColor: colors.inputBg, borderColor: colors.border }], { minHeight: compact ? 36 : props.value ? Math.max(44, inputHeight) : 44 }]}>
     <View style={[styles.editor, stacked && styles.stackedEditor, voiceActive && styles.hidden]}>
     {!voiceActive && !page ? <Pressable accessibilityRole="button" accessibilityLabel="Escrever mensagem" onPress={() => inputRef.current?.focus()}
       style={[styles.secondary, { borderColor: colors.border, backgroundColor: colors.secondaryBg }]}>
@@ -54,12 +54,16 @@ function ScopedAssistantComposer(props: Props) {
       style={[styles.input, compact && { minHeight: 36, fontSize: 13, paddingVertical: 8 }, stacked && { minHeight: 44, fontSize: 16 }, page && styles.pageInput, voiceActive && styles.hidden, { height: props.value ? inputHeight : compact ? 36 : minInputHeight, color: colors.inputText }]} />
     </View>
     <View style={[styles.controls, stacked && styles.stackedControls, page && styles.pageControls, voiceActive && styles.activeControls]}>
-    {!voiceActive && props.trailingControl ? <View style={stacked && styles.leadingControl}>{props.trailingControl}</View> : null}
-    {props.voiceScope ? <LessonVoiceInput compact={compact} key={`${props.voiceScope.organizationId}:${props.voiceScope.classId}`} {...props.voiceScope} disabled={Boolean(props.busy)} onActiveChange={setVoiceActive}
+    {!voiceActive && props.trailingControl ? <View style={stacked && !page && styles.leadingControl}>{props.trailingControl}</View> : null}
+    {props.voiceScope ? <LessonVoiceInput compact={compact} toolbar={page} key={`${props.voiceScope.organizationId}:${props.voiceScope.classId}`} {...props.voiceScope} disabled={Boolean(props.busy)} onActiveChange={setVoiceActive}
       onText={text => props.onChangeText(latestValue.current ? `${latestValue.current}\n${text}` : text)} /> : null}
     {!voiceActive ? <Pressable accessibilityRole="button" accessibilityLabel="Enviar mensagem" onPress={props.onSend} disabled={!canSend}
-      style={[styles.send, compact && { width: 36, height: 36, borderRadius: 18 }, { backgroundColor: colors.primaryBg, opacity: canSend ? 1 : 0.55 }]}>
-      <GoAtletaIcon name="arrowUp" size={compact ? 16 : 20} color={colors.primaryText} />
+      style={[styles.send, compact && { width: 36, height: 36, borderRadius: 18 }, { backgroundColor: page ? "transparent" : colors.primaryBg, opacity: canSend ? 1 : 0.55 }]}>
+      {page ? (
+        <View style={[styles.pageSendGlyph, { backgroundColor: colors.text }]}>
+          <GoAtletaIcon name="arrowUp" size={17} color={colors.background} />
+        </View>
+      ) : <GoAtletaIcon name="arrowUp" size={compact ? 16 : 20} color={colors.primaryText} />}
     </Pressable> : null}
     </View>
   </View>;
@@ -68,9 +72,10 @@ const styles = StyleSheet.create({
   hidden: { display: "none" },
   row: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   stacked: { flexDirection: "column", alignItems: "stretch", gap: 4 },
-  page: { borderRadius: radius.container, borderWidth: 1, padding: 10 },
-  pageInput: { minHeight: 44, fontSize: 14, lineHeight: 20, paddingHorizontal: 6, paddingVertical: 10, ...(Platform.OS === "web" ? { fontFamily: typography.body.fontFamily } : {}) },
-  pageControls: { justifyContent: "flex-end", minHeight: 44 },
+  page: { borderRadius: radius.xl, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 5, gap: 0 },
+  pageInput: { minHeight: 44, fontSize: 14, lineHeight: 20, paddingHorizontal: 4, paddingVertical: 8, ...(Platform.OS === "web" ? { fontFamily: typography.body.fontFamily } : {}) },
+  pageControls: { justifyContent: "flex-end", minHeight: 44, gap: 0 },
+  pageSendGlyph: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   editor: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   stackedEditor: { width: "100%", flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   controls: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8 },

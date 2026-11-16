@@ -187,7 +187,7 @@ export const ptBR = {
     },
     errors: {
       photoSelectFailed: "Não foi possível selecionar a foto.",
-      textImproveFailed: "Não foi possível melhorar o texto agora.",
+      textImproveFailed: "Não foi possível revisar o texto. O original foi mantido. Tente novamente.",
       reportSaveFailed: "Não foi possível salvar o relatório.",
       planGenerateFailed: "Não foi possível gerar o plano agora.",
       blockSaveFailed: "Não foi possível salvar o bloco.",

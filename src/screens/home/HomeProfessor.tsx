@@ -84,6 +84,12 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useNativeSidebarController } from "../../ui/native-sidebar-controller";
 
 import { getScopedProfilePath } from "../../navigation/profile-routes";
+import { navigateToDetailRoute, navigateToPrimaryRoute } from "../../navigation/primary-route-navigation";
+import { isTrainerPathAllowed } from "../../auth/route-permissions";
+import { coordinationShortcuts } from "./coordination-shortcuts";
+import { professorShortcuts } from "./professor-shortcuts";
+import { HomeSearchModal, type HomeSearchEntry } from "./components/HomeSearchModal";
+import { loadHomeSearchRecords, type HomeSearchRecordEntry } from "./home-search-records";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
@@ -193,6 +199,12 @@ export function HomeProfessorScreen({
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
   const [showInbox, setShowInbox] = useState(false);
+  const [openSearchScope, setOpenSearchScope] = useState<string | null>(null);
+  const [searchRecords, setSearchRecords] = useState<{
+    scope: string;
+    entries: HomeSearchRecordEntry[];
+    partialFailure: boolean;
+  } | null>(null);
   const [notificationControlHighlighted, setNotificationControlHighlighted] = useState(false);
   const [profileControlHighlighted, setProfileControlHighlighted] = useState(false);
 
@@ -269,6 +281,92 @@ export function HomeProfessorScreen({
     resolvedRequestKey: resolvedScheduleRequestKey,
   });
   const scheduleUnavailable = Boolean(scheduleRequestKey) && failedScheduleRequestKey === scheduleRequestKey;
+  const searchOrganizationId = activeOrganization?.id;
+  const searchProfile = adminMode ? "coord" : "prof";
+  const searchShortcuts = adminMode ? coordinationShortcuts : professorShortcuts;
+  const canReadSearchStudents = isTrainerPathAllowed(`/${searchProfile}/students`, memberPermissions, isOrgAdmin);
+  const canReadSearchPlans = isTrainerPathAllowed(`/${searchProfile}/planning`, memberPermissions, isOrgAdmin);
+  const canReadSearchEvents = isTrainerPathAllowed(`/${searchProfile}/calendar`, memberPermissions, isOrgAdmin)
+    && isTrainerPathAllowed("/events", memberPermissions, isOrgAdmin);
+  const searchScope = (!adminMode || isAdminDashboardContext) && scheduleRequestKey && searchOrganizationId
+    ? JSON.stringify([scheduleRequestKey, canReadSearchStudents, canReadSearchPlans, canReadSearchEvents])
+    : null;
+  const showSearch = searchScope !== null && openSearchScope === searchScope;
+  const resetHomeSearch = useCallback(() => {
+    setOpenSearchScope(null);
+    setSearchRecords(null);
+  }, []);
+  useFocusEffect(useCallback(() => {
+    if (searchScope) return resetHomeSearch;
+  }, [resetHomeSearch, searchScope]));
+  const currentSearchRecords = showSearch && searchRecords?.scope === searchScope ? searchRecords : null;
+  const searchUserId = session?.user?.id;
+
+  useEffect(() => {
+    if (!showSearch || !searchScope || !searchOrganizationId) return;
+    const controller = new AbortController();
+    void loadHomeSearchRecords({
+      organizationId: searchOrganizationId,
+      profile: searchProfile,
+      userId: searchUserId,
+      canReadStudents: canReadSearchStudents,
+      canReadPlans: canReadSearchPlans,
+      canReadEvents: canReadSearchEvents,
+      signal: controller.signal,
+    }).then(
+      (result) => {
+        if (!controller.signal.aborted) setSearchRecords({ scope: searchScope, ...result });
+      },
+      () => {
+        if (!controller.signal.aborted) setSearchRecords({ scope: searchScope, entries: [], partialFailure: true });
+      },
+    );
+    return () => controller.abort();
+  }, [showSearch, searchScope, searchOrganizationId, searchProfile, searchUserId, canReadSearchStudents, canReadSearchPlans, canReadSearchEvents]);
+
+  const searchEntries = useMemo(() => {
+    if (!showSearch) return [];
+    const entries: HomeSearchEntry[] = searchShortcuts
+      .filter(({ route }) => isTrainerPathAllowed(route, memberPermissions, isOrgAdmin))
+      .map((shortcut) => ({
+        id: shortcut.route,
+        title: shortcut.label,
+        section: "Áreas do app",
+        description: shortcut.description,
+        keywords: "keywords" in shortcut ? shortcut.keywords : undefined,
+      }));
+    const currentClassNames = new Map<string, string>();
+    if (canOpenClassesShortcut && scheduleRequestKey === resolvedScheduleRequestKey) {
+      for (const cls of classes) {
+        if (cls.organizationId !== activeOrganization?.id) continue;
+        currentClassNames.set(cls.id, cls.name);
+        entries.push({ id: cls.id, title: cls.name, section: "Turmas", description: cls.unit });
+      }
+    }
+    for (const record of currentSearchRecords?.entries ?? []) {
+      const className = record.studentClassId ? currentClassNames.get(record.studentClassId) : undefined;
+      entries.push(className ? { ...record, description: className } : record);
+    }
+    return entries;
+  }, [showSearch, searchShortcuts, memberPermissions, isOrgAdmin, canOpenClassesShortcut, scheduleRequestKey, resolvedScheduleRequestKey, classes, activeOrganization?.id, currentSearchRecords]);
+  const closeHomeSearch = () => {
+    resetHomeSearch();
+    if (Platform.OS === "web") {
+      requestAnimationFrame(() => document.getElementById("home-search-trigger")?.focus());
+    }
+  };
+
+  const selectHomeSearchEntry = (entry: HomeSearchEntry) => {
+    if (!showSearch || !searchEntries.includes(entry)) return;
+    resetHomeSearch();
+    const shortcut = searchShortcuts.find(({ route }) => route === entry.id);
+    if (shortcut) {
+      navigateToPrimaryRoute({ router, href: shortcut.route });
+      return;
+    }
+    const record = currentSearchRecords?.entries.find(({ id }) => id === entry.id);
+    navigateToDetailRoute({ router, href: record?.href ?? { pathname: "/class/[id]", params: { id: entry.id } } });
+  };
 
   const [inboxX] = useState(() => new Animated.Value(panelWidth));
 
@@ -1684,6 +1782,19 @@ export function HomeProfessorScreen({
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
 
+          {searchScope ? (
+            <Pressable
+              nativeID="home-search-trigger"
+              accessibilityRole="button"
+              accessibilityLabel="Pesquisar no app"
+              accessibilityState={{ expanded: showSearch }}
+              onPress={() => setOpenSearchScope(searchScope)}
+              style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+            >
+              <GoAtletaIcon name="search" size={metrics.iconSize} color={colors.text} />
+            </Pressable>
+          ) : null}
+
           <View style={{ position: "relative" }}>
             <Pressable
 
@@ -2492,6 +2603,17 @@ export function HomeProfessorScreen({
           }}
         />
       )}
+      {showSearch ? (
+        <HomeSearchModal
+          visible
+          colors={colors}
+          entries={searchEntries}
+          loading={currentSearchRecords === null}
+          partialFailure={currentSearchRecords?.partialFailure}
+          onClose={closeHomeSearch}
+          onSelect={selectHomeSearchEntry}
+        />
+      ) : null}
       { showInbox ? (
         <Modal visible transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={closeInbox}>
         <View

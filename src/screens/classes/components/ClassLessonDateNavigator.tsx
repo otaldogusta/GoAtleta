@@ -9,6 +9,7 @@ import { Pressable } from "../../../ui/Pressable";
 type ClassLessonDateNavigatorProps = {
   colors: ThemeColors;
   dateLabel: string;
+  isPast?: boolean;
   onPrevious: () => void;
   onNext: () => void;
   onOpenCalendar: () => void;
@@ -27,6 +28,7 @@ export function isTodayLessonDateLabel(dateLabel: string, now = new Date()) {
 export function ClassLessonDateNavigator({
   colors,
   dateLabel,
+  isPast = false,
   onPrevious,
   onNext,
   onOpenCalendar,
@@ -59,7 +61,7 @@ export function ClassLessonDateNavigator({
       >
         <GoAtletaIcon name="calendar" size={16} color={colors.muted} />
         {isToday ? <Text style={[styles.todayLabel, { color: colors.primaryBg }]}>Hoje</Text> : null}
-        <Text style={[styles.dateLabel, { color: colors.text }]}>{dateLabel}</Text>
+        <Text style={[styles.dateLabel, { color: isPast ? colors.muted : colors.text }]}>{dateLabel}</Text>
         {isLoading ? <ActivityIndicator size="small" color={colors.primaryBg} style={styles.loader} /> : null}
       </Pressable>
       <Pressable

@@ -171,6 +171,17 @@ export function calculateNextClassDate(daysOfWeek: number[]): Date | null {
   return calculateAdjacentClassDate(daysOfWeek, new Date(), 1);
 }
 
+/** Operational default: today's class, or the last scheduled class day. */
+export function calculateCurrentOrPreviousClassDate(
+  daysOfWeek: number[],
+  referenceDate = new Date()
+): Date | null {
+  const today = normalizeDateStart(referenceDate);
+  return getSortedClassDays(daysOfWeek).includes(today.getDay())
+    ? today
+    : calculateAdjacentClassDate(daysOfWeek, today, -1);
+}
+
 /**
  * Keeps today's class selected until its scheduled end, then advances to the
  * next configured class day.

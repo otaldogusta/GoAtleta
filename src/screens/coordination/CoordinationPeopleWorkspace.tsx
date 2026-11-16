@@ -1812,7 +1812,6 @@ export function CoordinationPeopleWorkspace({
       <>
       <ScreenPageHeader
         title="Gestão"
-        subtitle={organizationName}
         right={openAssistant && usesManagementAssistantButton(pathname, width) ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Gestão" onPress={openAssistant}
             style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>

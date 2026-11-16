@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 
+import { useAuth } from "../../auth/auth";
 import { useRole } from "../../auth/role";
 import { markRender } from "../../observability/perf";
 import { compactUiMetrics as metrics, spacing } from "../../theme/tokens";
@@ -9,26 +10,46 @@ import { ListEmptyState } from "../../ui/ListEmptyState";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import { HomeShortcutSearch, type HomeSearchShortcut } from "../home/components/HomeShortcutSearch";
 import { FamilyScreenShell } from "./FamilyScreenShell";
 import { FamilyScheduleItemCard } from "./FamilyScheduleItemCard";
 import { FamilyStudentSwitcher } from "./FamilyStudentSwitcher";
 import { FamilyButton } from "./FamilyUi";
 import { useFamilyOverview } from "./useFamilyOverview";
 
+const familySearchShortcuts: readonly HomeSearchShortcut[] = [
+  { id: "agenda", section: "Áreas do app", title: "Agenda", keywords: "treinos aulas atividades", href: "/family/agenda" },
+  { id: "payments", section: "Áreas do app", title: "Pagamentos", keywords: "financeiro mensalidades cobranças", href: "/family/payments" },
+  { id: "profile", section: "Áreas do app", title: "Perfil", keywords: "conta configurações vínculos", href: "/family/profile" },
+];
+
 export function FamilyHomeScreen() {
   markRender("screen.familyHome.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
   const layout = useResponsiveLayout("dashboard");
-  const { selectedFamilyStudent } = useRole();
+  const { session } = useAuth();
+  const { role, selectedFamilyStudent } = useRole();
   const { overview, loading, failed, refresh } = useFamilyOverview();
   const canShowAgenda = selectedFamilyStudent?.canViewAgenda && overview?.canViewSchedule;
   const nextSchedule = canShowAgenda ? overview?.nextSchedule[0] : undefined;
   const attendance = selectedFamilyStudent?.canViewAttendance && overview?.attendance;
+  const searchShortcuts = familySearchShortcuts.filter(({ id }) => (
+    id === "profile" ||
+    (id === "agenda" && selectedFamilyStudent?.canViewAgenda && overview?.canViewSchedule !== false) ||
+    (id === "payments" && selectedFamilyStudent?.canViewFinance)
+  ));
 
   return (
     <FamilyScreenShell
       title="Hoje"
+      headerAction={role === "family" && session?.user.id ? (
+        <HomeShortcutSearch
+          key={JSON.stringify([session.user.id, selectedFamilyStudent?.relationshipId])}
+          triggerId="family-home-search-trigger"
+          entries={searchShortcuts}
+        />
+      ) : null}
       refreshing={loading}
       onRefresh={selectedFamilyStudent ? refresh : undefined}
     >

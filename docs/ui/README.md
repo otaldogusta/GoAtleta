@@ -3,6 +3,13 @@
 Este diretório é a fonte canônica para decisões visuais e responsivas do web.
 A Home do professor é a referência de densidade, navegação e hierarquia.
 
+Registre mudanças visuais no mesmo Inventário Visual (`inventario.html`). Para
+cada perfil afetado, inclua o caminho para testar a tela real no localhost de QA
+e fotos de antes e depois em claro e escuro, usando dados fictícios. Capture o
+antes antes de editar. Se faltar uma captura, identifique a lacuna ou rotule o
+estado equivalente da versão atual. Preserve as áreas e recortes anteriores.
+Gere o HTML com `scripts/build-ui-inventory-hub.py`.
+
 | Tema | Documento |
 | --- | --- |
 | Identidade, tokens e hierarquia | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |

@@ -34,7 +34,7 @@ export type ClassWorkspaceSection = "overview" | "attendance";
 export type ClassOperationalStatus = {
   state: "loading" | "pending" | "completed" | "unavailable";
   label: string;
-  detail: string;
+  detail?: string;
 };
 
 export type ClassRecentTrainingSummary = {
@@ -49,6 +49,9 @@ type ClassOperationsWorkspaceProps = {
   compact: boolean;
   scheduleLabel: string;
   lessonDateLabel: string;
+  isPastLessonDate?: boolean;
+  showSelectedLesson?: boolean;
+  showLessonOperations?: boolean;
   appliedPlan: TrainingPlan | null;
   isLoadingLessonPlan: boolean;
   onPreviousLesson: () => void;
@@ -324,11 +327,13 @@ function OperationalStatusRow({
   title,
   status,
   colors,
+  isPast = false,
   onPress,
 }: {
   title: string;
   status: ClassOperationalStatus;
   colors: ThemeColors;
+  isPast?: boolean;
   onPress: () => void;
 }) {
   const completed = status.state === "completed";
@@ -349,10 +354,12 @@ function OperationalStatusRow({
         color={statusColor}
       />
       <View style={styles.operationalStatusCopy}>
-        <Text style={[styles.operationalStatusTitle, { color: colors.text }]}>{title}</Text>
-        <Text numberOfLines={2} style={[styles.operationalStatusDetail, { color: colors.muted }]}>
-          {status.detail}
-        </Text>
+        <Text style={[styles.operationalStatusTitle, { color: isPast ? colors.muted : colors.text }]}>{title}</Text>
+        {status.detail ? (
+          <Text numberOfLines={2} style={[styles.operationalStatusDetail, { color: colors.muted }]}>
+            {status.detail}
+          </Text>
+        ) : null}
       </View>
       <View style={[styles.operationalStatusBadge, { backgroundColor: statusBackground }]}>
         <Text style={[styles.operationalStatusBadgeLabel, { color: statusColor }]}>{status.label}</Text>
@@ -367,6 +374,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   compact,
   scheduleLabel,
   lessonDateLabel,
+  isPastLessonDate,
+  showSelectedLesson = true,
+  showLessonOperations = true,
   appliedPlan,
   isLoadingLessonPlan,
   onPreviousLesson,
@@ -536,12 +546,15 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   const resolvedAttendanceContent = typeof attendanceContent === "function"
     ? attendanceContent({ dense })
     : attendanceContent;
+  const showOperationRows = showSelectedLesson && showLessonOperations &&
+    (hasActiveStudents || reportStatus.state === "completed");
 
   const planSection = (
     <View style={styles.planSection}>
       <ClassLessonDateNavigator
         colors={colors}
         dateLabel={lessonDateLabel}
+        isPast={isPastLessonDate}
         onPrevious={onPreviousLesson}
         onNext={onNextLesson}
         onOpenCalendar={onOpenLessonCalendar}
@@ -648,7 +661,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           <View style={styles.emptyPlanRow}>
             <View style={styles.emptyPlanStatus}>
               <GoAtletaIcon name="document" size={compactUiMetrics.iconSize} color={colors.muted} />
-              <Text style={[styles.emptyPlanStatusLabel, { color: colors.muted }]}>Sem plano aplicado</Text>
+              <Text style={[styles.emptyPlanStatusLabel, { color: colors.muted }]}>
+                {showSelectedLesson ? "Sem plano aplicado" : "Sem aula nesta data."}
+              </Text>
             </View>
             <Pressable
               onPress={onGeneratePlan}
@@ -670,20 +685,24 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           </Animated.View>
         )}
       </View>
-      {(hasActiveStudents || reportStatus.state === "completed" || Boolean(recentTrainings?.length)) && <View style={[styles.operationalSummary, { borderColor: colors.border }]}>
-        <Text style={[styles.operationalSummaryTitle, { color: colors.text }]}>Operação da aula</Text>
+      {(showOperationRows || Boolean(recentTrainings?.length)) && <View style={[styles.operationalSummary, { borderColor: colors.border }]}>
+        {showOperationRows && <>
+        <Text style={[styles.operationalSummaryTitle, { color: isPastLessonDate ? colors.muted : colors.text }]}>Operação da aula</Text>
         {hasActiveStudents && <OperationalStatusRow
           title="Chamada"
           status={attendanceStatus}
           colors={colors}
+          isPast={isPastLessonDate}
           onPress={actions.attendance.onPress}
         />}
         {(hasActiveStudents || reportStatus.state === "completed") && <OperationalStatusRow
           title="Relatório"
           status={reportStatus}
           colors={colors}
+          isPast={isPastLessonDate}
           onPress={actions.report.onPress}
         />}
+        </>}
 
         {(recentTrainings === null || recentTrainings.length > 0) && <View style={[styles.recentTrainings, { borderTopColor: colors.border }]}>
           <Text style={[styles.recentTrainingsTitle, { color: colors.text }]}>Relatórios recentes</Text>

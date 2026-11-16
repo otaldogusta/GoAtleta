@@ -78,7 +78,7 @@ describe("professor and coordination route contract", () => {
 
   it("does not send coordination shortcuts into the professor shell", () => {
     const sidebar = read("src/ui/WebSidebar.tsx");
-    const home = read("src/screens/home/HomeProfessorBelowFold.tsx");
+    const home = read("src/screens/home/coordination-shortcuts.ts");
     const professorItems = sidebar.slice(
       sidebar.indexOf("prof: ["),
       sidebar.indexOf("coord: ["),
@@ -95,7 +95,7 @@ describe("professor and coordination route contract", () => {
   });
 
   it("keeps every professor sidebar destination available from Home shortcuts", () => {
-    const home = read("src/screens/home/HomeProfessorBelowFold.tsx");
+    const home = read("src/screens/home/professor-shortcuts.ts");
     const professorShortcutRoutes = [
       "/prof/planning",
       "/prof/consultation",
@@ -111,7 +111,7 @@ describe("professor and coordination route contract", () => {
     ];
 
     professorShortcutRoutes.forEach((route) => {
-      expect(home).toContain(`navigateToShortcut("${route}")`);
+      expect(home).toContain(`route: "${route}"`);
     });
   });
 

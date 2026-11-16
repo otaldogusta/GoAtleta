@@ -35,7 +35,7 @@ import { normalizeUnitKey } from "../../src/core/unit-key";
 import { smartSync } from "../../src/core/smart-sync";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import { ROSTER_FUNDAMENTALS, buildRosterFundamentalsByDay, buildRosterMonthEntries, getBlockForToday, getSuggestedFundamentalsForClass, type RosterFundamental } from "../../src/core/periodization";
-import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getAttendanceByDate, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestTrainingPlanByClass, getSessionLogByDate, getSessionLogsByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
+import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestTrainingPlanByClass, loadEmbeddedAttendance, getSessionLogByDate, getSessionLogsByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -53,6 +53,7 @@ import { useCopilotLesson } from "../../src/copilot/lesson-context";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
 import { FloatingSaveBar } from "../../src/ui/FloatingSaveBar";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
+import { resolveAttendanceStudentsForDate } from "../../src/screens/attendance/attendance-roster";
 import { loadOfflineAttendanceEditor } from "../../src/bootstrap/offline-attendance-target";
 import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
 import { parseClassWorkspaceRouteDate, resolveClassSettingsSection, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
@@ -92,7 +93,7 @@ import {
 import { listOrgStaffCandidates, mergeOrgStaffCandidates, type OrgMember } from "../../src/api/members";
 import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
-import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
+import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateCurrentOrPreviousClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
 import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
 import { buildClassRosterPdfFileName, resolveClassRosterExportStudents } from "../../src/screens/classes/application/attendance-export";
 import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
@@ -357,7 +358,9 @@ export default function ClassDetails() {
   const recentTrainingLoadRequestId = useRef(0);
   const [lessonOperationalSnapshot, setLessonOperationalSnapshot] = useState<{
     dateKey: string;
-    activeStudentCount: number;
+    classId: string;
+    organizationId: string;
+    eligibleStudentCount: number;
     markedStudentCount: number;
     hasReport: boolean;
   } | null>(null);
@@ -772,7 +775,12 @@ export default function ClassDetails() {
     [classDays, classDuration, classStartTime],
   );
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
-  const selectedLessonDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
+  const todayLessonDateKey = toLocalDateKey(new Date());
+  const defaultLessonDate = useMemo(() => parseClassWorkspaceRouteDate(todayLessonDateKey), [todayLessonDateKey]);
+  const selectedLessonDate = useMemo(
+    () => resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, defaultLessonDate),
+    [lessonDate, requestedLessonDate, defaultLessonDate],
+  );
   const selectedLessonDateKey = selectedLessonDate ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}` : "";
   useCopilotLesson(useMemo(() => cls?.organizationId && selectedLessonDateKey ? ({
     classId: cls.id, organizationId: cls.organizationId, date: selectedLessonDateKey,
@@ -786,7 +794,7 @@ export default function ClassDetails() {
     const requestId = lessonOperationalLoadRequestId.current + 1;
     lessonOperationalLoadRequestId.current = requestId;
 
-    if (!operationalClassId || !selectedLessonDateKey) {
+    if (!operationalClassId || !operationalOrganizationId || !selectedLessonDateKey) {
       setLessonOperationalSnapshot(null);
       setLessonOperationalLoading(false);
       setLessonOperationalUnavailable(false);
@@ -796,23 +804,20 @@ export default function ClassDetails() {
     setLessonOperationalLoading(true);
     setLessonOperationalUnavailable(false);
     try {
-      const [students, attendance, report] = await Promise.all([
-        getStudentsByClass(operationalClassId, { organizationId: operationalOrganizationId }),
-        getAttendanceByDate(operationalClassId, selectedLessonDateKey, { organizationId: operationalOrganizationId }),
+      const [attendance, report] = await Promise.all([
+        loadEmbeddedAttendance(operationalClassId, selectedLessonDateKey, resolveAttendanceStudentsForDate),
         getSessionLogByDate(operationalClassId, selectedLessonDateKey, { organizationId: operationalOrganizationId }),
       ]);
+      await attendance.assertCurrent();
       if (lessonOperationalLoadRequestId.current !== requestId) return;
-
-      const activeStudentIds = new Set(students.map((student) => student.id));
-      const markedStudentIds = new Set(
-        attendance
-          .filter((record) => activeStudentIds.has(record.studentId))
-          .map((record) => record.studentId),
-      );
+      if (attendance.origin.organizationId !== operationalOrganizationId) throw new Error("Organização alterada.");
+      const markedStudentIds = new Set(attendance.records.map((record) => record.studentId));
       setLessonOperationalSnapshot({
         dateKey: selectedLessonDateKey,
-        activeStudentCount: activeStudentIds.size,
-        markedStudentCount: markedStudentIds.size,
+        classId: operationalClassId,
+        organizationId: operationalOrganizationId,
+        eligibleStudentCount: attendance.students.length,
+        markedStudentCount: attendance.students.filter((student) => markedStudentIds.has(student.id)).length,
         hasReport: Boolean(report),
       });
     } catch {
@@ -943,9 +948,15 @@ export default function ClassDetails() {
   const selectedLessonWeekday = selectedLessonDate ? (selectedLessonDate.getDay() === 0 ? 7 : selectedLessonDate.getDay()) : undefined;
   const lessonDateLabel = selectedLessonDate ? `${String(selectedLessonDate.getDate()).padStart(2, "0")}/${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}/${selectedLessonDate.getFullYear()}` : "Próxima aula";
   const currentLessonOperationalSnapshot =
-    lessonOperationalSnapshot?.dateKey === selectedLessonDateKey
+    lessonOperationalSnapshot?.dateKey === selectedLessonDateKey &&
+    lessonOperationalSnapshot.classId === operationalClassId &&
+    lessonOperationalSnapshot.organizationId === operationalOrganizationId
       ? lessonOperationalSnapshot
       : null;
+  const isScheduledLessonDay = selectedLessonDate !== null &&
+    calculateCurrentOrPreviousClassDate(classDays, selectedLessonDate)?.getTime() === selectedLessonDate.getTime();
+  const showSelectedLesson = isScheduledLessonDay || Boolean(appliedPlan) ||
+    Boolean(currentLessonOperationalSnapshot?.markedStudentCount || currentLessonOperationalSnapshot?.hasReport);
   const attendanceOperationalStatus = useMemo<ClassOperationalStatus>(() => {
     if (!selectedLessonDateKey) {
       return { state: "pending", label: "Pendente", detail: "Selecione a data da aula." };
@@ -956,21 +967,20 @@ export default function ClassDetails() {
     if (lessonOperationalLoading || !currentLessonOperationalSnapshot) {
       return { state: "loading", label: "Verificando", detail: "Consultando os registros da aula." };
     }
-    if (currentLessonOperationalSnapshot.activeStudentCount === 0) {
-      return { state: "pending", label: "Pendente", detail: "Sem atletas ativos para registrar." };
+    if (currentLessonOperationalSnapshot.eligibleStudentCount === 0) {
+      return { state: "pending", label: "Pendente", detail: "Sem atletas para registrar nesta chamada." };
     }
     if (
       currentLessonOperationalSnapshot.markedStudentCount ===
-      currentLessonOperationalSnapshot.activeStudentCount
+      currentLessonOperationalSnapshot.eligibleStudentCount
     ) {
       return {
         state: "completed",
         label: "Concluída",
-        detail: "Todos os atletas ativos possuem registro.",
       };
     }
     const remaining =
-      currentLessonOperationalSnapshot.activeStudentCount -
+      currentLessonOperationalSnapshot.eligibleStudentCount -
       currentLessonOperationalSnapshot.markedStudentCount;
     return {
       state: "pending",
@@ -1029,13 +1039,13 @@ export default function ClassDetails() {
   const handleShiftLessonDate = useCallback(
     (direction: -1 | 1) => {
       requestAttendanceAction(() => {
-        const baseDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
+        const baseDate = selectedLessonDate;
         if (!baseDate || classDays.length === 0) return;
         const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
         if (nextDate) selectLessonDate(nextDate);
       });
     },
-    [classDays, lessonDate, nextClassDate, requestAttendanceAction, requestedLessonDate, selectLessonDate],
+    [classDays, requestAttendanceAction, selectedLessonDate, selectLessonDate],
   );
   const handleLessonDateChange = (value: string) => {
     requestAttendanceAction(() => {
@@ -2546,12 +2556,16 @@ export default function ClassDetails() {
   const handleSelectWorkspaceSection = (section: ClassWorkspaceSection) => {
     if (section === workspaceSection) return;
     requestAttendanceAction(() => {
+      const attendanceDate = section === "attendance" && !showSelectedLesson
+        ? calculateCurrentOrPreviousClassDate(classDays, selectedLessonDate ?? undefined)
+        : selectedLessonDate;
+      setLessonDate(section === "overview" ? (Platform.OS === "web" ? null : defaultLessonDate) : attendanceDate);
       setWorkspaceSection(section);
       if (Platform.OS === "web") {
         if (section === "attendance") {
-          router.setParams({ section, date: selectedLessonDateKey || undefined });
+          router.setParams({ section, date: attendanceDate ? toLocalDateKey(attendanceDate) : undefined });
         } else if (workspaceSection === "attendance") {
-          router.setParams({ section: "overview" });
+          router.setParams({ section: "overview", date: undefined });
         }
       }
     });
@@ -2735,6 +2749,9 @@ export default function ClassDetails() {
           )}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
+          isPastLessonDate={Boolean(selectedLessonDateKey) && selectedLessonDateKey < todayLessonDateKey}
+          showSelectedLesson={showSelectedLesson}
+          showLessonOperations={selectedLessonDateKey <= todayLessonDateKey}
           appliedPlan={appliedPlan}
           isLoadingLessonPlan={isLoadingLessonPlan}
           onPreviousLesson={() => handleShiftLessonDate(-1)}
@@ -2744,7 +2761,7 @@ export default function ClassDetails() {
           onGeneratePlan={handleGeneratePlan}
           isGeneratingPlan={isGeneratingPlan}
           attendanceStatus={attendanceOperationalStatus}
-          hasActiveStudents={currentLessonOperationalSnapshot?.activeStudentCount !== 0}
+          hasActiveStudents={currentLessonOperationalSnapshot?.eligibleStudentCount !== 0}
           reportStatus={reportOperationalStatus}
           recentTrainings={recentTrainingSummaries}
           onOpenSession={handleOpenSession}
