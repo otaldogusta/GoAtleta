@@ -79,13 +79,35 @@ const respondToSignupWithSession = (signupUser: AuthSession["user"]) => {
   fetchMock.mockImplementationOnce(async () => reply(200, returnedUser));
 };
 
-const mount = async (initialSession: AuthSession | null = null) => {
-  mockStoredSession = initialSession;
+const mount = async (initialSession?: AuthSession | null) => {
+  if (initialSession !== undefined) mockStoredSession = initialSession;
   const hook = renderHook(() => useAuth(), {
     wrapper: ({ children }) => React.createElement(AuthProvider, { initialSession }, children),
   });
   await act(async () => {});
   return hook;
+};
+
+const pendingSession = (pendingUser = user("original-user", originalEmail)): AuthSession => ({
+  user: pendingUser,
+  access_token: `${pendingUser.id}-access`,
+  refresh_token: `${pendingUser.id}-refresh`,
+  expires_at: 4_000_000_000,
+});
+
+const respondToCorrection = (deliveryFailed = false) => {
+  fetchMock.mockResolvedValueOnce(reply(200, { deliveryFailed }));
+};
+
+const verifiedCorrection = {
+  ...user("corrected-user", correctedEmail),
+  app_metadata: { provider: "email", email_verified_hybrid_at: "2026-11-16T12:00:00Z" },
+};
+
+const respondToCorrectionVerification = () => {
+  fetchMock
+    .mockResolvedValueOnce(reply(200, { session: pendingSession(verifiedCorrection) }))
+    .mockResolvedValueOnce(reply(200, verifiedCorrection));
 };
 
 beforeEach(() => {
@@ -101,70 +123,61 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-test("uses a new user identity and sends the ordinary OTP to the corrected address", async () => {
-  const { result } = await mount();
+test("corrects a reopened signup using its stored session and sends only the new email to the Edge", async () => {
+  const original = await mount();
   respondToSignupWithSession(user("original-user", originalEmail));
-  await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email", "Atleta"); });
+  await act(async () => { await original.result.current.signUp(originalEmail, signupPassword, "verify-email", "Atleta"); });
+  original.unmount();
 
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(true);
-  expect(result.current.canReuseSignupPassword(correctedEmail)).toBe(false);
-  respondToSignupWithSession(user("corrected-user", correctedEmail));
-  fetchMock.mockResolvedValueOnce(reply(200, {}));
+  const { result } = await mount();
+  expect(result.current.session?.user.email).toBe(originalEmail);
+  respondToCorrection();
   await act(async () => {
     await expect(result.current.correctPendingSignupEmail(originalEmail, ` ${correctedEmail.toUpperCase()} `))
       .resolves.toEqual({ deliveryFailed: false });
   });
 
-  expect(result.current.session?.user).toMatchObject({ id: "corrected-user", email: correctedEmail });
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(false);
-  expect(fetchMock.mock.calls[2][0]).toContain("/auth/v1/signup");
-  expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({
-    email: correctedEmail,
-    password: signupPassword,
-    data: { full_name: "Atleta", requires_email_hybrid_verification: true, signup_attempt_id: expect.any(String) },
-  });
+  expect(result.current.session?.user).toMatchObject({ id: "original-user", email: originalEmail });
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  const [url, request] = fetchMock.mock.calls[2];
+  expect(url).toContain("/functions/v1/correct-signup-email");
+  expect(new Headers(request.headers).get("Authorization")).toBe("Bearer original-user-access");
+  expect(JSON.parse(request.body)).toEqual({ email: correctedEmail });
   expect(JSON.parse(fetchMock.mock.calls[0][1].body).data).not.toHaveProperty("signup_attempt_id");
-  expect(fetchMock.mock.calls[4][0]).toContain("/auth/v1/otp");
-  expect(JSON.parse(fetchMock.mock.calls[4][1].body)).toEqual({ email: correctedEmail, create_user: false });
   expect(clearPendingInvites).not.toHaveBeenCalled();
+  expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ user: user("original-user", originalEmail) }), true);
+  respondToCorrectionVerification();
+  await act(async () => {
+    await expect(result.current.verifySignupCode(correctedEmail, "123456", true))
+      .resolves.toMatchObject({ user: verifiedCorrection });
+  });
+  expect(JSON.parse(fetchMock.mock.calls[3][1].body)).toEqual({ email: correctedEmail, code: "123456" });
+  expect(saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ user: verifiedCorrection }), true);
   expect(JSON.stringify(jest.mocked(saveSession).mock.calls)).not.toContain(signupPassword);
 });
 
-test("keeps the old signup and temporary password when the server does not start a replacement", async () => {
-  const { result } = await mount();
-  respondToSignupWithSession(user("original-user", originalEmail));
-  await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
-  fetchMock.mockResolvedValueOnce(reply(200, { ...user("opaque-id", correctedEmail), identities: [] }));
+test("keeps the old signup when the new address already belongs to a different account", async () => {
+  const { result } = await mount(pendingSession());
+  fetchMock.mockResolvedValueOnce(reply(409, { error: "Este e-mail já está em uso." }));
 
   await act(async () => {
-    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("iniciar o cadastro");
+    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("Este e-mail já está em uso.");
   });
 
-  expect(fetchMock).toHaveBeenCalledTimes(3);
-  expect(saveSession).toHaveBeenCalledTimes(1);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(saveSession).not.toHaveBeenCalled();
   expect(result.current.session?.user.id).toBe("original-user");
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(true);
 });
 
-test("leaves the replacement session active if only the code delivery fails", async () => {
-  const initialSession: AuthSession = {
-    user: user("original-user", originalEmail),
-    access_token: "old-access",
-    refresh_token: "old-refresh",
-    expires_at: 2_000_000_000,
-  };
-  const { result } = await mount(initialSession);
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(false);
-  await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("senha do cadastro");
-  expect(fetchMock).not.toHaveBeenCalled();
+test("keeps the original session if code delivery fails", async () => {
+  const { result } = await mount(pendingSession());
+  respondToCorrection(true);
 
-  respondToSignupWithSession(user("corrected-user", correctedEmail));
-  fetchMock.mockResolvedValueOnce(reply(503, { error: "Delivery unavailable" }));
   await act(async () => {
-    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail, signupPassword))
+    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail))
       .resolves.toEqual({ deliveryFailed: true });
   });
-  expect(result.current.session?.user).toMatchObject({ id: "corrected-user", email: correctedEmail });
+  expect(result.current.session?.user).toMatchObject({ id: "original-user", email: originalEmail });
   expect(clearPendingInvites).not.toHaveBeenCalled();
 });
 
@@ -172,18 +185,17 @@ test("keeps the signup code delivered by Supabase when it creates an account wit
   const { result } = await mount();
   fetchMock.mockResolvedValueOnce(reply(200, user("original-user", originalEmail)));
   await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(true);
   fetchMock.mockImplementationOnce(async (_url, init: RequestInit) =>
     reply(200, withSignupAttempt(user("corrected-user", correctedEmail), init)));
   await act(async () => {
     await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).resolves.toEqual({ deliveryFailed: false });
   });
   expect(result.current.session).toBeNull();
-  expect(result.current.canReuseSignupPassword(correctedEmail)).toBe(true);
   expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls[1][0]).toContain("/auth/v1/signup");
 });
 
-test("requires the signup password again after the temporary copy expires", async () => {
+test("does not send a correction when there is no session and the temporary signup expires", async () => {
   const now = Date.now();
   const clock = jest.spyOn(Date, "now").mockReturnValue(now);
   const { result } = await mount();
@@ -191,8 +203,7 @@ test("requires the signup password again after the temporary copy expires", asyn
   await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
   clock.mockReturnValue(now + 5 * 60 * 1000);
 
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(false);
-  await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("senha do cadastro");
+  await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow();
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
@@ -205,78 +216,71 @@ test("preserves the previous attempt when signup returns an existing unconfirmed
   await act(async () => {
     await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("iniciar o cadastro");
   });
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(true);
-  expect(result.current.canReuseSignupPassword(correctedEmail)).toBe(false);
   expect(saveSession).toHaveBeenCalledTimes(1);
 });
 
 test("rejects a replacement response that keeps the previous signup identity", async () => {
-  const { result } = await mount();
-  respondToSignupWithSession(user("original-user", originalEmail));
-  await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
-  respondToSignupWithSession(user("original-user", correctedEmail));
+  const { result } = await mount(pendingSession());
+  fetchMock.mockResolvedValueOnce(reply(200, { session: pendingSession(user("original-user", correctedEmail)) }))
+    .mockResolvedValueOnce(reply(200, user("original-user", correctedEmail)));
 
   await act(async () => {
-    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("iniciar o cadastro");
+    await expect(result.current.verifySignupCode(correctedEmail, "123456", true)).rejects.toThrow();
   });
 
-  expect(fetchMock).toHaveBeenCalledTimes(4);
-  expect(saveSession).toHaveBeenCalledTimes(1);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(saveSession).not.toHaveBeenCalled();
   expect(result.current.session?.user.email).toBe(originalEmail);
 });
 
-test("discards the password when another session replaces the signup", async () => {
-  const { result } = await mount();
-  respondToSignupWithSession(user("original-user", originalEmail));
-  await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
-  const original = result.current.session!;
+test("ignores a correction response after another session replaces the signup", async () => {
+  const { result } = await mount(pendingSession());
+  let finishCorrection!: (response: ReturnType<typeof reply>) => void;
+  let startCorrection!: () => void;
+  const correctionStarted = new Promise<void>((resolve) => { startCorrection = resolve; });
+  fetchMock.mockImplementationOnce(() => new Promise((resolve) => {
+    finishCorrection = resolve;
+    startCorrection();
+  }));
+  const correction = expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("A sessão mudou");
+  await correctionStarted;
 
   await act(async () => {
-    await saveSession({ ...original, user: user("other-user", correctedEmail) });
-    await saveSession(original);
+    await saveSession(pendingSession(user("other-user", "another@example.test")));
+    finishCorrection(reply(200, { deliveryFailed: false }));
+    await correction;
   });
 
-  expect(result.current.canReuseSignupPassword(originalEmail)).toBe(false);
-  await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow("senha do cadastro");
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(result.current.session?.user.id).toBe("other-user");
+  expect(saveSession).toHaveBeenCalledTimes(1);
 });
 
-test("continues with the signup response if hydrating the corrected account loses connectivity", async () => {
-  const { result } = await mount();
-  respondToSignupWithSession(user("original-user", originalEmail));
-  await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
-
-  fetchMock.mockImplementationOnce(async (_url, init: RequestInit) => reply(200, {
-    access_token: "corrected-access",
-    refresh_token: "corrected-refresh",
-    expires_in: 3600,
-    user: withSignupAttempt(user("corrected-user", correctedEmail), init),
-  })).mockRejectedValueOnce(new Error("Network request failed")).mockResolvedValueOnce(reply(200, {}));
-
+test("does not call the correction Edge for a verified account", async () => {
+  const verifiedUser = user("verified-user", originalEmail);
+  const { result } = await mount(pendingSession({
+    ...verifiedUser,
+    app_metadata: { ...verifiedUser.app_metadata, email_verified_hybrid_at: "2026-11-12T12:00:00Z" },
+  }));
   await act(async () => {
-    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).resolves.toEqual({ deliveryFailed: false });
+    await expect(result.current.correctPendingSignupEmail(originalEmail, correctedEmail)).rejects.toThrow();
   });
-  expect(result.current.session?.user).toMatchObject({ id: "corrected-user", email: correctedEmail });
-  expect(fetchMock.mock.calls[4][0]).toContain("/auth/v1/otp");
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(saveSession).not.toHaveBeenCalled();
 });
 
 test("ignores an OTP response from a signup that was replaced while verification was in progress", async () => {
-  const { result } = await mount();
   const originalUser = user("original-user", originalEmail);
-  respondToSignupWithSession(originalUser);
-  await act(async () => { await result.current.signUp(originalEmail, signupPassword, "verify-email"); });
+  const { result } = await mount(pendingSession(originalUser));
 
   let completePreviousOtp!: (response: ReturnType<typeof reply>) => void;
   fetchMock.mockImplementationOnce(() => new Promise((resolve) => { completePreviousOtp = resolve; }));
   const previousVerification = expect(result.current.verifySignupCode(originalEmail, "123456")).rejects.toThrow("A sessão mudou");
 
-  respondToSignupWithSession(user("corrected-user", correctedEmail));
-  fetchMock.mockResolvedValueOnce(reply(200, {}));
-  await act(async () => { await result.current.correctPendingSignupEmail(originalEmail, correctedEmail); });
+  respondToCorrectionVerification();
+  await act(async () => { await result.current.verifySignupCode(correctedEmail, "123456", true); });
 
   completePreviousOtp(reply(200, { access_token: "old-otp-access", user: originalUser }));
   await previousVerification;
-  expect(fetchMock).toHaveBeenCalledTimes(6);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
   expect(result.current.session?.user.id).toBe("corrected-user");
-  expect(result.current.canReuseSignupPassword(correctedEmail)).toBe(true);
 });

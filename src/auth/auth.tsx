@@ -8,7 +8,7 @@ import { clearLocalReadCaches } from "../db/client";
 import { redeemStaffInvite, completeStaffSignup, type StaffInviteResult, type StaffSignupFields } from "../api/staff-invite";
 import type { StaffInviteProof } from "./staff-invite-link";
 import { updatePasswordWithAccessToken } from "../api/auth-password";
-import { verifySignupEmailCode } from "../api/email-verification";
+import { requestSignupEmailCorrection, verifySignupEmailCode, verifySignupEmailCorrection } from "../api/email-verification";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import { safeJsonParse } from "../utils/safe-json";
@@ -61,8 +61,8 @@ type AuthContextValue = {
   completeStaffInvite: (code: string, setup: StaffInviteResult, fields: StaffSignupFields) => Promise<StaffInviteResult>;
   resendSignupCode: (email: string, redirectPath?: string) => Promise<void>;
   canReuseSignupPassword: (email: string) => boolean;
-  correctPendingSignupEmail: (currentEmail: string, nextEmail: string, password?: string) => Promise<{ deliveryFailed: boolean }>;
-  verifySignupCode: (email: string, code: string) => Promise<AuthSession | null>;
+  correctPendingSignupEmail: (currentEmail: string, nextEmail: string) => Promise<{ deliveryFailed: boolean }>;
+  verifySignupCode: (email: string, code: string, correction?: boolean) => Promise<AuthSession | null>;
   unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
   linkGoogleIdentity: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -81,7 +81,6 @@ const SIGNUP_PASSWORD_TTL_MS = 5 * 60 * 1000;
 
 type SignupAttempt = {
   email: string;
-  userId: string | null;
   password: string;
   fullName: string;
   expiresAt: number;
@@ -89,13 +88,6 @@ type SignupAttempt = {
 };
 
 const normalizeSignupEmail = (email: string) => email.trim().toLowerCase();
-
-const matchesSignupSession = (attempt: SignupAttempt, session: AuthSession | null) => {
-  if (!session) return attempt.userId === null;
-  return attempt.userId === session.user.id
-    && attempt.email === normalizeSignupEmail(session.user.email ?? "")
-    && !hasVerifiedEmailAccess(session.user);
-};
 
 const normalizeAuthSession = (payload: Record<string, any>): AuthSession => {
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -387,8 +379,7 @@ export function AuthProvider({
     signupAttempt.current = null;
   }, []);
   const applySession = useCallback((next: AuthSession | null) => {
-    const attempt = signupAttempt.current;
-    if (attempt && !matchesSignupSession(attempt, next)) clearSignupAttempt();
+    if (next) clearSignupAttempt();
     setSession(next);
   }, [clearSignupAttempt]);
 
@@ -507,10 +498,9 @@ export function AuthProvider({
       }
     }
     clearSignupAttempt();
-    if (signupAccepted) {
+    if (signupAccepted && !next) {
       signupAttempt.current = {
         email: normalizedEmail,
-        userId: next?.user.id ?? null,
         password,
         fullName: cleanFullName,
         expiresAt: Date.now() + SIGNUP_PASSWORD_TTL_MS,
@@ -791,14 +781,13 @@ export function AuthProvider({
 
   const getSignupAttempt = useCallback((email: string) => {
     const attempt = signupAttempt.current;
-    if (!attempt || attempt.expiresAt <= Date.now() || attempt.email !== normalizeSignupEmail(email)
-      || !matchesSignupSession(attempt, session)) return null;
+    if (session || !attempt || attempt.expiresAt <= Date.now() || attempt.email !== normalizeSignupEmail(email)) return null;
     return attempt;
   }, [session]);
 
   const canReuseSignupPassword = useCallback((email: string) => Boolean(getSignupAttempt(email)), [getSignupAttempt]);
 
-  const correctPendingSignupEmail = useCallback(async (currentEmail: string, nextEmail: string, password?: string) => {
+  const correctPendingSignupEmail = useCallback(async (currentEmail: string, nextEmail: string) => {
     const current = normalizeSignupEmail(currentEmail);
     const next = normalizeSignupEmail(nextEmail);
     if (!hasValidEmailFormat(next) || next.length > 320) throw new Error("Informe um e-mail válido.");
@@ -810,12 +799,22 @@ export function AuthProvider({
     }
     const identity = getSessionIdentity();
     if (identity.userId !== (session?.user.id ?? "")) throw new Error("A sessão mudou. Abra novamente esta operação.");
-    const attempt = getSignupAttempt(current);
-    const signupPassword = password ?? attempt?.password;
-    if (!signupPassword || signupPassword.length < 6) throw new Error("Informe a senha do cadastro.");
+    if (session) {
+      // Pending sessions intentionally have no token for the product APIs.
+      const active = await loadValidatedSession();
+      assertSessionIdentity(identity);
+      if (!active?.access_token || active.user.id !== identity.userId) {
+        throw new Error("Sua sessão expirou. Entre novamente para corrigir o e-mail.");
+      }
+      const correction = await requestSignupEmailCorrection(active.access_token, next);
+      assertSessionIdentity(identity);
+      return { deliveryFailed: correction.deliveryFailed };
+    }
 
-    const fullName = attempt?.fullName ?? session?.user.user_metadata?.full_name ?? undefined;
-    const newSession = await signUp(next, signupPassword, "verify-email", fullName, identity);
+    const attempt = getSignupAttempt(current);
+    if (!attempt) throw new Error("Recomece o cadastro para corrigir o e-mail.");
+
+    const newSession = await signUp(next, attempt.password, "verify-email", attempt.fullName, identity);
     if (getSessionIdentity().userId !== (newSession?.user.id ?? "")) {
       throw new Error("A sessão mudou. Abra novamente esta operação.");
     }
@@ -828,7 +827,7 @@ export function AuthProvider({
     }
   }, [getSignupAttempt, resendSignupCode, session, signUp]);
 
-  const verifySignupCode = useCallback(async (email: string, code: string) => {
+  const verifySignupCode = useCallback(async (email: string, code: string, correction = false) => {
     const cleanEmail = (email ?? "").trim();
     const cleanCode = (code ?? "").trim();
     if (!cleanEmail) {
@@ -839,12 +838,27 @@ export function AuthProvider({
     }
 
     const identity = getSessionIdentity();
-    const payload = await verifySignupEmailCode(cleanEmail, cleanCode);
+    let payload: Record<string, unknown>;
+    if (correction) {
+      const active = await loadValidatedSession();
+      assertSessionIdentity(identity);
+      if (!active?.access_token || active.user.id !== identity.userId) {
+        throw new Error("Sua sessão expirou. Entre novamente para corrigir o e-mail.");
+      }
+      payload = await verifySignupEmailCorrection(active.access_token, cleanEmail, cleanCode);
+    } else {
+      payload = await verifySignupEmailCode(cleanEmail, cleanCode);
+    }
     assertSessionIdentity(identity);
 
     if (payload?.access_token) {
       const normalized = normalizeAuthSession(payload);
       const hydratedUser = await fetchUser(normalized.access_token);
+      if (correction && (!hydratedUser || hydratedUser.id === identity.userId
+        || normalizeSignupEmail(hydratedUser.email ?? "") !== normalizeSignupEmail(cleanEmail)
+        || !hasVerifiedEmailAccess(hydratedUser))) {
+        throw new Error("Resposta inválida ao confirmar o e-mail.");
+      }
       const next: AuthSession = {
         ...normalized,
         user: hydratedUser ?? normalized.user,
@@ -1018,7 +1032,7 @@ export const useAuth = () => {
       },
       resendSignupCode: async () => {},
       canReuseSignupPassword: (_email: string) => false,
-      correctPendingSignupEmail: async (_currentEmail: string, _nextEmail: string, _password?: string): Promise<{ deliveryFailed: boolean }> => {
+      correctPendingSignupEmail: async (_currentEmail: string, _nextEmail: string): Promise<{ deliveryFailed: boolean }> => {
         throw new Error("Autenticação indisponível.");
       },
       verifySignupCode: async () => null,

@@ -157,11 +157,14 @@ pela tela autorizada e oferece o atalho para Acessos.
   campo. Avançar com e-mail inválido mantém o foco no e-mail. O ajuste segue o
   [contrato de formulários](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
 - Em `/verify-email`, o lápis do cadastro pendente permite corrigir o destino.
-  A correção inicia outra tentativa no Auth e mantém a confirmação por código
-  no novo endereço. A tentativa anterior continua pendente, com outro ID.
-  Convites continuam passando pelas validações existentes de destinatário. A
-  senha da tentativa pode ser reaproveitada em memória por até cinco minutos.
-  Após retomar o fluxo sem essa memória, o editor pede a senha do cadastro.
+  Com uma sessão pendente válida, `correct-signup-email` abre uma tentativa
+  isolada com a senha já cadastrada e envia o código ao novo endereço. A
+  tentativa anterior continua pendente. A RPC de preparação é restrita ao
+  servidor e limita as tentativas. Convites seguem a validação de destinatário.
+  A edição mantém a instrução e as caixas de código visíveis. O × limpa o
+  campo. Cancelar edição restaura o endereço e conserva o código já digitado.
+  Em instalações que criam o cadastro sem sessão, a tentativa recém-iniciada
+  ainda permite a correção enquanto estiver em memória.
 - Cadastro público permite verificar o código antes de criar a conta, incluindo
   códigos recebidos por link (`inviteCode` ou `/staff-invite#code=`). Extrai
   apenas o código para a consulta. O e-mail do link é sugestão editável quando o
