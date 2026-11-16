@@ -18,8 +18,13 @@ a linha e o texto.
 O editor de plano aplica a regra dentro do documento embutido.
 
 Na galeria web de foto de perfil, quando a imagem pode ser decodificada, a
-normalização mantém a proporção, limita o lado maior a 512 px e grava JPEG. O
-limite da foto enviada ao Storage é 2 MiB. O bucket aceita JPEG, PNG e WebP.
+normalização mantém a proporção, limita o lado maior a 512 px e grava JPEG.
+O limite de envio ao Storage é 2 MiB. A partir de 8 KiB, um worker tenta gerar
+uma variante JPEG XL, publicada apenas quando válida, menor e aceita pelo
+bucket. A URL persistida mantém o objeto JPEG e sinaliza a variante quando
+ela foi gravada. O cabeçalho web usa a variante em navegadores compatíveis e
+retorna ao JPEG se ela falhar. As duas versões são removidas ao excluir a foto.
+O MIME `image/jxl` depende da migration do bucket `profile-photos`.
 
 `ModalSheet` coordena Tab/Escape pela camada superior e captura no card os eventos
 interrompidos por TextInput web. Calendário e confirmação usam diálogo semântico;

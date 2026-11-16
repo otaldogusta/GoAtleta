@@ -1,6 +1,6 @@
 import { PageBreadcrumbHeader } from "../../components/ui/PageBreadcrumbHeader";
 import { useEffect, useState, useRef, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Image, Platform, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
+import { AccessibilityInfo, Animated, Platform, ScrollView, TextInput, View, useWindowDimensions } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import type { ScrollViewProps } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
@@ -11,6 +11,7 @@ import { Pressable } from "../../ui/Pressable";
 import { formatClassAssignmentMeta } from "../coordination/application/class-assignment-meta";
 import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { responsiveBreakpoints } from "../../ui/responsive-layout";
+import { ProfileAvatarPhoto } from "./ProfileAvatarPhoto";
 
 /** Animate the persistent container, without remounting forms or delaying tab selection. */
 function ProfileTabContent({ tab, children }: { tab: string; children: ReactNode }) {
@@ -184,7 +185,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
           <View style={{ paddingHorizontal: dense ? cardPadding : compact ? 12 : 16, paddingBottom: dense ? metrics.gap : 12, gap: 0 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "nowrap" }}>
               <Pressable accessibilityRole={props.onEditPhoto ? "button" : undefined} accessibilityLabel={props.onEditPhoto ? "Editar foto do perfil" : `Avatar de ${props.name}`} onPress={props.onEditPhoto} disabled={!props.onEditPhoto} testID={`${props.testID ?? "staff-profile"}-avatar`} suppressWebHoverFeedback disableWebPressScale style={{ flexShrink: 0, width: avatarSize, height: avatarSize, marginTop: -24, borderRadius: avatarSize / 2, borderWidth: 5, borderColor: colors.card, backgroundColor: avatarColor, alignItems: "center", justifyContent: "center", overflow: "visible" }}>
-                {props.photoUri ? <Image source={{ uri: props.photoUri }} style={{ width: avatarSize - 10, height: avatarSize - 10, borderRadius: (avatarSize - 10) / 2 }} /> : <Text style={{ color: "#1C3045", fontSize: compact ? 18 : 20, fontWeight: "700" }}>{initials}</Text>}
+                {props.photoUri ? <ProfileAvatarPhoto uri={props.photoUri} size={avatarSize - 10} /> : <Text style={{ color: "#1C3045", fontSize: compact ? 18 : 20, fontWeight: "700" }}>{initials}</Text>}
                 {props.onEditPhoto ? <View style={{ position: "absolute", bottom: -3, right: -3, width: 28, height: 28, borderWidth: 3, borderColor: colors.card, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", borderRadius: 14 }}><GoAtletaIcon name="camera" size={12} color={colors.primaryText} /></View> : null}
                 {props.presence ? <View accessibilityRole="image" accessibilityLabel={presenceLabel} {...(Platform.OS === "web" ? { title: presenceLabel } : {})} testID="profile-presence" style={{ position: "absolute", right: props.onEditPhoto ? undefined : -1, left: props.onEditPhoto ? -1 : undefined, bottom: -1, width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: colors.card, backgroundColor: props.presence === "online" ? colors.successText : colors.muted }}>
                   {props.presence === "unknown" ? <View style={{ position: "absolute", inset: 2, borderRadius: 6, backgroundColor: colors.card }} /> : null}
