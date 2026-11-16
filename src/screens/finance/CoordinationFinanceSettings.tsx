@@ -39,7 +39,6 @@ import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useSaveToast } from "../../ui/save-toast";
-import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 const INTEGRATION_DETAILS = [
   ["Histórico", "Clientes, cobranças e assinaturas são apenas importados."],
@@ -449,7 +448,6 @@ function FinanceSettingsContent({
   const router = useRouter();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const responsiveLayout = useResponsiveLayout();
   const { showSaveToast } = useSaveToast();
   const { confirm: confirmDialog } = useConfirmDialog();
   const styles = useMemo(() => createFinanceSettingsStyles(colors), [colors]);
@@ -458,6 +456,7 @@ function FinanceSettingsContent({
   );
   const [demoActive, setDemoActive] = useState(false);
   const [loading, setLoading] = useState(Boolean(organizationId));
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
@@ -468,6 +467,7 @@ function FinanceSettingsContent({
   const refreshRequest = useRef(0);
   const refresh = useCallback(async () => {
     const request = ++refreshRequest.current;
+    setLoadFailed(false);
     if (!organizationId) {
       setProviderStatus(emptyStatus(false));
       setLoading(false);
@@ -490,14 +490,11 @@ function FinanceSettingsContent({
       setProviderStatus(status);
     } catch {
       if (request !== refreshRequest.current) return;
-      setProviderStatus(emptyStatus(canManageConnection));
-      setMessage({
-        text: "Conexão indisponível neste ambiente.",
-      });
+      setLoadFailed(true);
     } finally {
       if (request === refreshRequest.current) setLoading(false);
     }
-  }, [canManageConnection, organizationId]);
+  }, [organizationId]);
 
   useEffect(() => {
     const cancelStart = scheduleEffectTask(() => { void refresh(); });
@@ -506,7 +503,7 @@ function FinanceSettingsContent({
 
   const connection = providerStatus.connection;
   const isConnected =
-    providerStatus.status === "connected" && Boolean(connection);
+    !loadFailed && providerStatus.status === "connected" && Boolean(connection);
   const merchantStatus = connection?.merchantStatus ?? null;
   const integrationDisplay = resolveFinanceSettingsDisplay({
     capabilityEnabled: REAL_MONEY_PAYMENTS_ENABLED,
@@ -730,13 +727,14 @@ function FinanceSettingsContent({
           sync.ambiguousCustomerCount,
       ) + sync.ambiguousCustomerCount
     : 0;
-  const contentSizedEmbedded = embedded && !responsiveLayout.isMobile;
+  const contentSizedEmbedded = embedded;
 
   return (
     <SafeAreaView
       edges={embedded ? [] : ["top"]}
       style={{
         flex: contentSizedEmbedded ? undefined : 1,
+        flexShrink: contentSizedEmbedded ? 1 : undefined,
         minHeight: 0,
         backgroundColor: embedded ? colors.card : colors.background,
       }}
@@ -763,6 +761,8 @@ function FinanceSettingsContent({
       <ScrollView
         style={{
           flex: contentSizedEmbedded ? undefined : 1,
+          flexGrow: contentSizedEmbedded ? 0 : undefined,
+          flexShrink: contentSizedEmbedded ? 1 : undefined,
           minHeight: 0,
         }}
         contentContainerStyle={{
@@ -1021,6 +1021,12 @@ function FinanceSettingsContent({
               >
                 {loading ? (
                   <SectionLoadingState />
+                ) : loadFailed ? (
+                  <View style={styles.sectionHeading}>
+                    <Text accessibilityRole="alert" style={styles.sectionTitle}>Não foi possível verificar a conexão</Text>
+                    <Text style={styles.bodyText}>Confira sua conexão e tente carregar os dados do Asaas novamente.</Text>
+                    <Button label="Tentar novamente" onPress={() => void refresh()} variant="outline" />
+                  </View>
                 ) : !isConnected ? (
                   <>
                     <View style={styles.sectionHeading}>

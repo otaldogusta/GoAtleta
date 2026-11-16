@@ -67,6 +67,19 @@
 - Smoke local na busca de atletas: INPUT focado com outline-style none e box-shadow none, conferidos no estilo computado. Modal de convite não reaberto, pois a conta atual não tem autorização real.
 - Ajuste local, sem publicação.
 
+## Login web: foco por teclado — 2026-11-13
+
+- O foco de teclado aparece no contêiner de E-mail ou Senha com a cor
+  `colors.muted` e contorno de 2 px. Clique e digitação preservam a borda padrão
+  e o cursor, inclusive depois de chegar ao campo por Tab.
+- UI inspecionou as capturas em tema claro a 390×844 e escuro a 1158×883.
+  UX revisou Tab, Shift+Tab, avanço do e-mail à senha com Enter e alternância
+  da senha por Enter e Espaço. Com o campo vazio, o botão de visibilidade fica
+  ausente da árvore de acessibilidade e da ordem de Tab.
+- Exercício local no navegador do Codex com dados fictícios, sem envio do
+  formulário. O tema foi alternado em uma origem local separada da sessão
+  do usuário. A árvore de acessibilidade foi inspecionada no navegador.
+
 ## Atletas: status de acesso e horário — 2026-09-03
 
 - Turma em cima e dias/horário abaixo, na mesma coluna em todas as larguras, conforme referência atualizada do usuário; removida a coluna separada Horário.

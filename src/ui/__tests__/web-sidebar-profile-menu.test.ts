@@ -326,6 +326,27 @@ describe("WebSidebar profile menu", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("identifies one current destination on a detail route in both sidebar layouts", () => {
+    mockPathname = "/class/c_123/session";
+    const screen = render(React.createElement(WebSidebar, {
+      role: "prof",
+      showCompact: true,
+      canExpand: true,
+      canPersistExpansion: false,
+    }));
+
+    const expectCurrentDestination = () => {
+      expect(screen.getByRole("link", { name: "Turmas" }).props).toEqual(
+        expect.objectContaining({ href: "/prof/classes", "aria-current": "page" }),
+      );
+      expect(screen.getAllByRole("link").filter(link => link.props["aria-current"] === "page")).toHaveLength(1);
+    };
+
+    expectCurrentDestination();
+    fireEvent.press(screen.getByRole("button", { name: "Expandir menu" }));
+    expectCurrentDestination();
+  });
+
   it("opens from the compact avatar trigger", () => {
     (window.localStorage.getItem as jest.Mock).mockReturnValue("compact");
     const screen = render(

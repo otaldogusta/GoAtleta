@@ -42,6 +42,10 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- O editor web móvel em retrato reúne Ajustes, Etapas, Biblioteca e Ferramentas
+  numa ficha aberta pelo **+** da barra de reprodução. A orientação do editor
+  acompanha o viewport de layout e não muda com o teclado virtual.
+  [Revisão operacional](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).
 - Camadas têm ordem opcional por etapa em `editor.layerOrder`; lista da frente
   para o fundo, renderização e seleção 2D resolvidas pela mesma ordem. Arraste
   acompanha o gesto e abre espaço no destino, respeitando movimento reduzido;
@@ -132,6 +136,18 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 - Na recepção, o levantador inicia a saída na soltura do lançamento do
   sacador (evento `tossStart`), preservando bases, destino e corredor da P1.
+
+- Defesa contra a entrada 4 acrescenta uma etapa idempotente com os destinos
+  autorais preservados e anima a organização até o contato pelo sampler comum.
+  Bloqueadores saltam com o contato do atacante, com mãos acima da rede; salto
+  derivado separado da elevação autoral e seleção acompanhando o corpo elevado.
+  Corpo inteiro 3D mantém juntas independentes da câmera; mãos voltadas à rede
+  na Defesa e seleção pelos meshes reais, sem preencher o vão entre os braços.
+  Abre no quadro final editável; Play, scrub e câmera continuam disponíveis.
+  `actorActions` define a ação por etapa, separada da função esportiva, com
+  importação/cópias e guardas de leitura/bloqueio preservadas. As três trajetórias
+  são alternativas autorais, sem resultado físico novo.
+  [Contrato, preset e validação local](../../ui/QUADRA_DEFESA_ENTRADA4_2026-11-12.md).
 
 - `court-simulation/serve-flight.js` fornece a trajetória de saque da mão até
   o piso para bola e guia; a recepção intercepta sua descida antes do alvo.

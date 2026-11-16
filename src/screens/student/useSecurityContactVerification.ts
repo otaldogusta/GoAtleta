@@ -11,6 +11,7 @@ export function useSecurityContactVerification(userId: string | undefined, login
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [mutationOwner, setMutationOwner] = useState<string | undefined>();
   const [now, setNow] = useState(() => Date.now());
   const active = useRef(userId);
   const lock = useRef(false);
@@ -41,11 +42,12 @@ export function useSecurityContactVerification(userId: string | undefined, login
   const pending = Boolean(email && status?.pendingEmail === email);
   const verified = Boolean(email && status?.email === email && status.verifiedAt);
   const run = async (action: "request" | "verify" | "remove", submittedCode = code) => {
-    if (lock.current || busy || !status) return;
+    if (!userId || lock.current || busy || !status) return;
     const validation = getSecurityContactEmailValidationError(draft, loginEmail);
     if (action !== "remove" && (validation || !email)) { setError(validation || "Informe um e-mail."); return; }
     lock.current = true; setBusy(true); setError(null);
     const owner = userId;
+    setMutationOwner(owner);
     try {
       const next = await securityContactVerification(action, email, submittedCode);
       if (active.current !== owner) return;
@@ -59,7 +61,11 @@ export function useSecurityContactVerification(userId: string | undefined, login
       if (action === "remove") throw e;
       if (active.current === owner) setError(e instanceof Error ? e.message : "Não foi possível confirmar o e-mail.");
     }
-    finally { lock.current = false; if (active.current === owner) setBusy(false); }
+    finally {
+      lock.current = false;
+      setMutationOwner((current) => current === owner ? undefined : current);
+      if (active.current === owner) setBusy(false);
+    }
   };
   const completeCode = (value: string) => {
     if (busy || lock.current) return;
@@ -74,6 +80,7 @@ export function useSecurityContactVerification(userId: string | undefined, login
     void run("verify", next);
   };
   return { draft, setDraft, code, setCode, completeCode, error, setError, busy, status, load, pending, verified, retrySeconds,
+    mutating: Boolean(userId && mutationOwner === userId),
     canRequest: Boolean(status && email && !verified && !busy && !retrySeconds && !getSecurityContactEmailValidationError(draft, loginEmail)),
     run };
 }

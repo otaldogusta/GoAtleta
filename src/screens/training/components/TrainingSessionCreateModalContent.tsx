@@ -10,8 +10,7 @@ import { DateInput } from "../../../ui/DateInput";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { TimeInput } from "../../../ui/TimeInput";
 import { useAppTheme } from "../../../ui/app-theme";
-import { getSectionCardStyle } from "../../../ui/section-styles";
-import { TrainingAnchoredDropdownOption } from "./TrainingAnchoredDropdownOption";
+import { Pressable } from "../../../ui/Pressable";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { compactUiMetrics } from "../../../theme/tokens";
 
@@ -57,7 +56,7 @@ function TrainingSessionCreateModalContentBase({
   onClose,
   onCreate,
 }: Props) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [date, setDate] = useState(todayIso());
   const [startTime, setStartTime] = useState(nextRoundedClock());
@@ -114,14 +113,8 @@ function TrainingSessionCreateModalContentBase({
     return selectedClasses[0]?.name || "Treino";
   }, [selectedClasses]);
 
-  const summaryLabel = useMemo(() => {
-    if (!selectedClasses.length) return "Selecione uma ou mais turmas";
-    return selectedClasses.length > 1
-      ? `${selectedClasses.length} turmas selecionadas`
-      : selectedClasses[0]?.name || "Treino";
-  }, [selectedClasses]);
-
-  const sessionTypeLabel = selectedClasses.length > 1 ? "Treino integrado" : "Treino normal";
+  const sectionTitleStyle = { color: colors.text, fontSize: 13, fontWeight: "800" as const };
+  const fieldLabelStyle = { color: colors.muted, fontSize: compactUiMetrics.metadataFontSize };
 
   const canCreate =
     selectedClasses.length > 0 &&
@@ -158,10 +151,10 @@ function TrainingSessionCreateModalContentBase({
     <ModalDialogFrame
       visible={visible}
       onClose={onClose}
-      cardStyle={{ maxWidth: 920, width: "100%", maxHeight: "92%" }}
+      cardStyle={{ maxWidth: 520, width: "100%", maxHeight: "92%" }}
       colors={colors}
       title="Criar treino"
-      subtitle="Selecione uma ou mais turmas. Duas ou mais viram treino integrado."
+      dialogLabel="Criar treino"
       footer={
         <View style={{ flexDirection: "row", gap: 10 }}>
           <View style={{ flex: 1 }}>
@@ -182,142 +175,81 @@ function TrainingSessionCreateModalContentBase({
           </View>
         </View>
       }
-      contentContainerStyle={{ gap: 12, paddingBottom: 4, paddingTop: 12 }}
+      contentContainerStyle={{ gap: 16, paddingVertical: 8 }}
     >
-      <View
-        style={[
-          getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
-          { gap: 8 },
-        ]}
-      >
-        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Turmas</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Toque nas turmas que vão treinar juntas.
-        </Text>
-
-        <View style={{ gap: 12 }}>
-          {groupedClasses.map((group) => (
-            <View key={group.unit} style={{ gap: 8 }}>
-              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                {group.unit}
-              </Text>
-              <View style={{ gap: 6 }}>
-                {group.items.map((item) => {
-                  const active = selectedClassIds.includes(item.id);
-                  return (
-                    <TrainingAnchoredDropdownOption
-                      key={item.id}
-                      active={active}
-                      onPress={() => handleToggleClass(item.id)}
-                      rightAccessory={
-                        <GoAtletaIcon
-                          name={active ? "checkmarkCircle" : "circleOutline"}
-                          size={18}
-                          color={active ? colors.primaryText : colors.muted}
-                        />
-                      }
-                    >
-                      <View style={{ gap: 4 }}>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: active ? colors.primaryText : colors.text,
-                              fontSize: compactUiMetrics.bodyFontSize,
-                              fontWeight: active ? "700" : "600",
-                            }}
-                          >
-                            {item.name}
-                          </Text>
-                          <ClassGenderBadge gender={item.gender} />
-                        </View>
-                        <Text style={{ color: active ? colors.primaryText : colors.muted, fontSize: 11 }}>
-                          {item.ageBand} • {item.startTime || "Sem horário"}
-                        </Text>
-                      </View>
-                    </TrainingAnchoredDropdownOption>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
+      <View style={{ gap: 10 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", gap: 6 }}>
+          <Text accessibilityRole="header" style={sectionTitleStyle}>Turmas</Text>
+          {selectedClasses.length > 1 ? (
+            <Text accessibilityLiveRegion="polite" style={{ ...fieldLabelStyle, color: colors.successText }}>
+              {selectedClasses.length} turmas · Treino integrado
+            </Text>
+          ) : null}
         </View>
+        {groupedClasses.length === 0 ? (
+          <Text style={fieldLabelStyle}>Nenhuma turma disponível.</Text>
+        ) : groupedClasses.map((group) => (
+          <View key={group.unit} style={{ gap: 4 }}>
+            <Text style={fieldLabelStyle}>{group.unit}</Text>
+            {group.items.map((item) => {
+              const selected = selectedClassIds.includes(item.id);
+              const metadata = [item.ageBand, item.startTime || "Sem horário"].filter(Boolean).join(" · ");
+              return (
+                <Pressable
+                  key={item.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={[item.name, metadata].filter(Boolean).join(", ")}
+                  accessibilityState={{ selected, disabled: saving }}
+                  aria-pressed={selected}
+                  disabled={saving}
+                  onPress={() => handleToggleClass(item.id)}
+                  style={{
+                    minHeight: compactUiMetrics.touchTarget,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    borderColor: selected ? colors.successBorder : colors.border,
+                    backgroundColor: selected ? colors.successBg : "transparent",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{item.name}</Text>
+                      <ClassGenderBadge gender={item.gender} />
+                    </View>
+                    <Text style={fieldLabelStyle}>{metadata}</Text>
+                  </View>
+                  <GoAtletaIcon name={selected ? "checkmarkCircle" : "circleOutline"} size={18} color={selected ? colors.successText : colors.muted} />
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
       </View>
 
-      <View
-        style={[
-          getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
-          { gap: 10 },
-        ]}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <View style={{ gap: 2, flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>
-              Data e horário
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Defina quando a sessão vai acontecer.
-            </Text>
+      <View style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 12, gap: 8 }}>
+        <Text accessibilityRole="header" style={sectionTitleStyle}>Data e horário</Text>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          <View style={{ flex: 1.5, minWidth: 145, gap: 4 }}>
+            <Text style={fieldLabelStyle}>Data</Text>
+            <DateInput compact value={date} onChange={setDate} placeholder="Selecione a data" />
           </View>
-          <View
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-              {sessionTypeLabel}
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-          <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Data</Text>
-            <DateInput value={date} onChange={setDate} placeholder="Selecione a data" />
-          </View>
-          <View style={{ flex: 1, minWidth: 150, gap: 6 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Horário</Text>
+          <View style={{ flex: 1, minWidth: 95, gap: 4 }}>
+            <Text style={fieldLabelStyle}>Horário</Text>
             <TimeInput
+              accessibilityLabel="Horário do treino"
               value={startTime}
               onChangeText={setStartTime}
               format="clock"
               placeholder="19:00"
+              style={{ minHeight: compactUiMetrics.modalFieldHeight, borderRadius: 12, backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg }}
             />
           </View>
         </View>
-      </View>
-
-      <View
-        style={[
-          getSectionCardStyle(colors, "primary", { padding: 12, radius: 16, shadow: false }),
-          { gap: 8 },
-        ]}
-      >
-        <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Resumo</Text>
-        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
-          {sessionTitle}
-        </Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{summaryLabel}</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          {date ? `${date.split("-").reverse().join("/")}` : "Sem data"} •{" "}
-          {startTime || "Sem horário"}
-        </Text>
       </View>
     </ModalDialogFrame>
   );

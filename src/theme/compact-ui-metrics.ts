@@ -2,6 +2,7 @@
 export const compactUiMetrics = {
   touchTarget: 44,
   controlHeight: 32,
+  modalFieldHeight: 39,
   iconSize: 16,
   secondaryIconSize: 14,
   titleFontSize: 16,

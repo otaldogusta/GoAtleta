@@ -1,5 +1,7 @@
 import { StaffProfilePage } from "../src/screens/coordination/StaffProfilePage";
 import { PersonProfilePage } from "../src/screens/profiles/PersonProfilePage";
+import { useOptionalCopilotOpen } from "../src/copilot/CopilotProvider";
+import { usesProfileAssistantButton } from "../src/copilot/route-visibility";
 import { listClassStaffByClassIds } from "../src/api/class-responsibles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { canUseProfilePreview } from "../src/dev/profile-preview-access";
@@ -442,6 +444,7 @@ function AccountTextField({
   onSubmitEditing,
   maxLength,
   keyboardType,
+  fieldMinHeight = 50,
 }: {
   label: string;
   value: string;
@@ -456,6 +459,7 @@ function AccountTextField({
   keyboardType?: "default" | "email-address" | "number-pad";
   returnKeyType?: "next" | "done";
   onSubmitEditing?: () => void;
+  fieldMinHeight?: number;
 }) {
   const { colors } = useAppTheme();
   return (
@@ -465,7 +469,7 @@ function AccountTextField({
         <FloatingFieldError message={error} />
         <View
           style={{
-            minHeight: 50,
+            minHeight: fieldMinHeight,
             borderRadius: 12,
             paddingHorizontal: 14,
             backgroundColor: colors.inputBg,
@@ -582,6 +586,13 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   } = useBiometricLock();
   const router = useRouter();
   const pathname = usePathname();
+  const openAssistant = useOptionalCopilotOpen();
+  const assistantHeaderAction = openAssistant && usesProfileAssistantButton(pathname, viewportWidth) ? (
+    <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente do Perfil" onPress={openAssistant}
+      style={{ marginLeft: "auto", width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" }}>
+      <GoAtletaIcon name="chat" size={metrics.iconSize} color={colors.muted} />
+    </Pressable>
+  ) : undefined;
   const { edit, section, fromManagement } = useLocalSearchParams<{ edit?: string; section?: string; fromManagement?: string }>();
   const allowProfileNavigation = useRef(false);
   const [staffClassIds, setStaffClassIds] = useState<string[]>([]);
@@ -617,7 +628,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   const [deletingAccount, setDeletingAccount] = useState(false);
   const securityContact = useSecurityContactVerification(session?.user?.id, session?.user?.email);
   const { draft: securityContactDraft, setDraft: setSecurityContactDraft,
-    setError: setSecurityContactError, busy: savingSecurityContact } = securityContact;
+    setError: setSecurityContactError, mutating: savingSecurityContact } = securityContact;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -2388,7 +2399,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         router.replace({ pathname: "/coord/management", params: { memberProfile: session.user.id } });
       } else navigateBackOrReplace({ router, fallback: scopedRoutes.home });
     };
-    if (savingMobileProfile || athleteModalities.saving || savingSecurityContact) return;
+    if (savingMobileProfile || athleteModalities.saving || savingSecurityContact || savingPassword) return;
     if (!mobileHasUnsavedChanges) {
       navigate();
       return;
@@ -2452,7 +2463,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   pendingNavigationHandler.current = leaveMobileProfile;
   // eslint-disable-next-line react-hooks/refs -- expose the current draft to the focused-screen guard.
   pendingRefreshHandler.current = (refresh) => {
-    if (savingMobileProfile || athleteModalities.saving || savingSecurityContact) return;
+    if (savingMobileProfile || athleteModalities.saving || savingSecurityContact || savingPassword) return;
     if (!mobileHasUnsavedChanges) { refresh(); return; }
     void confirm({
       title: "Alterações não salvas",
@@ -2475,7 +2486,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     });
   };
 
-  const accountSecuritySectionContent = () => (
+  const accountSecuritySectionContent = (fieldMinHeight?: number) => (
     <>
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail da conta</Text>
@@ -2487,6 +2498,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         model={securityContact}
         Field={AccountTextField}
         ErrorBalloon={FloatingFieldError}
+        fieldMinHeight={fieldMinHeight}
       />
       <View style={{ height: 1, backgroundColor: colors.border }} />
       <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "800" }}>
@@ -2494,6 +2506,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       </Text>
       <AccountTextField
         label="Nova senha"
+        fieldMinHeight={fieldMinHeight}
         value={newPassword}
         onChangeText={(value) => {
           setNewPassword(value);
@@ -2509,6 +2522,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       />
       <AccountTextField
         label="Confirmar nova senha"
+        fieldMinHeight={fieldMinHeight}
         value={passwordConfirmation}
         onChangeText={(value) => {
           setPasswordConfirmation(value);
@@ -2562,6 +2576,9 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
             colors={[colors.text]}
           />
   );
+  const desktopSettingsFieldMinHeight = Platform.OS === "web" && responsiveLayout.supportsSplitView ? 40 : undefined;
+  const settingsFieldMinHeight = desktopSettingsFieldMinHeight ?? 50;
+  const desktopStaffFieldMinHeight = staffProfile ? desktopSettingsFieldMinHeight : undefined;
   const settingsContent = (
       <ProfileSettingsBody embedded={inlineProfile}
         testID="profile-settings-page"
@@ -2594,7 +2611,17 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 {() => (<>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Nome completo</Text>
-                  <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                  <View style={{
+                    minHeight: settingsFieldMinHeight,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border,
+                    backgroundColor: colors.inputBg,
+                    paddingHorizontal: 14,
+                    justifyContent: "center",
+                    position: "relative",
+                    overflow: "visible",
+                  }}>
                     <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.name : null} />
                     <TextInput
                       accessibilityLabel="Nome completo"
@@ -2607,10 +2634,11 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 </View>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Data de nascimento</Text>
-                  <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", position: "relative", overflow: "visible" }}>
+                  <View style={{ minHeight: settingsFieldMinHeight, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", position: "relative", overflow: "visible" }}>
                     <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.birthDate : null} />
                     <NativeDateInput
                       accessibilityLabel="Data de nascimento"
+                      inputHeight={desktopSettingsFieldMinHeight === undefined ? undefined : desktopSettingsFieldMinHeight - 2}
                       value={Platform.OS === "web" ? (parseStudentBirthDate(mobileBirthDraft) ?? "") : mobileBirthDraft}
                       onChangeText={(value) => {
                         if (Platform.OS === "web") {
@@ -2643,14 +2671,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                             setMobileCountryMenuOpen(true);
                           });
                         }}
-                        style={({ pressed }) => ({ minHeight: 50, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
+                        style={({ pressed }) => ({ minHeight: settingsFieldMinHeight, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
                       >
                         <CountryFlagIcon isoCode={mobileCountryIso} />
                         <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "700" }}>{mobileCountryCode}</Text>
                         <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
                       </Pressable>
                     </View>
-                    <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                    <View style={{ minHeight: settingsFieldMinHeight, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                       <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
                       <TextInput
                         accessibilityLabel="Celular" editable={!isDisplayedPhoneVerified} accessibilityState={{ disabled: isDisplayedPhoneVerified }}
@@ -2731,7 +2759,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                     onRequestClose={() => setMobileCountryMenuOpen(false)}
                   >
                     <View style={{ paddingHorizontal: 6, paddingTop: 6, paddingBottom: 4 }}>
-                      <View style={{ minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={{ minHeight: desktopSettingsFieldMinHeight ?? 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <GoAtletaIcon name="search" size={16} color={colors.muted} />
                         <TextInput
                           accessibilityLabel="Buscar país ou código"
@@ -2794,7 +2822,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                       return (
                       <View key={field.label} style={{ gap: 7 }}>
                         <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>{field.label}</Text>
-                        <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                        <View style={{ minHeight: settingsFieldMinHeight, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
                           <FloatingFieldError message={fieldError} />
                           <TextInput
                             accessibilityLabel={field.accessibilityLabel}
@@ -2810,8 +2838,8 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                       );
                     })}
                   </View>
-                <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
-                <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
+                <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} fieldMinHeight={desktopSettingsFieldMinHeight} />
+                <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} fieldMinHeight={desktopSettingsFieldMinHeight} />
               </>)}
               </MobileProfileSection>
               <MobileProfileSection compact
@@ -2826,7 +2854,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 <View style={{ gap: 10 }}>
                   <View style={{ gap: 7 }}>
                     <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Nome do responsável</Text>
-                    <View style={{ minHeight: 50, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, justifyContent: "center" }}>
+                    <View style={{ minHeight: settingsFieldMinHeight, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, justifyContent: "center" }}>
                       <TextInput accessibilityLabel="Nome do responsável" value={mobileGuardianNameDraft} onChangeText={setMobileGuardianNameDraft} placeholder="Nome completo" placeholderTextColor={colors.muted} style={{ color: colors.text, fontSize: 14, borderRadius: 0 }} />
                     </View>
                   </View>
@@ -2848,14 +2876,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                                 setMobileGuardianCountryMenuOpen(true);
                               });
                             }}
-                            style={({ pressed }) => ({ minHeight: 50, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
+                            style={({ pressed }) => ({ minHeight: settingsFieldMinHeight, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
                           >
                             <CountryFlagIcon isoCode={mobileGuardianCountryIso} />
                             <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "700" }}>{mobileGuardianCountryCode}</Text>
                             <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
                           </Pressable>
                         </View>
-                        <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                        <View style={{ minHeight: settingsFieldMinHeight, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
                           <TextInput
                             accessibilityLabel="Celular do responsável"
                             keyboardType="phone-pad"
@@ -2889,7 +2917,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                         onRequestClose={() => setMobileGuardianCountryMenuOpen(false)}
                       >
                         <View style={{ paddingHorizontal: 6, paddingTop: 6, paddingBottom: 4 }}>
-                          <View style={{ minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <View style={{ minHeight: desktopSettingsFieldMinHeight ?? 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
                             <GoAtletaIcon name="search" size={16} color={colors.muted} />
                             <TextInput
                               accessibilityLabel="Buscar país ou código do responsável"
@@ -2927,7 +2955,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                     </View>
                     <View style={{ gap: 7 }}>
                       <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Parentesco</Text>
-                      <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                      <View style={{ minHeight: settingsFieldMinHeight, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
                         <TextInput
                           accessibilityLabel="Parentesco"
                           placeholder="Ex.: mãe, pai ou responsável"
@@ -2983,13 +3011,13 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 {() => (<>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Modalidades</Text>
-                  {athleteModalities.loading ? <Text style={{ color: colors.muted }}>Carregando modalidades...</Text> : athleteModalities.ready ? <PositionPicker value={athleteModalities.selected} lockedValues={athleteModalities.automatic} options={CLASS_MODALITY_OPTIONS} maxSelections={CLASS_MODALITY_OPTIONS.length} searchLabel="Pesquisar modalidades" onChange={athleteModalities.change} /> : null}
+                  {athleteModalities.loading ? <Text style={{ color: colors.muted }}>Carregando modalidades...</Text> : athleteModalities.ready ? <PositionPicker fieldMinHeight={desktopSettingsFieldMinHeight} value={athleteModalities.selected} lockedValues={athleteModalities.automatic} options={CLASS_MODALITY_OPTIONS} maxSelections={CLASS_MODALITY_OPTIONS.length} searchLabel="Pesquisar modalidades" onChange={athleteModalities.change} /> : null}
                   {athleteModalities.error ? <Text style={{ color: colors.muted }}>{athleteModalities.error}</Text> : null}
                   {athleteModalities.error && !athleteModalities.dirty ? <Button label="Tentar novamente" onPress={athleteModalities.reload} /> : null}
                 </View>
                 {athleteModalities.selected.includes("voleibol") ? <><View style={{ gap: 8 }}>
                   <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Posições no voleibol</Text>
-                  <PositionPicker value={[mobilePositionDraft, mobileSecondaryPositionDraft].filter((position) => position !== "indefinido")} options={ATHLETE_POSITION_OPTIONS} onChange={(positions) => {
+                  <PositionPicker fieldMinHeight={desktopSettingsFieldMinHeight} value={[mobilePositionDraft, mobileSecondaryPositionDraft].filter((position) => position !== "indefinido")} options={ATHLETE_POSITION_OPTIONS} onChange={(positions) => {
                     setMobilePositionDraft(positions[0] ?? "indefinido");
                     setMobileSecondaryPositionDraft(positions[1] ?? "indefinido");
                   }} />
@@ -3017,7 +3045,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 <AnimatedFieldDetails open={mobileHealthIssueDraft}>
                   <View style={{ gap: 7 }}>
                     <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Qual?</Text>
-                    <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                    <View style={{ minHeight: settingsFieldMinHeight, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
                       <TextInput accessibilityLabel="Qual problema de saúde?" placeholder="Descreva o problema de saúde" placeholderTextColor={colors.muted} value={mobileHealthIssueNotesDraft} onChangeText={setMobileHealthIssueNotesDraft} style={{ color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
                     </View>
                   </View>
@@ -3033,15 +3061,32 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 <AnimatedFieldDetails open={mobileMedicationUseDraft}>
                   <View style={{ gap: 7 }}>
                     <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Qual medicamento?</Text>
-                    <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                    <View style={{ minHeight: settingsFieldMinHeight, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
                       <TextInput accessibilityLabel="Medicamento em uso" placeholder="Informe o medicamento" placeholderTextColor={colors.muted} value={mobileMedicationNotesDraft} onChangeText={setMobileMedicationNotesDraft} style={{ color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
                     </View>
                   </View>
                 </AnimatedFieldDetails>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Observações de saúde</Text>
-                  <View style={{ minHeight: 82, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, paddingVertical: 12 }}>
-                    <TextInput accessibilityLabel="Observações de saúde" multiline textAlignVertical="top" placeholder="Alergias, restrições ou cuidados importantes" placeholderTextColor={colors.muted} value={mobileHealthObservationsDraft} onChangeText={setMobileHealthObservationsDraft} style={{ minHeight: 56, color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none", resize: "none" } as any) : {}) }} />
+                  <View style={{ minHeight: desktopSettingsFieldMinHeight ?? 82, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, paddingVertical: desktopSettingsFieldMinHeight === undefined ? 12 : 0 }}>
+                    <TextInput
+                      accessibilityLabel="Observações de saúde"
+                      multiline
+                      textAlignVertical="top"
+                      placeholder="Alergias, restrições ou cuidados importantes"
+                      placeholderTextColor={colors.muted}
+                      value={mobileHealthObservationsDraft}
+                      onChangeText={setMobileHealthObservationsDraft}
+                      style={{
+                        minHeight: desktopSettingsFieldMinHeight === undefined ? 56 : undefined,
+                        height: desktopSettingsFieldMinHeight === undefined ? undefined : desktopSettingsFieldMinHeight - 2,
+                        color: colors.text,
+                        fontSize: 14,
+                        paddingVertical: desktopSettingsFieldMinHeight === undefined ? 0 : 8,
+                        borderRadius: 0,
+                        ...(Platform.OS === "web" ? ({ outlineStyle: "none", resize: "none" } as any) : {}),
+                      }}
+                    />
                   </View>
                 </View>
               </>)}
@@ -3122,7 +3167,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 grouped
               >
                 {() => (<>
-                {accountSecuritySectionContent()}
+                {accountSecuritySectionContent(desktopSettingsFieldMinHeight)}
               </>)}
               </MobileProfileSection>
               </View>
@@ -3180,7 +3225,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           </ResponsivePage>
         ) : (
         <ResponsivePage variant="dashboard" gap={20} style={staffProfile ? { width: "100%", paddingHorizontal: 0, paddingBottom: 18 } : { paddingBottom: 32, maxWidth: 1168 }}>
-          {!staffProfile ? <BackTitleHeader title="Perfil" onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })} /> : null}
+          {!staffProfile ? <BackTitleHeader title="Perfil" onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })} accessory={assistantHeaderAction} /> : null}
           <ResponsiveGrid columns={{ compact: "1", split: "4/8" }} splitEnabled={!staffProfile} gap={24}>
             {!staffProfile ? (
             <View
@@ -3556,17 +3601,18 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 {() => (<>
               <View style={{ gap: 7 }}>
                 <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Nome completo</Text>
-                <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                <View style={{ minHeight: desktopStaffFieldMinHeight ?? 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
                   <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.name : null} />
                   <TextInput accessibilityLabel="Nome completo" autoCapitalize="words" value={mobileNameDraft} onChangeText={setMobileNameDraft} style={{ color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
                 </View>
               </View>
               <View style={{ gap: 7 }}>
                 <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Data de nascimento</Text>
-                <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                <View style={{ minHeight: desktopStaffFieldMinHeight ?? 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                   <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.birthDate : null} />
                   <NativeDateInput
                     accessibilityLabel="Data de nascimento"
+                    inputHeight={desktopStaffFieldMinHeight === undefined ? undefined : desktopStaffFieldMinHeight - 2}
                     value={Platform.OS === "web" ? (parseStudentBirthDate(mobileBirthDraft) ?? "") : mobileBirthDraft}
                     onChangeText={(value) => {
                       if (Platform.OS === "web") setMobileBirthDraft(value ? formatStudentBirthDate(value) : "");
@@ -3597,14 +3643,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                           setMobileCountryMenuOpen(true);
                         });
                       }}
-                      style={({ pressed }) => ({ minHeight: 50, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
+                      style={({ pressed }) => ({ minHeight: desktopStaffFieldMinHeight ?? 50, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
                     >
                       <CountryFlagIcon isoCode={mobileCountryIso} />
                       <Text style={{ color: colors.text, fontSize: metrics.bodyFontSize, fontWeight: "700" }}>{mobileCountryCode}</Text>
                       <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
                     </Pressable>
                   </View>
-                  <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: 6, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                  <View style={{ minHeight: desktopStaffFieldMinHeight ?? 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: (mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone) || phoneRequestError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: 6, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
                     <FloatingFieldError message={(mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null) || phoneRequestError} />
                     <TextInput accessibilityLabel="Celular" editable={!isDisplayedPhoneVerified} accessibilityState={{ disabled: isDisplayedPhoneVerified }} keyboardType="phone-pad" placeholder="(00) 00000-0000" placeholderTextColor={colors.muted} value={mobilePhoneDraft} onChangeText={(value) => { const digits = value.replace(/\D/g, "").slice(0, 15); setMobilePhoneDraft(digits.length <= 11 ? (digits ? formatStudentPhone(digits) : "") : digits); setPendingPhoneVerification(""); setPhoneVerificationCode(""); setPhoneVerificationError(null); setPhoneVerificationRetryUntil(0); }} style={{ flex: 1, minWidth: 0, color: isDisplayedPhoneVerified ? colors.muted : colors.text, opacity: isDisplayedPhoneVerified ? 0.65 : 1, fontSize: 14, paddingVertical: 0, paddingRight: 8, borderRadius: 0 }} />
                     {isDisplayedPhoneVerified ? (
@@ -3629,7 +3675,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   onRequestClose={() => setMobileCountryMenuOpen(false)}
                 >
                   <View style={{ paddingHorizontal: 6, paddingTop: 6, paddingBottom: 4 }}>
-                    <View style={{ minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={{ minHeight: desktopStaffFieldMinHeight ?? 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <GoAtletaIcon name="search" size={16} color={colors.muted} />
                       <TextInput
                         accessibilityLabel="Buscar país ou código"
@@ -3673,11 +3719,11 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               <View style={{ gap: 10 }}>
                 {[{ label: "CPF", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(value.includes("*") ? value : maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const }, { label: "RG (opcional)", accessibilityLabel: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG", keyboardType: "default" as const }].map((field) => {
                   const fieldError = field.accessibilityLabel === "CPF" && mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.cpf : null;
-                  return <View key={field.label} style={{ gap: 7 }}><Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>{field.label}</Text><View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}><FloatingFieldError message={fieldError} /><TextInput accessibilityLabel={field.accessibilityLabel} keyboardType={field.keyboardType} placeholder={field.placeholder} placeholderTextColor={colors.muted} value={field.value} onChangeText={field.onChangeText} style={{ color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0 }} /></View></View>;
+                  return <View key={field.label} style={{ gap: 7 }}><Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>{field.label}</Text><View style={{ minHeight: desktopStaffFieldMinHeight ?? 50, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}><FloatingFieldError message={fieldError} /><TextInput accessibilityLabel={field.accessibilityLabel} keyboardType={field.keyboardType} placeholder={field.placeholder} placeholderTextColor={colors.muted} value={field.value} onChangeText={field.onChangeText} style={{ color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0 }} /></View></View>;
                 })}
               </View>
-              <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
-              <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
+              <GenderIdentityField fieldMinHeight={desktopStaffFieldMinHeight} value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
+              <PostalAddressField fieldMinHeight={desktopStaffFieldMinHeight} value={mobileAddressDraft} onChange={setMobileAddressDraft} />
             </>)}
               </MobileProfileSection>
             <MobileProfileSection
@@ -3693,6 +3739,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 iconBg="rgba(135, 120, 255, 0.14)"
                 label="Notificações"
                 onPress={handleToggleNotifications}
+                checked={notificationsEnabled}
                 rightContent={<ProfileToggle enabled={notificationsEnabled} />}
               />
               {Platform.OS !== "web" ? (
@@ -3700,6 +3747,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                   icon="biometrics"
                   iconBg="rgba(100, 190, 255, 0.16)"
                   label="Entrar com biometria"
+                  checked={biometricsEnabled}
                   onPress={() => {
                     void handleToggleBiometrics();
                   }}
@@ -3721,6 +3769,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
                 iconBg="rgba(96, 187, 255, 0.16)"
                 label="Modo escuro"
                 onPress={toggleMode}
+                checked={mode === "dark"}
                 rightContent={<ProfileToggle enabled={mode === "dark"} />}
               />
             </>)}
@@ -3735,7 +3784,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               onPress={() => setProfessionalExpandedSection((current) => current === "account" ? null : "account")}
             >
                 {() => (<>
-              {accountSecuritySectionContent()}
+              {accountSecuritySectionContent(desktopStaffFieldMinHeight)}
             </>)}
               </MobileProfileSection>
 
@@ -4259,9 +4308,10 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   ) : undefined;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {settingsPage || inlineProfile ? <ProfileSettingsNavigationGuard blocked={mobileHasUnsavedChanges || savingMobileProfile || athleteModalities.saving || savingSecurityContact} onLeave={(navigate) => allowProfileNavigation.current ? navigate() : leaveMobileProfile(navigate)} /> : null}
+      {settingsPage || inlineProfile ? <ProfileSettingsNavigationGuard blocked={mobileHasUnsavedChanges || savingMobileProfile || athleteModalities.saving || savingSecurityContact || savingPassword} onLeave={(navigate) => allowProfileNavigation.current ? navigate() : leaveMobileProfile(navigate)} /> : null}
       {isStudentMobileProfile ? <PersonProfilePage
         density="compact"
+        headerAction={assistantHeaderAction}
         testID="own-student-profile"
         name={mobileNameDraft}
         onNameChange={setMobileNameDraft}
@@ -4287,6 +4337,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         onEditProfile={() => { setMobileExpandedSection("personal"); setProfileTab("settings"); }}
       /> : staffProfile ? <StaffProfilePage
         key={`${activeOrganization?.id}:${session?.user.id}`}
+        headerAction={assistantHeaderAction}
         organizationId={activeOrganization?.id}
         userId={session?.user.id}
         name={mobileNameDraft}

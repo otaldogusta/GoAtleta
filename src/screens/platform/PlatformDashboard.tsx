@@ -105,7 +105,6 @@ export function PlatformDashboard() {
   const { showSaveToast } = useSaveToast();
   const { confirm } = useConfirmDialog();
   const { width } = useWindowDimensions();
-  const wide = width >= 1200;
   const { containerRef: listRef, onLayout: onListLayout, measuredWidth: listWidth, layout } = useContainerResponsiveLayout("dashboard");
   const usesTable = listWidth >= 760;
   const [query, setQuery] = useState("");
@@ -114,6 +113,7 @@ export function PlatformDashboard() {
   const [items, setItems] = useState<Institution[]>([]);
   const [sourceItems, setSourceItems] = useState<PlatformInstitution[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editProduct, setEditProduct] = useState<PlatformProduct>("goatleta");
@@ -124,6 +124,7 @@ export function PlatformDashboard() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const loaded = await platformListInstitutions();
       setSourceItems(loaded);
@@ -133,21 +134,15 @@ export function PlatformDashboard() {
           ? current
           : (loaded[0]?.organizationId ?? ""),
       );
-    } catch (error) {
+    } catch {
       setSourceItems([]);
       setItems([]);
       setSelectedId("");
-      showSaveToast({
-        variant: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar as instituições.",
-      });
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [showSaveToast]);
+  }, []);
 
   useEffect(() => {
     // Reconcile the dashboard with the remote institution lifecycle records.
@@ -339,58 +334,19 @@ export function PlatformDashboard() {
           paddingTop: Platform.OS === "web" ? 12 : 8,
           paddingBottom: 0,
         }}
-        right={
-          wide ? (
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View
-                style={{
-                  width: 330,
-                  minHeight: 50,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                  paddingHorizontal: 14,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Buscar instituições..."
-                  placeholderTextColor={colors.placeholder}
-                  style={{ minWidth: 0,
-                    flex: 1,
-                    minHeight: 48,
-                    color: colors.inputText,
-                    borderRadius: 0,
-                  }}
-                />
-                <GoAtletaIcon name="search" size={17} color={colors.muted} />
-              </View>
-<Button label="Filtros" icon="options" onPress={() =>
-                  showSaveToast({
-                    variant: "info",
-                    message: "Use as abas para filtrar as instituições.",
-                  })} />
-            </View>
-          ) : null
-        }
       />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
       >
         <ResponsivePage variant="dashboard" gap={layout.density.pageGap}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: compactUiMetrics.gap }}>
+          {!loading && !loadFailed ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: compactUiMetrics.gap }}>
             {metrics.map(([icon, value, label, color], index) => (
               <View key={label} style={{ flexGrow: 1, flexBasis: 128, minWidth: 0 }}>
                 <PlatformMetric icon={icon} value={value} label={label} compactLabel={["Ativas", "Avaliação", "Renovações", "Atenção"][index]} color={color} compact={width < 768} />
               </View>
             ))}
-          </View>
+          </View> : null}
           <ResponsiveGrid
             columns={{ compact: "1", split: "8/4" }}
             gap={layout.density.pageGap}
@@ -457,6 +413,7 @@ export function PlatformDashboard() {
                       color={colors.muted}
                     />
                     <TextInput
+                      accessibilityLabel="Buscar instituição"
                       value={query}
                       onChangeText={setQuery}
                       placeholder="Buscar instituição..."
@@ -561,7 +518,15 @@ export function PlatformDashboard() {
                   </Text>
                 </View>
               ) : null}
-              {!loading && filtered.length === 0 ? (
+              {loadFailed ? (
+                <View style={{ padding: 12, gap: 8, alignItems: "flex-start" }}>
+                  <Text accessibilityRole="alert" style={{ color: colors.text }}>
+                    Não foi possível carregar as instituições.
+                  </Text>
+                  <Button label="Tentar novamente" onPress={() => void load()} />
+                </View>
+              ) : null}
+              {!loading && !loadFailed && filtered.length === 0 ? (
                 <View
                   style={{
                     minHeight: 56,
@@ -572,14 +537,18 @@ export function PlatformDashboard() {
                   }}
                 >
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Nenhuma instituição encontrada.
+                    {query.trim() || filter !== "all" ? "Nenhuma instituição corresponde aos filtros." : "Nenhuma instituição cadastrada."}
                   </Text>
+                  {query.trim() || filter !== "all" ? <Button label="Limpar filtros" onPress={() => { setQuery(""); setFilter("all"); }} /> : null}
                 </View>
               ) : null}
               {!loading &&
                 filtered.map((item) => (
                   <Pressable suppressWebHoverFeedback disableWebPressScale
                     key={item.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.name}, ${labels[item.status]}`}
+                    aria-pressed={selected.id === item.id}
                     onPress={() => setSelectedId(item.id)}
                     style={state => ({
                       minHeight: 52,
@@ -688,7 +657,7 @@ export function PlatformDashboard() {
                   </Pressable>
                 ))}
             </View>
-            <View
+            {!loading && !loadFailed && selected.id ? <View
               style={{
                 width: "100%",
                 minWidth: 0,
@@ -874,7 +843,7 @@ export function PlatformDashboard() {
                 ) : null}
                 {selected.id ? <Button label="Ver acessos" onPress={() => router.push({ pathname: "/platform/accesses", params: { institution: selected.name } })} /> : null}
               </View>
-            </View>
+            </View> : null}
           </ResponsiveGrid>
         </ResponsivePage>
       </ScrollView>

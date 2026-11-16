@@ -482,16 +482,16 @@ export default function ResetPasswordScreen() {
                           borderRadius: 0,
                         }}
                       />
-                      <Pressable
+                      {password.length > 0 ? <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
                         onPress={() => setShowPassword((prev) => !prev)}
-                        disabled={password.length === 0}
                         style={{
                           width: 34,
                           height: 34,
                           marginLeft: 8,
                           alignItems: "center",
                           justifyContent: "center",
-                          opacity: password.length > 0 ? 1 : 0,
                         }}
                       >
                         <GoAtletaIcon
@@ -499,7 +499,7 @@ export default function ResetPasswordScreen() {
                           size={18}
                           color={colors.muted}
                         />
-                      </Pressable>
+                      </Pressable> : <View style={{ width: 34, height: 34, marginLeft: 8 }} />}
                     </View>
                   </View>
 
@@ -618,16 +618,16 @@ export default function ResetPasswordScreen() {
                         borderRadius: 0,
                       }}
                     />
-                    <Pressable
+                    {confirm.length > 0 ? <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={showConfirm ? "Ocultar confirmação" : "Mostrar confirmação"}
                       onPress={() => setShowConfirm((prev) => !prev)}
-                      disabled={confirm.length === 0}
                       style={{
                         width: 34,
                         height: 34,
                         marginLeft: 8,
                         alignItems: "center",
                         justifyContent: "center",
-                        opacity: confirm.length > 0 ? 1 : 0,
                       }}
                     >
                       <GoAtletaIcon
@@ -635,7 +635,7 @@ export default function ResetPasswordScreen() {
                         size={18}
                         color={colors.muted}
                       />
-                    </Pressable>
+                    </Pressable> : <View style={{ width: 34, height: 34, marginLeft: 8 }} />}
                   </View>
 
                   <Button

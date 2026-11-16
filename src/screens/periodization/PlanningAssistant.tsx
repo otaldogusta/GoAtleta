@@ -18,6 +18,7 @@ import { ModalSheet } from "../../ui/ModalSheet";
 import { createWebPortal } from "../../ui/web-portal";
 import { buildPlanningAssistantContext, planningConversationKey, planningResponseDetailsText, type PlanningAssistantContext, type PlanningResponseDetails, type PlanningSelection } from "./application/planning-assistant-context";
 import { compactUiMetrics } from "../../theme/tokens";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 const openings = new Map<string, boolean>();
 function rememberedOpening(scope: string) {
@@ -31,6 +32,8 @@ function rememberOpening(scope: string, open: boolean) {
 type Controller = {
   chat: ReturnType<typeof useScreenConversation>;
   open: boolean; toggle: () => void;
+  workspaceHostAvailable: boolean;
+  setWorkspaceHostAvailable: (available: boolean) => void;
   selection: PlanningSelection;
   setSelection: (value: PlanningSelection) => void;
   setEditor: (value: { step: string; draft: unknown } | null) => void;
@@ -43,6 +46,20 @@ type Controller = {
 const Context = createContext<Controller | null>(null);
 export const usePlanningAssistant = () => useContext(Context);
 
+export function PlanningAssistantButton({ colors, surface = "workspace" }: { colors: ThemeColors; surface?: PlanningAssistantContext["surface"] }) {
+  const controller = usePlanningAssistant();
+  if (!controller || controller.surface !== surface || (surface === "workspace" && !controller.workspaceHostAvailable)) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={controller.open ? "Recolher Assistente da Periodização" : "Abrir Assistente da Periodização"}
+      nativeID={`planning-assistant-${controller.organizationId}-${controller.classId}${surface === "workspace" ? "" : `-${surface}`}`}
+      {...(Platform.OS === "web" ? { "aria-expanded": controller.open } : {})}
+      accessibilityState={{ expanded: controller.open }} onPress={controller.toggle}
+      style={{ minWidth: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, alignItems: "center", justifyContent: "center" }}>
+      <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.text} />
+    </Pressable>
+  );
+}
+
 export function PlanningAssistantProvider({ classId, organizationId, children }: { classId: string; organizationId: string; children?: ReactNode }) {
   const { session } = useAuth();
   const unified = useUnifiedAssistant();
@@ -52,6 +69,7 @@ export function PlanningAssistantProvider({ classId, organizationId, children }:
 }
 function SharedPlanningProvider({ scope, classId, organizationId, children }: { scope: string; classId: string; organizationId: string; children: ReactNode }) {
   const unified = useUnifiedAssistant()!;
+  const [workspaceHostAvailable, setWorkspaceHostAvailable] = useState(false);
   const [selection, setSelection] = useState<PlanningSelection>({ month: new Date().toISOString().slice(0,7) });
   const [editor, setEditor] = useState<{ step: string; draft: unknown } | null>(null);
   const [lesson, setLesson] = useState<{ draft?: unknown } | null>(null);
@@ -61,10 +79,11 @@ function SharedPlanningProvider({ scope, classId, organizationId, children }: { 
   useEffect(() => { register(context); }, [register, context]);
   useEffect(() => () => register(null), [register]);
   useEffect(() => { rememberOpening(scope, unified.open); }, [scope, unified.open]);
-  return <Context.Provider value={{ chat: unified.chat, open: unified.open, toggle: unified.toggle, selection, setSelection, setEditor, setLesson, surface, organizationId, classId, getScrollOffset: unified.getScrollOffset, saveScrollOffset: unified.saveScrollOffset }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ chat: unified.chat, open: unified.open, toggle: unified.toggle, workspaceHostAvailable, setWorkspaceHostAvailable, selection, setSelection, setEditor, setLesson, surface, organizationId, classId, getScrollOffset: unified.getScrollOffset, saveScrollOffset: unified.saveScrollOffset }}>{children}</Context.Provider>;
 }
 function ScopedProvider({ scope, classId, organizationId, children }: { scope: string; classId: string; organizationId: string; children: ReactNode }) {
   const [open, setOpen] = useState(rememberedOpening(scope));
+  const [workspaceHostAvailable, setWorkspaceHostAvailable] = useState(false);
   const [selection, setSelection] = useState<PlanningSelection>({ month: new Date().toISOString().slice(0, 7) });
   const [editor, setEditor] = useState<{ step: string; draft: unknown } | null>(null);
   const [lesson, setLesson] = useState<{ draft?: unknown } | null>(null);
@@ -87,10 +106,10 @@ function ScopedProvider({ scope, classId, organizationId, children }: { scope: s
     return () => { alive = false; };
   }, [scope]);
   useEffect(() => { chat.remember(history.id); }, [chat, history.id]);
-  return <Context.Provider value={{ chat, open, toggle: () => setOpen(value => { if (!value) scrollOffset.current = null; rememberOpening(scope, !value); return !value; }), selection, setSelection, setEditor, setLesson, surface, organizationId, classId, getScrollOffset: () => scrollOffset.current, saveScrollOffset: offset => { scrollOffset.current = offset; } }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ chat, open, toggle: () => setOpen(value => { if (!value) scrollOffset.current = null; rememberOpening(scope, !value); return !value; }), workspaceHostAvailable, setWorkspaceHostAvailable, selection, setSelection, setEditor, setLesson, surface, organizationId, classId, getScrollOffset: () => scrollOffset.current, saveScrollOffset: offset => { scrollOffset.current = offset; } }}>{children}</Context.Provider>;
 }
 
-export function PlanningAssistantPanel({ colors }: { colors: ThemeColors }) {
+export function PlanningAssistantPanel({ colors, contentPadding = 12 }: { colors: ThemeColors; contentPadding?: number }) {
   const controller = usePlanningAssistant();
   const scroll = useRef<ScrollView>(null);
   const [details, setDetails] = useState<number | null>(null);
@@ -102,7 +121,7 @@ export function PlanningAssistantPanel({ colors }: { colors: ThemeColors }) {
     if (offset === null) scroll.current?.scrollToEnd({ animated: false });
     else scroll.current?.scrollTo({ y: offset, animated: false });
   };
-  return <View style={{ flex: 1, minHeight: 260, minWidth: 0, padding: 12, gap: 8, backgroundColor: colors.card }}>
+  return <View style={{ flex: 1, minHeight: controller.surface === "workspace" ? 0 : 260, minWidth: 0, padding: contentPadding, gap: 8, backgroundColor: colors.card }}>
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
       <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>Assistente</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Recolher assistente" onPress={controller.toggle} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 8 }}><Text style={{ color: colors.muted }}>Fechar</Text></Pressable>
@@ -129,20 +148,56 @@ export function PlanningAssistantPanel({ colors }: { colors: ThemeColors }) {
 }
 
 /** One visible host; the controller lives above the screen and its modals. */
-export function PlanningAssistantHost({ colors, surface, children }: { colors: ThemeColors; surface: PlanningAssistantContext["surface"]; children: ReactNode }) {
+export function PlanningAssistantHost({ colors, surface, children, launcher = "floating" }: { colors: ThemeColors; surface: PlanningAssistantContext["surface"]; children: ReactNode; launcher?: "floating" | "header" }) {
   const controller = usePlanningAssistant();
+  const setWorkspaceHostAvailable = controller?.setWorkspaceHostAvailable;
+  useEffect(() => {
+    if (surface !== "workspace" || !setWorkspaceHostAvailable) return;
+    setWorkspaceHostAvailable(true);
+    return () => setWorkspaceHostAvailable(false);
+  }, [surface, setWorkspaceHostAvailable]);
   const insets = useSafeAreaInsets();
   const [pulse] = useState(() => new Animated.Value(0));
   const { width, height } = useWindowDimensions();
   const active = controller?.surface === surface;
   const inline = width >= 1200;
-  const launcher = active && !controller.open ? <CopilotFab showPulse={false} pulseAnim={pulse} primaryBgColor={colors.primaryBg} fabBottomOffset={resolveCopilotFabBottom(insets.bottom)} hintMessage={null} onPress={controller.toggle} /> : null;
+  const mobileWorkspace = surface === "workspace" && width < 600;
+  const panelHeight = mobileWorkspace
+    ? Math.max(0, Math.min(620, height * 0.82, height - insets.top - insets.bottom - 32))
+    : width < 600 ? Math.min(620, height * 0.82) : Math.max(0, height - insets.top - insets.bottom - 34);
+  const panel = <PlanningAssistantPanel colors={colors} contentPadding={surface === "workspace" ? width < 600 ? 16 : 20 : 12} />;
+  const headerLauncher = surface === "workspace" || launcher === "header";
+  const floatingLauncher = active && !headerLauncher && !controller.open ? <CopilotFab showPulse={false} pulseAnim={pulse} primaryBgColor={colors.primaryBg} fabBottomOffset={resolveCopilotFabBottom(insets.bottom)} hintMessage={null} onPress={controller.toggle} /> : null;
   return <View style={{ flex: 1, minWidth: 0, minHeight: 0, flexDirection: "row" }}>
     <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{children}</View>
     {active ? <>
-      {Platform.OS === "web" && typeof document !== "undefined" ? createWebPortal(launcher, document.body) : launcher}
-      {controller.open && inline ? <View style={{ width: 320, minHeight: 0, maxHeight: Math.max(320, height - 180), borderLeftWidth: 1, borderColor: colors.border }}><PlanningAssistantPanel colors={colors} /></View> : null}
-      {!inline ? <ModalSheet visible={controller.open} onClose={controller.toggle} position={width < 600 ? "bottom" : "right"} overlayZIndex={9500} cardStyle={{ backgroundColor: colors.card, width: width < 600 ? "100%" : 360, alignSelf: width < 600 ? "stretch" : "flex-end", padding: 0, paddingBottom: 0, marginBottom: 0, maxHeight: width < 600 ? "90%" : "100%", borderRadius: 14, overflow: "hidden" }}><View style={{ height: width < 600 ? Math.min(620, height * 0.82) : Math.max(0, height - insets.top - insets.bottom - 34), width: "100%" }}><PlanningAssistantPanel colors={colors} /></View></ModalSheet> : null}
+      {Platform.OS === "web" && typeof document !== "undefined" ? createWebPortal(floatingLauncher, document.body) : floatingLauncher}
+      {controller.open && inline ? <View style={{ width: 320, minHeight: 0, maxHeight: Math.max(320, height - 180), borderLeftWidth: 1, borderColor: colors.border }}>{panel}</View> : null}
+      {!inline ? (
+        <ModalSheet visible={controller.open} onClose={controller.toggle}
+          onExited={headerLauncher ? () => {
+            if (Platform.OS !== "web" || typeof document === "undefined") return;
+            requestAnimationFrame(() => {
+              const trigger = document.getElementById(`planning-assistant-${controller.organizationId}-${controller.classId}${surface === "workspace" ? "" : `-${surface}`}`);
+              if (document.activeElement === document.body && trigger?.isConnected && !trigger.closest('[inert], [aria-hidden="true"]') && trigger.getClientRects().length) {
+                trigger.focus({ preventScroll: true });
+              }
+            });
+          } : undefined}
+          dialogLabel={headerLauncher ? "Assistente da Periodização" : undefined}
+          position={width < 600 ? "bottom" : "right"} overlayZIndex={9500}
+          bottomOffset={mobileWorkspace ? insets.bottom + 16 : undefined}
+          cardStyle={{
+            backgroundColor: colors.card,
+            width: mobileWorkspace ? Math.max(0, width - insets.left - insets.right - 32) : width < 600 ? "100%" : 360,
+            alignSelf: mobileWorkspace ? "center" : width < 600 ? "stretch" : "flex-end",
+            padding: 0, paddingBottom: 0, marginBottom: 0,
+            maxHeight: mobileWorkspace ? panelHeight : width < 600 ? "90%" : "100%",
+            borderRadius: 14, overflow: "hidden",
+          }}>
+          <View style={{ height: panelHeight, width: "100%", minHeight: 0 }}>{panel}</View>
+        </ModalSheet>
+      ) : null}
     </> : null}
   </View>;
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
+import { ListEmptyState } from "../../ui/ListEmptyState";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { ActivityCatalogAddToLessonModal } from "./ActivityCatalogAddToLessonModal";
@@ -14,6 +15,7 @@ import {
   buildActivityCatalogListItems,
   filterActivityCatalogItems,
   getCatalogFilterOptions,
+  hasActiveCatalogFilters,
   type ActivityCatalogListItem,
   type CatalogFilterState,
 } from "./activity-catalog-view-model";
@@ -77,16 +79,10 @@ export function ActivityCatalogTab() {
             testID="activity-catalog-empty-state"
             style={{
               flex: 1,
-              padding: 14,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
             }}
           >
-            <Text style={{ color: colors.muted }}>
-              Nenhuma atividade encontrada para os filtros selecionados.
-            </Text>
+            <ListEmptyState title="Nenhuma atividade encontrada" description="Tente outro termo ou ajuste os filtros."
+              actionLabel="Limpar filtros" onAction={hasActiveCatalogFilters(filters) ? () => setFilters(EMPTY_CATALOG_FILTERS) : undefined} />
           </View>
         ) : null}
       </View>

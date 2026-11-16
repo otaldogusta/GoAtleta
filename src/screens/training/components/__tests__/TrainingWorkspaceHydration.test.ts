@@ -7,6 +7,7 @@ import { transformSync } from "@babel/core";
 import * as t from "@babel/types";
 import type { TrainingPlan } from "../../../../core/models";
 import type { TrainingPlanSummary } from "../../../../db/training";
+import { TrainingWorkspaceStart } from "../TrainingWorkspaceStart";
 
 let mockParams: Record<string, string> = {};
 let mockUser = "teacher-a";
@@ -25,7 +26,7 @@ const mockToast = jest.fn();
 const mockConfirm = jest.fn(async () => true);
 const mockNoop = () => undefined;
 
-jest.mock("expo-router", () => ({ useLocalSearchParams: () => mockParams, useRouter: () => ({ push: jest.fn(), replace: jest.fn() }) }));
+jest.mock("expo-router", () => ({ useLocalSearchParams: () => mockParams, usePathname: () => "/prof/planning", useRouter: () => ({ push: jest.fn(), replace: jest.fn() }) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView", useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { id: mockUser } } }) }));
 jest.mock("../../../../auth/session", () => ({
@@ -152,6 +153,29 @@ it("loads only summaries at startup and gives the editor the complete selected b
   expect(previews()[0].props.plan).toEqual(full());
 });
 
+it("opens a draft with the chosen class and reference date before any application", async () => {
+  await mount();
+  const start = renderer.root.findByType(TrainingWorkspaceStart);
+  const classGroup = start.props.classes[0];
+  act(() => start.props.onCreate(classGroup, "2026-10-25"));
+  await settle();
+  expect(previews()[0].props.classGroup.id).toBe(classGroup.id);
+  expect(previews()[0].props.lessonDate).toBe("2026-10-25");
+  expect(previews()[0].props.plan.applyDate).toBe("");
+  expect(mockSavePlan).not.toHaveBeenCalled();
+});
+
+it("offers a retry after a failed planning load", async () => {
+  mockGetSummaries.mockRejectedValueOnce(new Error("Failed to fetch"));
+  await mount();
+  expect(renderer.root.findAllByType(TrainingWorkspaceStart)).toHaveLength(0);
+  const retry = renderer.root.findAllByProps({ accessibilityLabel: "Tentar novamente" })[0];
+  act(() => retry.props.onPress());
+  await settle();
+  expect(mockGetSummaries).toHaveBeenCalledTimes(2);
+  expect(renderer.root.findAllByType(TrainingWorkspaceStart)).toHaveLength(1);
+});
+
 it.each(["viewPlanId", "applyPlanId"])("hydrates the %s deep link before opening its full document", async key => {
   mockParams = { [key]: "plan-a" };
   const pending = deferred<TrainingPlan>();
@@ -193,7 +217,9 @@ it("discards the slower first selection instead of replacing the latest selected
   mockGetById.mockImplementation(id => id === "plan-a" ? old.promise : Promise.resolve(full(id)));
   await mount();
   await select("plan-a");
+  expect(library().props.loadingPlanId).toBe("plan-a");
   await select("plan-b");
+  expect(library().props.loadingPlanId).toBeNull();
   expect(previews()[0].props.plan.id).toBe("plan-b");
   await act(async () => { old.resolve(full("plan-a")); });
   expect(previews()[0].props.plan.id).toBe("plan-b");

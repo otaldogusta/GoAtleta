@@ -140,6 +140,7 @@ export function ConfirmDialogProvider({
           visible
           onClose={handleCancel}
           position="center"
+          dialogLabel={currentOptions.title}
           overlayZIndex={30000}
           backdropOpacity={0.7}
           cardStyle={{

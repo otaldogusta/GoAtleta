@@ -615,11 +615,11 @@ useEffect(() => {
                         : {}),
                     }}
                   />
-                  <Pressable
+                  {password.length > 0 ? <Pressable
+                    accessibilityRole="button"
                     accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     suppressWebHoverFeedback
-                      onPress={() => setShowPassword((prev) => !prev)}
-                    disabled={password.length === 0}
+                    onPress={() => setShowPassword((prev) => !prev)}
                     style={{
                       width: 34,
                       height: 34,
@@ -627,7 +627,6 @@ useEffect(() => {
                       paddingVertical: 8,
                       alignItems: "center",
                       justifyContent: "center",
-                      opacity: password.length > 0 ? 1 : 0,
                     }}
                   >
                     {({ hovered }: any) => <GoAtletaIcon
@@ -635,7 +634,7 @@ useEffect(() => {
                       size={18}
                       color={hovered ? colors.primaryBg : colors.muted}
                     />}
-                  </Pressable>
+                  </Pressable> : <View style={{ width: 34, height: 34 }} />}
                 </View>
               </Animated.View>
 
@@ -738,11 +737,11 @@ useEffect(() => {
                           : {}),
                       }}
                     />
-                    <Pressable
+                    {confirm.length > 0 ? <Pressable
+                      accessibilityRole="button"
                       accessibilityLabel={showConfirm ? "Ocultar confirmação" : "Mostrar confirmação"}
                       suppressWebHoverFeedback
                       onPress={() => setShowConfirm((prev) => !prev)}
-                      disabled={confirm.length === 0}
                       style={{
                         width: 34,
                         height: 34,
@@ -750,7 +749,6 @@ useEffect(() => {
                         paddingVertical: 8,
                         alignItems: "center",
                         justifyContent: "center",
-                        opacity: confirm.length > 0 ? 1 : 0,
                       }}
                     >
                       {({ hovered }: any) => <GoAtletaIcon
@@ -758,7 +756,7 @@ useEffect(() => {
                         size={18}
                         color={hovered ? colors.primaryBg : colors.muted}
                       />}
-                    </Pressable>
+                    </Pressable> : <View style={{ width: 34, height: 34 }} />}
                   </View>
                 </Animated.View>
               ) : null}

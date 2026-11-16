@@ -55,7 +55,8 @@ describe("buildPreviewHtml", () => {
     );
 
     expect(html).toContain("goatleta-active-block");
-    expect(html).toContain("#22c55e");
+    expect(html).toContain(".pdf-editable-cell:focus-visible");
+    expect(html).toContain("data-pointer-focus");
     expect(html).not.toContain("document.addEventListener('blur'");
     expect(html).toContain("GOATLETA_PDF_READY");
   });

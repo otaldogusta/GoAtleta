@@ -1060,23 +1060,27 @@ function RootLayoutContent() {
     const autofillBg = mode === "dark" ? "#121c30" : colors.inputBg;
     const autofillColor = colors.inputText;
     const colorScheme = mode === "dark" ? "dark" : "light";
+    const keyboardFocusContainer = ':is([data-testid="session-report-input"], [data-testid="classes-search-field"], [data-testid="calendar-search-field"])';
 
     const css = `
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
+:is(input:not([type="checkbox"], [type="radio"], [type="range"]), textarea, select, [contenteditable="true"]):focus {
+  outline: none !important;
   box-shadow: none;
 }
-input:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-select:focus-visible {
-  outline: 2px solid ${colors.primaryBg};
+html[data-app-keyboard-focus] :is(input, textarea, select, [contenteditable="true"]):focus:not([type="checkbox"], [type="radio"], [type="range"]):not(:is(#login-email-field, #login-password-field, #regulation-source-sheet) *, ${keyboardFocusContainer} > *) {
+  outline: 2px solid ${colors.inputText} !important;
   outline-offset: -2px;
-  box-shadow: none;
+}
+html[data-app-keyboard-focus] ${keyboardFocusContainer}:has(> :is(textarea, input):focus) {
+  outline: 2px solid ${colors.inputText};
+  outline-offset: -2px;
+}
+:is(button, a[href], [role="button"], [role="tab"], [role="switch"], [role="link"]):focus:not(:focus-visible) {
+  outline: none;
+}
+:is(button, a[href], [role="button"], [role="tab"], [role="switch"], [role="link"], input[type="checkbox"], input[type="radio"], input[type="range"]):focus-visible {
+  outline: 2px solid ${colors.text};
+  outline-offset: -2px;
 }
 input,
 textarea {
@@ -1173,8 +1177,27 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
     colors.inputText,
     colors.muted,
     colors.primaryBg,
+    colors.text,
     mode,
   ]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const root = document.documentElement;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        root.setAttribute("data-app-keyboard-focus", "");
+      }
+    };
+    const onPointer = () => root.removeAttribute("data-app-keyboard-focus");
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onPointer, true);
+      onPointer();
+    };
+  }, []);
 
   if (bootstrapError || roleError) {
     const roleStatus = (roleError as (Error & { status?: number }) | null)?.status;

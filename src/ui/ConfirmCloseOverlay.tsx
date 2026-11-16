@@ -69,6 +69,8 @@ export function ConfirmCloseOverlay({
           {discardLabel && onDiscard ? (
             <Pressable
               onPress={onDiscard}
+              accessibilityRole="button"
+              accessibilityLabel={discardLabel}
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 14,
@@ -84,6 +86,8 @@ export function ConfirmCloseOverlay({
           ) : null}
           <Pressable
             onPress={onCancel}
+            accessibilityRole="button"
+            accessibilityLabel={cancelLabel}
             style={{
               paddingVertical: 10,
               paddingHorizontal: 14,
@@ -98,6 +102,8 @@ export function ConfirmCloseOverlay({
           {showConfirmAction ? (
             <Pressable
               onPress={onConfirm}
+              accessibilityRole="button"
+              accessibilityLabel={confirmLabel}
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 14,

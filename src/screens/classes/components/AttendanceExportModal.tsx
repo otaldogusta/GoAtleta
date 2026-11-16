@@ -78,7 +78,7 @@ function InlineSelector({
   onToggle: () => void;
   onSelect: (value: string) => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const selected = options.find((option) => option.value === value) ?? options[0];
   return (
     <View style={{ flex: 1, minWidth: 180, gap: 5 }}>
@@ -89,12 +89,12 @@ function InlineSelector({
         disabled={disabled}
         onPress={onToggle}
         style={{
-          minHeight: 50,
+          minHeight: 39,
           borderRadius: 12,
           borderWidth: 1,
           borderColor: colors.border,
-          backgroundColor: colors.inputBg,
-          paddingHorizontal: 14,
+          backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg,
+          paddingHorizontal: 10,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -478,8 +478,8 @@ export function AttendanceExportModal({
       </View>
       <ScrollView contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-          <View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>De</Text><DateInput value={startDate} onChange={setStartDate} placeholder="Data inicial" /></View>
-          <View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Até</Text><DateInput value={endDate} onChange={setEndDate} placeholder="Data final" /></View>
+          <View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>De</Text><DateInput compact value={startDate} onChange={setStartDate} placeholder="Data inicial" /></View>
+          <View style={{ flex: 1, minWidth: 180, gap: 5 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Até</Text><DateInput compact value={endDate} onChange={setEndDate} placeholder="Data final" /></View>
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
           <InlineSelector label="Professor da turma" value={effectiveProfessorId} options={professorOptions} open={openSelector === "professor"} onToggle={() => setOpenSelector((current) => current === "professor" ? null : "professor")} onSelect={(value) => { setProfessorId(value); setUnit("all"); setClassId("all"); setOpenSelector(null); }} />

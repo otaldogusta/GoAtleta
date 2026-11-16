@@ -94,3 +94,8 @@ da correção posterior e limites de ambiente estão no relatório vinculado aci
 O [smoke autenticado posterior](../../operations/consultation-authenticated-local-smoke-2026-10-05.md)
 exercitou perfil, publicação, atleta sem membership, devolutiva, 403 e fallback
 com isolamento entre contas/organizações. Não é aceite do piloto com alunas reais.
+
+## Continuidade local do inventário · 13/11/2026
+
+Plano do aluno usa organização da matrícula tanto na leitura diária quanto no fallback mais recente; erro tem repetição e troca de escopo descarta respostas antigas. O resolvedor continua aceitando final e legado sem status. Escalas de esforço/dor expõem aria-pressed na web, sem alterar prescrição ou envio.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).

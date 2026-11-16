@@ -162,16 +162,22 @@ const ROSTER_COLUMN_OPTIONS = [
   },
 ] as const;
 
-const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, isSelected, onSelect, colors, subtleSurface, borderColor, mutedColor }: { contact: AvailableContact; index: number; isSelected: boolean; onSelect: (index: number) => void; colors: ReturnType<typeof useAppTheme>["colors"]; subtleSurface: string; borderColor: string; mutedColor: string }) {
+const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, isSelected, onSelect, colors, borderColor, mutedColor }: { contact: AvailableContact; index: number; isSelected: boolean; onSelect: (index: number) => void; colors: ReturnType<typeof useAppTheme>["colors"]; borderColor: string; mutedColor: string }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${contact.studentName}, ${contact.source === "guardian" ? "Responsável" : "Aluno"}, ${contact.phone}`}
+      accessibilityState={{ selected: isSelected }}
+      {...(Platform.OS === "web" ? { "aria-pressed": isSelected } : {})}
       onPress={() => onSelect(index)}
       style={{
-        padding: 10,
-        borderRadius: 10,
-        backgroundColor: isSelected ? colors.primaryBg : subtleSurface,
-        borderWidth: 1,
-        borderColor: isSelected ? colors.primaryBg : borderColor,
+        minHeight: 44,
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        borderRadius: 4,
+        backgroundColor: isSelected ? colors.successBg : "transparent",
+        borderBottomWidth: 1,
+        borderColor: isSelected ? colors.successBorder : borderColor,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
@@ -183,7 +189,7 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, is
           style={{
             fontSize: 13,
             fontWeight: "700",
-            color: isSelected ? colors.primaryText : colors.text,
+            color: isSelected ? colors.successText : colors.text,
           }}
         >
           {contact.studentName}
@@ -191,14 +197,14 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, is
         <Text
           style={{
             fontSize: 11,
-            color: isSelected ? colors.primaryText : mutedColor,
+            color: isSelected ? colors.successText : mutedColor,
             marginTop: 2,
           }}
         >
           {contact.source === "guardian" ? "Responsável" : "Aluno"} • {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
         </Text>
       </View>
-      <GoAtletaIcon name={isSelected ? "checkmarkCircle" : "circleOutline"} size={18} color={isSelected ? colors.primaryText : mutedColor} />
+      <GoAtletaIcon name={isSelected ? "checkmarkCircle" : "circleOutline"} size={18} color={isSelected ? colors.successText : mutedColor} />
     </Pressable>
   );
 });
@@ -227,8 +233,9 @@ export default function ClassDetails() {
   const { confirm } = useConfirmUndo();
   const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, coachNameByClass, setCoachNameForClass, groupInviteLinks } = useWhatsAppSettings();
   const whatsappModalCardStyle = useModalCardStyle({
-    maxHeight: "82%",
+    maxHeight: "92%",
     maxWidth: 520,
+    padding: 0,
   });
   const rosterModalCardStyle = useModalCardStyle({
     maxHeight: Platform.OS === "web" ? "90%" : "94%",
@@ -263,18 +270,26 @@ export default function ClassDetails() {
   });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
+  const [classWhatsAppTemplatesOpen, setClassWhatsAppTemplatesOpen] = useState(false);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
   const [availableContacts, setAvailableContacts] = useState<AvailableContact[]>([]);
   const [selectedContactIndex, setSelectedContactIndex] = useState(-1);
   const [contactSearch, setContactSearch] = useState("");
+  const whatsappContactSearchRef = useRef<TextInput>(null);
   const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.18);
   const whatsappSelectedBorder = mode === "dark" ? toRgba(colors.successBg, 0.7) : toRgba(colors.successBg, 0.55);
   const whatsappSelectedText = mode === "dark" ? colors.text : colors.successText;
 
-  const whatsappModalSubtleSurface = colors.inputBg;
+  const whatsappModalSubtleSurface = mode === "dark" ? "#121c30" : colors.inputBg;
   const whatsappModalBorder = colors.border;
   const whatsappModalMuted = mode === "light" ? toRgba(colors.text, 0.72) : colors.muted;
+  const whatsappContactStyles = useMemo(() => ({
+    results: { maxHeight: 150 },
+    emptyResults: { paddingVertical: 8, color: whatsappModalMuted, fontSize: 12 },
+    selectedContact: { color: colors.text, fontSize: 12, paddingHorizontal: 2 },
+    noContacts: { color: whatsappModalMuted, fontSize: 13 },
+  }), [colors.text, whatsappModalMuted]);
   const [rosterMonthValue, setRosterMonthValue] = useState(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -314,6 +329,7 @@ export default function ClassDetails() {
   const [showPlanPreviewModal, setShowPlanPreviewModal] = useState(false);
   const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
   const [showReportModal, setShowReportModal] = useState(false);
+  const reportReturnFocusRef = useRef<HTMLElement | null>(null);
   const [reportHistoryScope, setReportHistoryScope] = useState<string | null>(null);
   const [historyReportDate, setHistoryReportDate] = useState<string | null>(null);
   const reportHistoryScopeKey = `${session?.user?.id ?? ""}:${activeOrganization?.id ?? ""}:${id}`;
@@ -423,18 +439,22 @@ export default function ClassDetails() {
   const filteredContacts = useMemo(() => {
     const term = contactSearch.trim().toLowerCase();
     if (!term) {
-      return availableContacts.map((contact, index) => ({ contact, index }));
+      return [];
     }
+    const phoneTerm = /^[\d\s()+.-]+$/.test(term) ? term.replace(/\D/g, "") : "";
     return availableContacts
       .map((contact, index) => ({ contact, index }))
       .filter(({ contact }) => {
         const name = contact.studentName.toLowerCase();
         const phone = contact.phone.replace(/\D/g, "");
-        return name.includes(term) || phone.includes(term);
+        return name.includes(term) || (phoneTerm.length > 0 && phone.includes(phoneTerm));
       });
   }, [availableContacts, contactSearch]);
+  const currentWhatsAppContact = availableContacts[selectedContactIndex];
   const handleSelectContact = useCallback((index: number) => {
     setSelectedContactIndex(index);
+    setContactSearch("");
+    if (Platform.OS === "web") whatsappContactSearchRef.current?.focus();
   }, []);
   const [name, setName] = useState("");
   const [coachNameOverride, setCoachNameOverride] = useState("");
@@ -2460,6 +2480,7 @@ export default function ClassDetails() {
 
     setAvailableContacts(validContacts);
     setSelectedContactIndex(-1);
+    setContactSearch("");
 
     // Suggest template based on context
     const suggestedTemplate = getSuggestedTemplate({ screen: "class" });
@@ -2483,6 +2504,7 @@ export default function ClassDetails() {
     }
 
     setCustomFields({});
+    setClassWhatsAppTemplatesOpen(false);
     setShowWhatsAppSettingsModal(true);
   };
 
@@ -2538,6 +2560,7 @@ export default function ClassDetails() {
   const handleOpenAttendance = () => handleSelectWorkspaceSection("attendance");
 
   const handleOpenReport = () => {
+    if (Platform.OS === "web" && typeof document !== "undefined" && typeof HTMLElement !== "undefined" && document.activeElement instanceof HTMLElement) reportReturnFocusRef.current = document.activeElement;
     requestAttendanceAction(() => setShowReportModal(true));
   };
 
@@ -2566,7 +2589,17 @@ export default function ClassDetails() {
     void loadRecentTrainingHistory();
   };
 
+  const restoreReportFocus = () => {
+    const target = reportReturnFocusRef.current;
+    reportReturnFocusRef.current = null;
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      if (document.activeElement === document.body && target?.isConnected && target.getClientRects().length && !target.closest('[inert], [aria-hidden="true"]')) target.focus({ preventScroll: true });
+    });
+  };
+
   const handleOpenRecentTraining = (dateKey: string) => {
+    if (Platform.OS === "web" && typeof document !== "undefined" && typeof HTMLElement !== "undefined" && document.activeElement instanceof HTMLElement) reportReturnFocusRef.current = document.activeElement;
     requestAttendanceAction(() => {
       const trainingDate = parseIsoDate(dateKey);
       if (!trainingDate) return;
@@ -2738,7 +2771,7 @@ export default function ClassDetails() {
           bottom={insets.bottom + 18}
         />
 
-        {compactClassWorkspace && !classNavigationOpen && !showReportModal && !showReportHistory && !showEditModal ? (
+        {compactClassWorkspace && !classNavigationOpen && !showReportModal && !showReportHistory && !showEditModal && !showRosterExportModal && !showWhatsAppSettingsModal ? (
           <ClassNavigationFab
             colors={colors}
             bottom={resolveCopilotCompanionFabBottom(insets.bottom)}
@@ -2751,6 +2784,8 @@ export default function ClassDetails() {
       <ModalSheet
         visible={showReportModal}
         onClose={handleCloseReport}
+        dialogLabel="Relatório da aula"
+        onExited={restoreReportFocus}
         position="center"
         cardStyle={[
           reportModalCardStyle,
@@ -3251,6 +3286,12 @@ export default function ClassDetails() {
       <ModalSheet
         visible={showRosterExportModal}
         onClose={closeRosterExportModal}
+        dialogLabel="Exportar lista de chamada"
+        onExited={() => {
+          if (Platform.OS === "web" && classRouteFocused && compactClassWorkspace) {
+            document.getElementById("class-navigation-fab")?.focus({ preventScroll: true });
+          }
+        }}
         position="center"
         cardStyle={[
           rosterModalCardStyle,
@@ -3786,6 +3827,12 @@ export default function ClassDetails() {
       <ModalSheet
         visible={showWhatsAppSettingsModal}
         onClose={() => setShowWhatsAppSettingsModal(false)}
+        dialogLabel="Configurar WhatsApp"
+        onExited={() => {
+          if (Platform.OS === "web" && classRouteFocused && compactClassWorkspace) {
+            document.getElementById("class-navigation-fab")?.focus({ preventScroll: true });
+          }
+        }}
         cardStyle={[
           whatsappModalCardStyle,
           {
@@ -3794,8 +3841,22 @@ export default function ClassDetails() {
         ]}
         position="center"
       >
-        <ScrollView style={{ maxHeight: "100%" }} contentContainerStyle={{ gap: 12, paddingBottom: 6 }} showsVerticalScrollIndicator>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Configurar WhatsApp</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: 1, borderColor: whatsappModalBorder }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Configurar WhatsApp</Text>
+            <Text style={{ fontSize: 12, color: whatsappModalMuted }}>{className}</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar WhatsApp"
+            onPress={() => setShowWhatsAppSettingsModal(false)}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <GoAtletaIcon name="close" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+
+        <ScrollView style={{ flexShrink: 1, minHeight: 0 }} contentContainerStyle={{ gap: 12, padding: 14 }} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
 
           {/* Template Selector */}
           <View style={{ gap: 6 }}>
@@ -3806,127 +3867,100 @@ export default function ClassDetails() {
                 color: whatsappModalMuted,
               }}
             >
-              Modelo de mensagem:
+              Modelo de mensagem
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS !== "web" || typeof document === "undefined") return;
-                  const scrollView = document.querySelector("[data-template-scroll-class]");
-                  if (scrollView) scrollView.scrollBy({ left: -200, behavior: "smooth" });
-                }}
-                style={{
-                  padding: 6,
-                  borderRadius: 8,
-                  backgroundColor: whatsappModalSubtleSurface,
-                  borderWidth: 1,
-                  borderColor: whatsappModalBorder,
-                }}
-              >
-                <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
-              </Pressable>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingRight: 8 }} {...(Platform.OS === "web" ? { "data-template-scroll-class": true } : {})}>
-              {Object.values(WHATSAPP_TEMPLATES)
-                .filter((template) => template.id !== "student_invite")
-                .map((template) => {
-                const isSelected = selectedTemplateId === template.id;
-                const nextClassDate = calculateNextClassDate(daysOfWeek);
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Escolher modelo de mensagem"
+              nativeID="class-whatsapp-model"
+              accessibilityState={{ expanded: classWhatsAppTemplatesOpen }}
+              {...(Platform.OS === "web" ? { "aria-expanded": classWhatsAppTemplatesOpen } : {})}
+              onPress={() => setClassWhatsAppTemplatesOpen((current) => !current)}
+              style={{ minHeight: 39, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: whatsappModalBorder, backgroundColor: whatsappModalSubtleSurface, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+            >
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+                {selectedTemplateId ? WHATSAPP_TEMPLATES[selectedTemplateId].title : "Escolher modelo"}
+              </Text>
+              <GoAtletaIcon name={classWhatsAppTemplatesOpen ? "chevronUp" : "chevronDown"} size={16} color={whatsappModalMuted} />
+            </Pressable>
+            {classWhatsAppTemplatesOpen ? (
+              <View style={{ gap: 4 }}>
+                {Object.values(WHATSAPP_TEMPLATES)
+                  .filter((template) => template.id !== "student_invite")
+                  .map((template) => {
+                  const isSelected = selectedTemplateId === template.id;
+                  const nextClassDate = calculateNextClassDate(daysOfWeek);
 
-                let canUse = true;
-                let missingRequirement = "";
+                  let canUse = true;
+                  let missingRequirement = "";
 
-                if (template.requires) {
-                  for (const req of template.requires) {
-                    if ((req === "nextClassDate" || req === "nextClassTime") && !nextClassDate) {
-                      canUse = false;
-                      missingRequirement = "Dias da semana não configurados";
-                      break;
-                    }
-                    if (req === "groupInviteLink" && !groupInviteLinks[cls?.id || ""]) {
-                      canUse = false;
-                      missingRequirement = "Link do grupo não configurado";
-                      break;
+                  if (template.requires) {
+                    for (const req of template.requires) {
+                      if ((req === "nextClassDate" || req === "nextClassTime") && !nextClassDate) {
+                        canUse = false;
+                        missingRequirement = "Dias da semana não configurados";
+                        break;
+                      }
+                      if (req === "groupInviteLink" && !groupInviteLinks[cls?.id || ""]) {
+                        canUse = false;
+                        missingRequirement = "Link do grupo não configurado";
+                        break;
+                      }
                     }
                   }
-                }
 
-                return (
-                  <Pressable
-                    key={template.id}
-                    disabled={!canUse}
-                    onPress={() => {
-                      if (!canUse) {
-                        alert(missingRequirement);
-                        return;
-                      }
-                      setSelectedTemplateId(template.id);
-                      if (defaultMessageEnabled) {
-                        const message = renderTemplate(template.id, {
-                          coachName,
-                          className: name || cls?.name || "",
-                          unitLabel,
-                          dateLabel: new Date().toLocaleDateString("pt-BR"),
-                          studentName: selectedContactIndex >= 0 ? availableContacts[selectedContactIndex]?.studentName : "",
-                          nextClassDate: nextClassDate ? formatNextClassDate(nextClassDate) : "",
-                          nextClassTime: startTime,
-                          groupInviteLink: groupInviteLinks[cls?.id || ""] || "",
-                          ...customFields,
-                        });
-                        setCustomWhatsAppMessage(message);
-                      }
-                    }}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: 8,
-                      backgroundColor: isSelected ? whatsappSelectedBg : whatsappModalSubtleSurface,
-                      borderWidth: 1,
-                      borderColor: isSelected ? whatsappSelectedBorder : whatsappModalBorder,
-                      marginRight: 6,
-                      opacity: canUse ? 1 : 0.4,
-                    }}
-                  >
-                        <Text
-                          style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                            color: isSelected ? whatsappSelectedText : colors.text,
-                          }}
-                        >
-                      {template.title}
-                    </Text>
-                    {!canUse && (
-                          <Text
-                            style={{
-                              fontSize: 9,
-                              color: colors.dangerText,
-                              marginTop: 2,
-                            }}
-                          >
-                        Aviso: {missingRequirement}
+                  return (
+                    <Pressable
+                      key={template.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={template.title}
+                      accessibilityState={{ selected: isSelected, disabled: !canUse }}
+                      {...(Platform.OS === "web" ? { "aria-pressed": isSelected } : {})}
+                      disabled={!canUse}
+                      onPress={() => {
+                        setSelectedTemplateId(template.id);
+                        setClassWhatsAppTemplatesOpen(false);
+                        if (Platform.OS === "web") document.getElementById("class-whatsapp-model")?.focus({ preventScroll: true });
+                        if (defaultMessageEnabled) {
+                          const message = renderTemplate(template.id, {
+                            coachName,
+                            className: name || cls?.name || "",
+                            unitLabel,
+                            dateLabel: new Date().toLocaleDateString("pt-BR"),
+                            studentName: selectedContactIndex >= 0 ? availableContacts[selectedContactIndex]?.studentName : "",
+                            nextClassDate: nextClassDate ? formatNextClassDate(nextClassDate) : "",
+                            nextClassTime: startTime,
+                            groupInviteLink: groupInviteLinks[cls?.id || ""] || "",
+                            ...customFields,
+                          });
+                          setCustomWhatsAppMessage(message);
+                        }
+                      }}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        backgroundColor: isSelected ? whatsappSelectedBg : whatsappModalSubtleSurface,
+                        borderWidth: 1,
+                        borderColor: isSelected ? whatsappSelectedBorder : whatsappModalBorder,
+                        minHeight: 44,
+                        justifyContent: "center",
+
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: isSelected ? whatsappSelectedText : colors.text }}>
+                        {template.title}
                       </Text>
-                    )}
-                  </Pressable>
-                );
-              })}
-              </ScrollView>
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS !== "web" || typeof document === "undefined") return;
-                  const scrollView = document.querySelector("[data-template-scroll-class]");
-                  if (scrollView) scrollView.scrollBy({ left: 200, behavior: "smooth" });
-                }}
-                style={{
-                  padding: 6,
-                  borderRadius: 8,
-                  backgroundColor: whatsappModalSubtleSurface,
-                  borderWidth: 1,
-                  borderColor: whatsappModalBorder,
-                }}
-              >
-                <GoAtletaIcon name="chevronForward" size={18} color={colors.text} />
-              </Pressable>
-            </View>
+                      {!canUse ? (
+                        <Text style={{ fontSize: 11, color: whatsappModalMuted, marginTop: 2 }}>
+                          {missingRequirement}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
 
           {/* Custom Fields for Templates */}
@@ -3953,6 +3987,7 @@ export default function ClassDetails() {
                       {labels[field] || field}
                     </Text>
                     <TextInput
+                      accessibilityLabel={labels[field] || field}
                       placeholder={field === "highlightNote" ? "Ex.: evolução na técnica" : "Digite sua mensagem..."}
                       placeholderTextColor={whatsappModalMuted}
                       value={customFields[field] || ""}
@@ -3991,68 +4026,63 @@ export default function ClassDetails() {
             </View>
           )}
 
-          {/* Lista da turma */}
-          {availableContacts.length > 0 && (
-            <View style={{ gap: 8 }}>
-              <View style={{ gap: 2 }}>
-                <Text
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>Destinatário</Text>
+            {availableContacts.length > 0 ? (
+              <>
+                <TextInput
+                  ref={whatsappContactSearchRef}
+                  accessibilityLabel="Buscar contato da turma"
+                  placeholder={currentWhatsAppContact ? "Buscar outro contato" : "Buscar por nome ou telefone"}
+                  placeholderTextColor={whatsappModalMuted}
+                  value={contactSearch}
+                  onChangeText={setContactSearch}
                   style={{
-                    fontSize: 12,
-                    fontWeight: "700",
+                    minHeight: 39,
+                    paddingHorizontal: 10,
+                    borderRadius: 12,
+                    backgroundColor: whatsappModalSubtleSurface,
+                    borderWidth: 1,
+                    borderColor: whatsappModalBorder,
                     color: colors.text,
+                    fontSize: 13,
                   }}
-                >
-                  Lista da turma
-                </Text>
-                <Text style={{ fontSize: 11, color: whatsappModalMuted }}>Selecione quem vai receber a mensagem.</Text>
-              </View>
-              <TextInput
-                placeholder="Buscar por nome ou telefone"
-                placeholderTextColor={whatsappModalMuted}
-                value={contactSearch}
-                onChangeText={setContactSearch}
-                style={{
-                  padding: 8,
-                  borderRadius: 8,
-                  backgroundColor: whatsappModalSubtleSurface,
-                  borderWidth: 1,
-                  borderColor: whatsappModalBorder,
-                  color: colors.text,
-                  fontSize: 12,
-                }}
-              />
-              <View
-                style={{
-                  maxHeight: 260,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: whatsappModalBorder,
-                  backgroundColor: colors.background,
-                  overflow: "hidden",
-                }}
-              >
-                <FlatList
-                  data={filteredContacts}
-                  keyExtractor={({ contact }) => `${contact.studentName}-${contact.phone}-${contact.source}`}
-                  style={{ maxHeight: 260 }}
-                  contentContainerStyle={{ padding: 6, gap: 6 }}
-                  showsVerticalScrollIndicator
-                  keyboardShouldPersistTaps="handled"
-                  nestedScrollEnabled
-                  ListEmptyComponent={
-                    <View style={{ padding: 12 }}>
-                      <Text style={{ color: whatsappModalMuted, fontSize: 12 }}>Nenhum contato encontrado.</Text>
-                    </View>
-                  }
-                  renderItem={({ item: { contact, index } }) => (
-                    <View style={{ marginBottom: 6 }}>
-                      <WhatsAppContactRow contact={contact} index={index} isSelected={selectedContactIndex === index} onSelect={handleSelectContact} colors={colors} subtleSurface={whatsappModalSubtleSurface} borderColor={whatsappModalBorder} mutedColor={whatsappModalMuted} />
-                    </View>
-                  )}
                 />
-              </View>
-            </View>
-          )}
+                {contactSearch.trim() ? (
+                  <FlatList
+                    accessibilityLabel="Resultados da busca de destinatários"
+                    data={filteredContacts}
+                    keyExtractor={({ index }) => String(index)}
+                    style={whatsappContactStyles.results}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled
+                    ListEmptyComponent={
+                      <Text accessibilityLiveRegion="polite" style={whatsappContactStyles.emptyResults}>
+                        Nenhum contato encontrado.
+                      </Text>
+                    }
+                    renderItem={({ item: { contact, index } }) => (
+                      <WhatsAppContactRow
+                        contact={contact}
+                        index={index}
+                        isSelected={selectedContactIndex === index}
+                        onSelect={handleSelectContact}
+                        colors={colors}
+                        borderColor={whatsappModalBorder}
+                        mutedColor={whatsappModalMuted}
+                      />
+                    )}
+                  />
+                ) : currentWhatsAppContact ? (
+                  <Text accessibilityLiveRegion="polite" style={whatsappContactStyles.selectedContact}>
+                    {currentWhatsAppContact.studentName} · {currentWhatsAppContact.source === "guardian" ? "Responsável" : "Aluno"} · {formatPhoneDisplay(currentWhatsAppContact.phone)}
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text style={whatsappContactStyles.noContacts}>Nenhum contato com telefone válido nesta turma.</Text>
+            )}
+          </View>
 
           {/* Toggle */}
           <View
@@ -4065,9 +4095,13 @@ export default function ClassDetails() {
           >
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>Mensagem padrão</Text>
-              <Text style={{ fontSize: 12, color: whatsappModalMuted }}>{defaultMessageEnabled ? "Ativada" : "Desativada"}</Text>
             </View>
             <Pressable
+              accessibilityRole={Platform.OS === "web" ? "button" : "switch"}
+              accessibilityLabel="Mensagem padrão"
+              accessibilityState={{ checked: defaultMessageEnabled }}
+              {...(Platform.OS === "web" ? { "aria-pressed": defaultMessageEnabled } : {})}
+              hitSlop={8}
               onPress={() => setDefaultMessageEnabled(!defaultMessageEnabled)}
               style={{
                 width: 50,
@@ -4100,18 +4134,20 @@ export default function ClassDetails() {
                 color: whatsappModalMuted,
               }}
             >
-              {defaultMessageEnabled ? "Mensagem (deixe em branco para usar padrão):" : "Mensagem personalizada:"}
+              Mensagem
             </Text>
             <TextInput
-              placeholder={defaultMessageEnabled ? `Exemplo: Olá! Sou o professor Gustavo da turma ${className} (${unitLabel}).` : "Digite sua mensagem..."}
+              accessibilityLabel="Mensagem"
+              placeholder={defaultMessageEnabled ? "Em branco, usa a mensagem padrão" : "Digite sua mensagem"}
               placeholderTextColor={whatsappModalMuted}
               value={customWhatsAppMessage}
               onChangeText={setCustomWhatsAppMessage}
               multiline
               numberOfLines={3}
               style={{
-                padding: 10,
-                borderRadius: 8,
+                minHeight: 84,
+                padding: 12,
+                borderRadius: 12,
                 backgroundColor: whatsappModalSubtleSurface,
                 borderWidth: 1,
                 borderColor: whatsappModalBorder,
@@ -4120,57 +4156,16 @@ export default function ClassDetails() {
                 textAlignVertical: "top",
               }}
             />
-            {defaultMessageEnabled && !customWhatsAppMessage.trim() && (
-              <Text
-                style={{
-                  fontSize: 10,
-                  color: whatsappModalMuted,
-                  fontStyle: "italic",
-                }}
-              >
-                {`Mensagem padrão: "Olá! Sou o professor Gustavo da turma ${className} (${unitLabel})."`}
-              </Text>
-            )}
           </View>
 
-          {/* Send Button */}
-          <Pressable
-            onPress={selectedContactIndex >= 0 ? sendWhatsAppMessage : undefined}
-            disabled={selectedContactIndex < 0}
-            style={{
-              paddingVertical: 11,
-              paddingHorizontal: 14,
-              borderRadius: 12,
-              backgroundColor: selectedContactIndex >= 0 ? colors.successBg : colors.primaryDisabledBg,
-              alignItems: "center",
-              marginTop: 8,
-              opacity: selectedContactIndex >= 0 ? 1 : 0.6,
-            }}
-          >
-            <Text
-              style={{
-                color: selectedContactIndex >= 0 ? colors.primaryText : whatsappModalMuted,
-                fontWeight: "700",
-                fontSize: 14,
-              }}
-            >
-              Enviar via WhatsApp
-            </Text>
-          </Pressable>
-
-          {/* Close Button */}
-          <Pressable
-            onPress={() => setShowWhatsAppSettingsModal(false)}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>Fechar</Text>
-          </Pressable>
         </ScrollView>
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderColor: whatsappModalBorder }}>
+          <Button
+            label="Abrir WhatsApp"
+            disabled={selectedContactIndex < 0}
+            onPress={sendWhatsAppMessage}
+          />
+        </View>
       </ModalSheet>
       <DatePickerModal
         visible={showRosterMonthPicker}

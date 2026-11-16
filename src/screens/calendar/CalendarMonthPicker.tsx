@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import { useId, useState } from "react";
+import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
@@ -29,6 +29,7 @@ export function CalendarMonthPicker(props: Props) {
 function CalendarMonthPickerContent({ visible, value, onChange, onClose }: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
+  const yearControlId = useId();
   const selected = parseDate(value);
   const [year, setYear] = useState(selected.year);
   const [choosingYear, setChoosingYear] = useState(false);
@@ -43,12 +44,12 @@ function CalendarMonthPickerContent({ visible, value, onChange, onClose }: Props
   };
   const years = Array.from({ length: 12 }, (_, index) => yearPage + index);
 
-  return <ModalSheet visible={visible} onClose={onClose} position={width < 600 ? "bottom" : "center"} cardStyle={[styles.card, { backgroundColor: colors.card }]}>
+  return <ModalSheet visible={visible} onClose={onClose} dialogLabel="Escolher mês e ano" position={width < 600 ? "bottom" : "center"} cardStyle={[styles.card, { backgroundColor: colors.card }]}>
     <View style={styles.header}>
       <Pressable accessibilityRole="button" accessibilityLabel={choosingYear ? "Anos anteriores" : "Ano anterior"} onPress={() => choosingYear ? setYearPage(current => Math.max(1, current - 12)) : setYear(current => Math.max(1, current - 1))} style={styles.control}>
         <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={choosingYear ? "Escolher mês" : "Escolher ano"} onPress={() => { setYearPage(Math.max(1, Math.floor(year / 12) * 12)); setChoosingYear(current => !current); }} style={styles.year}>
+      <Pressable nativeID={yearControlId} accessibilityRole="button" accessibilityState={{ expanded: choosingYear }} accessibilityLabel={choosingYear ? "Escolher mês" : "Escolher ano"} onPress={() => { setYearPage(Math.max(1, Math.floor(year / 12) * 12)); setChoosingYear(current => !current); }} style={styles.year}>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>{choosingYear ? `${years[0]}–${years[11]}` : year}</Text>
         <GoAtletaIcon name={choosingYear ? "chevronUp" : "chevronDown"} size={14} color={colors.muted} />
       </Pressable>
@@ -60,8 +61,11 @@ function CalendarMonthPickerContent({ visible, value, onChange, onClose }: Props
       {(choosingYear ? years : MONTHS).map((item, index) => {
         const active = choosingYear ? item === year : index === selected.month && year === selected.year;
         return <View key={item} style={styles.cell}>
-          <Pressable accessibilityRole="button" accessibilityLabel={choosingYear ? `Selecionar ano ${item}` : `Selecionar mês ${item} de ${year}`} accessibilityState={{ selected: active }} onPress={() => {
-            if (choosingYear) { setYear(Number(item)); setChoosingYear(false); }
+          <Pressable accessibilityRole="button" accessibilityLabel={choosingYear ? `Selecionar ano ${item}` : `Selecionar mês ${item} de ${year}`} aria-pressed={active} accessibilityState={{ selected: active }} onPress={() => {
+            if (choosingYear) {
+              setYear(Number(item)); setChoosingYear(false);
+              if (Platform.OS === "web" && typeof document !== "undefined") document.getElementById(yearControlId)?.focus();
+            }
             else selectMonth(index);
           }} style={[styles.circle, { backgroundColor: active ? colors.primaryBg : "transparent", borderWidth: 1, borderColor: active ? colors.primaryBg : colors.border }]}>
             <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: active ? "700" : "500" }}>{choosingYear ? item : MONTH_LABELS[index]}</Text>

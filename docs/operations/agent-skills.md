@@ -77,7 +77,7 @@ Pacote ampliado: [instalação do catálogo completo](skills-package-review.md).
 | --- | --- |
 | Expo oficial | `expo@openai-curated` instalado e habilitado; revisão do marketplace `1dc19589`, manifesto 1.0.2 |
 | Supabase oficial | Plugin existente, instalado e habilitado; distribuição remota 1.0.0, preservada |
-| Playwright | Skill oficial `playwright-cli` em `~/.codex/skills/playwright-cli`; CLI global `@playwright/cli` 0.1.22 |
+| Playwright | O ensaio anterior registrou a skill em `~/.codex/skills/playwright-cli` e a CLI global `@playwright/cli` 0.1.22. Em 13/11/2026, o comando, o pacote npm global e a skill nos caminhos conferidos estavam indisponíveis nesta estação. A skill [goatleta-testing](../../.agents/skills/goatleta-testing/SKILL.md) também prevê o navegador existente. |
 
 A distribuição Expo instalada contém 13 skills, incluindo `building-native-ui`, `expo-deployment`, `expo-cicd-workflows`, `upgrading-expo`, `expo-module` e `expo-dev-client`. Os nomes diferem dos oito nomes citados na proposta: o marketplace e a branch atual do fornecedor podem distribuir revisões diferentes. Foi usado o plugin oficial disponível, sem instalar cópias sobrepostas. Instalação de skills não comprova autenticação nem execução de serviços EAS.
 

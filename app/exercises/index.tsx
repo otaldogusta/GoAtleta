@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import {
     useCallback,
     useEffect,
@@ -7,7 +7,7 @@ import {
     useRef,
     useState
 } from "react";
-import { Alert, Image, KeyboardAvoidingView, Linking, Platform, ScrollView, Share, TextInput, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Linking, Platform, ScrollView, Share, TextInput, useWindowDimensions, View } from "react-native";
 import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
@@ -19,6 +19,9 @@ import {
   type LinkMetadata,
 } from "../../src/api/link-metadata";
 import { getValidAccessToken } from "../../src/auth/session";
+import { useAuth } from "../../src/auth/auth";
+import { useOptionalCopilotOpen } from "../../src/copilot/CopilotProvider";
+import { usesLibraryAssistantButton } from "../../src/copilot/route-visibility";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import {
   getExerciseLinkPresentation,
@@ -35,7 +38,7 @@ import {
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { ActivityCatalogTab } from "../../src/screens/library/ActivityCatalogTab";
-import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
+import { UnderlineTabs } from "../../src/ui/UnderlineTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -197,8 +200,13 @@ const writeCachedLinkMetadata = async (
 };
 
 export default function ExercisesScreen() {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+  const linkFieldBackground = mode === "dark" ? "#121c30" : colors.inputBg;
   const router = useRouter();
+  const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const { session } = useAuth();
+  const openAssistant = useOptionalCopilotOpen();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<Exercise[]>([]);
@@ -638,16 +646,22 @@ export default function ExercisesScreen() {
       >
         <ScreenPageHeader
           title="Biblioteca"
-          subtitle="Biblioteca com vídeos, links e catálogo pedagógico."
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          right={session && openAssistant && usesLibraryAssistantButton(pathname, width) ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Biblioteca"
+              onPress={openAssistant} style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}>
+              <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.text} />
+            </Pressable>
+          ) : null}
         >
-          <AnimatedSegmentedTabs<LibraryTab>
-            tabs={[
-              { id: "links", label: "Meus Links" },
-              { id: "catalog", label: "Catálogo Go Atleta" },
+          <UnderlineTabs
+            accessibilityLabel="Biblioteca"
+            items={[
+              { value: "links", label: "Meus Links" },
+              { value: "catalog", label: "Catálogo Go Atleta" },
             ]}
-            activeTab={activeLibraryTab}
-            onChange={setActiveLibraryTab}
+            value={activeLibraryTab}
+            onChange={(value) => setActiveLibraryTab(value as LibraryTab)}
           />
         </ScreenPageHeader>
       <ScrollView
@@ -1003,9 +1017,10 @@ export default function ExercisesScreen() {
                 gap: 8,
                 borderWidth: 1,
                 borderColor: colors.border,
-                borderRadius: 14,
-                backgroundColor: colors.inputBg,
-                paddingHorizontal: 12,
+                borderRadius: 12,
+                minHeight: compactUiMetrics.modalFieldHeight,
+                backgroundColor: linkFieldBackground,
+                paddingHorizontal: 10,
               }}
             >
               <GoAtletaIcon name="link" size={18} color={colors.muted} />
@@ -1018,7 +1033,10 @@ export default function ExercisesScreen() {
                 autoCorrect={false}
                 style={{
                   flex: 1,
-                  minHeight: 48,
+                  minHeight: compactUiMetrics.modalFieldHeight - 2,
+                  paddingVertical: 0,
+                  borderRadius: 0,
+                  fontSize: 13,
                   color: colors.inputText,
                 }}
               />
@@ -1124,9 +1142,12 @@ export default function ExercisesScreen() {
               style={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.inputBg,
+                minHeight: compactUiMetrics.modalFieldHeight,
+                paddingHorizontal: 10,
+                paddingVertical: 0,
+                borderRadius: 12,
+                backgroundColor: linkFieldBackground,
+                fontSize: 13,
                 color: colors.inputText,
               }}
             />

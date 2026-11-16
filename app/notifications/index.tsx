@@ -24,7 +24,9 @@ import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRun
 import { useOrganization } from "../../src/providers/organization-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { SettingsRow } from "../../src/ui/SettingsRow";
-import { Typography } from "../../src/ui/Typography";
+import { PageBreadcrumbHeader } from "../../src/components/ui/PageBreadcrumbHeader";
+import { ListEmptyState } from "../../src/ui/ListEmptyState";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { compactUiMetrics } from "../../src/theme/tokens";
@@ -170,16 +172,19 @@ export default function NotificationsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         >
-          <Typography variant="title">Notificações</Typography>
+          <PageBreadcrumbHeader
+            title="Notificações"
+            breadcrumbs={[{ label: "Início", onPress: () => router.replace("/") }]}
+            onBack={() => navigateBackOrReplace({ router, fallback: "/" })}
+          />
 
           <View style={{ marginTop: 12, gap: 12 }}>
           <View style={{ gap: 8 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
-                Notificações
-              </Text>
-              {items.length ? (
+            {items.length ? (
+              <View style={{ alignItems: "flex-end" }}>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Limpar notificações"
                   onPress={() => {
                     void (async () => {
                       await clearNotifications(
@@ -192,24 +197,14 @@ export default function NotificationsScreen() {
                 >
                   <Text style={{ color: colors.muted, fontWeight: "700" }}>Limpar</Text>
                 </Pressable>
-              ) : null}
-            </View>
+              </View>
+            ) : null}
 
             {items.length === 0 ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 14,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Sem notificações</Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  Treinos, avisos e atualizações vão aparecer aqui.
-                </Text>
-              </View>
+              <ListEmptyState
+                title="Nenhuma notificação por aqui"
+                description="Novos avisos de treinos e atualizações aparecerão aqui."
+              />
             ) : (
               items.slice(0, 12).map((item) => (
                 <Pressable

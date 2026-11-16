@@ -48,10 +48,13 @@ import { getCalendarTrainingPlanApplications, getTrainingPlanById, getTrainingPl
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { navigateToDetailRoute } from "../src/navigation/primary-route-navigation";
 import { useOrganization } from "../src/providers/organization-context";
+import { useOptionalCopilotOpen } from "../src/copilot/CopilotProvider";
+import { usesCalendarAssistantButton } from "../src/copilot/route-visibility";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { ModalSheet } from "../src/ui/ModalSheet";
+import { ListEmptyState } from "../src/ui/ListEmptyState";
 import { useSaveToast } from "../src/ui/save-toast";
 import { toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
@@ -183,11 +186,12 @@ type StudentCalendarProps = {
   studentClasses?: ClassGroup[];
   studentLoading?: boolean;
   studentError?: boolean;
+  onStudentRetry?: () => void;
   onMonthChange?: (month: Date) => void;
   headerActions?: ReactNode;
 };
 
-export default function CalendarScreen({ studentClasses, studentLoading = false, studentError = false, onMonthChange, headerActions }: StudentCalendarProps = {}) {
+export default function CalendarScreen({ studentClasses, studentLoading = false, studentError = false, onStudentRetry, onMonthChange, headerActions }: StudentCalendarProps = {}) {
   const studentMode = studentClasses !== undefined;
   markRender("screen.calendar.render.root");
   const router = useRouter();
@@ -199,6 +203,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
+  const openAssistant = useOptionalCopilotOpen();
   const { activeOrganization } = useOrganization();
   const identity = getSessionIdentity();
   const readGeneration = getReadCacheGeneration();
@@ -240,6 +245,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const [monthPickerScope, setMonthPickerScope] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<TextInput | null>(null);
   const [classSnapshot, setClassSnapshot] = useState<ScopedCalendarRead<ClassGroup>>({ scope: "", rows: [], error: null });
   const classes = useMemo(() => studentClasses ?? (classSnapshot.scope === readScope ? classSnapshot.rows : []), [studentClasses, classSnapshot, readScope]);
   const loadingData = Boolean(activeOrganization?.id) && classSnapshot.scope !== readScope;
@@ -968,6 +974,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
             {mobileAgenda ? <Pressable accessibilityRole="button" accessibilityLabel="Voltar de Agenda" onPress={() => navigateBackOrReplace({ router, fallback: studentMode ? "/student/home" : calendarPath.startsWith("/coord") ? "/coord/dashboard" : "/prof/home" })} style={agendaStyles.toggle}><GoAtletaIcon name="chevronBack" size={20} color={colors.text} /></Pressable> : null}
             <Pressable suppressWebHoverFeedback accessibilityRole="button" accessibilityHint={monthSummaryLabel} accessibilityLabel="Escolher mês e ano" onPress={() => setMonthPickerScope(readScope)} style={agendaStyles.monthTrigger}><View style={agendaStyles.monthLabel}><Text numberOfLines={1} style={agendaStyles.title}>{visibleMonth.toLocaleDateString("pt-BR", { month: "long" })}</Text><View style={agendaStyles.monthMeta}><Text style={agendaStyles.monthYear}>{visibleMonth.getFullYear()}</Text><View style={agendaStyles.monthPending}>{loadingPlans ? <ActivityIndicator accessibilityLabel="Atualizando agenda" size={12} color={colors.muted} /> : null}</View></View></View><GoAtletaIcon name="chevronDown" size={12} color={colors.muted} /></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Pesquisar na agenda" onPress={() => { setSearchOpen(value => !value); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="search" size={metrics.iconSize} color={colors.text} /></Pressable>
+            {session && openAssistant && usesCalendarAssistantButton(calendarPath, width) ? <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Agenda" onPress={openAssistant} style={agendaStyles.toggle}><GoAtletaIcon name="chat" size={metrics.iconSize} color={colors.text} /></Pressable> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Hoje" onPress={() => requestPendingEditsNavigation(() => { setSearchQuery(""); const now = new Date(); setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(formatIsoDate(now)); })} style={agendaStyles.toggle}><View style={{ width: 22, height: 23, borderWidth: 1.5, borderColor: colors.text, borderRadius: 4, alignItems: "center", justifyContent: "flex-end", paddingBottom: 1 }}><View style={{ position: "absolute", top: 5, width: "100%", borderTopWidth: 1.5, borderColor: colors.text }} /><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{new Date().getDate()}</Text></View></Pressable>
           </View>
 
@@ -1009,7 +1016,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
               </View>
             ) : null}
 
-            {searchOpen ? <View style={{ minHeight: 50, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.inputBg, flexDirection: "row", alignItems: "center", gap: 8 }}><GoAtletaIcon name="search" size={18} color={colors.muted} /><TextInput autoFocus accessibilityLabel="Pesquisar neste mês" placeholder="Pesquisar neste mês" placeholderTextColor={colors.muted} value={searchQuery} onChangeText={setSearchQuery} style={{ flex: 1, minWidth: 0, color: colors.text, borderRadius: 0, fontSize: 14 }} /><Pressable accessibilityRole="button" accessibilityLabel="Fechar pesquisa" onPress={() => { setSearchOpen(false); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable></View> : null}
+            {searchOpen ? <View testID="calendar-search-field" style={{ minHeight: 50, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.inputBg, flexDirection: "row", alignItems: "center", gap: 8 }}><GoAtletaIcon name="search" size={18} color={colors.muted} /><TextInput ref={searchInputRef} autoFocus accessibilityLabel="Pesquisar neste mês" placeholder="Pesquisar neste mês" placeholderTextColor={colors.muted} value={searchQuery} onChangeText={setSearchQuery} style={{ flex: 1, minWidth: 0, color: colors.text, borderRadius: 0, fontSize: 14 }} /><Pressable accessibilityRole="button" accessibilityLabel="Fechar pesquisa" onPress={() => { setSearchOpen(false); setSearchQuery(""); }} style={agendaStyles.toggle}><GoAtletaIcon name="close" size={18} color={colors.text} /></Pressable></View> : null}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <View style={{ flex: 1, minWidth: 0 }}>{!studentMode ? <CalendarUnitSelect compact value={unitFilter} options={unitOptions} onChange={value => { setUnitFilter(value); router.setParams({ unit: value, ...(Platform.OS === "web" ? { targetDate: selectedDay?.dateIso ?? selectedDate } : {}) }); }} /> : null}</View>
               {mobileAgenda ? headerActions : null}
@@ -1043,7 +1050,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
                 </View>
               </View>
               <View style={agendaStyles.events}>
-                <CalendarEventSheet mobile={mobileAgenda} collapsed={calendarCollapsed} onCollapsedChange={setCalendarCollapsed} motion={calendarMotion} listRef={eventListRef} offsetRef={eventOffsetRef} footer={searchText && quickAdd?.scope !== readScope ? null : quickFooter} header={<View style={agendaStyles.header}>
+                <CalendarEventSheet mobile={mobileAgenda} collapsed={calendarCollapsed} onCollapsedChange={setCalendarCollapsed} motion={calendarMotion} listRef={eventListRef} offsetRef={eventOffsetRef} footer={searchText && quickAdd?.scope !== readScope ? null : quickFooter} header={(studentMode && studentError) || (searchText && !displayedItems.length) ? null : <View style={agendaStyles.header}>
                   {searchText ? <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>{displayedItems.length} resultados neste mês</Text> : <View style={agendaStyles.headerText}><View style={agendaStyles.dayHeading}><Text accessibilityRole="header" accessibilityLabel={selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"} style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").getDate() : ""}</Text><Text style={agendaStyles.weekdayHeading}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase() : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View></View>}
                 </View>}>
                 {displayedItems.length ? displayedItems.map(item => <View key={`${item.dateIso}-${item.id}`} style={{ borderBottomWidth: 1, borderColor: colors.border }}><Pressable accessibilityRole="button" accessibilityLabel={`${searchText ? item.dateIso + ", " : ""}${item.timeLabel}, ${item.title}`} onPress={() => {
@@ -1065,7 +1072,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
                   <View style={agendaColorStyles[item.dotColor].bar} />
                   <View style={agendaStyles.eventContent}>{searchText ? <Text style={agendaStyles.count}>{new Date(item.dateIso + "T00:00:00").toLocaleDateString("pt-BR")}</Text> : null}<Text numberOfLines={1} style={agendaStyles.eventTitle}>{item.title}</Text><Text numberOfLines={1} style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
                   <GoAtletaIcon name="chevronForward" size={14} color={colors.muted} />
-                </Pressable></View>) : <Text style={agendaStyles.empty}>{searchText ? "Nenhum resultado neste mês." : studentMode ? studentError ? "Não foi possível carregar seus treinos." : "Nenhum treino neste dia." : "Nenhuma aula ou evento neste dia."}</Text>}
+                </Pressable></View>) : studentMode && studentError ? <ListEmptyState title="Não foi possível carregar seus treinos." actionLabel="Tentar novamente" onAction={onStudentRetry} /> : searchText ? <ListEmptyState title="Nenhum resultado neste mês." description="Tente outro nome ou limpe a busca." actionLabel="Limpar busca" onAction={() => { setSearchQuery(""); searchInputRef.current?.focus(); }} /> : <Text style={agendaStyles.empty}>{studentMode ? "Nenhum treino neste dia." : "Nenhuma aula ou evento neste dia."}</Text>}
 
                 </CalendarEventSheet>
               </View>

@@ -6,7 +6,7 @@ import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
-import { courtPlaybackLayout } from "./court-overlay-layout";
+import { courtEditingDock, courtPlaybackLayout } from "./court-overlay-layout";
 
 type SimulationMode = "receive" | "attack";
 type CameraView = "front" | "side" | "orbit";
@@ -94,13 +94,13 @@ function Range({ label, value, min, max, step, onChange, disabled = false, text,
   </View>;
 }
 
-function IconButton({ label, icon, onPress, primary = false, disabled = false, children, transport = false, circular = false, compact = false }: {
-  label: string; icon: GoAtletaIconName; onPress: () => void; primary?: boolean; disabled?: boolean; children?: ReactNode; transport?: boolean; circular?: boolean; compact?: boolean;
+function IconButton({ label, icon, onPress, primary = false, disabled = false, children, transport = false, circular = false, compact = false, fullTarget = false }: {
+  label: string; icon: GoAtletaIconName; onPress: () => void; primary?: boolean; disabled?: boolean; children?: ReactNode; transport?: boolean; circular?: boolean; compact?: boolean; fullTarget?: boolean;
 }) {
   const { colors } = useAppTheme();
   const { width: controlWidth } = useWindowDimensions();
   const touch = Platform.OS !== "web" || (transport && controlWidth <= 700);
-  return <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} hitSlop={compact ? 4 : undefined} onPress={onPress} style={({ hovered, pressed }) => [styles.iconButton, { minWidth: compact ? circular ? 32 : 28 : circular || primary ? 44 : touch ? 40 : 28, minHeight: compact ? 32 : circular ? 44 : touch ? transport ? 40 : 44 : 28, flexShrink: 0, backgroundColor: hovered || pressed ? colors.secondaryBg : circular ? colors.background : primary ? colors.primaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
+  return <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} hitSlop={compact && !fullTarget ? 4 : undefined} onPress={onPress} style={({ hovered, pressed }) => [styles.iconButton, { minWidth: fullTarget ? 44 : compact ? circular ? 32 : 28 : circular || primary ? 44 : touch ? 40 : 28, minHeight: fullTarget ? 44 : compact ? 32 : circular ? 44 : touch ? transport ? 40 : 44 : 28, flexShrink: 0, backgroundColor: hovered || pressed ? colors.secondaryBg : circular ? colors.background : primary ? colors.primaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
     {children}<GoAtletaIcon name={icon} size={compact ? 12 : circular ? primary ? 16 : 19 : Platform.OS !== "web" ? primary ? 18 : 16 : primary ? 12 : 14} color={circular ? primary ? colors.primaryBg : colors.text : primary ? colors.primaryText : colors.muted} />
   </Pressable>;
 }
@@ -118,16 +118,19 @@ export function CourtSimulationModes({ mode, onChange, disabled = false, top = 8
   </View>;
 }
 
-export function CourtSimulationTransport({ playing, progress, speed, rotation, onPlay, onRestart, onPreviousRotation, onNextRotation, onSeek, onSpeed, onOpenSteps, disabled = false, bottom = 20, showRotation = true, uiScale = 1 }: {
+export function CourtSimulationTransport({ playing, progress, speed, rotation, onPlay, onRestart, onPreviousRotation, onNextRotation, onSeek, onSpeed, onOpenSteps, editingControls, dockInsets, disabled = false, bottom = 20, showRotation = true, uiScale = 1 }: {
   playing: boolean; progress: number; speed: number; rotation: number;
   onPlay: () => void; onRestart: () => void; onPreviousRotation: () => void; onNextRotation: () => void;
   onSeek: (value: number) => void; onSpeed: (value: number) => void; onOpenSteps: () => void;
   disabled?: boolean; bottom?: number; showRotation?: boolean; uiScale?: number;
+  editingControls?: ReactNode;
+  dockInsets?: { left: number; right: number };
 }) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const layout = courtPlaybackLayout(width, uiScale, Platform.OS === "web");
   const compactOptions = Platform.OS === "web" && layout.stacked;
+  const editingDock = Boolean(editingControls && dockInsets);
   const controlsScale = compactOptions ? Math.min(1, layout.width / 276) : 1;
   const speedTrigger = useRef<View>(null);
   const speedMenuId = useId();
@@ -167,26 +170,26 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
         <IconButton transport compact={compactOptions} label={`Próxima rotação: ${ROTATIONS[(selectedRotation + 1) % 6]}`} icon="chevronForward" onPress={onNextRotation} disabled={disabled} />
       </View> : null;
   const speedControl = <View ref={speedTrigger} collapsable={false}>
-    <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Velocidade da reprodução" accessibilityValue={{ text: rate }} accessibilityState={{ expanded: speedOpen && !disabled, disabled }} disabled={disabled} onPress={toggleSpeed} style={({ hovered, pressed }) => [styles.transportRow, { minWidth: compactOptions ? 44 : 48, minHeight: Platform.OS === "web" ? 32 : 40, paddingHorizontal: compactOptions ? 4 : 6, justifyContent: "center", borderRadius: radius.full, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
+    <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Velocidade da reprodução" accessibilityValue={{ text: rate }} accessibilityState={{ expanded: speedOpen && !disabled, disabled }} disabled={disabled} onPress={toggleSpeed} style={({ hovered, pressed }) => [styles.transportRow, { minWidth: compactOptions || editingDock ? 44 : 48, minHeight: editingDock ? 44 : Platform.OS === "web" ? 32 : 40, paddingHorizontal: compactOptions ? 4 : 6, justifyContent: "center", borderRadius: radius.full, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
       <Text numberOfLines={1} style={{ color: colors.text, fontSize: Platform.OS === "web" ? 11 : 12, fontVariant: ["tabular-nums"] }}>{rate}</Text>
       <GoAtletaIcon name="chevronDown" size={12} color={colors.muted} />
     </Pressable>
   </View>;
-  const options = <View accessibilityLabel="Rodízio e opções de reprodução" style={[styles.transportRow, compactOptions ? { flex: 1, minWidth: 0 } : null, { justifyContent: "space-between", gap: compactOptions ? 4 : 6, paddingHorizontal: compactOptions ? 4 : 6, minHeight: 36, borderRadius: radius.full, backgroundColor: compactOptions ? "transparent" : colors.background }]}>
+  const options = <View accessibilityLabel="Rodízio e opções de reprodução" style={[styles.transportRow, compactOptions || editingDock ? { flex: 1, minWidth: 0 } : null, { justifyContent: "space-between", gap: editingDock ? 0 : compactOptions ? 4 : 6, paddingHorizontal: editingDock ? 0 : compactOptions ? 4 : 6, minHeight: 36, borderRadius: radius.full, backgroundColor: compactOptions || editingDock ? "transparent" : colors.background }]}>
     {rotationControls}
     {speedControl}
-    <IconButton transport compact={compactOptions} label="Mostrar ajustes" icon="list" onPress={onOpenSteps} />
+    {editingControls ?? <IconButton transport compact={compactOptions} label="Mostrar ajustes" icon="list" onPress={onOpenSteps} />}
   </View>;
-  return <><View accessibilityLabel="Reprodução da jogada" style={[styles.transport, { bottom, width: layout.width, height: layout.height, justifyContent: "space-between", transform: [{ scale: uiScale }], transformOrigin: "bottom center" }]}>
+  return <><View accessibilityLabel="Reprodução da jogada" style={[styles.transport, { bottom, justifyContent: "space-between" }, editingDock ? { left: courtEditingDock.left + (dockInsets?.left ?? 0), right: courtEditingDock.right + (dockInsets?.right ?? 0), height: courtEditingDock.height } : { width: layout.width, height: layout.height, transform: [{ scale: uiScale }], transformOrigin: "bottom center" }]}>
     <View style={{ height: 24, justifyContent: "center" }}><Range transport label="Avançar ou voltar na jogada" value={progress} min={0} max={1} step={0.001} onChange={onSeek} disabled={disabled} text={`${Math.round(clamp(progress, 0, 1) * 100)}%`} /></View>
-    <View accessibilityLabel="Comandos de reprodução" style={[styles.transportRow, { justifyContent: "space-between", gap: compactOptions ? 4 : 8, height: 44 }, compactOptions ? { width: layout.width / controlsScale, paddingHorizontal: 4, borderRadius: radius.full, backgroundColor: colors.background, transform: [{ scale: controlsScale }], transformOrigin: "bottom left" } : null]}>
-      <View style={[styles.transportRow, { gap: compactOptions ? 4 : 8 }]}>
-        <IconButton transport circular compact={compactOptions} label={playing ? "Pausar jogada" : "Reproduzir jogada"} icon={playing ? "pause" : "play"} onPress={onPlay} primary disabled={disabled} />
-        <IconButton transport circular compact={compactOptions} label="Voltar ao início da jogada" icon="refresh" onPress={onRestart} disabled={disabled} />
+    <View accessibilityLabel="Comandos de reprodução" style={[styles.transportRow, { justifyContent: "space-between", gap: compactOptions ? 4 : 8, height: 44 }, editingDock ? { width: "100%", height: courtEditingDock.commandsHeight, gap: 0, paddingHorizontal: courtEditingDock.commandsPadding, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background } : compactOptions ? { width: layout.width / controlsScale, paddingHorizontal: 4, borderRadius: radius.full, backgroundColor: colors.background, transform: [{ scale: controlsScale }], transformOrigin: "bottom left" } : null]}>
+      <View style={[styles.transportRow, { gap: editingDock ? 0 : compactOptions ? 4 : 8 }]}>
+        <IconButton transport circular compact={compactOptions || editingDock} fullTarget={editingDock} label={playing ? "Pausar jogada" : "Reproduzir jogada"} icon={playing ? "pause" : "play"} onPress={onPlay} primary disabled={disabled} />
+        <IconButton transport circular compact={compactOptions || editingDock} fullTarget={editingDock} label="Voltar ao início da jogada" icon="refresh" onPress={onRestart} disabled={disabled} />
       </View>
-      {!layout.stacked || compactOptions ? options : null}
+      {!layout.stacked || compactOptions || editingDock ? options : null}
     </View>
-    {layout.stacked && !compactOptions ? options : null}
+    {layout.stacked && !compactOptions && !editingDock ? options : null}
   </View>
     <AnchoredDropdown visible={speedOpen && !disabled} layout={speedLayout} container={null} animationStyle={{}} zIndex={6100} maxHeight={Platform.OS === "web" ? 34 : 44} nestedScrollEnabled={false} density="popover" surface="none" preferredWidth={208} align="end" scrollContentStyle={{ padding: 0, gap: 0 }} fitContent showVerticalScrollIndicator={false} onRequestClose={closeSpeed} interactiveRefs={[speedTrigger]}>
       <Segments nativeID={speedMenuId} label="Velocidade" options={SPEED_OPTIONS} value={boundedSpeed} disabled={disabled} onChange={value => { if (!disabled) { onSpeed(value); closeSpeed(); } }} />

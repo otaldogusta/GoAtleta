@@ -297,6 +297,9 @@ export default function StudentsScreen() {
     setVisiblePhotoStudentIds((current) => current.length === ids.length && current.every((id, index) => id === ids[index]) ? current : ids);
   }, []);
   const [loading, setLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState(false);
+  const [directoryLoadAttempt, setDirectoryLoadAttempt] = useState(0);
+  const [directoryReadScope, setDirectoryReadScope] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const isMountedRef = useRef(true);
   const [showForm, setShowForm] = usePersistedState<boolean>(
@@ -701,7 +704,10 @@ export default function StudentsScreen() {
 
   useEffect(() => {
     const alive = { current: true };
-    (async () => {
+    void Promise.resolve().then(async () => {
+      if (!alive.current) return;
+      setLoading(true);
+      setDirectoryError(false);
       try {
         const [classList, studentList] = await measureAsync(
           "screen.students.load.critical",
@@ -715,30 +721,38 @@ export default function StudentsScreen() {
         if (!alive.current) return;
         setClasses(classList);
         setStudents(studentList);
+        setDirectoryReadScope(studentScope);
       } catch (error) {
         if (!alive.current) return;
         setClasses([]);
         setStudents([]);
+        setDirectoryReadScope(studentScope);
+        setDirectoryError(true);
         console.warn("StudentsScreen initial load failed", error);
       } finally {
         if (alive.current) setLoading(false);
       }
-    })();
+    });
     return () => {
       alive.current = false;
     };
-  }, [activeOrganization]);
+  }, [activeOrganization?.id, directoryLoadAttempt, studentScope]);
 
   const reload = useCallback(async () => {
     try {
       const [studentList] = await Promise.all([
         getStudentDirectoryRecords({ organizationId: activeOrganization?.id }),
       ]);
+      if (editSelectionScope.current !== studentScope) return;
       setStudents(studentList);
+      setDirectoryReadScope(studentScope);
+      setDirectoryError(false);
     } catch (error) {
+      if (editSelectionScope.current !== studentScope) return;
+      setDirectoryError(true);
       console.warn("StudentsScreen reload failed", error);
     }
-  }, [activeOrganization]);
+  }, [activeOrganization, studentScope]);
 
   const operationalStudent = useMemo(
     () => editingStudentFull?.scope === studentScope && editingStudentFull.student.id === editingId && editingStudentFull.student.organizationId === activeOrganization?.id ? editingStudentFull.student : null,
@@ -1511,7 +1525,7 @@ export default function StudentsScreen() {
       };
 
       if (editingId) {
-        await measure("updateStudent", () => updateStudent(student));
+        await measure("updateStudent", () => updateStudent(student, operationalStudent ?? undefined));
       } else {
         await measure("saveStudent", () => saveStudent(student));
       }
@@ -2636,7 +2650,7 @@ export default function StudentsScreen() {
               setStudentsUnitFilter={setStudentsUnitFilter}
               studentsSearch={studentsSearch}
               setStudentsSearch={setStudentsSearch}
-              students={students}
+              students={directoryReadScope === studentScope ? students : []}
               studentsFiltered={studentsFiltered}
               studentsGrouped={studentsGrouped}
               classById={classById}
@@ -2651,7 +2665,9 @@ export default function StudentsScreen() {
               onVisiblePhotoStudentsChange={onVisiblePhotoStudentsChange}
               onStudentWhatsApp={openStudentWhatsApp}
               birthdayStudentIds={birthdayStudentIds}
-              loading={loading}
+              loading={loading || directoryReadScope !== studentScope}
+              loadError={directoryError}
+              onRetry={() => setDirectoryLoadAttempt((value) => value + 1)}
               canViewFinancialStatus={canManageFinancialStatus}
               organizationId={activeOrganization?.id ?? null}
               canManageFamilyAccess={scopedRoutes.scope === "coord"}

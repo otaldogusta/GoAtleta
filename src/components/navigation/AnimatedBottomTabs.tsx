@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import Animated, {
@@ -61,6 +61,11 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
     /^\/(prof|coord)\/periodization(\/|$)/.test(pathname) ||
     /^\/periodization(\/|$)/.test(pathname);
   const hideForWorkspaceShell = usesWorkspaceShell;
+  const quickActionsOpen = menuOpen && !hideNavigation && !hideForWorkspaceShell;
+  const quickActionsId = useId();
+  const quickActionsRef = useRef<View>(null);
+  const restoreQuickFocus = useRef(false);
+  const isWeb = Platform.OS === "web";
 
   const tabs = useMemo(() => {
     const baseTabs = ROLE_TABS[role];
@@ -102,6 +107,47 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
   const bottom = Math.max(insets.bottom + 8, 14);
   const barWidth = Math.min(contentWidth, compactUiMetrics.navigation.maxWidth);
 
+  const closeQuickActions = useCallback(() => {
+    restoreQuickFocus.current = true;
+    setMenuOpen(false);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (quickActionsOpen || !restoreQuickFocus.current) return;
+    restoreQuickFocus.current = false;
+    if (!isWeb) return;
+    const menu = quickActionsRef.current as unknown as HTMLElement | null;
+    menu?.querySelector<HTMLElement>("[data-goatleta-quick-trigger]")?.focus({ preventScroll: true });
+  }, [isWeb, quickActionsOpen]);
+
+  useLayoutEffect(() => {
+    if (!isWeb || !quickActionsOpen || typeof document === "undefined") return;
+    const menu = quickActionsRef.current as unknown as HTMLElement | null;
+    if (!menu) return;
+    const controls = () => Array.from(menu.querySelectorAll<HTMLElement>(
+      "[data-goatleta-quick-action], [data-goatleta-quick-trigger]",
+    ));
+    controls()[0]?.focus({ preventScroll: true });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeQuickActions();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const buttons = controls();
+      const index = buttons.findIndex(button => button === document.activeElement);
+      if (index >= 0 && (event.shiftKey ? index > 0 : index < buttons.length - 1)) return;
+      event.preventDefault();
+      (event.shiftKey ? buttons.at(-1) : buttons[0])?.focus({ preventScroll: true });
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [closeQuickActions, isWeb, quickActionsOpen]);
+
   useEffect(() => {
     iconAnim.value = withTiming(menuOpen ? 1 : 0, {
       duration: 220,
@@ -140,6 +186,16 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
 
   return (
     <>
+    {isWeb ? <style>{`
+      [data-goatleta-quick-action]:focus-visible {
+        outline: 2px solid ${colors.text};
+        outline-offset: -3px;
+      }
+      [data-goatleta-quick-trigger]:focus-visible {
+        outline: 2px solid ${colors.primaryText};
+        outline-offset: -3px;
+      }
+    `}</style> : null}
     <View
       pointerEvents="none"
       style={{ height: barHeight + bottom + 12, flexShrink: 0, backgroundColor: colors.background }}
@@ -169,6 +225,9 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
       {/* 1. Backdrop escurecido cobrindo a tela toda */}
       <Animated.View
         pointerEvents={menuOpen ? "auto" : "none"}
+        aria-hidden={isWeb || !menuOpen}
+        accessibilityElementsHidden={isWeb || !menuOpen}
+        importantForAccessibility={isWeb || !menuOpen ? "no-hide-descendants" : "auto"}
         style={[
           StyleSheet.absoluteFill,
           {
@@ -187,7 +246,9 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Fechar menu rápido"
-          onPress={() => setMenuOpen(false)}
+          focusable={!isWeb && menuOpen}
+          tabIndex={isWeb ? -1 : undefined}
+          onPress={closeQuickActions}
           suppressWebHoverFeedback
           disableWebPressScale
           style={StyleSheet.absoluteFill}
@@ -196,7 +257,11 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
 
       {/* 2. Barra inferior e FAB posicionados na base (acima do backdrop) */}
       <View
-        accessibilityLabel="Navegação inferior"
+        ref={quickActionsRef}
+        nativeID={quickActionsId}
+        accessibilityLabel={menuOpen ? "Ações rápidas" : "Navegação inferior"}
+        accessibilityViewIsModal={menuOpen}
+        {...(isWeb ? { role: menuOpen ? "dialog" : "navigation", "aria-modal": menuOpen || undefined } as const : {})}
         onLayout={({ nativeEvent }) => {
           const height = Math.ceil(nativeEvent.layout.height);
           if (height > 0) setBarHeight((current) => current === height ? current : height);
@@ -217,7 +282,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
           actions={radialActions}
           anchorBottom={52}
           onActionPress={(action) => {
-            setMenuOpen(false);
+            closeQuickActions();
             navigateToPrimaryRoute({ router, href: action.href });
           }}
         />
@@ -248,7 +313,12 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                 accessibilityRole="button"
                 accessibilityLabel={menuOpen ? "Fechar ações rápidas" : "Abrir ações rápidas"}
                 accessibilityState={{ expanded: menuOpen }}
-                onPress={() => setMenuOpen((current) => !current)}
+                {...(isWeb ? {
+                  "aria-haspopup": "dialog",
+                  "aria-controls": quickActionsId,
+                  dataSet: { goatletaQuickTrigger: "true" },
+                } : {})}
+                onPress={menuOpen ? closeQuickActions : () => setMenuOpen(true)}
                 style={{
                   width: compactUiMetrics.navigation.actionSize,
                   height: compactUiMetrics.navigation.actionSize,
@@ -271,6 +341,10 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
           return (
             <View
               key={tab.key}
+              aria-hidden={menuOpen}
+              accessibilityElementsHidden={menuOpen}
+              importantForAccessibility={menuOpen ? "no-hide-descendants" : "auto"}
+              {...(isWeb ? { inert: menuOpen } : {})}
               style={{
                 flex: 1,
                 alignItems: "center",

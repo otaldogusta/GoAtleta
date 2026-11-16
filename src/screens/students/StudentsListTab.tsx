@@ -51,7 +51,7 @@ import {
 import { StudentFamilyAccessPanels } from "./components/StudentFamilyAccessPanels";
 import { StudentLoginAccessStatus } from "./components/StudentLoginAccessStatus";
 import { StudentDirectoryStatusBadge } from "./components/StudentDirectoryStatusBadge";
-import { StudentsEmptyState } from "./components/StudentsEmptyState";
+import { ListEmptyState } from "../../ui/ListEmptyState";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 
@@ -84,6 +84,8 @@ export type StudentsListTabProps = {
   onStudentWhatsApp?: (student: StudentDirectoryRecord) => void;
   birthdayStudentIds?: ReadonlySet<string>;
   loading?: boolean;
+  loadError?: boolean;
+  onRetry?: () => void;
   canViewFinancialStatus?: boolean;
   organizationId?: string | null;
   canManageFamilyAccess?: boolean;
@@ -305,6 +307,8 @@ export const StudentsListTab = memo(function StudentsListTab({
   onStudentWhatsApp,
   birthdayStudentIds,
   loading = false,
+  loadError = false,
+  onRetry,
   canViewFinancialStatus = false,
   organizationId = null,
   canManageFamilyAccess = false,
@@ -322,6 +326,7 @@ export const StudentsListTab = memo(function StudentsListTab({
     compactFilters,
   );
   const unitTriggerRef = useRef<View | null>(null);
+  const searchInputRef = useRef<TextInput | null>(null);
   const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
   const [unitDropdownLayout, setUnitDropdownLayout] =
     useState<DropdownLayout | null>(null);
@@ -562,10 +567,10 @@ export const StudentsListTab = memo(function StudentsListTab({
 
   const coordinationActiveFilterCount =
     activeFilterCount +
-    (hasSearch ? 1 : 0) +
     (coordClassFilter === "all" ? 0 : 1) +
     (membershipScope === "all" ? 0 : 1) +
     (familyAccessFilter === "all" ? 0 : 1);
+  const hasListFilters = hasSearch || studentsUnitFilter !== "Todas" || coordinationActiveFilterCount > 0;
 
   const clearCoordinationFilters = () => {
     setStudentsSearch("");
@@ -691,6 +696,7 @@ export const StudentsListTab = memo(function StudentsListTab({
             <StudentDirectoryFilterBar
               compact={compactFilters}
               search={studentsSearch}
+              searchInputRef={searchInputRef}
               onSearchChange={setStudentsSearch}
               classOptions={coordinationClassOptions}
               classFilter={coordClassFilter}
@@ -864,6 +870,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                 color={colors.textMuted ?? colors.muted}
               />
               <TextInput
+                ref={canManageFamilyAccess ? undefined : searchInputRef}
                 value={studentsSearch}
                 onChangeText={setStudentsSearch}
                 placeholder={
@@ -904,6 +911,13 @@ export const StudentsListTab = memo(function StudentsListTab({
               A tela continua disponível enquanto os dados chegam.
             </Text>
           </View>
+        ) : loadError ? (
+          <ListEmptyState
+            title="Não foi possível carregar os atletas"
+            description="Tente novamente para consultar os cadastros."
+            actionLabel="Tentar novamente"
+            onAction={onRetry}
+          />
         ) : filteredRows.length > 0 ? (
           <>
             <View
@@ -951,7 +965,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                       IDADE
                     </Text>
                   ) : null}
-                  <Text
+                  {showTable ? <Text
                     style={{
                       flex: canManageFamilyAccess ? 1 : 1,
                       minWidth: canManageFamilyAccess ? 0 : 100,
@@ -962,7 +976,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                     }}
                   >
                     TURMA
-                  </Text>
+                  </Text> : null}
                   <Text
                     style={{
                       flex: canManageFamilyAccess ? 0.85 : 0.8,
@@ -1024,6 +1038,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                       onPress={() => onStudentPress?.(student)}
                       style={(state) => ({
                         minHeight: showTable ? 56 : canManageFamilyAccess ? 60 : 52,
+                        paddingVertical: showTable ? 0 : 10,
                         borderBottomWidth: StyleSheet.hairlineWidth,
                         borderBottomColor: colors.borderSubtle ?? colors.border,
                         borderLeftWidth:
@@ -1071,11 +1086,11 @@ export const StudentsListTab = memo(function StudentsListTab({
                         </Pressable>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text
-                            numberOfLines={1}
+                            numberOfLines={showTable ? 1 : 2}
                             style={{
                               color: colors.text,
                               fontSize: compactUiMetrics.bodyFontSize,
-                              fontWeight: "900",
+                              fontWeight: "700",
                             }}
                           >
                             {student.name}
@@ -1085,8 +1100,11 @@ export const StudentsListTab = memo(function StudentsListTab({
                               numberOfLines={1}
                               style={{ color: colors.muted, fontSize: 10 }}
                             >
-                              {student.age || "—"} anos
+                              {student.age || "—"} anos{!showTable ? ` · ${cls?.name ?? "Turma"}` : ""}
                             </Text>
+                          ) : null}
+                          {canManageFamilyAccess && !showTable && scheduleLabel ? (
+                            <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 3 }}>{scheduleLabel}</Text>
                           ) : null}
                           {!showTable && !canManageFamilyAccess ? (
                             <>
@@ -1115,7 +1133,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                               {student.age || "—"} anos
                             </Text>
                           ) : null}
-                          <View
+                          {showTable ? <View
                             style={{
                               flex: 1,
                               minWidth: canManageFamilyAccess ? 0 : 100,
@@ -1144,7 +1162,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                                 {scheduleLabel}
                               </Text>
                             ) : null}
-                          </View>
+                          </View> : null}
                           <View
                             style={{
                               flex: canManageFamilyAccess ? 0.85 : 0.8,
@@ -1428,9 +1446,14 @@ export const StudentsListTab = memo(function StudentsListTab({
             </View>
           </>
         ) : (
-          <StudentsEmptyState
-            unitFilter={studentsUnitFilter}
-            hasSearch={hasSearch}
+          <ListEmptyState
+            title={hasListFilters ? "Nenhum atleta corresponde aos filtros" : "Nenhum atleta cadastrado"}
+            description={hasListFilters ? "Tente outro nome ou ajuste os filtros." : "Os atletas cadastrados aparecem aqui."}
+            actionLabel={hasListFilters ? (coordinationActiveFilterCount || studentsUnitFilter !== "Todas" ? "Limpar filtros" : "Limpar busca") : undefined}
+            onAction={hasListFilters ? () => {
+              clearCoordinationFilters();
+              searchInputRef.current?.focus();
+            } : undefined}
           />
         )}
       </View>

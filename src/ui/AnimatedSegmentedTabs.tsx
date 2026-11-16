@@ -44,6 +44,7 @@ export function AnimatedSegmentedTabs<T extends string>({
 
   return (
     <View
+      role="tablist"
       style={[
         {
           flexDirection: "row",
@@ -110,6 +111,7 @@ function AnimatedTabButton<T extends string>({
       backgroundColor: tabBackground, overflow: 'hidden' }}>
       <Pressable
         accessibilityRole="tab"
+        aria-selected={active}
         accessibilityState={{ selected: active }}
         onPress={(event) => {
           event.stopPropagation?.();

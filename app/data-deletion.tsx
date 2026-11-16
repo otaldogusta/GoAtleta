@@ -1,4 +1,4 @@
-import { LegalDocumentScreen } from "../src/components/legal/LegalDocumentScreen";
+import { DATA_DELETION_EMAIL_SUBJECT, LegalDocumentScreen } from "../src/components/legal/LegalDocumentScreen";
 import { markRender } from "../src/observability/perf";
 
 // perf-check: ignore-measure -- static legal content performs no asynchronous loading.
@@ -15,6 +15,7 @@ export default function DataDeletionScreen() {
           paragraphs: [
             "Envie um e-mail para uniquexperieence@gmail.com com o assunto “Exclusão de dados Go Atleta”, usando o endereço associado à conta. Informe apenas o nome e o e-mail da conta; nunca envie senha ou código de verificação.",
           ],
+          contact: { subject: DATA_DELETION_EMAIL_SUBJECT },
         },
         {
           title: "Confirmação e prazo",

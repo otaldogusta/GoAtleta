@@ -1,6 +1,6 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, TextInput, View } from "react-native";
+import { ScrollView, TextInput, View, useWindowDimensions } from "react-native";
 import { OperationalText as Text } from "../../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -22,11 +22,23 @@ import { markRender, measureAsync } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { useOptionalCopilotOpen } from "../../../src/copilot/CopilotProvider";
+import { usesClassLogAssistantButton } from "../../../src/copilot/route-visibility";
+import { compactUiMetrics } from "../../../src/theme/tokens";
 
 export default function LogScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
+  const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const openAssistant = useOptionalCopilotOpen();
+  const assistantHeaderAction = openAssistant && usesClassLogAssistantButton(pathname, width) ? (
+    <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente do Relatório" onPress={openAssistant}
+      style={{ width: 44, height: 44, borderRadius: 22, flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
+      <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.muted} />
+    </Pressable>
+  ) : null;
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
   const hydratedKeyRef = useRef<string | null>(null);
@@ -283,6 +295,7 @@ export default function LogScreen() {
         { cls ? (
           <ClassContextHeader
             title="Relatório da aula"
+            headerAction={assistantHeaderAction}
             className={className}
             unit={cls.unit}
             ageBand={cls.ageBand}
@@ -294,9 +307,12 @@ export default function LogScreen() {
           />
         ) : (
           <View style={{ gap: 6, marginBottom: 12 }}>
-            <Text style={{ fontSize: 18, lineHeight: 24, fontWeight: "700", color: colors.text }}>
-              Relatório da aula
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <Text style={{ flex: 1, fontSize: 18, lineHeight: 24, fontWeight: "700", color: colors.text }}>
+                Relatório da aula
+              </Text>
+              {assistantHeaderAction}
+            </View>
             <Text style={{ color: colors.muted }}>Resumo da aula aplicada</Text>
           </View>
         )}
@@ -429,7 +445,7 @@ export default function LogScreen() {
                 Conclusão
               </Text>
               <TextInput
-                placeholder="Observa??es finais da aula"
+                placeholder="Observações finais da aula"
                 value={conclusion}
                 onChangeText={(value) => {
                   setConclusion(value);

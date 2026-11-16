@@ -7,16 +7,15 @@ const workspaceSource = readFileSync(
 );
 
 describe("coordination mobile metrics layout", () => {
-  it("keeps all five indicators side by side in one compact row", () => {
-    expect(workspaceSource).toContain("flex: 1");
-    expect(workspaceSource).toContain("minHeight: compact ? 72 : 48");
-    expect(workspaceSource).not.toContain('width: compact ? (index === 4 ? "100%" : "50%")');
+  it("keeps the four counts readable in two mobile rows and a single wide row", () => {
+    expect(workspaceSource).toContain("compact ? [summaryMetrics.slice(0, 2), summaryMetrics.slice(2)] : [summaryMetrics]");
+    expect(workspaceSource).toContain('accessibilityLabel={`Abrir fila. ${accessibleLabel}`}');
+    expect(workspaceSource).toContain("onPress={() => openSummaryModule(section)}");
   });
 
-  it("stacks mobile indicators and places desktop icons next to their values", () => {
-    expect(workspaceSource).toContain('flexDirection: compact ? "column" : "row"');
-    expect(workspaceSource).toContain("size={18}");
-    expect(workspaceSource).toContain("fontSize: compact ? 9 : 12");
-    expect(workspaceSource).toContain('textAlign: "center"');
+  it("keeps the operational score explanation available as a separate expandable action", () => {
+    expect(workspaceSource).toContain('accessibilityLabel={`Índice operacional:');
+    expect(workspaceSource).toContain("accessibilityState={{ expanded: showHealthDetails }}");
+    expect(workspaceSource).toContain("Parte de 100 e perde 2 pontos por chamada pendente");
   });
 });

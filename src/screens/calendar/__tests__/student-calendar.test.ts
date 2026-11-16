@@ -1,11 +1,12 @@
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import CalendarScreen from "../../../../app/calendar";
 import type { ClassGroup } from "../../../core/models";
 import { getClasses, getTrainingPlans, getCalendarTrainingPlanApplications, getTrainingPlanSummaries, saveTrainingPlan } from "../../../db/seed";
 import { listEvents } from "../../../api/events";
 import { listCalendarPauses } from "../../../api/holiday-decisions";
 const mockPush = jest.fn();
+jest.mock("@sentry/react-native", () => ({ captureException: jest.fn() }));
 jest.mock("expo-router", () => ({ useNavigationContainerRef: () => ({ current: null }), useRoute: () => ({ key: "student-agenda" }), useRouter: () => ({ push: mockPush }), usePathname: () => "/student/agenda", useLocalSearchParams: () => ({ openApply: "1", targetClassId: "linked", targetDate: "2026-10-31" }) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { id: "athlete" } } }) }));
 jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ activeOrganization: { id: "other-org" } }) }));
@@ -40,27 +41,66 @@ it("clears athlete rows when the supplied scope becomes empty", async () => {
  await waitFor(() => expect(screen.getByLabelText("2026-10-31, Sem agenda")).toBeTruthy());
  expect(screen.queryByText("Treino vinculado")).toBeNull();
 });
-it("distinguishes a failed read from an empty training day", () => {
- const screen = render(React.createElement(CalendarScreen, { studentClasses: [], studentError: true }));
+it("distinguishes a failed read from an empty training day", async () => {
+ const onStudentRetry = jest.fn();
+ const screen = render(React.createElement(CalendarScreen, { studentClasses: [], studentError: true, onStudentRetry }));
+ await act(async () => { await Promise.resolve(); });
  expect(screen.getByText("Não foi possível carregar seus treinos.")).toBeTruthy();
  expect(screen.queryByText("Nenhum treino neste dia.")).toBeNull();
+ fireEvent.press(screen.getByRole("button", { name: "Tentar novamente" }));
+ expect(onStudentRetry).toHaveBeenCalledTimes(1);
+ fireEvent.press(screen.getByLabelText("Pesquisar na agenda"));
+ fireEvent.changeText(screen.getByLabelText("Pesquisar neste mês"), "inexistente");
+ expect(screen.getByText("Não foi possível carregar seus treinos.")).toBeTruthy();
+ expect(screen.queryByText("Nenhum resultado neste mês.")).toBeNull();
+ expect(screen.queryByText("0 resultados neste mês")).toBeNull();
  expect(getClasses).not.toHaveBeenCalled();
 });
-it("keeps the export month synchronized with calendar navigation", () => {
+it("keeps the export month synchronized with calendar navigation", async () => {
  const onMonthChange = jest.fn();
  const screen = render(React.createElement(CalendarScreen, { studentClasses: [], onMonthChange }));
+ await act(async () => { await Promise.resolve(); });
  fireEvent.press(screen.getByLabelText("Próximo mês"));
  expect(onMonthChange.mock.calls.at(-1)?.[0]).toEqual(new Date(2026, 10, 1));
 });
 
-it("searches the visible month using only linked athlete rows and clears results", () => {
+it("searches the visible month using only linked athlete rows and clears results", async () => {
  const screen = render(React.createElement(CalendarScreen, { studentClasses: [linked] }));
+ await act(async () => { await Promise.resolve(); });
  fireEvent.press(screen.getByLabelText("Pesquisar na agenda"));
  fireEvent.changeText(screen.getByLabelText("Pesquisar neste mês"), "VINCULADO");
  expect(screen.getByLabelText("2026-10-03, 13:30 - 14:30, Treino vinculado")).toBeTruthy();
  fireEvent.changeText(screen.getByLabelText("Pesquisar neste mês"), "inexistente");
- expect(screen.getByText("Nenhum resultado neste mês.")).toBeTruthy();
+ expect(screen.getAllByText("Nenhum resultado neste mês.")).toHaveLength(1);
+ expect(screen.queryByText("0 resultados neste mês")).toBeNull();
+ fireEvent.press(screen.getByText("Limpar busca"));
+ expect(screen.getByLabelText("Pesquisar neste mês").props.value).toBe("");
+ expect(screen.getByLabelText("13:30 - 14:30, Treino vinculado")).toBeTruthy();
  fireEvent.press(screen.getByLabelText("Fechar pesquisa"));
  expect(screen.getByLabelText("13:30 - 14:30, Treino vinculado")).toBeTruthy();
  expect(listEvents).not.toHaveBeenCalled(); expect(getClasses).not.toHaveBeenCalled();
+});
+
+it("preserves month, day and search when a failed student read is retried", async () => {
+ const onStudentRetry = jest.fn();
+ const onMonthChange = jest.fn();
+ const props = { studentClasses: [linked], onStudentRetry, onMonthChange };
+ const screen = render(React.createElement(CalendarScreen, props));
+ await act(async () => { await Promise.resolve(); });
+ fireEvent.press(screen.getByLabelText("Próximo mês"));
+ fireEvent.press(screen.getByLabelText("2026-11-07, 1 aula"));
+ fireEvent.press(screen.getByLabelText("Pesquisar na agenda"));
+ fireEvent.changeText(screen.getByLabelText("Pesquisar neste mês"), "VINCULADO");
+ screen.rerender(React.createElement(CalendarScreen, { ...props, studentClasses: [], studentError: true }));
+ fireEvent.press(screen.getByRole("button", { name: "Tentar novamente" }));
+ expect(onStudentRetry).toHaveBeenCalledTimes(1);
+ screen.rerender(React.createElement(CalendarScreen, { ...props, studentClasses: [], studentLoading: true }));
+ screen.rerender(React.createElement(CalendarScreen, props));
+ expect(screen.getByLabelText("Pesquisar neste mês").props.value).toBe("VINCULADO");
+ expect(onMonthChange.mock.calls.at(-1)?.[0]).toEqual(new Date(2026, 10, 1));
+ fireEvent.press(screen.getByLabelText("Fechar pesquisa"));
+ fireEvent.press(screen.getByLabelText("13:30 - 14:30, Treino vinculado"));
+ expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/student-plan", params: { classId: "linked", date: "2026-11-07" } });
+ expect(getClasses).not.toHaveBeenCalled();
+ expect(listEvents).not.toHaveBeenCalled();
 });

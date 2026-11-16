@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 
 import { CurrentLessonHero } from "../CurrentLessonHero";
 import type { HomeScheduleSlot } from "../homeScheduleTypes";
@@ -90,5 +90,40 @@ describe("CurrentLessonHero", () => {
 
     expect(screen.getByText("Estrelas do Saque")).toBeTruthy();
     expect(screen.queryByText("2 turmas em paralelo")).toBeNull();
+  });
+
+  it("exposes both lesson actions as named buttons and invokes the selected action", () => {
+    const onOpenLesson = jest.fn();
+    const onOpenAttendance = jest.fn();
+    const screen = render(React.createElement(CurrentLessonHero, {
+      slot,
+      selectedDateLabel: "Sábado, 15 de agosto",
+      isToday: false,
+      onOpenLesson,
+      onOpenAttendance,
+    }));
+
+    fireEvent.press(screen.getByRole("button", { name: "Ver aula", disabled: false }));
+    expect(onOpenLesson).toHaveBeenCalledTimes(1);
+    expect(onOpenAttendance).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole("button", { name: "Fazer chamada", disabled: false }));
+    expect(onOpenAttendance).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps both actions disabled when the selected day has no lesson", () => {
+    const onOpenLesson = jest.fn();
+    const onOpenAttendance = jest.fn();
+    const screen = render(React.createElement(CurrentLessonHero, {
+      slot: null,
+      selectedDateLabel: "Sábado, 15 de agosto",
+      isToday: false,
+      onOpenLesson,
+      onOpenAttendance,
+    }));
+
+    fireEvent.press(screen.getByRole("button", { name: "Ver aula", disabled: true }));
+    fireEvent.press(screen.getByRole("button", { name: "Fazer chamada", disabled: true }));
+    expect(onOpenLesson).not.toHaveBeenCalled();
+    expect(onOpenAttendance).not.toHaveBeenCalled();
   });
 });

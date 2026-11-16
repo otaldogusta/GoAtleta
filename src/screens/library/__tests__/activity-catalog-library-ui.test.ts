@@ -5,6 +5,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { ACTIVITY_CATALOG_FAMILIES } from "../../../core/volleyball/activity-catalog";
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { ActivityCatalogTab } from "../ActivityCatalogTab";
+import { CompactSelect } from "../../../ui/CompactSelect";
 import {
   getActivityCatalogFamilyLabel,
 } from "../activity-catalog-labels";
@@ -26,6 +27,7 @@ jest.mock("@expo/vector-icons", () => ({
 }));
 
 jest.mock("expo-router", () => ({
+  usePathname: () => "/exercises",
   useRouter: () => ({
     push: jest.fn(),
   }),
@@ -268,7 +270,7 @@ describe("activity catalog library ui", () => {
     expect(collectRenderedText(root)).toContain("Limpar filtros");
 
     act(() => {
-      root.findByProps({ testID: `catalog-family-filter-${firstFamily.id}` }).props.onPress();
+      root.findAllByType(CompactSelect).find((node) => node.props.label === "Família")!.props.onChange(firstFamily.id);
     });
     act(() => {
       root.findByProps({ testID: "catalog-filter-apply" }).props.onPress();
@@ -295,7 +297,7 @@ describe("activity catalog library ui", () => {
     });
 
     expect(collectRenderedText(root)).toContain(
-      "Nenhuma atividade encontrada para os filtros selecionados."
+      "Nenhuma atividade encontrada"
     );
   });
 

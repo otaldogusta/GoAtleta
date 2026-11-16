@@ -1,4 +1,6 @@
 import type { ThemeColors } from "../../../../ui/app-theme";
+import React from "react";
+import { fireEvent, render } from "@testing-library/react-native";
 import {
   StudentDuplicateBadge,
   StudentDuplicateReviewPrompt,
@@ -27,6 +29,25 @@ const colors = {
 } as ThemeColors;
 
 describe("student duplicate review UI", () => {
+  it("exposes independent review and keep actions as buttons", () => {
+    const onReview = jest.fn(), onKeep = jest.fn();
+    const screen = render(React.createElement(StudentDuplicateReviewPrompt, {
+      colors, studentName: "Nome QA", onReview, onKeep,
+    }));
+    fireEvent.press(screen.getByRole("button", { name: "Revisar nome repetido" }));
+    expect(onReview).toHaveBeenCalledTimes(1);
+    expect(onKeep).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole("button", { name: "Manter os dois cadastros" }));
+    expect(onKeep).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps badge activation from opening the surrounding student row", () => {
+    const onPress = jest.fn(), stopPropagation = jest.fn();
+    const screen = render(React.createElement(StudentDuplicateBadge, { colors, onPress }));
+    fireEvent.press(screen.getByRole("button", { name: "Revisar nome repetido" }), { stopPropagation });
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
   it("uses a factual marker without uncertain copy", () => {
     const text = collectText(
       StudentDuplicateBadge({ colors, onPress: jest.fn() })

@@ -24,6 +24,18 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 
 ## Contratos a preservar
 
+- Na edição institucional, os campos de saúde são comparados com a ficha carregada.
+  Alterar o nome não reenvia campos de saúde que ficaram iguais.
+- Em Gestão, o diálogo Convidar pessoa usa o gerenciamento de foco do ModalSheet.
+  Ao fechar o formulário, o foco retorna ao botão que o abriu.
+- Na lista de Atletas, Adicionar em Acessos familiares abre uma etapa dentro do painel.
+  O foco vai ao e-mail e volta a Adicionar ao sair da etapa. Ao gerar o convite,
+  o link fica disponível para copiar antes de retornar à lista.
+
+- Home e Agenda da Família oferecem nova tentativa no vínculo ativo. Somente
+  falha transitória identificada permite manter um resumo do mesmo vínculo.
+  [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
+
 - Em 25/10, listas usam `StudentDirectoryRecord` (16 colunas de cadastro) e
   turmas/sinais usam `ClassStudentRecord` (5 colunas), com paginação integral de
   500, cache separado e sem substituir o leitor FULL de exportação/domínio.
@@ -129,3 +141,20 @@ Nesta organização documental: inspeção estática, sem executar testes do app
   e [family_access_requests.sql](../../../supabase/tests/family_access_requests.sql) cobrem contratos de vínculo.
 - Para mudanças de vínculo, usar nível de dados/segurança da [escada](../../operations/validation-ladder.md)
   e testar aceitação autenticada, conta incorreta, revogação e troca de contexto.
+
+## Continuidade local do inventário · 13/11/2026
+
+Diretório distingue erro de leitura de lista vazia, oferece repetição e só apresenta dados do escopo vigente. Seletor familiar usa diálogo com retorno de foco após a saída. O shell mantém o controle de atualização montado e o desabilita sem handler do vínculo, evitando remontar o seletor ao trocar permissões. Perfil próprio pode fornecer uma ação no cabeçalho sem mudar o perfil de terceiros.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).
+
+Em 14/11/2026, Agenda do Aluno oferece nova tentativa na leitura da turma
+vinculada. Mantém mês, dia e busca, sem remontar o calendário; o escopo e a
+guarda de resposta obsoleta permanecem. Falha não equivale a treino inexistente.
+Na seleção de alunos da turma, Escape fecha Mover preservando IDs e só encerra
+a seleção fora de diálogos/menus. [Provas locais](../../ui/REVISAO_TELAS_ATUAIS_2026-11-14.md).
+
+A continuação de 14/11 confere nome repetido na lista interna atual: Revisar
+abre o editor; Manter conserva o recibo local existente, sem fundir cadastros.
+Papéis/rótulos permitem teclado mantendo a composição. Utilidades de importar
+e exportar pertencem ao diretório geral; não foi encontrada uma entrada atual
+delas na lista interna. [Evidência e limites](../../ui/PENDENCIAS_ATUAIS_2026-11-14.md).

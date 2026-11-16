@@ -39,16 +39,15 @@ export function FamilyScreenShell({
           paddingBottom: layout.usesWorkspaceShell ? layout.density.pageGap : metrics.navigation.height + layout.density.pageGap,
         }}
         refreshControl={
-          onRefresh ? (
-            <AppRefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                void onRefresh();
-              }}
-              tintColor={colors.text}
-              colors={[colors.primaryBg]}
-            />
-          ) : undefined
+          <AppRefreshControl
+            enabled={Boolean(onRefresh)}
+            refreshing={Boolean(onRefresh) && refreshing}
+            onRefresh={() => {
+              void onRefresh?.();
+            }}
+            tintColor={colors.text}
+            colors={[colors.primaryBg]}
+          />
         }
         showsVerticalScrollIndicator={false}
       >

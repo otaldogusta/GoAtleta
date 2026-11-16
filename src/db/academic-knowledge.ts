@@ -254,7 +254,7 @@ const authenticatedFunctionRequest = async (
   });
 };
 
-export async function canManageGlobalAcademicKnowledge(): Promise<boolean> {
+export async function canManageGlobalAcademicKnowledge({ throwOnError = false }: { throwOnError?: boolean } = {}): Promise<boolean> {
   try {
     const token = await getValidAccessToken();
     if (!token) return false;
@@ -272,8 +272,13 @@ export async function canManageGlobalAcademicKnowledge(): Promise<boolean> {
         }),
       },
     );
-    return response.ok && (await response.json()) === true;
-  } catch {
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) return false;
+      throw new Error("Não foi possível consultar a permissão de curadoria.");
+    }
+    return (await response.json()) === true;
+  } catch (error) {
+    if (throwOnError) throw error;
     return false;
   }
 }

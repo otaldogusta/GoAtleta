@@ -5,6 +5,16 @@ contratos locais; não atesta atualização das fontes nem execução remota de 
 
 ## Responsabilidades e entradas
 
+Atualizações recentes usam nome/papel de link; Enter web chama a abertura
+existente sem repetição ao manter a tecla pressionada. Respostas de verificação
+foram simuladas, sem sync externo. [Conferência de 14/11](../../ui/INVENTARIO_ORGANIZADO_2026-11-14.md).
+
+Composição local de 13/11: Regulamentos usa linhas e seletores de versões/autoridade;
+Gestão abre na aba Equipe; Visão geral reúne indicadores e filas. Busca e
+contexto persistem na troca de abas. [Ajuste posterior e validação](../../ui/AJUSTES_PERIODIZACAO_GESTAO_2026-11-13.md).
+Queries e permissões preservadas; preenchimento e limites das fixtures estão na
+[revisão visual](../../ui/REVISAO_INVENTARIO_CONTINUIDADE_2026-11-13.md).
+
 Manter fontes/versionamento de regulamentos, interpretar cláusulas por contexto e
 apresentar atualizações. Consolidar presença, sessões e scouting em indicadores e
 exportações; apresentar agenda, eventos e pausas. Leia ao alterar calendário, regras
@@ -29,6 +39,10 @@ de torneio, início do professor/coordenação ou relatórios.
 | [holiday-decisions.ts](../../../src/api/holiday-decisions.ts) | Pausas `no_training`, leitura da decisão por data e RPC `decide_organization_holiday`. |
 
 ## Contratos a preservar
+
+- O resumo do professor conta dias com chamada por turma; registros de presença
+  contam participações individuais. Em Regulamentos, falha parcial de sincronização
+  preserva a leitura do histórico. [Composição e estados](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).
 
 - A Agenda é a entrada única de eventos. O editor explícito abre na data selecionada,
   mantendo mês/unidade/lista ao fechar; detalhe e edição podem ocorrer no calendário.
@@ -216,3 +230,8 @@ ou publicação da função.
   e [eventos na agenda do professor](../../../src/screens/planning/application/__tests__/professor-agenda-events.test.ts).
 - Ao mudar persistência/regras/escopo, usar nível de dados da [escada](../../operations/validation-ladder.md);
   exportação e sincronização exigem conferência do artefato/fluxo real afetado.
+
+## Continuidade local do inventário · 13/11/2026
+
+A busca sem resultado da Agenda permite limpar mantendo foco no campo; seletor mensal anuncia diálogo e seleção. A composição do calendário, Relatórios, Gestão e Regulamentos já aprovada foi preservada.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).

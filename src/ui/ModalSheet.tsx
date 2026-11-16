@@ -21,10 +21,17 @@ type ModalSheetProps = {
   reduceMotion?: boolean;
   onExited?: () => void;
   transition?: "default" | "calendar";
+  /** Opt-in semantic dialog and keyboard focus management for migrated sheets. */
+  dialogLabel?: string;
 };
 
 let activeWebScrollLocks = 0;
 let restoreWebScrollLock: (() => void) | null = null;
+const activeWebSheets: { id: symbol; zIndex: number }[] = [];
+function isTopWebSheet(id: symbol) {
+  return activeWebSheets.reduce<(typeof activeWebSheets)[number] | undefined>((top, sheet) =>
+    !top || sheet.zIndex >= top.zIndex ? sheet : top, undefined)?.id === id;
+}
 
 function acquireWebScrollLock() {
   if (typeof document === "undefined") return () => undefined;
@@ -121,6 +128,7 @@ export function ModalSheet({
   reduceMotion = false,
   onExited,
   transition = "default",
+  dialogLabel,
 }: ModalSheetProps) {
   // Providers outside a route (for example global confirmations) have no screen
   // navigation context and remain visible. Native presentation is unchanged.
@@ -157,6 +165,47 @@ export function ModalSheet({
   const sheetWidth = Math.max(0, Math.min(viewportWidth, typeof preferredWidth === "number" && Number.isFinite(preferredWidth) ? preferredWidth : viewportWidth));
   const calendarOffset = isRight ? sheetWidth : (viewportWidth + sheetWidth) / 2;
   const blocking = effectiveVisible || (calendarTransition && routeFocused && isMounted);
+  const dialogRef = useRef<View>(null);
+  const sheetId = useRef(Symbol("ModalSheet"));
+
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web" || !effectiveVisible) return;
+    const sheet = { id: sheetId.current, zIndex: overlayZIndex };
+    activeWebSheets.push(sheet);
+    return () => { activeWebSheets.splice(activeWebSheets.indexOf(sheet), 1); };
+  }, [effectiveVisible, overlayZIndex]);
+
+  useLayoutEffect(() => {
+    if (!dialogLabel || !effectiveVisible || !isMounted || Platform.OS !== "web" || typeof document === "undefined" || typeof HTMLElement === "undefined") return;
+    const dialog = dialogRef.current as unknown as HTMLElement | null;
+    if (!dialog) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const selector = 'button, input, textarea, select, a[href], [tabindex="0"]';
+    const visibleTarget = (node: HTMLElement) => !node.matches(':disabled, [aria-disabled="true"]') && !node.closest('[inert], [aria-hidden="true"]') && node.getClientRects().length > 0;
+    let overlay = dialog;
+    while (overlay.parentElement && overlay.parentElement !== document.body) overlay = overlay.parentElement;
+    const siblings = [...document.body.children].filter((node): node is HTMLElement => node instanceof HTMLElement && node !== overlay && !node.inert);
+    siblings.forEach((node) => { node.inert = true; });
+    ([...dialog.querySelectorAll<HTMLElement>(selector)].find(visibleTarget) ?? dialog).focus({ preventScroll: true });
+    const trap = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== "Tab" || !isTopWebSheet(sheetId.current)) return;
+      // A portalled select manages its own arrows and Tab back into this dialog.
+      if (document.activeElement?.closest('[role="listbox"]') && !dialog.contains(document.activeElement)) return;
+      const targets = [...dialog.querySelectorAll<HTMLElement>(selector)].filter(visibleTarget);
+      const index = targets.indexOf(document.activeElement as HTMLElement);
+      if (index >= 0 && (event.shiftKey ? index > 0 : index < targets.length - 1)) return;
+      event.preventDefault();
+      (targets[event.shiftKey ? targets.length - 1 : 0] ?? dialog).focus();
+    };
+    // RN Web TextInput stops bubbling; capture inside the card also leaves
+    // portalled selects free to handle Escape and Tab in their own surface.
+    dialog.addEventListener("keydown", trap, true);
+    return () => {
+      dialog.removeEventListener("keydown", trap, true);
+      siblings.forEach((node) => { node.inert = false; });
+      if (previous?.isConnected && visibleTarget(previous)) previous.focus({ preventScroll: true });
+    };
+  }, [dialogLabel, effectiveVisible, isMounted]);
 
   useLayoutEffect(() => {
     if (!routeFocused) {
@@ -222,13 +271,18 @@ export function ModalSheet({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.defaultPrevented || event.key !== "Escape" || !isTopWebSheet(sheetId.current)) return;
       event.preventDefault();
       onClose();
     };
 
+    const card = dialogRef.current as unknown as HTMLElement | null;
+    card?.addEventListener?.("keydown", handleKeyDown, true);
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      card?.removeEventListener?.("keydown", handleKeyDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [onClose, effectiveVisible]);
 
   if (!routeFocused || (!isMounted && !effectiveVisible)) {
@@ -288,6 +342,8 @@ export function ModalSheet({
         pointerEvents="box-none"
       >
         <Animated.View
+          ref={dialogRef}
+          {...(dialogLabel ? { role: "dialog" as const, "aria-modal": true, accessibilityLabel: dialogLabel, tabIndex: -1, "aria-hidden": !effectiveVisible } : {})}
           pointerEvents={calendarTransition && !effectiveVisible ? "none" : "auto"}
           style={[
             resolvedCardStyle,

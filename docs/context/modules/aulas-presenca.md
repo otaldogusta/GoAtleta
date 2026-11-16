@@ -29,6 +29,10 @@ operacionais. O scanner QR existente é uma ferramenta mobile de leitura de cont
 
 ## Contratos a preservar
 
+- Na web, o painel de NFC leva à chamada manual de uma turma válida da
+  instituição atual. No histórico individual, total e frequência seguem o filtro
+  de data. [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
+
 - Retorno à lista conserva dados do mesmo escopo durante revalidação. Troca de
   identidade, organização, permissões ou cache exige novo carregamento. O detalhe
   lê turma com organização explícita e descarta respostas antigas de sessão/cache.
@@ -141,3 +145,19 @@ Consultar a [escada](../../../docs/operations/validation-ladder.md); validar cha
 autenticada no localhost e NFC/QR em dispositivo quando afetados. O levantamento
 original de 05/10 não executou testes; a aplicação visual de 06/10 registra suas
 evidências e limites no documento do relatório acima.
+
+## Continuidade local do inventário · 13/11/2026
+
+Relatório da ficha usa diálogo nomeado e retorno ao acionador. A Chamada aprovada permanece. O Log direto conserva persistência e usa Assistente no cabeçalho móvel. Na web, session redireciona à ficha; não é uma segunda tela de execução.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).
+
+A jornada atual é Turmas → ficha → Relatório: abre `SessionScreen` em `ModalSheet`, mantendo `/class/[id]`. Histórico reutiliza o mesmo modal por data. Não foi encontrada entrada para `/class/[id]/log` nos menus, homes ou histórico; ele é formulário legado direto. A galeria agora mostra o modal aprovado como referência preservada. [Rastreio e pendência dos atalhos antigos de session](../../ui/AJUSTES_JORNADAS_ASSISTENTE_2026-11-13.md).
+
+Em 14/11/2026, `SessionRouteRedirect` preserva também `date` quando recebida.
+Hoje → dia selecionado → Ver aula mantém a ocorrência na ficha. O corpo de
+`SessionScreen` e o relatório aprovado permanecem intactos; o parâmetro legado
+`tab` não ganhou tradução automática para abrir relatório.
+[Evidência e limites](../../ui/REVISAO_TELAS_ATUAIS_2026-11-14.md).
+
+O FAB Menu da turma fica oculto durante Exportar chamada para não sobrepor
+Baixar PDF; a ficha aprovada permanece igual quando o diálogo está fechado.

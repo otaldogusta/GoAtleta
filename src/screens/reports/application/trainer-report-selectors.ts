@@ -16,6 +16,10 @@ import type { AttendanceDailySummary } from "../../../db/attendance-summary";
 
 export type AttendanceSummaryByClass = Record<string, { total: number; present: number }>;
 
+export function countClassDaysWithAttendance(days: AttendanceDailySummary[]) {
+  return new Set(days.filter(day => day.total > 0).map(day => JSON.stringify([day.classId, day.date]))).size;
+}
+
 export function buildAggregatedAttendanceSummary(days: AttendanceDailySummary[]) {
   const byClass: AttendanceSummaryByClass = Object.create(null);
   const weeks = Array.from({ length: 5 }, () => ({ total: 0, present: 0 }));

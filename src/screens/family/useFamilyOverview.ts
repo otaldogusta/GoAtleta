@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  FamilyAccessRequestError,
   getMyFamilyOverview,
   type FamilyOverview,
 } from "../../api/family-access";
@@ -20,6 +21,12 @@ const emptyOverviewRequestState: FamilyOverviewRequestState = {
   loading: false,
   failed: false,
 };
+
+function isTransientOverviewError(error: unknown) {
+  if (error instanceof FamilyAccessRequestError) return error.status === 408;
+  return error instanceof TypeError &&
+    /network request failed|failed to fetch|fetch failed|networkerror|load failed/i.test(error.message);
+}
 
 export function useFamilyOverview() {
   const { selectedFamilyStudent } = useRole();
@@ -43,7 +50,7 @@ export function useFamilyOverview() {
       overview:
         current.relationshipId === relationshipId ? current.overview : null,
       loading: true,
-      failed: false,
+      failed: current.relationshipId === relationshipId && current.failed,
     }));
 
     try {
@@ -58,16 +65,19 @@ export function useFamilyOverview() {
         relationshipId,
         overview: nextOverview,
         loading: false,
-        failed: false,
+        failed: nextOverview === null,
       });
-    } catch {
+    } catch (error) {
       if (requestIdRef.current !== requestId) return;
-      setRequestState({
+      const keepLastOverview = isTransientOverviewError(error);
+      setRequestState((current) => ({
         relationshipId,
-        overview: null,
+        overview: keepLastOverview && current.relationshipId === relationshipId
+          ? current.overview
+          : null,
         loading: false,
         failed: true,
-      });
+      }));
     }
   }, [relationshipId]);
 

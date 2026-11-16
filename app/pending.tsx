@@ -12,10 +12,8 @@ import {
 } from "../src/api/family-access-request";
 import { FamilyAccessIntentFields } from "../src/screens/family/FamilyAccessIntentFields";
 import {
-  listMyOrganizationAccessRequests,
   searchAccessRequestOrganizations,
   type AccessRequestOrganization,
-  type OrganizationAccessRequest,
 } from "../src/api/organization-access-requests";
 import { claimStudentInvite } from "../src/api/student-invite";
 import { requestAccessReview } from "../src/api/access-request";
@@ -49,6 +47,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { APP_PRODUCT_LABELS } from "../src/config/brand";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Button } from "../src/ui/Button";
+import { usePendingAccessRequest } from "../src/screens/auth/usePendingAccessRequest";
 
 // perf-check: ignore-inline-row-style - the capped five-item dropdown uses theme-dependent row colors and is not a virtualized list.
 
@@ -373,45 +372,21 @@ export default function PendingScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const [accessRequest, setAccessRequest] =
-    useState<OrganizationAccessRequest | null>(null);
+  const {
+    request: accessRequest,
+    error: accessRequestError,
+    loading: accessRequestLoading,
+    observedPending: observedAthletePending,
+    reload: loadAccessRequest,
+  } = usePendingAccessRequest(session?.user.id ?? null);
   const [accessRequestBusy, setAccessRequestBusy] = useState(false);
   const requestLock = useRef(false);
-  const observedAthletePending = useRef(false);
   const autoClaimedRef = useRef(false);
   const organizationTriggerRef = useRef<View>(null);
   const [textAnim] = useState(() => new Animated.Value(0));
   const [inviteEntryAnim] = useState(() => new Animated.Value(0));
   const [inviteShakeAnim] = useState(() => new Animated.Value(0));
   const resolvedRoleHome = resolvePendingRoleHome(role);
-
-  const loadAccessRequest = useCallback(async () => {
-    if (!session) return;
-    try {
-      const requests = await listMyOrganizationAccessRequests();
-      const relevant = requests.filter(
-        (item) =>
-          item.requestKind === "athlete" || item.requestKind === "guardian",
-      );
-      const next =
-        relevant.find((item) => item.status === "pending") ??
-        requests.find(
-          (item) => item.status === "pending" && item.requestKind === "staff",
-        ) ??
-        relevant[0] ??
-        null;
-      if (next?.status === "pending") observedAthletePending.current = true;
-      setAccessRequest(next);
-    } catch {
-      setMessage("Não foi possível consultar a solicitação. Tente novamente.");
-    }
-  }, [session]);
-
-  useEffect(() => {
-    // The async request reconciles React state with the remote access record.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadAccessRequest();
-  }, [loadAccessRequest]);
 
   useEffect(() => {
     if (
@@ -774,7 +749,7 @@ export default function PendingScreen() {
       if (!token && !trainerCode) {
         if (
           resolvedRoleHome &&
-          observedAthletePending.current &&
+          observedAthletePending &&
           accessRequest?.status === "approved"
         ) {
           const nextRole =
@@ -812,6 +787,7 @@ export default function PendingScreen() {
     session,
     accessRequest?.status,
     accessRequest?.requestKind,
+    observedAthletePending,
     availableRoles,
     role,
     setActiveRole,
@@ -827,6 +803,7 @@ export default function PendingScreen() {
     pendingViewState === "waiting" && !accessRequest
       ? getStudentAccessPendingCopy(studentAccessResolution)
       : null;
+  const statusMessage = message || accessRequestError;
   const pendingCopy =
     pendingViewState !== "waiting"
       ? { ...getPendingInviteCopy(pendingViewState),
@@ -848,7 +825,7 @@ export default function PendingScreen() {
         : studentAccessCopy
           ? {
               ...studentAccessCopy,
-              subtitle: message || studentAccessCopy.subtitle,
+              subtitle: statusMessage || studentAccessCopy.subtitle,
             }
           : {
               title: "Encontre sua instituição",
@@ -1151,15 +1128,19 @@ export default function PendingScreen() {
                         />
                       </>
                     ) : null}
-                    {message ? (
+                    {statusMessage ? (
                       <Text
                         accessibilityRole="alert"
                         style={{ color: colors.dangerText }}
                       >
-                        {message}
+                        {statusMessage}
                       </Text>
                     ) : null}
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Atualizar status"
+                      accessibilityState={{ busy: accessRequestLoading, disabled: accessRequestLoading }}
+                      disabled={accessRequestLoading}
                       onPress={() =>
                         void Promise.all([loadAccessRequest(), refresh()])
                       }
@@ -1453,12 +1434,12 @@ export default function PendingScreen() {
                         }
                       />
                     ) : null}
-                    {message ? (
+                    {statusMessage ? (
                       <Text
                         accessibilityRole="alert"
                         style={{ color: colors.dangerText, fontSize: compactUiMetrics.bodyFontSize }}
                       >
-                        {message}
+                        {statusMessage}
                       </Text>
                     ) : null}
                   </View>

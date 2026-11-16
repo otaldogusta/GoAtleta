@@ -1,10 +1,12 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import { CLASS_MODALITY_OPTIONS, type ClassModality } from "../../core/class-modality";
 import { PositionPicker } from "../../ui/PositionPicker";
 import { PlanModalityEditor } from "./PlanModalityEditor";
 import { getPlanModalities } from "../../api/athlete-modalities";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { useOptionalCopilotOpen } from "../../copilot/CopilotProvider";
+import { usesFinanceAssistantButton } from "../../copilot/route-visibility";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import {
   SafeAreaView,
@@ -179,6 +181,10 @@ function CoordinationTuitionSetupOrganizationScope({
 }: CoordinationTuitionSetupProps = {}) {
   markRender("screen.coordTuitionSetup.render.root");
   const router = useRouter();
+  const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const openAssistant = useOptionalCopilotOpen();
+  const ContentContainer = embedded ? View : ScrollView;
   const { colors } = useAppTheme();
   const styles = useMemo(() => createTuitionSetupStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -426,19 +432,27 @@ function CoordinationTuitionSetupOrganizationScope({
   return (
     <SafeAreaView
       edges={embedded ? [] : ["top"]}
-      style={{ flex: 1, minHeight: 0, backgroundColor: embedded ? colors.card : colors.background }}
+      style={{ flex: embedded ? undefined : 1, minHeight: 0, backgroundColor: colors.background }}
     >
-      <ScrollView
-        style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ paddingBottom: embedded ? spacing.md : insets.bottom + 84 }}
-        keyboardShouldPersistTaps="handled"
+      <ContentContainer
+        {...(embedded ? { style: { paddingBottom: spacing.md } } : {
+          style: { flex: 1, minHeight: 0 },
+          contentContainerStyle: { paddingBottom: insets.bottom + 84 },
+          keyboardShouldPersistTaps: "handled" as const,
+        })}
       >
-        <ResponsivePage variant="dashboard" gap={spacing.md}>
+        <ResponsivePage variant="dashboard" gap={spacing.md} style={embedded ? { paddingHorizontal: 0 } : undefined}>
           {showHeader ? (
             <ScreenPageHeader
-              title="Planos e mensalidades"
+              title={width < 600 ? "Planos" : "Planos e mensalidades"}
               subtitle={activeOrganization?.name ?? "Instituição"}
               onBack={onClose ?? (() => router.back())}
+              right={openAssistant && usesFinanceAssistantButton(pathname, width) ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente do Financeiro" onPress={openAssistant}
+                  style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>
+                  <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.muted} />
+                </Pressable>
+              ) : null}
               horizontalBleed={0}
             />
           ) : (
@@ -476,11 +490,11 @@ function CoordinationTuitionSetupOrganizationScope({
           >
             <View
               style={{
-                borderRadius: radius.container,
-                borderWidth: 1,
+                borderRadius: embedded ? 0 : radius.container,
+                borderWidth: embedded ? 0 : 1,
                 borderColor: colors.border,
-                backgroundColor: colors.card,
-                padding: spacing.md,
+                backgroundColor: embedded ? "transparent" : colors.card,
+                padding: embedded ? 0 : spacing.md,
                 gap: spacing.sm,
               }}
             >
@@ -721,7 +735,7 @@ function CoordinationTuitionSetupOrganizationScope({
             </View>
           </ResponsiveGrid>
         </ResponsivePage>
-      </ScrollView>
+      </ContentContainer>
     </SafeAreaView>
   );
 }

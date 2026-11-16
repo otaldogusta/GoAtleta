@@ -31,6 +31,7 @@ import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { isBiometricsSupported } from "../src/security/biometrics";
 import { isSupabaseConfigured } from "../src/api/config";
 import { markRender, measureAsync } from "../src/observability/perf";
+import { borders } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { authLayout } from "../src/ui/auth-layout";
 import { Button } from "../src/ui/Button";
@@ -38,7 +39,7 @@ import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
-
+const passwordVisibilitySlot = { width: 34, height: 34, marginLeft: 8 };
 
 export default function LoginScreen() {
   markRender("screen.login.render.root");
@@ -69,12 +70,12 @@ export default function LoginScreen() {
   const [email, setEmail] = useState(typeof prefillEmail === "string" ? prefillEmail.trim() : "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showKeyboardFocus, setShowKeyboardFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const routeMessage = pendingHint === "1"
     ? "Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente."
     : fromSignup === "1" ? "Este email já está cadastrado. Entrar com os dados preenchidos." : "";
   const [message, setMessage] = useState(routeMessage);
-  const [failedLoginAttempt, setFailedLoginAttempt] = useState(false);
   const requestedReset = resetParam === "1" || resetParam === "true";
   const [showReset, setShowReset] = useState(requestedReset);
   const [resetCountdown, setResetCountdown] = useState(0);
@@ -103,6 +104,28 @@ export default function LoginScreen() {
       Animated.timing(anim, { toValue: 0, duration: 50, useNativeDriver }),
     ]).start();
   }, [useNativeDriver]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+    const onPointerDown = () => setShowKeyboardFocus(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+      const advancesToPassword =
+        event.key === "Enter" && !event.shiftKey && !showReset &&
+        event.target instanceof HTMLElement && event.target.id === "login-email";
+      if (event.key === "Tab" || advancesToPassword) {
+        setShowKeyboardFocus(true);
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [showReset]);
 
   useEffect(() => {
     if (resetCountdown <= 0) return;
@@ -307,14 +330,9 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim(), password);
       markCredentialLoginSuccess();
-      setFailedLoginAttempt(false);
     } catch (error) {
       const nextMessage = getLoginErrorMessage(error);
       setMessage(nextMessage);
-      setFailedLoginAttempt(
-        nextMessage.startsWith("!Email ou senha incorretos.") ||
-          nextMessage.startsWith("!Conta não encontrada")
-      );
       runShake(shakeAnim);
     } finally {
       loginInFlightRef.current = false;
@@ -395,7 +413,18 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View
+      id={showKeyboardFocus ? "login-keyboard-focus" : undefined}
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
+      {Platform.OS === "web" ? (
+        <style>{`
+          #login-keyboard-focus :is(#login-email-field, #login-password-field):has(> input:focus-visible) {
+            outline: ${borders.focus}px solid ${colors.muted};
+            outline-offset: ${borders.focus}px;
+          }
+        `}</style>
+      ) : null}
       <ScreenBackdrop />
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
         <KeyboardAvoidingView
@@ -585,6 +614,7 @@ export default function LoginScreen() {
                   </View>
                 ) : null}
                 <View
+                  id="login-email-field"
                   style={{
                     borderWidth: message && (fromSignup === "1" || message.toLowerCase().includes("email")) ? 2 : 1,
                     borderColor: message && (fromSignup === "1" || message.toLowerCase().includes("email"))
@@ -694,6 +724,7 @@ export default function LoginScreen() {
                     ) : null}
 
                     <View
+                      id="login-password-field"
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
@@ -738,27 +769,23 @@ export default function LoginScreen() {
                           ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
                         }}
                       />
-                      <Pressable
-                        accessibilityElementsHidden={password.length === 0}
-                        accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                        accessibilityRole="button"
-                        onPress={() => setShowPassword((prev) => !prev)}
-                        disabled={password.length === 0}
-                        style={{
-                          width: 34,
-                          height: 34,
-                          marginLeft: 8,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          opacity: password.length > 0 ? 1 : 0,
-                        }}
-                      >
-                        <GoAtletaIcon
-                          name={showPassword ? "eyeOffSolid" : "viewSolid"}
-                          size={18}
-                          color={colors.muted}
-                        />
-                      </Pressable>
+                      {password.length > 0 ? (
+                        <Pressable
+                          accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                          accessibilityRole="button"
+                          onPress={() => setShowPassword((prev) => !prev)}
+                          style={[
+                            passwordVisibilitySlot,
+                            { alignItems: "center", justifyContent: "center" },
+                          ]}
+                        >
+                          <GoAtletaIcon
+                            name={showPassword ? "eyeOffSolid" : "viewSolid"}
+                            size={18}
+                            color={colors.muted}
+                          />
+                        </Pressable>
+                      ) : <View style={passwordVisibilitySlot} />}
                     </View>
                   </View>
 
@@ -824,9 +851,8 @@ export default function LoginScreen() {
                     )}
                   </Pressable>
 
-                  { failedLoginAttempt && password.length > 0 ? (
-                    <Pressable
-                      accessibilityRole="link"
+                  <Pressable
+                      accessibilityRole="button"
                       onPress={() => {
                         setShowReset(true);
                         setMessage("");
@@ -834,7 +860,9 @@ export default function LoginScreen() {
                       suppressWebHoverFeedback
                       style={({ pressed }: any) => ({
                         alignSelf: "center",
-                        paddingVertical: 6,
+                        minHeight: 44,
+                        paddingHorizontal: 8,
+                        justifyContent: "center",
                         backgroundColor: "transparent",
                         opacity: pressed ? 0.75 : 1,
                       })}
@@ -849,8 +877,7 @@ export default function LoginScreen() {
                           Esqueceu a senha?
                         </Text>
                       )}
-                    </Pressable>
-                  ) : null}
+                  </Pressable>
 
                   {biometricAvailable ? (
                     <Button

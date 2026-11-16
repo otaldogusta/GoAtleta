@@ -72,6 +72,17 @@ const expectUnlocked = () => {
   expect(body.style).toEqual(initialBody); expect(html.style).toEqual(initialHtml); expect(root.style).toEqual(initialRoot);
 };
 
+test("places dialog semantics around the sheet controls rather than the backdrop", () => {
+  act(() => {
+    view = create(React.createElement(ModalSheet, {
+      visible: true, onClose: close, cardStyle: {}, dialogLabel: "Filtros",
+    }, React.createElement(TextInput, { testID: "sheet-control" })));
+  });
+  const dialog = view!.root.findAllByProps({ role: "dialog", accessibilityLabel: "Filtros" })[0];
+  expect(dialog.findByProps({ testID: "sheet-control" })).toBeTruthy();
+  expect(dialog.props["aria-modal"]).toBe(true);
+});
+
 beforeEach(() => {
   jest.clearAllMocks(); timings = []; keydowns = new Set();
   set(Platform, "OS", "web"); body = { style: { ...initialBody } };
@@ -227,6 +238,20 @@ test("replacing the navigation provider detaches the old emitter and follows onl
 test("global confirmations outside NavigationContext keep their visible fallback and close interaction", () => {
   mount(); expect(view!.toJSON()).not.toBeNull(); expect(keydowns.size).toBe(1);
   expect(body.style.overflow).toBe("hidden"); escape(); expect(close).toHaveBeenCalledTimes(1);
+});
+
+test.each([1000, 30000])("Escape closes only the upper sheet and leaves its parent open (z=%s)", zIndex => {
+  const parentClose = jest.fn(), childClose = jest.fn();
+  const pair = (childVisible: boolean) => React.createElement(React.Fragment, null,
+    React.createElement(ModalSheet, { visible: true, onClose: parentClose, cardStyle: {} }, null),
+    React.createElement(ModalSheet, { visible: childVisible, onClose: childClose, overlayZIndex: zIndex, cardStyle: {} }, null));
+  act(() => { view = create(pair(true)); });
+  escape();
+  expect(childClose).toHaveBeenCalledTimes(1);
+  expect(parentClose).not.toHaveBeenCalled();
+  act(() => { view!.update(pair(false)); });
+  escape();
+  expect(parentClose).toHaveBeenCalledTimes(1);
 });
 
 test.each(["android", "ios"])("%s retains native visibility without reading or subscribing to route focus", platform => {

@@ -39,6 +39,9 @@ import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
 import { logNfcError, logNfcEvent } from "../src/nfc/telemetry";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useOrganization } from "../src/providers/organization-context";
+import { buildClassAttendanceWorkspaceHref } from "../src/screens/classes/class-workspace-route";
+import { CompactSelect } from "../src/ui/CompactSelect";
+import { Button } from "../src/ui/Button";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
@@ -120,6 +123,9 @@ export default function NfcAttendanceScreen({ embedded = false, lockedClassId = 
   const [students, setStudents] = useState<Student[]>([]);
   const normalizedLockedClassId = lockedClassId.trim();
   const [chosenClassId, setSelectedClassId] = useState(normalizedLockedClassId);
+  const [retryClassList, setRetryClassList] = useState(0);
+  const [classListStatus, setClassListStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [classListOrganizationId, setClassListOrganizationId] = useState("");
   const selectedClassId = normalizedLockedClassId || chosenClassId;
   const [feedback, setFeedback] = useState("");
   const [liveCheckins, setLiveCheckins] = useState<LiveCheckin[]>([]);
@@ -132,7 +138,6 @@ export default function NfcAttendanceScreen({ embedded = false, lockedClassId = 
   const [metrics, setMetrics] = useState<NfcMetrics>(emptyMetrics());
   const [bindings, setBindings] = useState<NfcTagBinding[]>([]);
   const [removingBindingId, setRemovingBindingId] = useState("");
-  const [webPreviewScanning, setWebPreviewScanning] = useState(false);
 
 const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const shouldResumeAfterBindRef = useRef(false);
@@ -449,7 +454,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const refreshNfcSupport = useCallback(async () => {
     if (Platform.OS === "web") {
-      const reason = "NFC não é suportado no navegador.";
+      const reason = "Para ler tags NFC, use o app em um aparelho compatível.";
       setSupportMessage(reason);
       setFeedback("");
       return { ok: false as const, reason };
@@ -514,10 +519,10 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
     }
     (async () => {
       try {
-        const [classRows, studentRows, bindingRows] = await measureAsync(
+        const [classesResult, studentsResult, bindingsResult] = await measureAsync(
           "screen.nfc.load.initial",
           () =>
-            Promise.all([
+            Promise.allSettled([
               getClasses({ organizationId: orgId }),
               getStudents({ organizationId: orgId }),
               listBindings(orgId),
@@ -525,14 +530,22 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
           { screen: "nfc", organizationId: orgId }
         );
         if (!alive) return;
-        setClasses(classRows);
-        setStudents(studentRows);
-        setBindings(bindingRows);
-        if (normalizedLockedClassId && classRows.some((item) => item.id === normalizedLockedClassId)) {
-          setSelectedClassId(normalizedLockedClassId);
-        } else if (!selectedClassId && classRows.length) {
-          setSelectedClassId(classRows[0].id);
+        if (classesResult.status === "fulfilled") {
+          const classRows = classesResult.value;
+          setClasses(classRows);
+          setClassListOrganizationId(orgId);
+          setClassListStatus("ready");
+          setSelectedClassId((previous) => classRows.some((item) => item.id === previous)
+            ? previous
+            : normalizedLockedClassId || classRows[0]?.id || "");
+        } else {
+          setClasses([]);
+          setClassListStatus("error");
         }
+        if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+        if (bindingsResult.status === "fulfilled") setBindings(bindingsResult.value);
+        const failure = [classesResult, studentsResult, bindingsResult].find((result) => result.status === "rejected");
+        if (failure?.status === "rejected") throw failure.reason;
       } catch (error) {
         if (!alive) return;
         const friendly = getFriendlyErrorMessage(error, "Falha ao carregar dados NFC.");
@@ -543,7 +556,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id, normalizedLockedClassId, selectedClassId, showSaveToast]);
+  }, [activeOrganization?.id, normalizedLockedClassId, retryClassList, showSaveToast]);
 
   useEffect(() => {
     if (!showBindModal) return;
@@ -837,13 +850,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   };
 
   const toggleScanning = useCallback(async () => {
-    if (Platform.OS === "web") {
-      setWebPreviewScanning((prev) => {
-        const next = !prev;
-        return next;
-      });
-      return;
-    }
+    if (Platform.OS === "web") return;
 
     if (scanState === "scanning" || scanState === "paused") {
       await stopScan();
@@ -866,7 +873,6 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const stopScanning = useCallback(async () => {
     if (Platform.OS === "web") {
-      setWebPreviewScanning(false);
       shouldResumeAfterBindRef.current = false;
       setShowBindModal(false);
       return;
@@ -877,17 +883,14 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
     setFeedback("Leitura parada.");
   }, [stopScan]);
 
-  const uiScanState = Platform.OS === "web" ? (webPreviewScanning ? "scanning" : "idle") : scanState;
+  const uiScanState = scanState;
   const selectedClassName =
     classesById.get(selectedClassId)?.name ?? "turma ativa";
   const hasPendingSync = metrics.checkinsPending > 0;
   const organizationLabel =
     activeOrganization?.name ?? "Sem organização ativa";
-  const effectiveSupportMessage = Platform.OS === "web" ? "" : supportMessage;
-  const isScanLive =
-    Platform.OS === "web"
-      ? webPreviewScanning
-      : uiScanState === "scanning" && !effectiveSupportMessage && !showBindModal;
+  const effectiveSupportMessage = supportMessage;
+  const isScanLive = uiScanState === "scanning" && !effectiveSupportMessage && !showBindModal;
   const isScannerOn = uiScanState === "scanning";
   const openAssistantFromNfc = useCallback(
     (prompt: string) => {
@@ -1076,6 +1079,26 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
         />}
 
         <View style={{ width: "100%", maxWidth: embedded ? "100%" : 980, alignSelf: "center", gap: 14 }}>
+        {Platform.OS === "web" ? (
+          <View style={{ gap: 20, paddingTop: 12, paddingBottom: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+              <GoAtletaIcon name="nfc" size={24} color={colors.muted} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>Chamada pelo navegador</Text>
+                <Text style={{ color: colors.muted, lineHeight: 18 }}>Use a chamada manual aqui. Para ler uma tag, abra o app em um celular compatível com NFC.</Text>
+              </View>
+            </View>
+            {normalizedLockedClassId ? <Text style={{ color: colors.text }}>{classesById.get(selectedClassId)?.name}</Text> : (
+              <CompactSelect label="Turma" value={selectedClassId} options={classes.map((item) => ({ value: item.id, label: item.name }))} onChange={setSelectedClassId} />
+            )}
+            <Button label="Abrir chamada manual"
+              disabled={classListStatus !== "ready" || classListOrganizationId !== activeOrganization?.id || !classesById.has(selectedClassId)}
+              onPress={() => router.push(buildClassAttendanceWorkspaceHref(selectedClassId))} />
+            {classListStatus === "error" ? <Button label="Recarregar turmas" variant="outline" onPress={() => {
+              setClassListStatus("loading"); setRetryClassList((value) => value + 1);
+            }} /> : classListStatus === "ready" && !classesById.has(selectedClassId) ? <Text style={{ color: colors.muted }}>Nenhuma turma disponível para chamada.</Text> : null}
+          </View>
+        ) : (
         <LinearGradient
           colors={
             uiScanState === "scanning"
@@ -1161,6 +1184,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
             <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
               <Pressable
+                accessibilityRole="button"
                 onPress={() => {
                   void toggleScanning();
                 }}
@@ -1173,19 +1197,13 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-                  {!isScannerOn
-                    ? Platform.OS === "web"
-                      ? "Ativar"
-                      : "Ligar leitor"
-                    : Platform.OS === "web"
-                    ? "Desativar"
-                    : "Desligar leitor"}
+                  {isScannerOn ? "Desligar leitor" : "Ligar leitor"}
                 </Text>
               </Pressable>
             </View>
           </View>
 
-          {Platform.OS !== "web" ? (
+          {(
             <View style={{ flexDirection: "row", gap: 8 }}>
               {hasPendingSync ? (
                 <Pressable
@@ -1225,8 +1243,9 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
                 </Pressable>
               ) : null}
             </View>
-          ) : null}
+          )}
         </LinearGradient>
+        )}
 
         {feedback && feedback !== effectiveSupportMessage ? (
           <View
@@ -1300,7 +1319,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
           </View>
         </View>
 
-        {normalizedLockedClassId ? null : <View
+        {Platform.OS === "web" || normalizedLockedClassId ? null : <View
           style={{
             gap: 8,
             borderRadius: 16,
@@ -1339,11 +1358,11 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
         <View
           style={{
             gap: 8,
-            borderRadius: 16,
-            borderWidth: 1,
+            borderRadius: Platform.OS === "web" ? 0 : 16,
+            borderWidth: Platform.OS === "web" ? 0 : 1,
             borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 12,
+            backgroundColor: Platform.OS === "web" ? "transparent" : colors.card,
+            padding: Platform.OS === "web" ? 0 : 12,
           }}
         >
           <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
@@ -1358,10 +1377,10 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
                   key={binding.id}
                   style={{
                     borderRadius: 12,
-                    padding: 12,
-                    borderWidth: 1,
+                    padding: Platform.OS === "web" ? 0 : 12,
+                    borderWidth: Platform.OS === "web" ? 0 : 1,
                     borderColor: colors.border,
-                    backgroundColor: colors.card,
+                    backgroundColor: Platform.OS === "web" ? "transparent" : colors.card,
                     gap: 6,
                   }}
                 >
@@ -1375,7 +1394,7 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
                         paddingVertical: 8,
                         alignItems: "center",
                         backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
+                        borderWidth: Platform.OS === "web" ? 0 : 1,
                         borderColor: colors.border,
                         opacity: removingBindingId === binding.id ? 0.6 : 1,
                       }}
@@ -1397,11 +1416,11 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
         <View
           style={{
             gap: 8,
-            borderRadius: 16,
-            borderWidth: 1,
+            borderRadius: Platform.OS === "web" ? 0 : 16,
+            borderWidth: Platform.OS === "web" ? 0 : 1,
             borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 12,
+            backgroundColor: Platform.OS === "web" ? "transparent" : colors.card,
+            padding: Platform.OS === "web" ? 0 : 12,
           }}
         >
           <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>
@@ -1417,10 +1436,10 @@ const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
                 <View
                   style={{
                     borderRadius: 12,
-                    padding: 12,
-                    borderWidth: 1,
+                    padding: Platform.OS === "web" ? 0 : 12,
+                    borderWidth: Platform.OS === "web" ? 0 : 1,
                     borderColor: colors.border,
-                    backgroundColor: colors.card,
+                    backgroundColor: Platform.OS === "web" ? "transparent" : colors.card,
                     gap: 4,
                   }}
                 >

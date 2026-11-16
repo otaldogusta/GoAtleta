@@ -1,5 +1,5 @@
-import { type RefObject } from "react";
-import { Alert, StyleProp, TextInput, View, ViewStyle } from "react-native";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { Alert, Platform, StyleProp, TextInput, View, ViewStyle } from "react-native";
 import { OperationalText as Text } from "../../../ui/OperationalText";
 import type { ClassGroup } from "../../../core/models";
 import type { StudentDirectoryRecord } from "../../../core/student-read-models";
@@ -129,10 +129,58 @@ export function WhatsAppModal({
   colors,
   buildStudentMessage,
 }: WhatsAppModalProps) {
+  const [templateListNode, setTemplateListNode] = useState<View | null>(null);
+  const templateWasOpen = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!visible) {
+      templateWasOpen.current = false;
+      return;
+    }
+    if (!showTemplateList) {
+      if (templateWasOpen.current) {
+        (templateTriggerRef.current as unknown as HTMLElement | null)
+          ?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true });
+      }
+      templateWasOpen.current = false;
+      return;
+    }
+    if (!showTemplateListContent || !templateListNode) return;
+    const node = templateListNode as unknown as HTMLElement;
+    const entries = () => [...node.querySelectorAll<HTMLElement>('[role="button"]:not([aria-disabled="true"])')];
+    templateWasOpen.current = true;
+    const frame = requestAnimationFrame(() => {
+      entries()[0]?.focus({ preventScroll: true });
+    });
+    const handleTemplateKey = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const options = entries();
+      const index = options.indexOf((event.target as HTMLElement).closest<HTMLElement>('[role="button"]')!);
+      if (index < 0) return;
+      event.preventDefault();
+      const next = index + (event.shiftKey ? -1 : 1);
+      if (next < 0 || next >= options.length) {
+        closeAllPickers();
+        (templateTriggerRef.current as unknown as HTMLElement | null)
+          ?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true });
+      } else {
+        options[next].focus({ preventScroll: true });
+        options[next].scrollIntoView({ block: "nearest" });
+      }
+    };
+    node.addEventListener("keydown", handleTemplateKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      node.removeEventListener("keydown", handleTemplateKey);
+    };
+  }, [closeAllPickers, showTemplateList, showTemplateListContent, templateListNode, templateTriggerRef, visible]);
+
   return (
     <ModalSheet
       visible={visible}
       onClose={onClose}
+      dialogLabel="Mensagem via WhatsApp"
       cardStyle={cardStyle}
       position="center"
       backdropOpacity={0.65}
@@ -221,6 +269,10 @@ export function WhatsAppModal({
             <View style={{ gap: 6 }}>
               <View ref={templateTriggerRef}>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Modelo de mensagem"
+                  accessibilityState={{ expanded: showTemplateList }}
+                  {...(Platform.OS === "web" ? { "aria-expanded": showTemplateList } : {})}
                   onPress={() => {
                     const next = !showTemplateList;
                     if (next) {
@@ -259,6 +311,8 @@ export function WhatsAppModal({
 
             { selectedTemplateId === "student_invite" ? (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Revogar e gerar novo link"
                 onPress={() => {
                   if (studentInviteBusy) return;
                   setShowRevokeConfirm(true);
@@ -319,6 +373,7 @@ export function WhatsAppModal({
                       {fieldLabel}:
                     </Text>
                     <TextInput
+                      accessibilityLabel={fieldLabel}
                       placeholder={fieldPlaceholder}
                       placeholderTextColor={colors.placeholder}
                       value={customFields[field] || ""}
@@ -357,6 +412,10 @@ export function WhatsAppModal({
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                   { hasGuardian ? (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Responsável, ${student.guardianPhone}`}
+                      accessibilityState={{ selected: useGuardian }}
+                      {...(Platform.OS === "web" ? { "aria-pressed": useGuardian } : {})}
                       onPress={() => setSelectedContactType("guardian")}
                       style={{
                         flex: 1,
@@ -402,6 +461,10 @@ export function WhatsAppModal({
                   ) : null}
                   { hasStudent ? (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Aluno, ${student.phone}`}
+                      accessibilityState={{ selected: useStudent }}
+                      {...(Platform.OS === "web" ? { "aria-pressed": useStudent } : {})}
                       onPress={() => setSelectedContactType("student")}
                       style={{
                         flex: 1,
@@ -458,6 +521,7 @@ export function WhatsAppModal({
                 Mensagem:
               </Text>
               <TextInput
+                accessibilityLabel="Mensagem"
                 placeholder="Escreva a mensagem"
                 placeholderTextColor={colors.muted}
                 value={customStudentMessage}
@@ -479,6 +543,8 @@ export function WhatsAppModal({
             </View>
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar via WhatsApp"
               onPress={sendMessage}
               style={{
                 paddingVertical: 11,
@@ -494,6 +560,8 @@ export function WhatsAppModal({
             </Pressable>
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Fechar WhatsApp"
               onPress={onClose}
               style={{
                 paddingVertical: 10,
@@ -515,8 +583,10 @@ export function WhatsAppModal({
               maxHeight={220}
               nestedScrollEnabled
               onRequestClose={closeAllPickers}
+              interactiveRefs={[templateTriggerRef]}
               scrollContentStyle={{ padding: 8, gap: 6 }}
             >
+              <View ref={setTemplateListNode} testID="whatsapp-template-options" style={{ gap: 6 }}>
               {Object.values(WHATSAPP_TEMPLATES).map((template) => {
                 const isSelected = selectedTemplateId === template.id;
                 let canUse = true;
@@ -543,6 +613,7 @@ export function WhatsAppModal({
                 return (
                   <AnchoredDropdownOption
                     key={template.id}
+                    accessibilityLabel={template.title}
                     active={isSelected}
                     disabled={!canUse}
                     onPress={() => {
@@ -599,6 +670,7 @@ export function WhatsAppModal({
                   </AnchoredDropdownOption>
                 );
               })}
+              </View>
             </AnchoredDropdown>
           </View>
         );

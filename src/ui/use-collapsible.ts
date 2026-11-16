@@ -14,6 +14,7 @@ export function useCollapsibleAnimation(
   const { durationIn = 180, durationOut = 160, translateY = -8 } = options;
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const [isMountedVisible, setIsMountedVisible] = useState(open);
+  if (open && !isMountedVisible) setIsMountedVisible(true);
 
   // Reset before the browser paints: a reopened list still holds opacity 1
   // from its previous animation and would otherwise flash before fading in.
@@ -28,7 +29,6 @@ export function useCollapsibleAnimation(
       }).start();
       return () => anim.stopAnimation();
     }
-    if (!isMountedVisible) return;
     Animated.timing(anim, {
       toValue: 0,
       duration: durationOut,
@@ -37,7 +37,7 @@ export function useCollapsibleAnimation(
       if (finished) setIsMountedVisible(false);
     });
     return () => anim.stopAnimation();
-  }, [isMountedVisible, open, anim, durationIn, durationOut]);
+  }, [open, anim, durationIn, durationOut]);
 
   const animatedStyle = {
     opacity: anim,

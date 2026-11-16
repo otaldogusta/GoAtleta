@@ -1,5 +1,5 @@
 import { useState, type RefObject } from "react";
-import { StyleSheet, TextInput, type TextInputProps, type TextStyle, View, type StyleProp, type ViewStyle } from "react-native";
+import { Platform, StyleSheet, TextInput, type TextInputProps, type TextStyle, View, type StyleProp, type ViewStyle } from "react-native";
 import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { ptBR } from "../../../constants/copy/pt-br";
@@ -244,7 +244,7 @@ export function SessionReportTab({
 function ReportInput({ colors, backgroundColor, onFocus, onBlur, ...props }: TextInputProps & { colors: ThemeColors; backgroundColor: string }) {
   const [focused, setFocused] = useState(false);
   return (
-    <View style={[styles.inputContainer, { backgroundColor, borderColor: focused ? colors.text : colors.border }]}>
+    <View testID="session-report-input" style={[styles.inputContainer, { backgroundColor, borderColor: Platform.OS !== "web" && focused ? colors.text : colors.border }]}>
       <TextInput {...props} onFocus={event => { setFocused(true); onFocus?.(event); }} onBlur={event => { setFocused(false); onBlur?.(event); }} />
     </View>
   );

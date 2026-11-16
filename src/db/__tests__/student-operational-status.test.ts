@@ -47,6 +47,7 @@ import {
   getStudents,
   inactivateStudents,
   saveStudent,
+  updateStudent,
   updateStudentOperationalStatus,
 } from "../students";
 
@@ -242,6 +243,43 @@ describe("student financial hydration", () => {
     mockReadCache.mockResolvedValue(null);
     mockWriteCache.mockResolvedValue(undefined);
     mockIsNetworkError.mockReturnValue(false);
+  });
+
+  it("sends only the health groups that changed in a scoped profile edit", async () => {
+    const baseline = {
+      id: "student-1",
+      name: "Aluno Teste",
+      organizationId: "org-1",
+      classId: "class-1",
+      age: 12,
+      phone: "",
+      loginEmail: "",
+      guardianName: "",
+      guardianPhone: "",
+      guardianRelation: "",
+      birthDate: "",
+      healthIssue: false,
+      healthIssueNotes: "",
+      medicationUse: true,
+      medicationNotes: "Observação fictícia",
+      healthObservations: "",
+      positionPrimary: "indefinido",
+      positionSecondary: "indefinido",
+      athleteObjective: "base",
+      learningStyle: "misto",
+      createdAt: "2026-01-01T12:00:00.000Z",
+    } as const;
+
+    await updateStudent({ ...baseline, name: "Nome atualizado" }, baseline);
+    const [path, namePatch] = mockSupabasePatch.mock.calls[0];
+    expect(path).toBe("/students?id=eq.student-1&organization_id=eq.org-1");
+    expect(namePatch.name).toBe("Nome atualizado");
+    expect(Object.keys(namePatch).filter((key) => /^(health|medication)_/.test(key))).toEqual([]);
+
+    await updateStudent({ ...baseline, medicationUse: false }, baseline);
+    const [, healthPatch] = mockSupabasePatch.mock.calls[1];
+    expect(healthPatch).toMatchObject({ medication_use: false, medication_notes: null });
+    expect(healthPatch).not.toHaveProperty("health_issue");
   });
 
   it("creates every athlete with a protected initial status of unknown", async () => {

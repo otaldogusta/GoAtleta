@@ -4,6 +4,13 @@ Base inspecionada: `d5120cff`, 05/10/2026. Código local; relatos de publicaçã
 
 ## Responsabilidades e implementação atual
 
+Em 13/11, Gestão e Regulamentos passaram a abrir o mesmo chat pelo cabeçalho
+móvel. Periodização usa o controller contextual no cabeçalho em todas as larguras,
+condicionado à presença do host do workspace; editores mantêm seus acessos.
+[Conferência local e limites](../../ui/REVISAO_INVENTARIO_CONTINUIDADE_2026-11-13.md).
+O painel móvel do workspace de Periodização tem margens de 16 px e retorna
+foco ao acionador ao fechar; [ajuste e evidência](../../ui/AJUSTES_PERIODIZACAO_GESTAO_2026-11-13.md).
+
 O Copilot reúne sinais, ações e contexto das telas. O chat flutuante compartilha conversa, modelo, texto e pedido pendente pelo `UnifiedAssistantProvider`, isolado por usuário/organização. A tela dedicada `/assistant` conserva fluxos próprios de relatório, rascunho e regra da turma.
 
 O backend resolve autorização, memória, governança, periodização e fontes. Planejamento contextual é orientativo; conversa de aula pode produzir rascunho datado. Fala preenche o campo editável, sem enviar mensagem ou confirmar mudança.
@@ -22,6 +29,10 @@ O backend resolve autorização, memória, governança, periodização e fontes.
 | Sinais/explicação | [signal-engine.ts](../../../src/ai/signal-engine.ts), [session-decision-trace.ts](../../../src/core/cycle-day-planning/session-decision-trace.ts) |
 
 ## Contratos a preservar
+
+- Na conversa dedicada, uma falha mantém a pergunta disponível para editar e
+  repetir, preservando texto novo no campo. A falha não entra no histórico como resposta.
+  [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
 
 - Em 25/10, `getSignals` usa a projeção mínima de atletas das turmas; só consome
   ID/nome/turma e não hidrata fichas completas ou finanças. Regras, severidades,
@@ -75,3 +86,10 @@ Selecione superfície e contrato cliente/servidor antes das dependências. Use a
 - No estúdio de scouting, o mesmo chat pode abrir pelo menu Assistente. O launcher
   flutuante é oculto somente enquanto esse acesso existe, evitando sobreposição;
   conversa, voz, modelo e autorização não mudaram. [Revisão local](../../ui/SCOUTING_REVISAO_UI_UX_2026-11-06.md).
+
+- A página dedicada usa a variante `page` do `AssistantComposer`: campo de texto
+  sobre a barra de modelo/voz/envio e erro separado, com rascunho preservado.
+  Os defaults dos painéis Copilot/Planejamento permanecem. Coluna até 720 px,
+  margens de 16 px e fonte do produto na web. O seletor de modelo da página tem
+  navegação de teclado opt-in, foco na opção selecionada e retorno por Escape;
+  o listener de Enter do envio verifica o alvo do campo. [Jornadas e validação local](../../ui/AJUSTES_JORNADAS_ASSISTENTE_2026-11-13.md).

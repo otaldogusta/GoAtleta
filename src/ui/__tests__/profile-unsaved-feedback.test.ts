@@ -90,8 +90,8 @@ describe("profile unsaved feedback", () => {
   });
 
   it("reuses the complete account and security card across profile types", () => {
-    expect(source).toContain("const accountSecuritySectionContent = () => (");
-    expect(source.match(/\{accountSecuritySectionContent\(\)\}/g)).toHaveLength(2);
+    expect(source).toContain("const accountSecuritySectionContent = (fieldMinHeight?: number) => (");
+    expect(source.match(/\{accountSecuritySectionContent\(desktop(?:Settings|Staff)FieldMinHeight\)\}/g)).toHaveLength(2);
     expect(source).toContain("<SecurityContactFields");
     expect(source).toContain('label="Nova senha"');
     expect(source).toContain('label="Confirmar nova senha"');

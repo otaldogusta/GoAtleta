@@ -6,7 +6,11 @@ import { useAppTheme } from "./app-theme";
 import { Button } from "./Button";
 import { useResponsiveLayout } from "./use-responsive-layout";
 
-export function PostalAddressField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function PostalAddressField({ value, onChange, fieldMinHeight = 50 }: {
+  value: string;
+  onChange: (value: string) => void;
+  fieldMinHeight?: number;
+}) {
   const { colors } = useAppTheme();
   const { isMobile } = useResponsiveLayout("content");
   const [cep, setCep] = useState("");
@@ -51,8 +55,8 @@ export function PostalAddressField({ value, onChange }: { value: string; onChang
       request.current = null;
     };
   }, [cep, search]);
-  const container = { minHeight: 50, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, justifyContent: "center" as const };
-  const input = { color: colors.text, fontSize: 15, borderRadius: 0, paddingVertical: 0 };
+  const container = { minHeight: fieldMinHeight, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, justifyContent: "center" as const };
+  const input = { color: colors.text, fontSize: 14, borderRadius: 0, paddingVertical: 0 };
   const addressInput = (
     <View style={container}>
       <TextInput accessibilityLabel="Endereço" value={value} onChangeText={onChange}

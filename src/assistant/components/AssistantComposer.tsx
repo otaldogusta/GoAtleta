@@ -5,6 +5,7 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useAppTheme } from "../../ui/app-theme";
 import { LessonVoiceInput } from "../../screens/session/components/LessonVoiceInput";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
+import { radius, typography } from "../../theme/tokens";
 
 type Props = {
   value: string; onChangeText: (value: string) => void; onSend: () => void;
@@ -14,6 +15,7 @@ type Props = {
   voiceScope: { organizationId: string; classId?: string } | undefined;
   trailingControl?: ReactNode;
   compact?: boolean;
+  variant?: "inline" | "page";
 };
 export function AssistantComposer(props: Props) {
   return <ScopedAssistantComposer key={`${props.voiceScope?.organizationId}:${props.voiceScope?.classId}`} {...props} />;
@@ -25,31 +27,33 @@ function ScopedAssistantComposer(props: Props) {
   const latestValue = useRef(props.value);
   useEffect(() => { latestValue.current = props.value; }, [props.value]);
   const inputRef = props.inputRef ?? localRef;
-  const [inputHeight, setInputHeight] = useState(40);
+  const page = props.variant === "page";
+  const minInputHeight = page ? 44 : 40;
+  const [inputHeight, setInputHeight] = useState(minInputHeight);
   const [voiceActive, setVoiceActive] = useState(false);
-  const maxHeight = Platform.OS === "web" ? 84 : 136;
+  const maxHeight = page ? 136 : Platform.OS === "web" ? 84 : 136;
   const canSend = Boolean(props.value.trim()) && !props.busy && !voiceActive;
-  const compact = props.compact === true;
-  const stacked = Boolean(props.trailingControl) && width < 520;
-  return <View ref={containerRef} onLayout={onLayout} testID="assistant-composer" style={[styles.row, compact && { gap: 4, alignItems: "center" }, stacked && styles.stacked, { minHeight: compact ? 36 : props.value ? Math.max(44, inputHeight) : 44 }]}>
+  const compact = props.compact === true && !page;
+  const stacked = page || (Boolean(props.trailingControl) && width < 520);
+  return <View ref={containerRef} onLayout={onLayout} testID="assistant-composer" style={[styles.row, compact && { gap: 4, alignItems: "center" }, stacked && styles.stacked, page && [styles.page, { backgroundColor: colors.card, borderColor: colors.border }], { minHeight: compact ? 36 : props.value ? Math.max(44, inputHeight) : 44 }]}>
     <View style={[styles.editor, stacked && styles.stackedEditor, voiceActive && styles.hidden]}>
-    {!voiceActive ? <Pressable accessibilityRole="button" accessibilityLabel="Escrever mensagem" onPress={() => inputRef.current?.focus()}
+    {!voiceActive && !page ? <Pressable accessibilityRole="button" accessibilityLabel="Escrever mensagem" onPress={() => inputRef.current?.focus()}
       style={[styles.secondary, { borderColor: colors.border, backgroundColor: colors.secondaryBg }]}>
       <GoAtletaIcon name="add" size={compact ? 16 : 20} color={colors.text} />
     </Pressable> : null}
     <TextInput ref={inputRef} accessibilityLabel="Mensagem para o assistente" placeholder="Perguntar algo..."
       placeholderTextColor={colors.muted} value={props.value} maxLength={6000}
-      onChangeText={value => { props.onChangeText(value); if (!value.trim()) setInputHeight(40); }}
+      onChangeText={value => { props.onChangeText(value); if (!value.trim()) setInputHeight(minInputHeight); }}
       onFocus={props.onFocus} onBlur={props.onBlur} editable={!props.busy}
       onKeyPress={props.onKeyPress ?? (event => {
         const native = event.nativeEvent as { key?: string; shiftKey?: boolean };
         if (Platform.OS === "web" && native.key === "Enter" && !native.shiftKey) { event.preventDefault?.(); if (canSend) props.onSend(); }
       })}
-      onContentSizeChange={event => setInputHeight(Math.max(40, Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))))}
+      onContentSizeChange={event => setInputHeight(Math.max(minInputHeight, Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))))}
       multiline scrollEnabled={inputHeight >= maxHeight} returnKeyType="send"
-      style={[styles.input, compact && { minHeight: 36, fontSize: 13, paddingVertical: 8 }, stacked && { minHeight: 44, fontSize: 16 }, voiceActive && styles.hidden, { height: props.value ? inputHeight : compact ? 36 : 40, color: colors.inputText }]} />
+      style={[styles.input, compact && { minHeight: 36, fontSize: 13, paddingVertical: 8 }, stacked && { minHeight: 44, fontSize: 16 }, page && styles.pageInput, voiceActive && styles.hidden, { height: props.value ? inputHeight : compact ? 36 : minInputHeight, color: colors.inputText }]} />
     </View>
-    <View style={[styles.controls, stacked && styles.stackedControls, voiceActive && styles.activeControls]}>
+    <View style={[styles.controls, stacked && styles.stackedControls, page && styles.pageControls, voiceActive && styles.activeControls]}>
     {!voiceActive && props.trailingControl ? <View style={stacked && styles.leadingControl}>{props.trailingControl}</View> : null}
     {props.voiceScope ? <LessonVoiceInput compact={compact} key={`${props.voiceScope.organizationId}:${props.voiceScope.classId}`} {...props.voiceScope} disabled={Boolean(props.busy)} onActiveChange={setVoiceActive}
       onText={text => props.onChangeText(latestValue.current ? `${latestValue.current}\n${text}` : text)} /> : null}
@@ -64,6 +68,9 @@ const styles = StyleSheet.create({
   hidden: { display: "none" },
   row: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   stacked: { flexDirection: "column", alignItems: "stretch", gap: 4 },
+  page: { borderRadius: radius.container, borderWidth: 1, padding: 10 },
+  pageInput: { minHeight: 44, fontSize: 14, lineHeight: 20, paddingHorizontal: 6, paddingVertical: 10, ...(Platform.OS === "web" ? { fontFamily: typography.body.fontFamily } : {}) },
+  pageControls: { justifyContent: "flex-end", minHeight: 44 },
   editor: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   stackedEditor: { width: "100%", flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   controls: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8 },

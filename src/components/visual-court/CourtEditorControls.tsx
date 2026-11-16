@@ -33,8 +33,8 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
 }
 
 const SHORTCUTS: Record<string, string> = { "Selecionar e mover": "V · Arraste no vazio para selecionar", Desfazer: "Ctrl/Cmd + Z", Refazer: "Ctrl/Cmd + Shift + Z", "Apagar seleção": "Delete" };
-export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1 }: {
-  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; touchTarget?: boolean; tooltipScale?: number;
+export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, sheetTile = false, subduedSelection = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1 }: {
+  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; sheetTile?: boolean; subduedSelection?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; touchTarget?: boolean; tooltipScale?: number;
 }) {
   const { colors } = useAppTheme();
   const tipScale = Number.isFinite(tooltipScale) && tooltipScale > 0 ? tooltipScale : 1;
@@ -79,17 +79,17 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     node.addEventListener("dragstart", start);
     return () => { node.draggable = false; node.removeEventListener("dragstart", start); };
   }, [dragKind, disabled]);
-  const ink = danger ? colors.dangerText : active ? colors.primaryText : colors.text;
+  const ink = danger ? colors.dangerText : active && !subduedSelection ? colors.primaryText : colors.text;
   return <>
-    <View ref={dragRef} style={onAdd ? { position: "relative", width: "47%" } : Platform.OS === "web" ? { display: "contents" } as unknown as ViewStyle : undefined}>
+    <View ref={dragRef} style={sheetTile ? [styles.sheetTile, { borderColor: active ? colors.primaryBg : colors.border }] : onAdd ? { position: "relative", width: "47%" } : Platform.OS === "web" ? { display: "contents" } as unknown as ViewStyle : undefined}>
     <Pressable suppressWebHoverFeedback={compact} disableWebPressScale={compact} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
       onHoverIn={show} onHoverOut={() => setTip(null)} onFocus={show} onBlur={() => setTip(null)}
       onPress={() => { setTip(null); onPress(); }}
-      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: 34, minHeight: 34, ...(!text ? { width: 34 } : {}), borderRadius: 999, overflow: "hidden" }, touchTarget && !tile && { minWidth: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, ...(!text ? { width: compactUiMetrics.touchTarget } : {}) }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
-      <CourtToolIcon name={icon} size={tile ? 22 : compact ? 18 : 21} color={ink} />
-      {text || tile ? <Text style={{ color: ink, fontSize: 12, fontWeight: "600", textAlign: tile ? "center" : "left" }}>{label}</Text> : null}
+      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: 34, minHeight: 34, ...(!text ? { width: 34 } : {}), borderRadius: 999, overflow: "hidden" }, touchTarget && !tile && { minWidth: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, ...(!text ? { width: compactUiMetrics.touchTarget } : {}) }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active && !subduedSelection ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }, sheetTile && styles.sheetTileAction, subduedSelection && active && { borderColor: colors.border }]}>
+      <CourtToolIcon name={icon} size={sheetTile ? compactUiMetrics.iconSize : tile ? 22 : compact ? 18 : 21} color={ink} />
+      {text || tile ? <Text style={{ color: ink, flexShrink: sheetTile ? 1 : undefined, fontSize: 12, fontWeight: "600", textAlign: tile && !sheetTile ? "center" : "left" }}>{label}</Text> : null}
     </Pressable>
-    {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${label.toLowerCase()}`} disabled={disabled} onPress={onAdd} style={{ position: "absolute", top: 2, right: 2, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={16} color={ink} /></Pressable> : null}
+    {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${label.toLowerCase()}`} disabled={disabled} onPress={onAdd} style={sheetTile ? [styles.sheetAdd, { borderLeftColor: colors.border }] : { position: "absolute", top: 2, right: 2, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={16} color={sheetTile ? colors.text : ink} /></Pressable> : null}
     </View>
     {visibleTip && Platform.OS === "web" ? createWebPortal(<View pointerEvents="none" style={{ position: "fixed", ...visibleTip.position, zIndex: 10000, maxWidth: 220, ...(tipScale !== 1 ? { transform: [{ scale: tipScale }], transformOrigin: "top left" } : {}), paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 } as unknown as ViewStyle}>
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>{label}</Text>
@@ -139,6 +139,9 @@ const styles = StyleSheet.create({
   action: { minWidth: 44, minHeight: 44, paddingHorizontal: spacing.sm, gap: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1 },
   textAction: { flexShrink: 1, justifyContent: "flex-start" },
   tile: { width: "47%", minHeight: 64, flexDirection: "column", gap: 4, paddingVertical: 6 },
+  sheetTile: { flexDirection: "row", width: "48.5%", borderWidth: 1, borderRadius: 10, overflow: "hidden" },
+  sheetTileAction: { flex: 1, width: undefined, minWidth: 0, minHeight: compactUiMetrics.touchTarget, justifyContent: "flex-start", flexDirection: "row", paddingHorizontal: 8, gap: 6, borderWidth: 0, borderRadius: 0 },
+  sheetAdd: { width: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, alignItems: "center", justifyContent: "center", borderLeftWidth: 1 },
   switchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.md },
 });
 

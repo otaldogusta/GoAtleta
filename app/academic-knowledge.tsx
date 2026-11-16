@@ -22,6 +22,7 @@ import {
 } from "../src/db/academic-knowledge";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Pressable } from "../src/ui/Pressable";
+import { Button } from "../src/ui/Button";
 
 const statusLabel: Record<string, string> = {
   ready: "Pronto para curadoria",
@@ -45,6 +46,7 @@ export default function AcademicKnowledgeScreen() {
   const [items, setItems] = useState<GlobalAcademicCuratorItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [selected, setSelected] = useState<GlobalAcademicCuratorItem | null>(null);
   const [editing, setEditing] = useState<GlobalAcademicInterpretationAdmin | null>(null);
   const [interpretations, setInterpretations] = useState<GlobalAcademicInterpretationAdmin[]>([]);
@@ -62,10 +64,11 @@ export default function AcademicKnowledgeScreen() {
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const canManage = await measureAsync(
         "screen.academicKnowledge.load.inventory",
-        canManageGlobalAcademicKnowledge,
+        () => canManageGlobalAcademicKnowledge({ throwOnError: true }),
       );
       setAllowed(canManage);
       setItems(
@@ -76,6 +79,9 @@ export default function AcademicKnowledgeScreen() {
             )
           : [],
       );
+    } catch {
+      setItems([]);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -235,10 +241,16 @@ export default function AcademicKnowledgeScreen() {
       <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 1200, alignSelf: "center", padding: 16, gap: 16 }}>
         <BackTitleHeader title="Base pedagógica do Go Atleta" onBack={() => router.replace("/profile")} />
         {loading ? <ActivityIndicator color={colors.text} /> : null}
-        {!loading && !allowed ? (
+        {!loading && loadFailed ? (
+          <View style={{ alignItems: "flex-start", gap: 8 }}>
+            <Text accessibilityRole="alert" style={{ color: colors.text }}>Não foi possível carregar a curadoria.</Text>
+            <Button label="Tentar novamente" onPress={() => void reload()} />
+          </View>
+        ) : null}
+        {!loading && !loadFailed && !allowed ? (
           <Text style={{ color: colors.muted }}>Esta área está disponível somente para curadores autorizados.</Text>
         ) : null}
-        {allowed ? (
+        {!loading && !loadFailed && allowed ? (
           <>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {[
@@ -252,6 +264,7 @@ export default function AcademicKnowledgeScreen() {
               ))}
             </View>
             <View style={{ gap: 8 }}>
+              {!items.length ? <Text style={{ color: colors.muted }}>Nenhum documento disponível para curadoria.</Text> : null}
               {items.map((item) => (
                 <View key={item.sourceRevisionId} style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 12, gap: 6 }}>
                   <Text style={{ color: colors.text, fontWeight: "700" }}>{item.filename}</Text>

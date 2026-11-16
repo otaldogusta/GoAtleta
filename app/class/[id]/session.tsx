@@ -60,6 +60,7 @@ import {
     type ReportRewriteField,
 } from "../../../src/api/ai";
 import { useAuth } from "../../../src/auth/auth";
+import { getSessionIdentity, isSessionIdentityCurrent } from "../../../src/auth/session";
 import { usePedagogicalConfig } from "../../../src/bootstrap/pedagogical-config-context";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import type { PedagogicalDimensionsConfig } from "../../../src/config/pedagogical-dimensions-config";
@@ -1723,6 +1724,8 @@ export function SessionScreen({
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
   const [showSavedClassPlans, setShowSavedClassPlans] = useState(false);
   const [isApplyingSavedPlanId, setIsApplyingSavedPlanId] = useState<string | null>(null);
+  const applySavedPlanLock = useRef(false);
+  const applySavedPlanScope = useRef<string | null>(null);
   const [isRemovingAppliedPlan, setIsRemovingAppliedPlan] = useState(false);
   const [planFabAnim] = useState(() => new Animated.Value(0));
   const [planGenerationAnim] = useState(() => new Animated.Value(0));
@@ -1952,13 +1955,15 @@ export function SessionScreen({
   }, [planFabAnim, showPlanFabMenu]);
 
   useEffect(() => {
+    applySavedPlanScope.current = JSON.stringify([id, sessionDate, session?.user?.id]);
     Promise.resolve().then(() => {
       setShowSavedClassPlans(false);
     });
     Promise.resolve().then(() => {
       setIsApplyingSavedPlanId(null);
     });
-  }, [id, sessionDate]);
+    return () => { applySavedPlanScope.current = null; };
+  }, [id, session?.user?.id, sessionDate]);
 
   const togglePicker = useCallback(
     (target: "pse" | "technique") => {
@@ -2620,13 +2625,18 @@ export function SessionScreen({
   };
 
   const handleApplySavedPlan = async (savedPlan: TrainingPlan) => {
-    if (!cls) return;
+    if (!cls || applySavedPlanLock.current || isGeneratingPedagogicalPlan || isSavingPedagogicalPlan) return;
+    applySavedPlanLock.current = true;
+    const scope = applySavedPlanScope.current;
+    const identity = getSessionIdentity();
+    const isCurrent = () => scope === applySavedPlanScope.current && isSessionIdentityCurrent(identity);
     setIsApplyingSavedPlanId(savedPlan.id);
     try {
       const nowIso = new Date().toISOString();
       const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
         organizationId: cls.organizationId ?? null,
       });
+      if (!isCurrent()) return;
       const latestVersion = latestVersionPlan?.version ?? 0;
       const updatedPlan = createTrainingPlanVersion({
         classId: cls.id,
@@ -2644,7 +2654,8 @@ export function SessionScreen({
         previousVersionId: savedPlan.id,
         pedagogy: savedPlan.pedagogy,
       });
-      await saveTrainingPlan(updatedPlan);
+      await saveTrainingPlan(updatedPlan, { organizationId: cls.organizationId ?? undefined });
+      if (!isCurrent()) return;
       setPlan(updatedPlan);
       setShowSavedClassPlans(false);
       setAutoActivity(buildSimpleActivityFromPlan(updatedPlan));
@@ -2659,11 +2670,13 @@ export function SessionScreen({
         applyDate: sessionDate,
       });
     } catch {
+      if (!isCurrent()) return;
       showSaveToast({
         message: "Não foi possível aplicar este treino.",
         variant: "error",
       });
     } finally {
+      applySavedPlanLock.current = false;
       setIsApplyingSavedPlanId((current) =>
         current === savedPlan.id ? null : current
       );
@@ -3870,6 +3883,7 @@ export function SessionScreen({
                 savedPlans={savedPlanPreviews}
                 isGeneratingPlan={isGeneratingPedagogicalPlan}
                 isSavingPlan={isSavingPedagogicalPlan}
+                isApplyingPlan={Boolean(isApplyingSavedPlanId)}
                 onToggleSavedClassPlans={() => setShowSavedClassPlans((current) => !current)}
                 onGeneratePlan={handleGeneratePedagogicalPlan}
                 onApplySavedPlan={handleApplySavedPlanById}
@@ -4023,13 +4037,13 @@ export function SessionScreen({
 }
 
 function SessionRouteRedirect() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
   const router = useRouter();
 
   useEffect(() => {
     if (!id) return;
-    router.replace({ pathname: "/class/[id]", params: { id } });
-  }, [id, router]);
+    router.replace({ pathname: "/class/[id]", params: { id, ...(date ? { date } : {}) } });
+  }, [date, id, router]);
 
   return <ScreenLoadingState />;
 }

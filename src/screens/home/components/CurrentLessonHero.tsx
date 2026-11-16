@@ -133,6 +133,9 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
         <Pressable
           onPress={onOpenLesson}
           disabled={!primaryItem}
+          accessibilityRole="button"
+          accessibilityLabel="Ver aula"
+          accessibilityState={{ disabled: !primaryItem }}
           style={{
             flex: mobile ? 1 : undefined,
             minHeight: metrics.touchTarget,
@@ -153,6 +156,9 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
         <Pressable
           onPress={onOpenAttendance}
           disabled={!primaryItem}
+          accessibilityRole="button"
+          accessibilityLabel="Fazer chamada"
+          accessibilityState={{ disabled: !primaryItem }}
           style={{
             flex: mobile ? 1 : undefined,
             minHeight: metrics.touchTarget,

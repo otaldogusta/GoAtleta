@@ -1,12 +1,13 @@
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, usePathname, useRouter } from "expo-router";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Animated, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
 import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
-import { ResponsiveGrid } from "../../src/components/ui/ResponsiveGrid";
+import { useOptionalCopilotOpen } from "../../src/copilot/CopilotProvider";
+import { usesConsultationAssistantButton } from "../../src/copilot/route-visibility";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import type {
   AvailableEquipment,
@@ -39,13 +40,16 @@ import { useConsultationScreenContext, useConsultationScreenIdentity } from "../
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { notifyConsultationEvent } from "../../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../../src/observability/perf";
-import { radius } from "../../src/theme/tokens";
+import { compactUiMetrics, radius, spacing } from "../../src/theme/tokens";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { Pressable } from "../../src/ui/Pressable";
 import { SyncStatusBadge } from "../../src/ui/SyncStatusBadge";
+import { UnderlineTabs } from "../../src/ui/UnderlineTabs";
+import { CompactSelect } from "../../src/ui/CompactSelect";
+import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -116,11 +120,9 @@ function ProfileSection({
     <View
       style={{
         gap: 10,
-        padding: 12,
-        borderRadius: radius.internal,
-        backgroundColor: attention ? colors.warningBg : colors.secondaryBg,
-        borderWidth: 1,
-        borderColor: attention ? colors.warningBorder : colors.border,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: attention ? colors.warningBorder : colors.border,
       }}
     >
       <Text
@@ -315,25 +317,26 @@ const ConsultationField = ({
   multiline?: boolean;
 }) => (
   <View style={{ gap: 6 }}>
-    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>{label}</Text>
+    <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>{label}</Text>
+    <View style={{ minHeight: multiline ? 74 : 50, borderRadius: radius.internal, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14 }}>
     <TextInput
+      accessibilityLabel={label}
       value={value}
       onChangeText={onChangeText}
       multiline={multiline}
       placeholderTextColor={colors.placeholder}
       scrollEnabled={false}
       style={{
-        minHeight: multiline ? 58 : 42,
-        borderRadius: radius.internal,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.inputBg,
+        minHeight: multiline ? 72 : 48,
+        borderRadius: 0,
+        backgroundColor: "transparent",
         color: colors.inputText,
-        paddingHorizontal: 12,
+        paddingHorizontal: 0,
         paddingVertical: 10,
         textAlignVertical: multiline ? "top" : "center",
       }}
     />
+    </View>
   </View>
 );
 
@@ -348,6 +351,9 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
   const { colors } = useAppTheme();
   const responsiveLayout = useResponsiveLayout();
   const router = useRouter();
+  const pathname = usePathname();
+  const openAssistant = useOptionalCopilotOpen();
+  const { width: viewportWidth } = useWindowDimensions();
   const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18, padding: 18 });
   const [students, setStudents] = useState<Student[]>([]);
   const [pilotStudent, setPilotStudent] = useState<Student | null>(null);
@@ -358,6 +364,23 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
   });
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const focusSelectedStudent = useRef(false);
+  useLayoutEffect(() => {
+    if (studentPickerOpen || !selectedStudentId || !focusSelectedStudent.current) return;
+    focusSelectedStudent.current = false;
+    if (typeof document !== "undefined") document.getElementById("consultation-student-switch")?.focus();
+  }, [studentPickerOpen, selectedStudentId]);
+  const [localStudentFormOpen, setLocalStudentFormOpen] = useState(false);
+  const [equipmentPickerOpen, setEquipmentPickerOpen] = useState(false);
+  const restoreEquipmentFocus = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const trigger = document.getElementById("consultation-equipment-picker");
+    if (trigger?.isConnected && !trigger.closest("[inert]") && trigger.getClientRects().length) {
+      trigger.focus({ preventScroll: true });
+    }
+  }, []);
+  const equipmentSheetStyle = useModalCardStyle({ maxWidth: 440, maxHeight: "80%", padding: 16 });
   const [pilotStudentName, setPilotStudentName] = useState("");
   const [pilotStudentContact, setPilotStudentContact] = useState("");
   const [goal, setGoal] = useState<ConsultationGoal>("saude");
@@ -469,8 +492,6 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
   const latestPublishedWorkout = publishedWorkouts[0] ?? null;
   const hasSavedProfile = Boolean(selectedProfile);
   const hasPublishedWorkout = publishedWorkouts.length > 0;
-  const hasReceivedFeedback = studentLogs.length > 0;
-  const hasReviewedFeedback = hasReceivedFeedback && pendingLogs.length === 0;
   const progressSummary = useMemo(
     () =>
       buildConsultationProgressSummary({
@@ -665,12 +686,15 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
     if (!name) return;
 
     const student = createPilotStudent({ name, contact: pilotStudentContact });
+    focusSelectedStudent.current = true;
     setPilotStudent(student);
     setSelectedStudentId(student.id);
     setStudentSearch("");
     setPilotStudentName("");
     setPilotStudentContact("");
-    setNotice("Aluna adicionada ao piloto local.");
+    setStudentPickerOpen(false);
+    setLocalStudentFormOpen(false);
+    setNotice("Ficha local criada.");
   };
 
   const saveWorkoutDraft = () => withLoadedContext(async (context) => {
@@ -834,40 +858,19 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
     await saveWorkoutDraft();
   };
 
-  const Chip = ({
-    label,
-    active,
-    onPress,
-  }: {
-    label: string;
-    active: boolean;
-    onPress: () => void;
-  }) => (
-    <Pressable
-      onPress={onPress}
-      style={{
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-        borderRadius: radius.full,
-        borderWidth: 1,
-        borderColor: active ? colors.primaryBg : colors.border,
-        backgroundColor: active ? colors.primaryBg : colors.card,
-      }}
-    >
-      <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700", fontSize: 12 }}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenPageHeader
         title="Consultoria online"
-        subtitle="Prescrição individual, execução em casa e feedback semanal."
+        right={openAssistant && usesConsultationAssistantButton(pathname, viewportWidth) ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Consultoria" onPress={openAssistant}
+            style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}>
+            <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.text} />
+          </Pressable>
+        ) : null}
         onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
       />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, gap: 14, paddingBottom: 32 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: spacing.lg, paddingBottom: spacing.xxl }}>
 
         {errorNotice ? (
           <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.dangerBg }}>
@@ -884,274 +887,82 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
           </View>
         ) : null}
 
-        <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          {selectedStudent ? (
-            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", justifyContent: "space-between", gap: 12 }}>
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text style={{ color: colors.text, fontSize: 19, fontWeight: "900" }}>{selectedStudent.name}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {selectedStudent.loginEmail || selectedStudent.phone || "Sem contato informado"}
-                </Text>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
-                  {profileSummary}
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", alignContent: "flex-start", gap: 8 }}>
-                <SyncStatusBadge
-                  status={syncBadgeStatus}
-                  message={syncBadgeMessage}
-                  size="sm"
-                />
-                <View
-                  style={{
-                    borderRadius: radius.full,
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    backgroundColor: selectedStudent.id.startsWith("pilot_") ? colors.warningBg : colors.successBg,
-                    borderWidth: 1,
-                    borderColor: selectedStudent.id.startsWith("pilot_") ? colors.warningBorder : colors.successBorder,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: selectedStudent.id.startsWith("pilot_") ? colors.warningText : colors.successText,
-                      fontSize: 11,
-                      fontWeight: "900",
-                    }}
-                  >
-                    {selectedStudent.id.startsWith("pilot_") ? "Piloto local" : "Cadastro do sistema"}
-                  </Text>
-                </View>
-                {hasSavedProfile ? (
-                  <View
-                    style={{
-                      borderRadius: radius.full,
-                      backgroundColor: isProfileReady ? colors.successBg : colors.warningBg,
-                      borderColor: isProfileReady ? colors.successBorder : colors.warningBorder,
-                      borderWidth: 1,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: isProfileReady ? colors.successText : colors.warningText,
-                        fontSize: 11,
-                        fontWeight: "900",
-                      }}
-                    >
-                      {isProfileReady ? "Perfil pronto" : "Perfil incompleto"}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
+        {selectedStudent ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, lineHeight: compactUiMetrics.titleLineHeight, fontWeight: "700" }}>{selectedStudent.name}</Text>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize }}>{selectedStudent.loginEmail || selectedStudent.phone || "Sem contato informado"}</Text>
+              {selectedStudent.id.startsWith("pilot_") ? <Text style={{ color: colors.warningText, fontSize: compactUiMetrics.metadataFontSize }}>Ficha local</Text> : null}
+              {persistenceStatus.mode !== "supabase" ? <SyncStatusBadge status={syncBadgeStatus} message={syncBadgeMessage} size="sm" /> : null}
             </View>
-          ) : (
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontSize: 19, fontWeight: "900" }}>Selecione uma aluna</Text>
-              <Text style={{ color: colors.muted }}>
-                Use a aba Perfil para buscar uma aluna cadastrada ou criar uma ficha local para o piloto.
-              </Text>
-            </View>
-          )}
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
-            Aluno {selectedStudentId ? "✓" : "○"} · Perfil {hasSavedProfile ? "✓" : "○"} · Prescrição {hasPublishedWorkout ? "✓" : "○"} · Feedback {hasReceivedFeedback ? "✓" : "○"} · Devolutiva {hasReviewedFeedback ? "✓" : "○"}
-          </Text>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 2 }}>
-          {[
-            { id: "profile" as const, label: "Perfil" },
-            { id: "prescription" as const, label: "Prescrição" },
-            { id: "feedback" as const, label: "Feedback" },
-            { id: "evolution" as const, label: "Evolução" },
-          ].map((item) => {
-            const active = activeConsultationTab === item.id;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => {
-                  setActiveConsultationTab(item.id);
-                  if (item.id === "profile") {
-                    animateLayout();
-                    setIsProfileEditorOpen(true);
-                  }
-                }}
-                style={{
-                  minWidth: 132,
-                  alignItems: "center",
-                  borderRadius: radius.full,
-                  borderWidth: 1,
-                  borderColor: active ? colors.primaryBg : colors.border,
-                  backgroundColor: active ? colors.primaryBg : colors.card,
-                  paddingHorizontal: 18,
-                  paddingVertical: 12,
-                }}
-              >
-                <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "900" }}>
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {activeConsultationTab === "profile" ? (
-          <ResponsiveGrid columns={{ compact: "1", split: "6/6" }} splitEnabled={responsiveLayout.supportsDenseGrid} gap={12}>
-        <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 17 }}>Aluno</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Busque uma aluna cadastrada ou preencha uma nova ficha para o piloto.
-            </Text>
+            <Pressable nativeID="consultation-student-switch" accessibilityRole="button" accessibilityLabel="Trocar aluno da consultoria" accessibilityState={{ expanded: studentPickerOpen }}
+              onPress={() => setStudentPickerOpen((current) => !current)} suppressWebHoverFeedback
+              style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.sm, borderRadius: radius.internal }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>Trocar</Text>
+            </Pressable>
           </View>
-          {selectedStudent ? (
-            <View
-              style={{
-                gap: 8,
-                padding: 12,
-                borderRadius: radius.internal,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                <View style={{ gap: 3, flex: 1 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Aluna selecionada</Text>
-                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>{selectedStudent.name}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {selectedStudent.loginEmail || selectedStudent.phone || "Sem contato informado"}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    borderRadius: radius.full,
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    backgroundColor: selectedStudent.id.startsWith("pilot_") ? colors.warningBg : colors.successBg,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: selectedStudent.id.startsWith("pilot_") ? colors.warningText : colors.successText,
-                      fontSize: 11,
-                      fontWeight: "900",
-                    }}
-                  >
-                    {selectedStudent.id.startsWith("pilot_") ? "Piloto local" : "Cadastro do sistema"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View
-              style={{
-                padding: 12,
-                borderRadius: radius.internal,
-                backgroundColor: colors.warningBg,
-                borderWidth: 1,
-                borderColor: colors.warningBorder,
-              }}
-            >
-              <Text style={{ color: colors.warningText, fontWeight: "800" }}>
-                Selecione uma aluna para começar.
-              </Text>
-            </View>
-          )}
+        ) : null}
 
-          <View style={{ gap: 10 }}>
-            <ConsultationField colors={colors} label="Buscar aluna cadastrada" value={studentSearch} onChangeText={setStudentSearch} />
-            {studentSearch.trim() ? (
-              <View
-                style={{
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                  overflow: "hidden",
-                }}
-              >
-                {filteredStudents.length ? (
-                  filteredStudents.map((student, index) => (
-                    <Pressable
-                      key={student.id}
-                      onPress={() => {
-                        setSelectedStudentId(student.id);
-                        setStudentSearch("");
-                      }}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 10,
-                        borderTopWidth: index === 0 ? 0 : 1,
-                        borderTopColor: colors.border,
-                        backgroundColor: student.id === selectedStudentId ? colors.secondaryBg : colors.inputBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "900" }}>{student.name}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {student.loginEmail || student.phone || "Sem contato informado"}
-                      </Text>
-                    </Pressable>
-                  ))
-                ) : (
-                  <Text style={{ color: colors.muted, fontSize: 12, padding: 12 }}>
-                    Nenhuma aluna encontrada. Preencha uma nova ficha abaixo para o piloto.
-                  </Text>
-                )}
+        {!selectedStudent || studentPickerOpen ? (
+          <View style={{ gap: spacing.md }}>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "600" }}>Escolher aluno</Text>
+            <ConsultationField colors={colors} label="Buscar por nome, e-mail ou telefone" value={studentSearch} onChangeText={setStudentSearch} />
+            {filteredStudents.length ? (
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border }}>
+                {filteredStudents.map((student) => (
+                  <Pressable key={student.id} accessibilityRole="button" accessibilityLabel={`Selecionar ${student.name}`} onPress={() => {
+                    focusSelectedStudent.current = true;
+                    setSelectedStudentId(student.id);
+                    setStudentSearch("");
+                    setStudentPickerOpen(false);
+                    setLocalStudentFormOpen(false);
+                  }} style={{ minHeight: 52, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={{ color: colors.text, fontWeight: "600" }}>{student.name}</Text>
+                      <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize }}>{student.loginEmail || student.phone || "Sem contato informado"}</Text>
+                    </View>
+                    <GoAtletaIcon name={student.id === selectedStudentId ? "checkmark" : "chevronForward"} size={compactUiMetrics.iconSize} color={colors.muted} />
+                  </Pressable>
+                ))}
               </View>
             ) : (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Digite nome, e-mail ou telefone para procurar no cadastro.
-              </Text>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>{studentSearch.trim() ? "Nenhuma pessoa encontrada." : "Nenhum aluno disponível neste cadastro."}</Text>
             )}
-          </View>
-
-          <View
-            style={{
-              gap: 10,
-              paddingTop: 10,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 13 }}>Nova aluna no piloto</Text>
-            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", gap: 10 }}>
-              <View style={{ flex: 1 }}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: localStudentFormOpen }} onPress={() => setLocalStudentFormOpen((current) => !current)} suppressWebHoverFeedback
+              style={{ minHeight: 44, justifyContent: "center", alignSelf: "flex-start", borderRadius: radius.internal, paddingHorizontal: spacing.xs }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>{localStudentFormOpen ? "Recolher nova ficha" : "Criar ficha local"}</Text>
+            </Pressable>
+            {localStudentFormOpen ? (
+              <View style={{ gap: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border }}>
                 <ConsultationField colors={colors} label="Nome" value={pilotStudentName} onChangeText={setPilotStudentName} />
-              </View>
-              <View style={{ flex: 1 }}>
                 <ConsultationField colors={colors} label="E-mail ou telefone" value={pilotStudentContact} onChangeText={setPilotStudentContact} />
+                <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}>A ficha fica neste dispositivo e não cria uma conta para o aluno.</Text>
+                <Pressable accessibilityRole="button" disabled={!pilotStudentName.trim()} onPress={addPilotStudent}
+                  style={{ minHeight: 44, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md, borderRadius: radius.internal, backgroundColor: colors.primaryBg, opacity: pilotStudentName.trim() ? 1 : 0.55 }}>
+                  <Text style={{ color: colors.primaryText, fontWeight: "600" }}>Usar ficha local</Text>
+                </Pressable>
               </View>
-            </View>
-            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", alignItems: responsiveLayout.usesWorkspaceShell ? "center" : "stretch", gap: 10 }}>
-              <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
-                Esta ficha nova vale apenas para o piloto local. O cadastro oficial fica fora deste pacote.
-              </Text>
-              <Pressable
-                disabled={!pilotStudentName.trim()}
-                onPress={addPilotStudent}
-                style={{
-                  borderRadius: radius.full,
-                  backgroundColor: colors.primaryBg,
-                  opacity: pilotStudentName.trim() ? 1 : 0.5,
-                  paddingHorizontal: 16,
-                  paddingVertical: 11,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Usar no piloto</Text>
-              </Pressable>
-            </View>
+            ) : null}
           </View>
-        </View>
-        <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ gap: 5 }}>
-            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Perfil de treino</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {isProfileEditorOpen ? "Onde ela treina, objetivo, materiais e cuidados." : "Toque no perfil para editar os dados da aluna."}
-            </Text>
-          </View>
+        ) : null}
+
+        {selectedStudent && !studentPickerOpen ? (
+        <>
+        <UnderlineTabs
+          items={[
+            { value: "profile", label: "Perfil" },
+            { value: "prescription", label: "Prescrição" },
+            { value: "feedback", label: "Feedback" },
+            { value: "evolution", label: "Evolução" },
+          ]}
+          value={activeConsultationTab}
+          onChange={(value) => setActiveConsultationTab(value as ConsultationPanelTab)}
+          accessibilityLabel="Seções da consultoria"
+          stretch
+        />
+        {activeConsultationTab === "profile" ? (
+        <View style={{ gap: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>Perfil de treino</Text>
           <Pressable
             onPress={() => {
               if (hasSavedProfile) {
@@ -1160,16 +971,13 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
               }
             }}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              borderRadius: radius.internal,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
+              minHeight: 44,
+              paddingVertical: spacing.xs,
+              gap: spacing.xs,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Resumo do perfil</Text>
+              <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize }}>{hasSavedProfile ? "Resumo" : "Novo perfil"}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 {hasSavedProfile ? (
                   <View
@@ -1203,7 +1011,7 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
               </View>
             </View>
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
-              {profileSummary}
+              {hasSavedProfile ? profileSummary : "Defina objetivo, rotina e cuidados."}
             </Text>
           </Pressable>
 
@@ -1213,41 +1021,22 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
               style={[profileEditorAnimStyle, { gap: 12, overflow: "hidden" }]}
             >
               <ProfileSection title="Objetivo e rotina">
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {goalOptions.map((item) => (
-                      <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
-                    ))}
-                  </View>
-                </View>
-                <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <ConsultationField colors={colors} label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <ConsultationField colors={colors} label="Duração média" value={duration} onChangeText={setDuration} />
-                  </View>
+                <CompactSelect label="Objetivo" value={goal} options={goalOptions} onChange={(value) => setGoal(value as ConsultationGoal)} />
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}><ConsultationField colors={colors} label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} /></View>
+                  <View style={{ flex: 1 }}><ConsultationField colors={colors} label="Duração (min)" value={duration} onChangeText={setDuration} /></View>
                 </View>
               </ProfileSection>
-
               <ProfileSection title="Ambiente e materiais">
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Onde ela treina?</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {environmentOptions.map((item) => (
-                      <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
-                    ))}
+                <CompactSelect label="Local" value={environment} options={environmentOptions} onChange={(value) => setEnvironment(value as TrainingEnvironment)} />
+                <Pressable nativeID="consultation-equipment-picker" accessibilityRole="button" accessibilityLabel="Selecionar materiais disponíveis" accessibilityState={{ expanded: equipmentPickerOpen }}
+                  onPress={() => setEquipmentPickerOpen(true)} style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize }}>Materiais</Text>
+                    <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize }}>{equipmentOptions.filter((option) => equipment.includes(option.value)).map((option) => option.label).join(", ") || "Selecionar"}</Text>
                   </View>
-                </View>
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Materiais disponíveis</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {equipmentOptions.map((item) => (
-                      <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
-                    ))}
-                  </View>
-                </View>
+                  <GoAtletaIcon name="chevronForward" size={compactUiMetrics.iconSize} color={colors.muted} />
+                </Pressable>
               </ProfileSection>
 
               <ProfileSection title="Cuidados" attention={Boolean(restrictions.trim() || injuries.trim())}>
@@ -1301,7 +1090,6 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
             </Animated.View>
           ) : null}
         </View>
-          </ResponsiveGrid>
         ) : null}
 
         {activeConsultationTab === "prescription" ? (
@@ -1572,7 +1360,7 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
                 Indicadores simples com base nos treinos publicados e feedbacks recebidos.
               </Text>
             </View>
-            <View style={{ flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column", flexWrap: "wrap", gap: 10 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
               {[
                 { label: "Adesão", value: `${progressSummary.adherencePercent}%`, detail: `${progressSummary.workoutsCompleted}/${progressSummary.workoutsPublished} treino(s)` },
                 { label: "PSE médio", value: progressSummary.averageRpe === null ? "-" : String(progressSummary.averageRpe), detail: "Esforço percebido" },
@@ -1582,8 +1370,9 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
                 <View
                   key={item.label}
                   style={{
-                    flex: responsiveLayout.usesWorkspaceShell ? 1 : undefined,
-                    minWidth: responsiveLayout.usesWorkspaceShell ? 150 : undefined,
+                    flexGrow: 1,
+                    flexBasis: 150,
+                    minWidth: 150,
                     gap: 5,
                     padding: 12,
                     borderRadius: radius.internal,
@@ -1643,7 +1432,30 @@ function ScopedConsultationScreen({ organizationId }: { organizationId: string }
             </View>
           </View>
         ) : null}
+        </>
+        ) : null}
       </ScrollView>
+
+      <ModalSheet visible={equipmentPickerOpen} onClose={() => setEquipmentPickerOpen(false)} onExited={restoreEquipmentFocus} cardStyle={equipmentSheetStyle} position={responsiveLayout.usesWorkspaceShell ? "center" : "bottom"} dialogLabel="Materiais disponíveis">
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "600" }}>Materiais disponíveis</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Concluir seleção de materiais" onPress={() => setEquipmentPickerOpen(false)} style={{ minWidth: 44, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: radius.internal }}>
+            <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
+          </Pressable>
+        </View>
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 4 }}>
+          {equipmentOptions.map((option) => (
+            <Pressable key={option.value} accessibilityRole="checkbox" accessibilityState={{ checked: equipment.includes(option.value) }} aria-checked={equipment.includes(option.value)} onPress={() => toggleEquipment(option.value)}
+              style={{ minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xs, borderRadius: radius.internal }}>
+              <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize }}>{option.label}</Text>
+              <GoAtletaIcon name={equipment.includes(option.value) ? "checkbox" : "circleOutline"} size={compactUiMetrics.iconSize} color={equipment.includes(option.value) ? colors.primaryBg : colors.muted} />
+            </Pressable>
+          ))}
+        </ScrollView>
+        <Pressable accessibilityRole="button" onPress={() => setEquipmentPickerOpen(false)} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: radius.internal, backgroundColor: colors.primaryBg }}>
+          <Text style={{ color: colors.primaryText, fontWeight: "600" }}>Concluir</Text>
+        </Pressable>
+      </ModalSheet>
 
       <ModalDialogFrame
         visible={showWorkoutModal}

@@ -14,6 +14,7 @@ import { getLatestTrainingPlanByClass, getTrainingPlans } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { StudentAction } from "../src/screens/student/StudentUi";
 import { AppShell } from "../src/ui/AppShell";
+import { ListEmptyState } from "../src/ui/ListEmptyState";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
@@ -41,54 +42,56 @@ function StudentPlanScreenContent() {
     item: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight },
     empty: { color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight },
   }), [colors.border, colors.card, colors.muted, colors.text, responsiveLayout.density.cardPadding]);
-  const { student } = useRole();
+  const { student, loading: roleLoading } = useRole();
   const router = useRouter();
   const params = useLocalSearchParams<{ classId?: string; date?: string }>();
-  const [plan, setPlan] = useState<TrainingPlan | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isDayMode, setIsDayMode] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [read, setRead] = useState<{ scope: string; plan: TrainingPlan | null; failed: boolean } | null>(null);
 
   const routeClassId = typeof params.classId === "string" ? params.classId : "";
   const routeDate = typeof params.date === "string" && isIsoDate(params.date) ? params.date : "";
   const targetClassId = routeClassId || student?.classId || "";
   const targetDate = routeDate || "";
+  const organizationId = student?.organizationId;
+  const scope = JSON.stringify([student?.id, organizationId, targetClassId, targetDate, attempt]);
+  const currentRead = read?.scope === scope ? read : null;
+  const plan = currentRead?.plan;
+  const loading = roleLoading || !currentRead;
+  const isDayMode = Boolean(targetDate);
   const targetDateLabel = useMemo(
     () => (targetDate ? formatFullDate(targetDate) : ""),
     [targetDate]
   );
 
   useEffect(() => {
+    if (roleLoading) return;
     let alive = true;
 
     (async () => {
-      setLoading(true);
-      setPlan(null);
-      setIsDayMode(Boolean(targetDate));
-
-      if (!targetClassId) {
-        if (alive) setLoading(false);
+      if (!targetClassId || !organizationId) {
+        if (alive) setRead({ scope, plan: null, failed: false });
         return;
       }
 
       try {
         if (targetDate) {
-          const plans = await measureAsync("screen.studentPlan.load.plans", () => getTrainingPlans({ classId: targetClassId }));
+          const plans = await measureAsync("screen.studentPlan.load.plans", () => getTrainingPlans({ organizationId, classId: targetClassId }));
           const selected = resolveTrainingPlanForDate(plans, targetClassId, targetDate);
-          if (alive) setPlan(selected);
+          if (alive) setRead({ scope, plan: selected, failed: false });
           return;
         }
 
-        const latest = await measureAsync("screen.studentPlan.load.latestPlan", () => getLatestTrainingPlanByClass(targetClassId));
-        if (alive) setPlan(latest);
-      } finally {
-        if (alive) setLoading(false);
+        const latest = await measureAsync("screen.studentPlan.load.latestPlan", () => getLatestTrainingPlanByClass(targetClassId, { organizationId }));
+        if (alive) setRead({ scope, plan: latest, failed: false });
+      } catch {
+        if (alive) setRead({ scope, plan: null, failed: true });
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [targetClassId, targetDate]);
+  }, [targetClassId, targetDate, organizationId, scope, roleLoading]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -105,25 +108,18 @@ function StudentPlanScreenContent() {
 
         {loading ? (
           <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>Carregando...</Text>
+        ) : currentRead?.failed ? (
+          <ListEmptyState
+            title="Não foi possível carregar o plano"
+            description="Confira sua conexão e tente novamente."
+            actionLabel="Tentar novamente"
+            onAction={() => setAttempt((value) => value + 1)}
+          />
         ) : !plan ? (
-          <View
-            style={{
-              padding: responsiveLayout.density.cardPadding,
-              borderRadius: radius.card,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, fontWeight: "700" }}>
-              {isDayMode ? "Ainda não tem planejamento para este dia" : "Nenhum plano encontrado"}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight, marginTop: compactUiMetrics.smallGap }}>
-              {isDayMode
-                ? "Quando o treinador publicar, ele aparece aqui."
-                : "O treinador ainda não publicou o plano mais recente."}
-            </Text>
-          </View>
+          <ListEmptyState
+            title={isDayMode ? "Ainda não há plano para este dia" : "Nenhum plano publicado"}
+            description="Quando o treinador publicar, ele aparece aqui."
+          />
         ) : (
           <View style={{ gap: responsiveLayout.density.pageGap }}>
             <View

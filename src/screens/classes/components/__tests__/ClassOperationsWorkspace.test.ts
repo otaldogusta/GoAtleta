@@ -158,7 +158,9 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
   });
 
   it("stacks attendance only when the compact panel is actually narrow", () => {
-    expect(resolveStackedAttendancePanel(359, true)).toBe(true);
+    expect(resolveStackedAttendancePanel(299, true)).toBe(true);
+    expect(resolveStackedAttendancePanel(300, true)).toBe(false);
+    expect(resolveStackedAttendancePanel(358, true)).toBe(false);
     expect(resolveStackedAttendancePanel(360, true)).toBe(false);
     expect(resolveStackedAttendancePanel(620, true)).toBe(false);
     expect(resolveStackedAttendancePanel(320, false)).toBe(false);
@@ -317,7 +319,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.queryByText("save")).toBeNull();
     expect(screen.queryByLabelText("Alterações da chamada pendentes")).toBeNull();
     fireEvent(screen.getByTestId("embedded-attendance-section"), "layout", {
-      nativeEvent: { layout: { width: 340, height: 600, x: 0, y: 0 } },
+      nativeEvent: { layout: { width: 280, height: 600, x: 0, y: 0 } },
     });
     expect(screen.getByText("1 de 1 marcados")).toHaveStyle({
       width: "100%",

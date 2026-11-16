@@ -49,6 +49,8 @@ export default function PrivacyPolicyScreen() {
           paragraphs: [
             "O titular pode solicitar confirmação, acesso, correção, portabilidade, informação sobre compartilhamento, revisão, oposição ou eliminação, conforme a LGPD. Solicitações podem ser enviadas ao contato de privacidade acima.",
           ],
+          contact: {},
+          links: [{ label: "Como pedir a exclusão de dados", href: "/data-deletion" }],
         },
       ]}
     />

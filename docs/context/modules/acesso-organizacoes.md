@@ -25,6 +25,14 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 
 ## Contratos a preservar
 
+- O redirecionamento do índice web usa o caminho reativo do Expo Router.
+  Após aceitar convite de equipe, a troca de rota deve chegar à página inicial
+  do papel ativado mesmo quando o histórico do navegador ainda está mudando.
+
+- Na fila da Plataforma, seleção e ações de revisão pertencem à página e aos
+  filtros atuais. Um erro ao listar invalida o detalhe até a próxima leitura.
+  [Revisão operacional](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).
+
 - O título web pertence ao `Head` de `app/_layout.tsx`; `app/+html.tsx` não
   duplica `<title>`, para evitar nome concatenado nas prévias de links.
 
@@ -201,3 +209,10 @@ de atualizar sessão e anunciar sucesso. Preservar outro método de acesso.
 - Inicialização e espera de redirecionamento em app/index.tsx reutilizam FullscreenLoadingState, incluindo BootstrapGate; após isso cada tela mantém seu skeleton. A apresentação foi unificada sem alterar os bloqueios de acesso.
 - A lista da equipe abre o perfil em ModalSheet sobre a gestão pelo parâmetro memberProfile; fechar pelo backdrop ou voltar passa pela proteção de rascunhos de acesso existente.
 - Editar a própria conta a partir desse modal leva fromManagement=1; Voltar no perfil de coordenação retorna à gestão com o modal da conta autenticada, mantendo a confirmação de rascunhos.
+
+Em 14/11, `usePendingAccessRequest` separa falha de consulta de mensagens de
+convite/ação, deduplica a leitura e descarta respostas de outra identidade. Renovar
+a sessão da mesma conta conserva o acompanhamento do pedido. Na Plataforma,
+detalhes exibem apenas dados do contrato e podem ser fechados sem decidir acesso.
+Convite de atleta mantém auth/claim; abas aceitam teclado e controles de senha
+vazia não são expostos. [Escopo local e limites](../../ui/PENDENCIAS_ATUAIS_2026-11-14.md).

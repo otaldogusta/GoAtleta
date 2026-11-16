@@ -194,6 +194,7 @@ export function ClassPlanPreviewModal({
   const [isDirty, setIsDirty] = useState(false);
   const [pdfStatusLabel, setPdfStatusLabel] = useState("PDF sincronizado");
   const [previewZoom, setPreviewZoom] = useState(100);
+  const [fitPageWidth, setFitPageWidth] = useState(false);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewPageCount, setPreviewPageCount] = useState(1);
   const [previewRevision, setPreviewRevision] = useState(0);
@@ -225,7 +226,10 @@ export function ClassPlanPreviewModal({
       : phoneLayout
         ? MOBILE_DOCUMENT_ZOOM
         : 100;
-    Promise.resolve().then(() => setPreviewZoom(responsiveZoom));
+    Promise.resolve().then(() => {
+      setFitPageWidth(false);
+      setPreviewZoom(responsiveZoom);
+    });
   }, [phoneLayout, width, workspaceMode]);
 
   const keepWorkspaceAtTop = useCallback(() => {
@@ -935,6 +939,8 @@ export function ClassPlanPreviewModal({
             editable
             zoom={workspaceMode ? previewZoom : phoneLayout ? MOBILE_DOCUMENT_ZOOM : 100}
             minimumPageWidth={phoneLayout ? 620 : undefined}
+            workspaceZoom={workspaceMode}
+            fitPageWidth={workspaceMode && fitPageWidth}
             onMessage={handlePdfBridgeMessage}
             onError={() => setPreviewStatus("error")}
           />
@@ -1531,7 +1537,9 @@ export function ClassPlanPreviewModal({
             ]}
           >
             <Pressable
+              nativeID="planning-library-open"
               onPress={onToggleWorkspaceLibrary}
+              {...(Platform.OS === "web" && !phoneLayout && workspaceLibraryExpanded ? { tabIndex: -1, "aria-hidden": true } : {})}
               accessibilityRole="button"
               accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}
               accessibilityState={{ expanded: workspaceLibraryExpanded }}
@@ -1628,7 +1636,10 @@ export function ClassPlanPreviewModal({
               <Text style={[styles.workspacePageChipLabel, { color: colors.muted }]}>{previewPage} / {previewPageCount}</Text>
             </View>
             <Pressable
-              onPress={() => setPreviewZoom(100)}
+              onPress={() => {
+                setFitPageWidth(true);
+                setPreviewZoom(100);
+              }}
               accessibilityRole="button"
               accessibilityLabel="Ajustar documento à largura"
               style={({ pressed }) => [

@@ -26,13 +26,16 @@ import type { OrgMember } from "../src/api/members";
 import { sendPushToUser } from "../src/api/push";
 import type { AdminPendingAttendance } from "../src/api/reports";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import {
     useCopilotActions,
     useCopilotContext,
     useCopilotSignals,
+    useOptionalCopilotOpen,
     type CopilotAction,
     type CopilotContextData,
 } from "../src/copilot/CopilotProvider";
+import { usesManagementAssistantButton } from "../src/copilot/route-visibility";
 import { useSmartSync } from "../src/core/use-smart-sync";
 import type { ActivityCatalogAuditReport } from "../src/core/volleyball/activity-catalog-audit";
 import {
@@ -50,6 +53,7 @@ import { useOrganization } from "../src/providers/organization-context";
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { hasCoordinationAccess, resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
 import { useAppTheme } from "../src/ui/app-theme";
+import { Button } from "../src/ui/Button";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
@@ -316,6 +320,8 @@ function CoordinationScreenContent() {
   markRender("screen.coordination.render.root");
 
   const router = useRouter();
+  const screenPathname = usePathname();
+  const openAssistant = useOptionalCopilotOpen();
   const { session } = useAuth();
   const profilePath = getScopedProfilePath("/coordination");
   const { colors } = useAppTheme();
@@ -1376,21 +1382,36 @@ function CoordinationScreenContent() {
         }}
       >
           {error ? (
-            <View
-              style={{
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                padding: 12,
-              }}
-            >
-              <Text style={{ color: colors.dangerSolidBg, fontWeight: "700" }}>Erro</Text>
-              <Text style={{ color: colors.muted, marginTop: 4 }}>{error}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Tentar carregar coordenação novamente" onPress={() => void loadDashboard()}>
-                <Text style={{ color: colors.text, marginTop: 12 }}>Tentar novamente</Text>
-              </Pressable>
-            </View>
+            <>
+              <ScreenPageHeader
+                title="Gestão"
+                subtitle={organizationName}
+                right={openAssistant && usesManagementAssistantButton(screenPathname, width) ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Gestão" onPress={openAssistant}
+                    style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>
+                    <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.muted} />
+                  </Pressable>
+                ) : null}
+                onBack={() => router.push("/coord/dashboard")}
+                horizontalBleed={0}
+                style={{ marginLeft: -pageHorizontalGutter, marginRight: -pageHorizontalGutter }}
+                contentStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 0 }}
+              />
+              <View style={{ paddingVertical: 24, paddingHorizontal: 4, gap: 16 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                  <GoAtletaIcon name="warningCircle" size={18} color={colors.dangerText} />
+                  <View accessibilityLiveRegion="polite" style={{ flex: 1, gap: 4 }}>
+                    <Text accessibilityRole="header" style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "800" }}>
+                      Não foi possível carregar a Gestão
+                    </Text>
+
+                  </View>
+                </View>
+                <View style={{ alignSelf: "flex-start" }}>
+                  <Button label="Tentar novamente" onPress={() => void refreshDashboard()} variant="outline" />
+                </View>
+              </View>
+            </>
           ) : null}
 
           {!error ? <CoordinationPeopleWorkspace

@@ -8,7 +8,8 @@ import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
+import { UnderlineTabs } from "../../src/ui/UnderlineTabs";
+import { ListEmptyState } from "../../src/ui/ListEmptyState";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
@@ -16,7 +17,7 @@ import type {
 } from "../../src/core/models";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/organization-context";
-import { compactUiMetrics, shadow } from "../../src/theme/tokens";
+import { compactUiMetrics, shadow, spacing } from "../../src/theme/tokens";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import {
     buildAggregatedAttendanceSummary,
@@ -30,6 +31,7 @@ import {
     buildTrainerReportUnits,
     buildTrainerTeamIntelligence,
     buildUniqueSessionLogs,
+    countClassDaysWithAttendance,
 } from "../../src/screens/reports/application/trainer-report-selectors";
 import { useTrainerReportsData } from "../../src/screens/reports/hooks/useTrainerReportsData";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -39,7 +41,7 @@ import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 
 const REPORT_TABS = [
-  { id: "month" as const, label: "Mês atual" },
+  { id: "month" as const, label: "Resumo" },
   { id: "reports" as const, label: "Relatórios" },
   { id: "students" as const, label: "Destaques" },
 ] as const;
@@ -97,6 +99,19 @@ export default function ReportsScreen() {
     statValue: { color: colors.text, fontSize: 20, fontWeight: "700" },
     badgeIcon: { fontSize: compactUiMetrics.titleFontSize },
   }), [colors.muted, colors.text]);
+  const summaryStyles = useMemo(() => StyleSheet.create({
+    primaryStat: { flex: 1, minWidth: 0, gap: spacing.xs, paddingLeft: 0, borderLeftWidth: 0, borderLeftColor: colors.border },
+    separatedPrimaryStat: { paddingLeft: spacing.md, borderLeftWidth: 1 },
+    weeklySection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.lg, gap: spacing.md },
+    weekRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+    metaLabel: { color: colors.muted, fontSize: compactUiMetrics.bodyFontSize },
+    metaValue: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize },
+    additionalSection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.lg, gap: spacing.sm },
+    mutedText: { color: colors.muted },
+    detailText: { color: colors.text },
+    classRow: { gap: spacing.xs, paddingVertical: spacing.sm },
+  }), [colors.border, colors.muted, colors.text]);
   const responsiveLayout = useResponsiveLayout();
   const isMobile = responsiveLayout.isMobile;
   const { activeOrganization } = useOrganization();
@@ -145,11 +160,7 @@ export default function ReportsScreen() {
     fontWeight: "700" as const,
     color: colors.text,
   };
-  const dividerStyle = {
-    height: 1,
-    backgroundColor: colors.border,
-    opacity: 0.5,
-  };
+
 
   const rangeBounds = useMemo(() => {
     const now = new Date();
@@ -190,6 +201,7 @@ export default function ReportsScreen() {
   });
 
   const aggregatedAttendance = useMemo(() => buildAggregatedAttendanceSummary(attendanceDays), [attendanceDays]);
+  const classesWithAttendance = useMemo(() => countClassDaysWithAttendance(attendanceDays), [attendanceDays]);
   const attendanceSummaryByClass = aggregatedAttendance.byClass;
 
   const classMap = useMemo(() => buildEntityMap<ClassGroup>(classes), [classes]);
@@ -290,21 +302,10 @@ export default function ReportsScreen() {
 
   const topStudents = useMemo(() => performanceRows.slice(0, 10), [performanceRows]);
 
-  const statCards = [
-    { label: "Presenças", value: String(summary.present), color: colors.primaryBg },
-    { label: "Faltas", value: String(summary.absent), color: colors.dangerSolidBg },
-    { label: "Aulas", value: String(summary.total), color: colors.infoBg },
-    { label: "Turmas", value: String(classes.length), color: colors.secondaryBg },
-    {
-      label: "PSE médio",
-      value: pseSummary.avg === null ? "--" : pseSummary.avg.toFixed(1),
-      color: colors.warningBg,
-    },
-    {
-      label: "Média por turma",
-      value: avgPresenceByClass === null ? "--" : `${avgPresenceByClass.toFixed(0)}%`,
-      color: colors.secondaryBg,
-    },
+  const primaryStats = [
+    { label: "Presenças", value: String(summary.present) },
+    { label: "Faltas", value: String(summary.absent) },
+    { label: "Aulas com chamada", value: String(classesWithAttendance) },
   ];
 
   const teamIntelligence = useMemo(
@@ -326,23 +327,21 @@ export default function ReportsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenPageHeader
         title="Relatórios"
-        subtitle="Painel de presença e desempenho"
         onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
       >
-        <AnimatedSegmentedTabs
-          tabs={REPORT_TABS}
-          activeTab={reportTab}
-          onChange={(tab) => setReportTab(tab)}
-          itemMinHeight={40}
-          itemPaddingVertical={isMobile ? 8 : 10}
+        <UnderlineTabs
+          items={REPORT_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+          value={reportTab}
+          onChange={(tab) => setReportTab(tab as ReportTabId)}
+          accessibilityLabel="Seções dos relatórios"
         />
       </ScreenPageHeader>
       <ScrollView
         contentContainerStyle={{
-          gap: isMobile ? 10 : 16,
-          paddingBottom: 24,
-          paddingHorizontal: isMobile ? 12 : 16,
-          paddingTop: isMobile ? 8 : 12,
+          gap: spacing.xl,
+          paddingBottom: spacing.xxl,
+          paddingHorizontal: spacing.md,
+          paddingTop: spacing.sm,
         }}
       >
 
@@ -364,253 +363,93 @@ export default function ReportsScreen() {
           </View>
         ) : null}
 
-        { reportTab === "month" ? (
-        <View style={cardStyle}>
-          <View style={{ gap: 8 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text style={sectionTitleStyle}>Mês atual</Text>
-              <Pressable
-                disabled={isExporting || Boolean(loadError)}
-                onPress={() => {
-                  void exportXlsx();
-                }}
-                style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.primaryBg,
-                  opacity: isExporting || loadError ? 0.55 : 1,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {isExporting ? "Exportando..." : "Exportar XLSX"}
-                </Text>
+        {reportTab === "month" ? (
+          <View style={{ gap: spacing.xl }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs }}>
+              <View style={{ flexDirection: "row", alignItems: "center", minWidth: 0 }}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" onPress={() => setMonth((m) => nextMonth(m, -1))}
+                  style={{ width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: compactUiMetrics.titleFontSize, color: colors.text }}>‹</Text>
+                </Pressable>
+                <Text accessibilityLiveRegion="polite" style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>{monthLabel(month)}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" onPress={() => setMonth((m) => nextMonth(m, 1))}
+                  style={{ width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: compactUiMetrics.titleFontSize, color: colors.text }}>›</Text>
+                </Pressable>
+              </View>
+              <Pressable accessibilityRole="button" disabled={isExporting || Boolean(loadError)}
+                onPress={() => { void exportXlsx(); }} suppressWebHoverFeedback
+                style={{ minHeight: 44, paddingHorizontal: spacing.xs, borderRadius: 12, justifyContent: "center", opacity: isExporting || loadError ? 0.55 : 1 }}>
+                <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>{isExporting ? "Exportando..." : "Exportar XLSX"}</Text>
               </Pressable>
             </View>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                paddingVertical: 6,
-                paddingHorizontal: 8,
-                borderRadius: 16,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Pressable
-                onPress={() => setMonth((m) => nextMonth(m, -1))}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ fontSize: compactUiMetrics.titleFontSize, color: colors.text }}>{"‹"}</Text>
-              </Pressable>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 5,
-                    borderWidth: 1.5,
-                    borderColor: colors.muted,
-                    overflow: "hidden",
-                  }}
-                >
-                  <View style={{ height: 5, backgroundColor: colors.muted, opacity: 0.35 }} />
-                  <View style={{ flex: 1, padding: 3, gap: 2 }}>
-                    <View style={{ width: 8, height: 1.5, borderRadius: 1, backgroundColor: colors.muted }} />
-                    <View style={{ width: 5, height: 1.5, borderRadius: 1, backgroundColor: colors.muted, opacity: 0.75 }} />
+
+            {summary.total === 0 ? (
+              <ListEmptyState title="Nenhum registro neste período" description="As chamadas e as aulas finalizadas aparecem aqui." />
+            ) : (
+              <>
+                <View style={{ gap: spacing.sm }}>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: spacing.sm }}>
+                    <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>Frequência no período</Text>
+                    <Text style={textStyles.statValue}>{summary.percent}%</Text>
+                  </View>
+                  <View accessibilityLabel={`Frequência de ${summary.percent}%`} style={{ height: 4, borderRadius: 2, backgroundColor: colors.secondaryBg, overflow: "hidden" }}>
+                    <View style={{ height: "100%", width: `${summary.percent}%`, backgroundColor: colors.primaryBg }} />
+                  </View>
+                  <View style={{ flexDirection: "row", paddingVertical: spacing.sm }}>
+                    {primaryStats.map((stat, index) => (
+                      <View key={stat.label} style={[summaryStyles.primaryStat, index > 0 && summaryStyles.separatedPrimaryStat]}>
+                        <Text style={textStyles.statValue}>{stat.value}</Text>
+                        <Text style={textStyles.statLabel}>{stat.label}</Text>
+                      </View>
+                    ))}
                   </View>
                 </View>
-                <Text style={{ fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700", color: colors.text }}>
-                  {monthLabel(month)}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setMonth((m) => nextMonth(m, 1))}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ fontSize: compactUiMetrics.titleFontSize, color: colors.text }}>{"›"}</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: isMobile ? 8 : 10 }}>
-            {statCards.map((card) => (
-              <View
-                key={card.label}
-                style={{
-                  flexBasis: "48%",
-                  padding: isMobile ? 10 : 12,
-                  borderRadius: isMobile ? 14 : 16,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: isMobile ? 2 : 4,
-                }}
-              >
-                <Text style={textStyles.statLabel}>
-                  {card.label}
-                </Text>
-                <Text style={textStyles.statValue}>
-                  {card.value}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {teamIntelligence.rankingByAttendance.length > 0 && (
-            <View style={insetCardStyle}>
-              <Text style={sectionTitleStyle}>Comparativo da equipe</Text>
-              <Text style={{ color: colors.muted }}>
-                Presença média global: {(teamIntelligence.globalAvgAttendance * 100).toFixed(0)}% • PSE médio global: {teamIntelligence.globalAvgPse.toFixed(1)}
-              </Text>
-              <View style={{ gap: 6, marginTop: 4 }}>
-                {teamIntelligence.rankingByAttendance.map((item, index) => (
-                  <Text key={`team-ranking-${item.classId}`} style={{ color: colors.text }}>
-                    {index + 1}. {item.className} • {(item.avgAttendance * 100).toFixed(0)}% • PSE {item.avgPse.toFixed(1)}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {simulationHighlights.length > 0 && (
-            <View style={insetCardStyle}>
-              <Text style={sectionTitleStyle}>Simulação de evolução (6 semanas)</Text>
-              <Text style={{ color: colors.muted }}>
-                Projeção assistiva e determinística. Aplicação real exige validação humana.
-              </Text>
-              <View style={{ gap: 6, marginTop: 4 }}>
-                {simulationHighlights.map((item) => (
-                  <Text key={`sim-${item.classId}`} style={{ color: colors.text }}>
-                    {item.className} • {Math.round(item.baseline * 100)}% → {Math.round(item.projected * 100)}% • confiança {Math.round(item.confidence * 100)}%
-                  </Text>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {summary.total === 0 ? (
-            <View
-              style={[
-                insetCardStyle,
-                {
-                  alignItems: "center",
-                  justifyContent: "center",
-                  paddingVertical: 32,
-                  gap: 8,
-                },
-              ]}
-            >
-              <GoAtletaIcon name="warning" size={18} color={colors.muted} />
-              <Text style={{ color: colors.text, fontWeight: "700", textAlign: "center" }}>
-                Nenhum dado registrado
-              </Text>
-              <Text style={{ color: colors.muted, textAlign: "center", fontSize: compactUiMetrics.bodyFontSize, lineHeight: 18 }}>
-                Não há chamadas ou sessões de aula finalizadas para as suas turmas neste período.
-              </Text>
-            </View>
-          ) : (
-            <View style={insetCardStyle}>
-              <Text style={sectionTitleStyle}>Presença geral</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 12 : 16 }}>
-                <View
-                  style={{
-                    width: isMobile ? 76 : 88,
-                    height: isMobile ? 76 : 88,
-                    borderRadius: isMobile ? 38 : 44,
-                    borderWidth: isMobile ? 7 : 8,
-                    borderColor: colors.primaryBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.card,
-                  }}
-                >
-                  <Text style={{ fontSize: isMobile ? 18 : 20, fontWeight: "700", color: colors.text }}>
-                    {summary.percent}%
-                  </Text>
-                </View>
-                <View style={{ gap: 6, flex: 1 }}>
-                  <Text style={{ color: colors.text }}>
-                    Presenças: {summary.present}
-                  </Text>
-                  <Text style={{ color: colors.text }}>
-                    Faltas: {summary.absent}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Total registrado: {summary.total}
-                  </Text>
-                </View>
-              </View>
-              <View style={dividerStyle} />
-              <View style={{ gap: 8 }}>
-                <Text style={sectionTitleStyle}>Evolução semanal</Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-end",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
+                <View style={summaryStyles.weeklySection}>
+                  <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>Evolução semanal</Text>
                   {weeklySummary.map((week) => (
-                    <View key={week.label} style={{ alignItems: "center", gap: 6 }}>
-                      <View
-                        style={{
-                          width: 18,
-                          height: 64,
-                          borderRadius: 10,
-                          backgroundColor: colors.secondaryBg,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <View
-                          style={{
-                            position: "absolute",
-                            bottom: 0,
-                            width: "100%",
-                            height: `${week.percent}%`,
-                            backgroundColor: colors.primaryBg,
-                          }}
-                        />
+                    <View key={week.label} style={summaryStyles.weekRow}>
+                      <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, width: 28 }}>{week.label}</Text>
+                      <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.secondaryBg, overflow: "hidden" }}>
+                        <View style={{ height: "100%", width: `${week.percent}%`, backgroundColor: colors.primaryBg }} />
                       </View>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        {week.label}
-                      </Text>
+                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, minWidth: 36, textAlign: "right" }}>{week.percent}%</Text>
                     </View>
                   ))}
                 </View>
-              </View>
+              </>
+            )}
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, gap: spacing.sm }}>
+              {[
+                { label: "Turmas", value: String(classes.length) },
+                { label: "PSE médio", value: pseSummary.avg === null ? "Sem registro" : pseSummary.avg.toFixed(1) },
+                { label: "Média de presença por turma", value: avgPresenceByClass === null ? "Sem registro" : `${avgPresenceByClass.toFixed(0)}%` },
+              ].map((stat) => (
+                <View key={stat.label} style={summaryStyles.metaRow}>
+                  <Text style={summaryStyles.metaLabel}>{stat.label}</Text>
+                  <Text style={summaryStyles.metaValue}>{stat.value}</Text>
+                </View>
+              ))}
             </View>
-          )}
-        </View>
+            {teamIntelligence.rankingByAttendance.length > 0 ? (
+              <View style={summaryStyles.additionalSection}>
+                <Text style={sectionTitleStyle}>Comparativo da equipe</Text>
+                <Text style={summaryStyles.mutedText}>Presença média global de {(teamIntelligence.globalAvgAttendance * 100).toFixed(0)}% · PSE {teamIntelligence.globalAvgPse.toFixed(1)}</Text>
+                {teamIntelligence.rankingByAttendance.map((item, index) => (
+                  <Text key={`team-ranking-${item.classId}`} style={summaryStyles.detailText}>{index + 1}. {item.className} · {(item.avgAttendance * 100).toFixed(0)}% · PSE {item.avgPse.toFixed(1)}</Text>
+                ))}
+              </View>
+            ) : null}
+            {simulationHighlights.length > 0 ? (
+              <View style={summaryStyles.additionalSection}>
+                <Text style={sectionTitleStyle}>Simulação de evolução · 6 semanas</Text>
+                <Text style={summaryStyles.mutedText}>Projeção assistiva. Aplicação real exige validação humana.</Text>
+                {simulationHighlights.map((item) => (
+                  <Text key={`sim-${item.classId}`} style={summaryStyles.detailText}>{item.className} · {Math.round(item.baseline * 100)}% → {Math.round(item.projected * 100)}% · confiança {Math.round(item.confidence * 100)}%</Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
         ) : null}
 
         { reportTab === "reports" ? (
@@ -659,8 +498,8 @@ export default function ReportsScreen() {
         ) : null}
 
         { reportTab === "month" ? (
-        <View style={cardStyle}>
-          <Text style={sectionTitleStyle}>Turmas (mês atual)</Text>
+        <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.lg, gap: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>Presença por turma</Text>
           <View style={{ gap: 10 }}>
             <FlatList
               data={classRows}
@@ -668,7 +507,7 @@ export default function ReportsScreen() {
               scrollEnabled={false}
               contentContainerStyle={{ gap: 10 }}
               renderItem={({ item: row }) => (
-                <View style={insetCardStyle}>
+                <View style={summaryStyles.classRow}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={{ fontWeight: "700", color: colors.text }}>
@@ -680,7 +519,7 @@ export default function ReportsScreen() {
                   </View>
                   <View
                     style={{
-                      height: 8,
+                      height: 4,
                       borderRadius: 999,
                       backgroundColor: colors.secondaryBg,
                       overflow: "hidden",
@@ -695,7 +534,7 @@ export default function ReportsScreen() {
                     />
                   </View>
                   <Text style={{ color: colors.muted }}>
-                    Presenças: {row.present} | Total: {row.total}
+                    {row.present} de {row.total} registros de presença
                   </Text>
                 </View>
               )}

@@ -58,16 +58,24 @@ describe("coordination finance modal navigation", () => {
     expect(dashboardSource).not.toContain("openMobileSidebar");
   });
 
-  it("keeps the three balance metrics together and moves the rate below on compact layouts", () => {
-    expect(dashboardSource).toContain('width: "33.333333%"');
-    expect(dashboardSource).toContain('width: compact ? "100%" : "25%"');
-    expect(dashboardSource).toContain("borderTopWidth: compact ? 1 : 0");
-    expect(dashboardSource).toContain("const columns = compact ? 3 : 4");
+  it("keeps all three balance metrics in one strip at both densities", () => {
+    const strip = dashboardSource.slice(
+      dashboardSource.indexOf("function FinanceSummaryStrip"),
+      dashboardSource.indexOf("function FinanceSectionTabs"),
+    );
+    expect(strip).toContain('label: "Recebido"');
+    expect(strip).toContain('label: "Em aberto"');
+    expect(strip).toContain('label: "Vencido"');
+    expect(strip).toContain("compact ? styles.summaryStripCellCompact : styles.summaryStripCellWide");
+    expect(dashboardSource).toContain('summaryStripCell: { flex: 1, minWidth: 0, gap: 6 }');
   });
 
-  it("lets compact overview cards size to their content", () => {
-    expect(dashboardSource).toContain("flex: compact ? undefined : 1.35");
-    expect(dashboardSource).toContain("flex: compact ? undefined : 0.8");
+  it("keeps the received rate in the separate monthly section and accounts for compact scrolling", () => {
+    const overview = dashboardSource.slice(
+      dashboardSource.indexOf("function FinanceOverviewPanel"),
+      dashboardSource.indexOf("function FinancePayersPanel"),
+    );
+    expect(overview).toMatch(/<FinanceSummaryStrip summary=\{summary\} compact=\{compact\} \/>[\s\S]*Recebimentos do mês[\s\S]*\{receivedRate\}% recebido/);
     expect(dashboardSource).toContain("resolveFinanceScrollBottomPadding({");
   });
 
@@ -178,11 +186,13 @@ describe("coordination finance modal navigation", () => {
       "paddingTop: embedded ? spacing.md : 0",
     );
     expect(financeSettingsSource).toContain(
-      "const contentSizedEmbedded = embedded && !responsiveLayout.isMobile",
+      "const contentSizedEmbedded = embedded;",
     );
-    expect(dashboardSource).toContain(
+    expect(dashboardSource).not.toContain(
       'height: responsiveLayout.isMobile ? "94%" : undefined',
     );
+    expect(dashboardSource).toContain('maxHeight: "94%"');
+    expect(financeSettingsSource).toContain("<ScrollView");
   });
 
   it("detects the Asaas environment without asking the user", () => {

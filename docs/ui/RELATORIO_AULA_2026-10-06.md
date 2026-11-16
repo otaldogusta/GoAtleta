@@ -50,6 +50,11 @@ Não foram acionados salvar remoto, revisão por IA ou geração real de PDF.
 Permissão/captura física de câmera e comportamento de teclado em aparelho nativo
 não foram exercitados.
 
+## Foco no navegador · ajuste local de 14/11
+
+Os campos Como foi a aula? e Atividade realizada mostram o foco de teclado
+na borda arredondada do campo. No clique, a borda fica em repouso.
+
 ## Publicação autorizada
 
 Pacote destinado à `main` pela esteira existente de Vercel e EAS. A publicação

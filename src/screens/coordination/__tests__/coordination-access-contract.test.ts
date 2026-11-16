@@ -11,7 +11,7 @@ describe("coordination permission and failure boundaries", () => {
   });
   it("keeps the people workspace behind an explicit error and retry boundary", () => {
     expect(screen).toContain("{!error ? <CoordinationPeopleWorkspace");
-    expect(screen).toContain("Tentar carregar coordenação novamente");
+    expect(screen).toContain('label="Tentar novamente" onPress={() => void refreshDashboard()}');
   });
   it("renders a friendly invite error", () => {
     expect(workspace).toContain('getFriendlyErrorMessage(error, "Tente novamente em instantes.")');

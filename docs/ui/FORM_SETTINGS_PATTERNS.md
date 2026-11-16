@@ -44,9 +44,13 @@ a primitive não reserva altura nem contém mensagem de sucesso.
   `colors.dangerSolidBg`. Limpar o erro imediatamente ao digitar.
 - No cadastro, manter a ordem de empilhamento dos campos quando o erro aparece
   ou some. O balão deixa o toque passar e Avançar leva à senha só com e-mail válido.
-- Na confirmação de cadastro, o endereço e o lápis abrem o editor na mesma
-  posição. Validar com a mesma regra do cadastro. Reservar espaço acima do campo
-  enquanto o editor estiver aberto para o balão ficar abaixo da instrução do código.
+- Na confirmação de cadastro, clicar no endereço ou no lápis transforma a linha
+  em campo editável. O × limpa o texto e mantém o foco. A seta com o rótulo
+  Cancelar edição descarta o rascunho. Manter a instrução e as
+  caixas de código na mesma posição e pausar a entrada do código durante a edição.
+  Validar com a regra do cadastro e reservar espaço para o balão abaixo da
+  instrução. Enviar código usa o endereço corrigido, inclusive ao reabrir com
+  uma sessão de cadastro pendente.
 - Elevar o contêiner externo do campo com erro acima dos irmãos (na autenticação,
   zIndex 50 e balão 60), além de preservar overflow visível. Aumentar só o zIndex
   do balão não supera o contexto de empilhamento do pai.
@@ -128,8 +132,16 @@ escopo solicitado, não uma preferência visual do agente.
 
 - Reusar os padrões de input: container com minHeight 50, radius 12 e padding
   horizontal 14; TextInput interno sem arredondamento para não cortar autofill.
+- No desktop web, os campos das Configurações dos perfis de atleta, professor
+  e coordenação usam altura mínima de 40 px.
+- Usar 14 px no texto digitado e no placeholder dos campos de Dados pessoais,
+  seguindo Nome completo. Aplicar a cor `colors.muted` ao placeholder.
 - Evitar contorno nativo duplicado dentro do campo; preservar foco perceptível
   por teclado no container e contraste em ambos os temas.
+- No login web, o contêiner de E-mail ou Senha indica foco durante a navegação
+  por teclado. Clicar ou tocar no campo mantém a borda padrão de digitação.
+  O controle de visibilidade só existe enquanto houver texto na senha e seu
+  espaço é reservado para manter a largura de digitação.
 - Máscara não é validação nem prova de identidade. Aplicar limites coerentes
   com o dado; não inventar uma máscara nacional única para documentos variáveis.
 - Seleção pesquisável usa ícone de busca, lista ancorada e badges para valores
@@ -259,3 +271,22 @@ os ícones De/Até abriram o calendário nativo; seleção alterou 01/10 para 02
 Edição apenas do mês produziu 02/09/2026, com cursor ainda no mês (posição 5),
 e o blur confirmou 2026-09-02 sem alterar Até. Nove testes focados e lint
 aprovados. Nenhuma chamada gravada ou exportação enviada durante a conferência.
+
+## Estado das preferências e confirmação de saída · 14/11/2026
+
+`SettingsRow` aceita `checked` apenas para preferências que alternam um estado.
+No nativo, anuncia switch/checked; na web, button/aria-pressed conserva Enter e
+Espaço no renderer instalado. O valor vem da mesma fonte do indicador visual.
+Linhas de navegação continuam botões e linhas informativas continuam sem ação.
+Não modificar dimensões, cores ou composição para acrescentar essa semântica.
+
+`ConfirmCloseOverlay` expõe Continuar, Descartar e a confirmação opcional com
+papel de botão e o respectivo rótulo. Os callbacks e a proteção do rascunho
+continuam no consumidor; fechar o diálogo não implica salvar.
+[Registro de validação local](REVISAO_TELAS_ATUAIS_2026-11-14.md).
+
+No Perfil, não tratar consulta de status como salvamento: `busy` mantém os
+controles protegidos; `mutating` da conta atual protege a navegação durante
+request/verify/remove. Uma consulta pendente permite sair sem alterações e
+continua exigindo confirmação quando há rascunho. Senha em gravação também
+permanece protegida. Nenhuma dessas distinções dispensa confirmação do servidor.

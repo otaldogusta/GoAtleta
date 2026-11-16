@@ -5,6 +5,35 @@ não certifica ativação do backend nem publicação do frontend.
 
 ## Responsabilidade e fluxo
 
+Os campos compactos de Criar turma e Editar turma seguem a altura de 39 px
+no navegador em escala padrão. O mesmo padrão é usado nos filtros de
+Exportar chamadas e na busca e no seletor de modelo do WhatsApp da turma.
+Os filtros do Histórico de relatórios e os campos de uma linha da
+substituição de equipe também usam essa altura.
+
+A Biblioteca expandida usa a superfície opaca do tema no desktop para
+manter lista e controles legíveis sobre a prévia do documento.
+No desktop, recolher anima a saída e devolve o foco ao acionador da prévia.
+Expandir move o foco ao botão dentro do painel. A preferência por movimento
+reduzido é respeitada. O download web devolve o foco ao botão quando o
+foco caiu no documento durante a exportação.
+
+No documento web do Planejamento, o zoom altera a escala da página e
+Ajustar à largura encaixa a página no visor. O documento continua montado
+durante a troca de escala, preservando os campos em edição.
+
+O importador de plano PDF opta pelo diálogo nomeado de `ModalSheet`, mantendo
+o bloqueio de saída durante processamento. Foco/Tab/Escape e rascunho do editor
+foram conferidos localmente; análise de arquivo e aplicação não foram exercitadas.
+[Evidência de 14/11](../../ui/INVENTARIO_ORGANIZADO_2026-11-14.md).
+
+Turmas usa a tabela compacta na web a partir de 660 px de conteúdo, com
+as mesmas colunas da tabela larga. Abaixo disso, a lista usa cartões.
+Quando há um único estagiário na equipe de apoio, seu nome fica junto ao do professor.
+Biblioteca de Planos usa abas sublinhadas e ficha móvel de altura intrínseca.
+Cancelar substituição preserva o rascunho e restaura o acionador capturado antes
+da hidratação. [Contrato visual, provas e limites](../../ui/REVISAO_INVENTARIO_CONTINUIDADE_2026-11-13.md).
+
 Turma reúne identidade, modalidade, horários, unidade e responsáveis. O perfil
 pedagógico descreve a turma; ciclos e planos organizam o trabalho no tempo.
 O planejamento mensal, semanal e diário reutiliza esse contexto, preservando
@@ -27,6 +56,9 @@ edições do professor e distinguindo proposta, plano aplicado e aula realizada.
 | [review-profile-plans.ts](../../../src/screens/planning/application/review-profile-plans.ts) | Prévia de revisão a partir de novo perfil. |
 
 ## Contratos a preservar
+
+- “Criar plano” na entrada móvel carrega a turma e a data no editor. Isso não
+  registra aplicação na aula. [Revisão operacional](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).
 
 - A biblioteca usa `TrainingPlanSummary` explícito para listar/contar; visualizar,
   editar ou aplicar hidrata o plano completo por ID antes de substituir o rascunho.

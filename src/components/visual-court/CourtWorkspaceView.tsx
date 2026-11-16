@@ -4,7 +4,7 @@ import { CourtWorkspacePanel, type CourtWorkspaceTab } from "./CourtWorkspacePan
 import { CourtSaveStatus } from "./CourtSaveStatus";
 import { CourtLayersPanel } from "./CourtLayersPanel";
 import { moveCourtLayer, resolveCourtLayers, setCourtLayerHidden, setCourtLayerLocked, type CourtLayerRef } from "../../core/court-layers";
-import { mobileCourtOverlayLayout } from "./court-overlay-layout";
+import { courtEditingDock, mobileCourtOverlayLayout } from "./court-overlay-layout";
 import { CourtStepGallery } from "./CourtStepGallery";
 import { courtRoster } from "../../core/court-roster";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -112,6 +112,11 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const commit: typeof editor.commit = readOnly ? readonlyNoop : editor.commit;
   const { colors, mode } = useAppTheme();
   const { width, height } = useWindowDimensions();
+  // The soft keyboard shrinks the visual viewport without rotating the editor.
+  const webLayout = Platform.OS === "web" && typeof document !== "undefined" ? document.documentElement : null;
+  const layoutWidth = webLayout?.clientWidth || width;
+  const layoutHeight = webLayout?.clientHeight || height;
+  const layoutIsLandscape = layoutWidth > layoutHeight;
   const insets = useSafeAreaInsets();
   // Match the approved 1329 x 880 composition in compact desktop panes.
   // Only controls scale; the court keeps native resolution and edit coordinates.
@@ -134,6 +139,11 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     }
   }, []);
   const [panel, setPanel] = useState<"properties" | "export" | "tools" | "settings" | "step" | "players" | "layers" | null>(null);
+  const useToolsSheet = !readOnly && Platform.OS === "web" && layoutWidth <= 700 && !layoutIsLandscape;
+  const dockHasShortcuts = width - insets.left - insets.right >= courtEditingDock.fullToolsMinWidth;
+  const toolsSheetOpen = useToolsSheet && !suspended && workspacePanelOpen && !panel;
+  const toolsSheetTrigger = useRef<View>(null);
+  const toolsSheetId = "court-workspace-sheet";
   const [layersContentSize, setLayersContentSize] = useState<{ stepId: string; height: number } | null>(null);
   const [motionMode, setMotionMode] = useState<"free" | "straight">("free");
   const [animationToolsOpen, setAnimationToolsOpen] = useState(false);
@@ -199,12 +209,18 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const [multi, setMulti] = useState(false);
   const [team, setTeam] = useState<"A" | "B">("A");
   const [substitute, setSubstitute] = useState(false);
-  const landscape = orientation === "auto" ? width > height : orientation === "landscape";
+  const landscape = orientation === "auto" ? layoutIsLandscape : orientation === "landscape";
   const compact = width <= 700;
   const touchTools = compact || (width <= 1000 && height <= 500);
   const compactWeb = Platform.OS === "web" && compact;
   const denseControls = Platform.OS === "web" || !compact;
   const mobileOverlays = mobileCourtOverlayLayout(width, insets.bottom, uiScale);
+  const workspacePanelBottom = useToolsSheet
+    ? mobileOverlays.transportBottom + courtEditingDock.height + courtEditingDock.panelGap
+    : mobileOverlays.panelBottom;
+  const sheetToolPosition: ViewStyle | undefined = useToolsSheet
+    ? { bottom: workspacePanelBottom, left: undefined, top: undefined, alignSelf: "center" }
+    : undefined;
   const panelMotion = useDisclosureMotion(Boolean(panel));
   const desktopPanels = Platform.OS === "web" && !compact;
   const sidePanelTop = insets.top + 144 * uiScale;
@@ -421,7 +437,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const keyboard = useRef({ remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape });
   useEffect(() => { keyboard.current = { remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape }; });
   useEffect(() => {
-    if (Platform.OS !== "web" || suspended) return;
+    if (Platform.OS !== "web" || suspended || toolsSheetOpen) return;
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.("input,textarea,[contenteditable=true]")) return;
@@ -452,7 +468,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
 
     };
     window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
-  }, [actionMenu, libraryMenuId, animationToolsOpen, newBoardOpen, exitOpen, panel, tool, workspacePanelOpen, readOnly, suspended]);
+  }, [actionMenu, libraryMenuId, animationToolsOpen, newBoardOpen, exitOpen, panel, tool, workspacePanelOpen, readOnly, suspended, toolsSheetOpen]);
   const playCurrentStep = () => {
     if (playing) { setPlaying(false); return; }
     if (progress >= 1) { playhead.current = 0; setProgress(0); }
@@ -485,6 +501,10 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   };
   const toolAction = (label: string, icon: CourtActionIcon, onPress: () => void, active = false) => <CourtActionButton key={label} label={label} icon={icon} compact={touchTools || denseControls} touchTarget={touchTools} tooltipScale={toolScale} active={active} onPress={onPress} />;
   const openAnimationTools = () => { stop(); setSelected([]); setPanel(null); setWorkspacePanelOpen(false); setTool("animate"); setAnimationToolsOpen(open => !open); };
+  const toggleLayers = () => {
+    stop(); setTool("select"); setAnimationToolsOpen(false); setWorkspacePanelOpen(false);
+    setPanel(panel === "layers" ? null : "layers");
+  };
   useEffect(() => {
     if (tool === "animate" && !panel && !playing) return;
     let alive = true;
@@ -492,17 +512,48 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     return () => { alive = false; };
   }, [tool, panel, playing]);
   const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <CourtSwitchRow key={label} label={label} value={value} onChange={onChange} />;
-  const toolGrid = (items: [CourtTool, string, CourtActionIcon, ("free" | "points")?][]) => <View style={styles.wrap}>{items.map(([id, label, icon, mode]) => <CourtActionButton tooltipScale={uiScale} key={`${id}-${mode ?? "free"}`} label={label} icon={icon} tile onAdd={() => {
-      stop();
-      if (["ball", "cone", "target", "ladder", "text", "area"].includes(id)) { chooseTool(id, mode); return; }
-      const kind = id as CourtDrawing["kind"];
-      const point = { x: 0.5, y: 0.7 };
-      const points = kind === "curve" ? [point, { x: 0.35, y: 0.6 }, { x: 0.55, y: 0.52 }] : ["arrow", "pen", "area"].includes(kind) ? [point, { x: 0.65, y: 0.55 }] : [point];
-      draw({ id: editorId(), kind, points, color, dashed, size: 32, rotation: 0, ...(kind === "text" ? { text: "Anotação" } : {}) });
-      chooseTool("select");
-    }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id && (id !== "area" || areaMode === (mode ?? "free"))} onPress={() => chooseTool(id, mode)} />)}</View>;
+  const toolGrid = (items: [CourtTool, string, CourtActionIcon, ("free" | "points")?][]) => <View style={styles.wrap}>
+    {items.map(([id, label, icon, area]) => {
+      const placement = ["ball", "cone", "target", "ladder", "text", "area"].includes(id);
+      const add = () => {
+        stop();
+        if (placement) { chooseTool(id, area); return; }
+        const kind = id as CourtDrawing["kind"];
+        const point = { x: 0.5, y: 0.7 };
+        const points = kind === "curve" ? [point, { x: 0.35, y: 0.6 }, { x: 0.55, y: 0.52 }] : [point, { x: 0.65, y: 0.55 }];
+        draw({ id: editorId(), kind, points, color, dashed, size: 32, rotation: 0 });
+        chooseTool("select");
+      };
+      return <CourtActionButton tooltipScale={uiScale} key={`${id}-${area ?? "free"}`} label={label} icon={icon} tile sheetTile={useToolsSheet}
+        onAdd={useToolsSheet && placement ? undefined : add}
+        dragKind={!useToolsSheet && ["ball", "cone", "target", "ladder"].includes(id) ? id : undefined}
+        active={tool === id && (id !== "area" || areaMode === (area ?? "free"))} onPress={() => chooseTool(id, area)} />;
+    })}
+  </View>;
   const field = (label: string, value: string, onChange: (value: string) => void, multiline = false) => <View style={{ gap: 6 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text><View style={{ backgroundColor: colors.inputBg, borderRadius: 12, minHeight: 50, paddingHorizontal: 14 }}><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} style={{ color: ink, minHeight: multiline ? 70 : 50, borderRadius: 0, fontSize: 14, ...(Platform.OS === "web" ? { cursor: "text" } as object : {}) }} /></View></View>;
   const heading = (label: string) => <Text style={{ color: ink, fontWeight: "700", fontSize: 15, marginTop: 10 }}>{label}</Text>;
+  const toolsContent = (withEditorActions: boolean) => <>
+    {withEditorActions ? <>
+      {heading("Jogada")}
+      <View style={styles.wrap}>
+        <CourtActionButton label="Adicionar jogador" icon="profile" onPress={() => chooseTool("player")} active={tool === "player"} tile sheetTile />
+        <CourtActionButton label="Animar movimento" icon="courtMotion" onPress={openAnimationTools} active={tool === "animate"} tile sheetTile />
+        {!dockHasShortcuts ? <>
+          <CourtActionButton label="Selecionar e mover" icon="navigate" onPress={() => chooseTool("select")} active={tool === "select"} tile sheetTile />
+          <CourtActionButton label="Camadas" icon="regulations" onPress={toggleLayers} tile sheetTile />
+        </> : null}
+      </View>
+    </> : null}
+    {heading("Materiais de treino")}
+    {toolGrid([["ball", "Bola", "courtBall"], ["cone", "Cone", "courtCone"], ["target", "Alvo", "courtTarget"], ["ladder", "Escada", "courtLadder"]])}
+    {heading("Desenho e anotações")}
+    {toolGrid([["arrow", "Seta reta", "courtArrow"], ["curve", "Seta curva", "courtCurve"], ["pen", "Traço livre", "pencil"], ["area", "Área livre", "courtArea", "free"], ["area", "Área por pontos", "courtArea", "points"], ["text", "Texto", "courtText"]])}
+    {["ball", "cone", "target", "ladder", "arrow", "curve", "pen", "area", "text"].includes(tool) ? <>
+      {heading("Estilo da ferramenta")}
+      <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Usar cor ${c}`} onPress={() => setColor(c)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: color === c ? ink : "transparent" }} />)}</View>
+      {["arrow", "curve", "pen", "area"].includes(tool) ? toggle("Traço pontilhado", dashed, setDashed) : null}
+    </> : null}
+  </>;
   const openBlankBoard = async () => { const board = newCourtBoard(boardName.trim() || "Nova quadra"); board.actors = []; board.editor!.actorMeta = {}; board.timeline.steps[0].actorPositions = {}; await openPayload(board); setNewBoardOpen(false); };
   const openPayload = async (p: CourtVisualPayload, documentId?: string | null, keepLibraryOpen = false) => { try { stop(); if (!await editor.open(p, documentId)) return; setSelected([]); setLibraryMenuId(null); if (!keepLibraryOpen) setPanel(null); } catch { editor.setError("Não foi possível guardar o rascunho. Exporte antes de trocar."); } };
   const runExport = async (kind: "png" | "gif" | "pdf" | "json") => { stop(); setBusy(true); try { await exportCourt(payload, stepIndex, kind); editor.setNotice("Exportação concluída."); } catch (e) { editor.setError(e instanceof Error ? e.message : "Falha ao exportar."); } finally { setBusy(false); } };
@@ -543,6 +594,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     setCourtView(next);
   };
   const perspectiveShortcut = (key: CourtPerspectiveShortcut, shift = false) => {
+    if (toolsSheetOpen) return;
     if (changingCourt && key !== "escape") return;
     if (key === "play") { playCurrentStep(); return; }
     if (key === "escape") { stop(); setPanel(null); setWorkspacePanelOpen(false); setSelected([]); setTool("select"); return; }
@@ -568,14 +620,25 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     {(["2d", "3d"] as const).map(view => <Pressable suppressWebHoverFeedback disableWebPressScale key={view} accessibilityRole="radio" accessibilityLabel={`Quadra ${view.toUpperCase()}`} aria-checked={courtView === view} accessibilityState={{ checked: courtView === view, disabled: changingCourt }} disabled={changingCourt} onPress={() => changeCourtView(view)} style={({ hovered, pressed }) => ({ minHeight: compactWeb ? 28 : narrowHeader ? 40 : 32, paddingHorizontal: compactWeb ? 6 : narrowHeader ? 4 : 9, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: courtView === view || hovered || pressed ? colors.secondaryBg : "transparent", opacity: changingCourt ? 0.55 : 1 })}><Text numberOfLines={1} style={{ color: ink, fontSize: compactWeb || narrowHeader ? 12 : 13, fontWeight: courtView === view ? "500" : "400" }}>{`Quadra ${view.toUpperCase()}`}</Text></Pressable>)}
   </View> : null;
   const openWorkspaceTab = (next: CourtWorkspaceTab) => {
-    if (readOnly && next === "library") return;
+    if ((readOnly && next === "library") || (next === "tools" && !useToolsSheet)) return;
     setPanel(null); setWorkspacePanelOpen(true); setWorkspaceTab(next);
     setLibraryMenuId(null); setActionMenu(null);
   };
   const changeWorkspaceTab = (next: CourtWorkspaceTab) => {
-    if (readOnly && next === "library") return;
+    if ((readOnly && next === "library") || (next === "tools" && !useToolsSheet)) return;
     setWorkspaceTab(next); setLibraryMenuId(null); setActionMenu(null);
   };
+  const playbackTools = useToolsSheet ? <View testID="court-playback-tools" style={styles.playbackTools}>
+    {dockHasShortcuts ? <CourtActionButton label="Selecionar e mover" icon="navigate" onPress={() => chooseTool("select")} active={tool === "select"} compact touchTarget subduedSelection /> : null}
+    <View ref={toolsSheetTrigger} collapsable={false}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ferramentas" accessibilityState={{ expanded: toolsSheetOpen }} aria-haspopup="dialog" aria-controls={toolsSheetId} disabled={changingCourt} suppressWebHoverFeedback disableWebPressScale onPress={() => openWorkspaceTab("tools")} style={styles.toolsLaunch}>
+        <View pointerEvents="none" style={[styles.toolsLaunchIcon, { backgroundColor: colors.primaryBg }]}>
+          <GoAtletaIcon name="add" size={20} color={colors.primaryText} />
+        </View>
+      </Pressable>
+    </View>
+    {dockHasShortcuts ? toolAction("Camadas", "regulations", toggleLayers, panel === "layers") : null}
+  </View> : undefined;
   const headerActions = <>
     {!narrowHeader ? headerAction("Biblioteca", "exercises", () => { setLibraryDetails(false); setLibraryNewOpen(false); setLibraryMenuId(null); openWorkspaceTab("library"); }, readOnly) : null}
     {!readOnly ? <CourtSaveStatus status={editor.draftError && editor.autosaveStatus !== "saved" ? "error" : editor.autosaveStatus} error={editor.autosaveError || editor.draftError} onRetry={editor.retryAutosave} disabled={suspended || busy || editor.opening} /> : null}
@@ -664,10 +727,20 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         </>}
   </View>;
   const root = <View ref={workspaceRoot} testID={readOnly ? "court-readonly-workspace" : "court-editor-workspace"} aria-hidden={suspended} accessibilityElementsHidden={suspended} importantForAccessibility={suspended ? "no-hide-descendants" : "auto"} pointerEvents={suspended ? "none" : "auto"} style={[styles.root, Platform.OS === "web" ? { position: "fixed" } as never : null]}>
+    {useToolsSheet ? <style>{`
+      [data-testid="court-playback-tools"] button:focus-visible,
+      #court-workspace-sheet :is(button, [tabindex="0"]):focus-visible {
+        outline: 2px solid ${colors.text};
+        outline-offset: -3px;
+      }
+      #court-workspace-sheet [data-court-sheet-tab][aria-selected="true"]:focus-visible {
+        outline-color: ${colors.primaryText};
+      }
+    `}</style> : null}
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls && !readOnly ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
       <View style={{ flex: 1 }}>
       {courtView === "2d" ? <CourtEditorCanvas {...canvasProps} /> : null}
-      {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d"} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onElevation={readOnly ? undefined : changeElevation} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
+      {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d" && !toolsSheetOpen} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onElevation={readOnly ? undefined : changeElevation} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
       </View>
 
       <View style={[styles.top, overlayScale("top center"), { top: insets.top + 18 * uiScale, borderColor: colors.border, backgroundColor: surface, maxHeight: height * 0.45 / uiScale, width: headerWidth }]}>
@@ -682,25 +755,27 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
 
       {editor.draftError ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ position: "absolute", top: insets.top + 74 * uiScale, ...overlayScale("top center"), alignSelf: "center", maxWidth: headerWidth, color: colors.dangerText, fontSize: 11 }}>{editor.draftError}</Text> : null}
       <CourtSimulationModes uiScale={uiScale} mode={simulationMode} disabled={changingCourt} top={insets.top + (compactWeb ? 74 : width <= 560 ? 82 : 86) * uiScale} onChange={next => configureSimulation({ mode: next })} />
-      <CourtWorkspacePanel readOnly={readOnly} uiScale={uiScale} disabled={changingCourt} tab={workspaceTab} onTabChange={changeWorkspaceTab} open={workspacePanelOpen && !panel} onRequestClose={() => setWorkspacePanelOpen(false)} onToggle={() => { setPanel(null); setWorkspacePanelOpen(value => panel ? true : !value); }} top={insets.top + (compactWeb ? 124 : 144) * uiScale} bottom={compactWeb ? mobileOverlays.panelBottom : insets.bottom + (compact ? 124 : 88) * uiScale}
+      <CourtWorkspacePanel readOnly={readOnly} uiScale={uiScale} disabled={changingCourt} tab={workspaceTab === "tools" && !useToolsSheet ? "adjustments" : workspaceTab} onTabChange={changeWorkspaceTab} open={!suspended && workspacePanelOpen && !panel} onRequestClose={() => setWorkspacePanelOpen(false)} onToggle={() => { setPanel(null); setWorkspacePanelOpen(value => panel ? true : !value); }} top={insets.top + (compactWeb ? 124 : 144) * uiScale} bottom={compactWeb ? workspacePanelBottom : insets.bottom + (compact ? 124 : 88) * uiScale}
+        dialogId={toolsSheetId} triggerRef={toolsSheetTrigger}
+        tools={useToolsSheet ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 6, paddingBottom: 4 }}>{toolsContent(true)}</ScrollView> : undefined}
         adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={showRotationControls} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
-      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
+      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && !useToolsSheet} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} editingControls={playbackTools} dockInsets={useToolsSheet ? insets : undefined} />
 
-      {!readOnly ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, touchTools ? undefined : overlayScale("top left"), { width: touchTools ? compactUiMetrics.touchTarget + 6 : denseControls ? 40 : 52, top: toolRailTop, left: insets.left + 10 * toolScale, maxHeight: toolRailHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
+      {!readOnly && !useToolsSheet ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, touchTools ? undefined : overlayScale("top left"), { width: touchTools ? compactUiMetrics.touchTarget + 6 : denseControls ? 40 : 52, top: toolRailTop, left: insets.left + 10 * toolScale, maxHeight: toolRailHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
         {touchTools ? <View style={{ padding: 3, borderBottomWidth: 1, borderBottomColor: colors.border }}>{toolAction("Selecionar e mover", "navigate", () => chooseTool("select"), tool === "select")}</View> : null}
         <ScrollView showsVerticalScrollIndicator={touchTools} onScroll={() => setAnimationToolsOpen(false)} contentContainerStyle={{ gap: 2, padding: 3 }}>
           {TOOLS.filter(t => !touchTools || t.id !== "select").map(t => t.id === "animate" ? <View key={t.id} onLayout={event => setAnimationToolY(event.nativeEvent.layout.y)}>{toolAction(t.label, t.icon, openAnimationTools, tool === t.id)}</View> : <CourtActionButton key={t.id} label={t.label} icon={t.icon} compact={touchTools || denseControls} touchTarget={touchTools} tooltipScale={toolScale} active={tool === t.id} onPress={() => chooseTool(t.id)} dragKind={!touchTools && t.id === "ball" ? "ball" : undefined} />)}
           {toolAction("Mais ferramentas", "dashboard", () => { setAnimationToolsOpen(false); setPanel("tools"); })}
         </ScrollView>
-        <View style={{ padding: 3, borderTopWidth: 1, borderTopColor: colors.border }}>{toolAction("Camadas", "regulations", () => { stop(); setTool("select"); setAnimationToolsOpen(false); setWorkspacePanelOpen(false); setPanel(panel === "layers" ? null : "layers"); }, panel === "layers")}</View>
+        <View style={{ padding: 3, borderTopWidth: 1, borderTopColor: colors.border }}>{toolAction("Camadas", "regulations", toggleLayers, panel === "layers")}</View>
       </View> : null}
-      {!readOnly && touchTools && tool !== "select" && !(tool === "area" && areaMode === "points") && !panel && !workspacePanelOpen && !animationToolsOpen ? <View accessibilityLabel="Ferramenta ativa" style={{ position: "absolute", top: compact ? toolsTop : toolRailTop, left: insets.left + 66, maxWidth: Math.min(300, width - insets.left - insets.right - 76), flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 16, paddingLeft: 10, paddingRight: 3, backgroundColor: surface, zIndex: 25 }}>
+      {!readOnly && touchTools && tool !== "select" && !(tool === "area" && areaMode === "points") && !panel && !workspacePanelOpen && !animationToolsOpen ? <View accessibilityLabel="Ferramenta ativa" style={[{ position: "absolute", top: compact ? toolsTop : toolRailTop, left: insets.left + 66, maxWidth: Math.min(300, width - insets.left - insets.right - 76), flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 16, paddingLeft: 10, paddingRight: 3, backgroundColor: surface, zIndex: 25 }, sheetToolPosition]}>
         <Text accessibilityLiveRegion="polite" style={{ flex: 1, color: ink, fontSize: 12 }}>{TOOL_HINTS[tool]}</Text>
         <CourtActionButton label="Selecionar" icon="navigate" text compact touchTarget onPress={() => chooseTool("select")} />
       </View> : null}
-      {animationToolsOpen ? <View accessibilityLabel="Trajeto da animação" style={{ position: "absolute", ...(touchTools ? {} : overlayScale("top left")), left: insets.left + 64 * toolScale, top: touchTools ? toolRailTop : Math.min(height - insets.bottom - 48 * uiScale, toolRailTop + (animationToolY + 2) * uiScale), flexDirection: "row", gap: 2, padding: 3, borderRadius: 11, backgroundColor: surface, borderWidth: 1, borderColor: colors.border, zIndex: 26 }}>
+      {animationToolsOpen ? <View accessibilityLabel="Trajeto da animação" style={[{ position: "absolute", ...(touchTools ? {} : overlayScale("top left")), left: insets.left + 64 * toolScale, top: touchTools ? toolRailTop : Math.min(height - insets.bottom - 48 * uiScale, toolRailTop + (animationToolY + 2) * uiScale), flexDirection: "row", gap: 2, padding: 3, borderRadius: 11, backgroundColor: surface, borderWidth: 1, borderColor: colors.border, zIndex: 26 }, sheetToolPosition]}>
         {([ ["free", "Livre"], ["straight", "Reto"] ] as const).map(([modeOption, label]) => <Pressable key={modeOption} accessibilityRole="button" accessibilityLabel={`Trajeto ${label.toLowerCase()}`} accessibilityState={{ selected: motionMode === modeOption }} onPress={() => { setMotionMode(modeOption); setAnimationToolsOpen(false); }} style={({ hovered, pressed }) => ({ minWidth: 56, minHeight: 40, paddingHorizontal: 8, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: motionMode === modeOption ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent" })}><Text style={{ color: motionMode === modeOption ? colors.primaryText : ink, fontSize: 12, fontWeight: motionMode === modeOption ? "700" : "500" }}>{label}</Text></Pressable>)}
       </View> : null}
       <View accessibilityLabel="Controles da vista" style={[styles.history, overlayScale("bottom right"), { right: insets.right + 10 * uiScale, bottom: historyBottom, backgroundColor: surface, flexDirection: compactWeb && mobileOverlays.zoomVertical ? "column" : "row", alignItems: "center", width: compactWeb ? mobileOverlays.zoomWidth : undefined, padding: compactWeb ? 3 : 0, maxWidth: compactWeb ? undefined : width < 700 ? Math.max(44, width / 2 - 84 - insets.right) : width - 20, flexWrap: compactWeb ? "nowrap" : "wrap" }]}>
@@ -763,17 +838,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             {selected.length > 1 ? <View style={styles.wrap}>{action("Alinhar na horizontal", "remove", () => edit(p => alignSelection(p, stepIndex, selected, landscape ? "x" : "y")), false, false, true)}{action("Alinhar na vertical", "move", () => edit(p => alignSelection(p, stepIndex, selected, landscape ? "y" : "x")), false, false, true)}</View> : null}
           </>}
           </> : null}
-          {panel === "tools" ? <>
-            {heading("Materiais de treino")}
-            {toolGrid([["ball", "Bola", "courtBall"], ["cone", "Cone", "courtCone"], ["target", "Alvo", "courtTarget"], ["ladder", "Escada", "courtLadder"]])}
-            {heading("Desenho e anotações")}
-            {toolGrid([["arrow", "Seta reta", "courtArrow"], ["curve", "Seta curva", "courtCurve"], ["pen", "Traço livre", "pencil"], ["area", "Área livre", "courtArea", "free"], ["area", "Área por pontos", "courtArea", "points"], ["text", "Texto", "courtText"]])}
-            {["ball", "cone", "target", "ladder", "arrow", "curve", "pen", "area", "text"].includes(tool) ? <>
-              {heading("Estilo da ferramenta")}
-              <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Usar cor ${c}`} onPress={() => setColor(c)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: color === c ? ink : "transparent" }} />)}</View>
-              {["arrow", "curve", "pen", "area"].includes(tool) ? toggle("Traço pontilhado", dashed, setDashed) : null}
-            </> : null}
-          </> : null}
+          {panel === "tools" ? toolsContent(false) : null}
           {panel === "settings" ? <>
             {heading("Exibição da quadra")}
             {toggle("Meia quadra", half, setHalf)}
@@ -878,6 +943,9 @@ const styles = StyleSheet.create({
   topContent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 53, padding: 6, gap: 2, width: "100%" },
   action: { minWidth: 44, minHeight: 44, paddingHorizontal: 9, gap: 6, flexDirection: "row", justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1 },
   tools: { position: "absolute", borderRadius: 16, width: 52, zIndex: 24 },
+  playbackTools: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  toolsLaunch: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+  toolsLaunchIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17 },
   propertyTrigger: { position: "absolute", width: 44, height: 44, borderRadius: 22, overflow: "hidden", zIndex: 21 },
   history: { position: "absolute", flexDirection: "row", gap: 2, borderRadius: 25, zIndex: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 4 },

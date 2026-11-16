@@ -12,7 +12,7 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 | Arquivo principal | Responsabilidade atual |
 | --- | --- |
 | [absence-notices.tsx](../../../app/absence-notices.tsx), [communications.tsx](../../../app/communications.tsx) | Centro compartilhado de avisos; rota de comunicação reutiliza a tela. |
-| [notifications/index.tsx](../../../app/notifications/index.tsx) | Entrada da caixa de notificações. |
+| [notifications/index.tsx](../../../app/notifications/index.tsx) | Tela legada acessível por URL; não foi encontrada entrada na navegação atual. |
 | [api/notifications.ts](../../../src/api/notifications.ts), [notificationsInbox.ts](../../../src/notificationsInbox.ts) | Consulta, leitura, arquivo, paginação e assinaturas locais da caixa. |
 | [inbox-scope.ts](../../../src/notifications/inbox-scope.ts), [notification-organization.ts](../../../src/notifications/notification-organization.ts) | Escopo `prof`/`coord`/`student`/`all` e organização efetiva. |
 | [notifications.ts](../../../src/notifications.ts) | Adaptadores de notificações de treino/aniversário e aviso local nativo. |
@@ -24,8 +24,20 @@ OTP tem transporte próprio no servidor. Leia ao alterar avisos, destinatários 
 
 ## Contratos a preservar
 
+- No WhatsApp da turma, modelos ficam em um seletor expansível. O conteúdo
+  rola entre o cabeçalho e a ação Abrir WhatsApp, que abre o compositor externo
+  com o destinatário e a mensagem preparados. A lista aparece com a busca
+  preenchida, recolhe após a escolha e deixa visível o contato selecionado.
+
+- Após uma ação remover o último aviso do filtro, o foco web retorna à aba/tipo
+  atual antes de recorrer ao vazio; quando há próximo aviso, ele permanece
+  prioritário. [Conferência de 14/11](../../ui/INVENTARIO_ORGANIZADO_2026-11-14.md).
+
 - Destinatário, organização e escopo da caixa participam da autorização. Contagem,
   paginação, marcação e assinaturas não devem misturar contextos institucionais.
+- Avisos pede propagação de erro na leitura paginada para distinguir falha de
+  caixa vazia. O último resultado pode ser mantido somente no mesmo recorte.
+  [Revisão operacional](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).
 - Em 23/10, GETs idênticos compartilham somente trabalho pendente por sessão/token,
   geração, organização e filtros. Mutações invalidam leituras; consumidor atrasado
   acompanha a geração atual sem apagar o refresh recente. Troca de identidade ou
@@ -99,3 +111,16 @@ e regressões de notificações foram executados; [resultados e limites](../../o
   conteúdo, destinatário, abuso de push, web push e provedor de OTP.
 - Alterações de autorização/entrega seguem a [escada](../../operations/validation-ladder.md);
   recebimento real requer teste controlado e autorizado, separado dos testes estáticos.
+
+## Continuidade local do inventário · 13/11/2026
+
+Notificações mantém preferências e limites nativos; usa um único cabeçalho com retorno e o vazio compartilhado. Avisos aprovados não foram redesenhados. A revisão não enviou mensagens nem alterou preferências.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).
+
+Correção da identificação das jornadas: Coordenação abre Avisos em `/coord/communications`; Professor abre a central em `/prof/absence-notices`; Aluno usa `/communications`. O sino da home abre um painel local sobre a própria página. A rota direta `/notifications` não representa essas entradas. A galeria separa capturas legadas e caminhos atuais, sem redesenhar a central aprovada. [Conferência e limites](../../ui/AJUSTES_JORNADAS_ASSISTENTE_2026-11-13.md).
+
+Em 14/11, os compositores de WhatsApp do atleta e da turma recebem semântica
+de diálogo/controles. O FAB da turma fica oculto durante o compositor, como
+na exportação. A ação de envio usa o par de cores primário existente. Os modelos,
+destinatários e handlers de envio permanecem; testes com contatos fictícios não
+certificam entrega. [Evidências da continuação](../../ui/PENDENCIAS_ATUAIS_2026-11-14.md).

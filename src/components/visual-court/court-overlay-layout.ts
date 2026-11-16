@@ -1,5 +1,9 @@
 /** Logical control sizes; placement converts them to physical CSS pixels once. */
 export const mobileCourtChrome = { transportHeight: 78, zoomWidth: 148, zoomHeight: 40, gripWidth: 48, gripHeight: 28 } as const;
+export const courtEditingDock = {
+  left: 12, right: 56, height: 76, commandsHeight: 48, commandsPadding: 4,
+  fullToolsMinWidth: 376, panelGap: 8,
+} as const;
 
 export function courtPlaybackLayout(width: number, scale = 1, singleControlsRow = true) {
   // The centered dock reserves the same column on each side, keeping the

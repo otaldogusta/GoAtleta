@@ -22,9 +22,9 @@ jest.mock("../../../ui/Pressable",()=>({Pressable:jest.requireActual("react-nati
 jest.mock("../../../ui/icon-registry",()=>({GoAtletaIcon:()=>null}));
 jest.mock("../../../ui/ClassGenderBadge",()=>({ClassGenderBadge:()=>null}));
 jest.mock("../../../ui/ModalSheet",()=>({ModalSheet:()=>null}));
-jest.mock("../../../ui/AnimatedSegmentedTabs",()=>({AnimatedSegmentedTabs:({tabs,onChange}:{tabs:{id:string;label:string}[];onChange:(id:string)=>void})=>{
+jest.mock("../../../ui/UnderlineTabs",()=>({UnderlineTabs:({items,onChange}:{items:{value:string;label:string}[];onChange:(id:string)=>void})=>{
   const runtime=jest.requireActual("react");const rn=jest.requireActual("react-native");
-  return runtime.createElement(rn.View,null,...tabs.map(tab=>runtime.createElement(rn.Pressable,{key:tab.id,onPress:()=>onChange(tab.id)},runtime.createElement(rn.Text,null,tab.label))));
+  return runtime.createElement(rn.View,null,...items.map(tab=>runtime.createElement(rn.Pressable,{key:tab.value,onPress:()=>onChange(tab.value)},runtime.createElement(rn.Text,null,tab.label))));
 }}));
 jest.mock("../../../components/ui/ScreenPageHeader",()=>({ScreenPageHeader:({children}:{children:React.ReactNode})=>children}));
 jest.mock("react-native-safe-area-context",()=>({SafeAreaView:jest.requireActual("react-native").View}));

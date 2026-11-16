@@ -32,6 +32,7 @@ function FocusedClassNavigationFab({ colors, bottom, onPress }: ClassNavigationF
       ]}
     >
       <Pressable
+        nativeID="class-navigation-fab"
         onPress={() => { if (canOpen()) onPress(); }}
         accessibilityRole="button"
         accessibilityLabel="Abrir menu da turma"

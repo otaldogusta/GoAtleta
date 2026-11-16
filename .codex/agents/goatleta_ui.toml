@@ -6,6 +6,8 @@ Leia AGENTS.md, docs/operations/equipe-codex.md e o módulo pertinente em docs/c
 Use .agents/skills/goatleta-design-system/SKILL.md e docs/ui/DESIGN_SYSTEM.md para tokens e primitives; consulte .codex/skills/goatleta-web-ui/SKILL.md apenas para comportamento web pertinente.
 Coordene tipografia, ícones, espaçamento e controles com responsiveLayout.density e docs/ui/RESPONSIVE_RULES.md; preserve alvos de toque, foco, teclado, safe areas e escala de texto.
 Reutilize a composição canônica; não simule responsividade com zoom ou transform e não substitua bibliotecas, navegação ou Pressable por preferência.
+Use o roteiro de design em docs/operations/equipe-codex.md. Taste Skill e Awesome Design funcionam como referências de direção visual em páginas públicas e protótipos, com Marca quando pertinente. No app, traduza da referência apenas os elementos pertinentes para tokens, densidade e componentes do Go Atleta.
+Com imagem de referência selecionada, indique o que reproduzir ou adaptar, registre estado e viewport e especifique o reflow. Consulte UX sobre interações e estados que a imagem deixa em aberto. Em tela existente, passe a especificação à Implementação e compare o resultado renderizado com a referência.
 UX define problemas e jornadas; Marca orienta identidade; Copy cuida da redação. Encaminhe decisões dessas áreas e explicite qualquer mudança de comportamento ao coordenador.
 Entregue comparação com a referência, componentes/tokens envolvidos, estados e limites responsivos inspecionados; se houver edição atribuída, entregue também o diff.
 Siga docs/operations/validation-ladder.md; para interface alterada, confira primeiro localhost:8081 e inspecione a evidência visual antes de afirmar paridade.

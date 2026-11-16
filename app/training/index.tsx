@@ -2,8 +2,8 @@ import * as Calendar from "expo-calendar";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { buildPlanningCopilotContext } from "../../src/screens/training/application/planning-copilot-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
@@ -29,6 +29,7 @@ import { markRender, measure, measureAsync } from "../../src/observability/perf"
 
 import { PlanningLibraryBridgeSheet } from "../../src/screens/training/components/PlanningLibraryBridgeSheet";
 import { TrainingPlanningWorkspaceLibrary } from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
+import { TrainingWorkspaceStart } from "../../src/screens/training/components/TrainingWorkspaceStart";
 import type { ClassPlanWorkspaceHeaderControls } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { normalizeClassTrainingPlan } from "../../src/screens/classes/application/edit-class-training-plan";
 import { addPlanningActivityToBlock, buildPlanningActivitiesFromLegacyLines, buildTrainingPlanActivityFromCatalogItem, buildTrainingPlanActivityFromExerciseLink, createPlanningWorkspaceDraft, createEmptyPlanningBlockActivities, hydratePlanningActivitiesFromPlan, type PlanningBlockActivities } from "../../src/screens/training/application/planning-library-bridge";
@@ -48,6 +49,9 @@ import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { Button } from "../../src/ui/Button";
+import { parseDateInputToIso } from "../../src/ui/DateInput";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { useSaveToast } from "../../src/ui/save-toast";
 
 import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
@@ -57,8 +61,10 @@ import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import { useOptionalOrganization } from "../../src/providers/organization-context";
 
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
-import { compactUiMetrics } from "../../src/theme/tokens";
+import { compactUiMetrics, spacing } from "../../src/theme/tokens";
 
 
 const TrainingApplyModalContent = lazy(() =>
@@ -118,6 +124,16 @@ type PlanningDetailSelection = {
 
 const formatShortDateValue = (value: Date) =>
   value.toLocaleDateString("pt-BR");
+
+const todayDateKey = () => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${today.getFullYear()}-${month}-${day}`;
+};
+
+const toWorkspaceDateKey = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : parseDateInputToIso(value) ?? todayDateKey();
 
 const weekdays = [
   { id: 1, label: "Seg" },
@@ -181,6 +197,7 @@ function TrainingWorkspace() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const responsiveLayout = useResponsiveLayout("dashboard");
+  const { height: viewportHeight } = useWindowDimensions();
   const router = useRouter();
   const scopedRoutes = useTrainerRouteScope();
   const effectiveProfile = useEffectiveProfile();
@@ -279,6 +296,11 @@ function TrainingWorkspace() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classCatalogKey, setClassCatalogKey] = useState<string | null>(null);
   const [isPlanningBootstrapLoading, setIsPlanningBootstrapLoading] = useState(true);
+  const [planningLoadFailed, setPlanningLoadFailed] = useState(false);
+  const [planningLoadAttempt, setPlanningLoadAttempt] = useState(0);
+  const [showWorkspaceStart, setShowWorkspaceStart] = useState(false);
+  const [loadingLibraryPlanId, setLoadingLibraryPlanId] = useState<string | null>(null);
+  const librarySelectionRequest = useRef(0);
   const [classId, setClassId] = useState("");
   const [planningActivities, setPlanningActivities] =
     useState<PlanningBlockActivities>(() => createEmptyPlanningBlockActivities());
@@ -332,6 +354,38 @@ function TrainingWorkspace() {
     false
   );
   const screenRootRef = useRef<View>(null);
+  const libraryFocusRequest = useRef<{ opening: boolean; trigger: Element | null } | null>(null);
+  const planningActionsTriggerRef = useRef<View>(null);
+  const planningActionsPanelRef = useRef<View>(null);
+  const [planningActionsLayout, setPlanningActionsLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const closePlanningActions = useCallback(() => {
+    if (Platform.OS === "web") {
+      const panel = planningActionsPanelRef.current as unknown as HTMLElement | null;
+      if (panel?.contains(document.activeElement)) {
+        document.getElementById("planning-more-actions")?.focus({ preventScroll: true });
+      }
+    }
+    setPlanningActionsLayout(null);
+  }, []);
+  useLayoutEffect(() => {
+    if (!planningActionsLayout || Platform.OS !== "web") return;
+    const frame = requestAnimationFrame(() => {
+      const panel = planningActionsPanelRef.current as unknown as HTMLElement | null;
+      panel?.querySelector<HTMLElement>('[role="button"]:not([aria-disabled="true"])')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [planningActionsLayout]);
+  const downloadFocusRequest = useRef<HTMLElement | null>(null);
+  const [reduceLibraryMotion, setReduceLibraryMotion] = useState(
+    () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
+  );
+  useEffect(() => {
+    if (Platform.OS !== "web" || !window.matchMedia) return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceLibraryMotion(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     if (responsiveLayout.canPersistExpandedSidebar) return;
     Promise.resolve().then(() => setWorkspaceLibraryCollapsed(true));
@@ -471,10 +525,36 @@ function TrainingWorkspace() {
     animatedStyle: workspaceLibraryPanelAnimStyle,
     isVisible: showWorkspaceLibraryPanel,
   } = useCollapsibleAnimation(!workspaceLibraryCollapsed, {
-    durationIn: 180,
-    durationOut: 150,
+    durationIn: reduceLibraryMotion ? 0 : 180,
+    durationOut: reduceLibraryMotion ? 0 : 150,
     translateY: -4,
   });
+  const toggleWorkspaceLibrary = () => {
+    if (Platform.OS === "web" && !responsiveLayout.isMobile) {
+      libraryFocusRequest.current = { opening: workspaceLibraryCollapsed, trigger: document.activeElement };
+    }
+    setWorkspaceLibraryCollapsed(!workspaceLibraryCollapsed);
+  };
+
+  useLayoutEffect(() => {
+    const request = libraryFocusRequest.current;
+    if (!request || request.opening !== showWorkspaceLibraryPanel) return;
+    libraryFocusRequest.current = null;
+    const active = document.activeElement;
+    if (active !== document.body && active !== request.trigger) return;
+    const target = document.getElementById(request.opening ? "planning-library-close" : "planning-library-open");
+    target?.focus({ preventScroll: true });
+  }, [showWorkspaceLibraryPanel]);
+
+  useLayoutEffect(() => {
+    if (workspaceHeaderControls?.downloadDisabled) return;
+    const trigger = downloadFocusRequest.current;
+    downloadFocusRequest.current = null;
+    if (trigger?.isConnected && document.activeElement === document.body &&
+        trigger.getClientRects().length && !trigger.closest('[inert], [aria-hidden="true"]')) {
+      trigger.focus({ preventScroll: true });
+    }
+  }, [workspaceHeaderControls?.downloadDisabled]);
   const [handledApplyPlanId, setHandledApplyPlanId] = useState<string | null>(
     null
   );
@@ -760,6 +840,7 @@ function TrainingWorkspace() {
     let alive = true;
     const identity = getSessionIdentity();
     const generation = getReadCacheGeneration();
+    const isCurrent = () => alive && isSessionIdentityCurrent(identity) && generation === getReadCacheGeneration();
     (async () => {
       try {
         if (!organizationId) return;
@@ -773,19 +854,20 @@ function TrainingWorkspace() {
             ]),
           { screen: "training" }
         );
-        if (!alive || !isSessionIdentityCurrent(identity) || generation !== getReadCacheGeneration()) return;
+        if (!isCurrent()) return;
         setClasses(classList);
         setClassCatalogKey(workspaceDraftKey);
         localWorkspacePlansRef.current = new Map(localPlans.map(plan => [plan.id, plan]));
         setItems([...localPlans.map(toTrainingPlanSummary), ...plans.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
       } catch (error) {
-        if (!alive) return;
+        if (!isCurrent()) return;
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes("Missing auth token")) {
           setClasses([]);
           setItems([]);
           return;
         }
+        setPlanningLoadFailed(true);
         console.warn("Training bootstrap load skipped.", error);
       } finally {
         if (alive) setIsPlanningBootstrapLoading(false);
@@ -794,7 +876,13 @@ function TrainingWorkspace() {
     return () => {
       alive = false;
     };
-  }, [organizationId, workspaceDraftKey]);
+  }, [organizationId, planningLoadAttempt, workspaceDraftKey]);
+
+  const retryPlanningLoad = () => {
+    setPlanningLoadFailed(false);
+    setIsPlanningBootstrapLoading(true);
+    setPlanningLoadAttempt((attempt) => attempt + 1);
+  };
 
   const tagCounts = useMemo(() => {
     const source = items;
@@ -1604,14 +1692,15 @@ function TrainingWorkspace() {
     navigateBackOrReplace({ router, fallback: scopedRoutes.home });
   }, [confirmDialog, flushWorkspaceDraft, router, scopedRoutes.home, workspaceHasUnsavedChanges]);
 
-  const handleCreateWorkspacePlan = useCallback(() => {
+  const handleCreateWorkspacePlan = useCallback((classGroup: ClassGroup | null, lessonDate: string) => {
     planSelectionSequenceRef.current += 1;
-    const draft = createPlanningWorkspaceDraft();
+    const draft = createPlanningWorkspaceDraft(classGroup);
     setSelectedPlan(draft);
-    setClassId("");
+    setClassId(draft.classId);
     setWorkspaceDraftRestored(false);
-    setWorkspaceDraftLessonDate("");
+    setWorkspaceDraftLessonDate(lessonDate);
     setWorkspaceHasUnsavedChanges(false);
+    setShowWorkspaceStart(false);
   }, []);
 
   const handleOpenPlanningPdfImport = () => {
@@ -1798,6 +1887,34 @@ function TrainingWorkspace() {
     [queueWorkspaceDraft, workspaceLessonDate]
   );
 
+  const handleSelectLibraryPlan = useCallback((plan: TrainingPlanSummary) => {
+    // Loading disables the row and the browser drops focus before the async
+    // confirmation mounts. Capture its origin while it is still interactive.
+    const trigger = Platform.OS === "web" && typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+      ? document.activeElement : null;
+    const request = ++librarySelectionRequest.current;
+    setLoadingLibraryPlanId(plan.id);
+    void hydratePlanSelection(plan.id, () => request === librarySelectionRequest.current).then(async selection => {
+      if (request !== librarySelectionRequest.current || !workspaceMountedRef.current) return;
+      setLoadingLibraryPlanId(null);
+      if (!selection || !selection.isCurrent()) return;
+      let replaced = false;
+      await confirmWorkspaceReplacement(() => {
+        replaced = true;
+        handleViewPlan(selection.plan);
+        if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+      }, selection.isCurrent);
+      if (!replaced && trigger && selection.isCurrent() && request === librarySelectionRequest.current) {
+        requestAnimationFrame(() => {
+          if (workspaceMountedRef.current && request === librarySelectionRequest.current && trigger.isConnected &&
+              document.activeElement === document.body && !trigger.closest('[inert], [aria-hidden="true"]') && trigger.getClientRects().length) {
+            trigger.focus({ preventScroll: true });
+          }
+        });
+      }
+    });
+  }, [confirmWorkspaceReplacement, handleViewPlan, hydratePlanSelection, responsiveLayout.isMobile, setWorkspaceLibraryCollapsed]);
+
   const renderWorkspaceLibrary = (
     presentation: "rail" | "sheet",
     collapsed: boolean,
@@ -1808,16 +1925,9 @@ function TrainingWorkspace() {
       plans={items}
       classes={classes}
       selectedPlanId={selectedPlan?.id}
-      onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
-      onSelectPlan={(plan) => {
-        void hydratePlanSelection(plan.id).then(async selection => {
-          if (!selection) return;
-          await confirmWorkspaceReplacement(() => {
-            handleViewPlan(selection.plan);
-            if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
-          }, selection.isCurrent);
-        });
-      }}
+      loadingPlanId={loadingLibraryPlanId}
+      onToggleCollapsed={toggleWorkspaceLibrary}
+      onSelectPlan={handleSelectLibraryPlan}
     />
   );
 
@@ -1844,123 +1954,39 @@ function TrainingWorkspace() {
                     maxWidth: responsiveLayout.isMobile ? 178 : undefined,
                   }}
                 >
-                  <View style={workspaceHeaderStyles.actionGroup}>
-                    {selectedPlan && workspaceHeaderControls ? (
-                      <>
-                      {!responsiveLayout.isMobile ? <View style={[workspaceHeaderStyles.status, { backgroundColor: colors.secondaryBg }]}>
-                        {workspaceHeaderControls.status === "saving" ? (
-                          <ActivityIndicator size="small" color={colors.warningText} />
-                        ) : (
-                          <GoAtletaIcon
-                            name={workspaceHeaderControls.status === "error" ? "warningCircle" : "success"}
-                            size={17}
-                            color={workspaceHeaderControls.status === "error" ? colors.dangerText : colors.successText}
-                          />
-                        )}
-                        <Text
-                          style={[
-                            workspaceHeaderStyles.statusText,
-                            {
-                              color:
-                                workspaceHeaderControls.status === "error"
-                                  ? colors.dangerText
-                                  : workspaceHeaderControls.status === "saving"
-                                    ? colors.warningText
-                                    : colors.text,
-                            },
-                          ]}
-                        >
-                          {workspaceHeaderControls.status === "error"
-                            ? "Falha ao salvar"
-                            : workspaceHeaderControls.status === "saving"
-                              ? "Salvando"
-                              : "Salvo"}
-                        </Text>
-                      </View> : null}
-                      <Pressable
-                        onPress={workspaceHeaderControls.onDownload}
-                        disabled={workspaceHeaderControls.downloadDisabled}
-                        accessibilityRole="button"
-                        accessibilityLabel="Baixar PDF"
-                        style={({ pressed }) => [
-                          workspaceHeaderStyles.action,
-                          responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
-                          {
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                            opacity: workspaceHeaderControls.downloadDisabled ? 0.46 : pressed ? 0.72 : 1,
-                          },
-                        ]}
-                      >
-                        <GoAtletaIcon name="download" size={18} color={colors.text} />
-                        {!responsiveLayout.isMobile ? (
-                          <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>Baixar PDF</Text>
-                        ) : null}
-                      </Pressable>
-                      {workspaceHeaderControls.onApply ? (
-                        <Pressable
-                          onPress={workspaceHeaderControls.onApply}
-                          disabled={workspaceHeaderControls.applyDisabled}
-                          accessibilityRole="button"
-                          accessibilityLabel={workspaceHeaderControls.applyLabel}
-                          style={({ pressed }) => [
-                            workspaceHeaderStyles.action,
-                            responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
-                            {
-                              borderColor: colors.border,
-                              backgroundColor: colors.card,
-                              opacity: workspaceHeaderControls.applyDisabled ? 0.46 : pressed ? 0.72 : 1,
-                            },
-                          ]}
-                        >
-                          <GoAtletaIcon name="success" size={17} color={colors.text} />
-                          {!responsiveLayout.isMobile ? (
-                            <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>
-                              {workspaceHeaderControls.applyLabel}
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      ) : null}
-                      </>
-                    ) : null}
+                  <View ref={planningActionsTriggerRef} collapsable={false}>
+                    <Pressable
+                      nativeID="planning-more-actions"
+                      accessibilityRole="button"
+                      accessibilityLabel="Mais ações do planejamento"
+                      accessibilityState={{ expanded: Boolean(planningActionsLayout) }}
+                      aria-expanded={Boolean(planningActionsLayout)}
+                      onPress={() => {
+                        if (planningActionsLayout) {
+                          closePlanningActions();
+                          return;
+                        }
+                        planningActionsTriggerRef.current?.measureInWindow((x, y, width, height) => {
+                          if (width > 0 && height > 0) setPlanningActionsLayout({ x, y, width, height });
+                        });
+                      }}
+                      style={[workspaceHeaderStyles.action, workspaceHeaderStyles.iconOnlyAction, { borderColor: colors.border, backgroundColor: colors.card }]}
+                    >
+                      <GoAtletaIcon name="ellipsisHorizontal" size={18} color={colors.text} />
+                    </Pressable>
                   </View>
-                  {!responsiveLayout.isMobile && selectedPlan && workspaceHeaderControls ? (
-                    <View style={[workspaceHeaderStyles.divider, { backgroundColor: colors.border }]} />
-                  ) : null}
-                  <View style={workspaceHeaderStyles.actionGroup}>
-                  <Pressable
-                    onPress={handleOpenPlanningPdfImport}
-                    accessibilityRole="button"
-                    accessibilityLabel="Importar PDF"
-                    style={({ pressed }) => [
-                      workspaceHeaderStyles.action,
-                      responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
-                      { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.72 : 1 },
-                    ]}
-                  >
-                    <GoAtletaIcon name="document" size={17} color={colors.text} />
-                    {!responsiveLayout.isMobile ? (
-                      <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>Importar PDF</Text>
-                    ) : null}
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      void confirmWorkspaceReplacement(handleCreateWorkspacePlan);
-                    }}
+                  {selectedPlan ? <Pressable
+                    onPress={() => setShowWorkspaceStart(true)}
                     accessibilityRole="button"
                     accessibilityLabel="Criar novo plano"
                     style={({ pressed }) => [
                       workspaceHeaderStyles.action,
-                      responsiveLayout.isMobile && workspaceHeaderStyles.iconOnlyAction,
                       { borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, opacity: pressed ? 0.72 : 1 },
                     ]}
                   >
                     <GoAtletaIcon name="add" size={18} color={colors.primaryText} />
-                    {!responsiveLayout.isMobile ? (
-                      <Text style={[workspaceHeaderStyles.actionText, { color: colors.primaryText }]}>Novo plano</Text>
-                    ) : null}
-                  </Pressable>
-                  </View>
+                    <Text style={[workspaceHeaderStyles.actionText, { color: colors.primaryText }]}>Novo plano</Text>
+                  </Pressable> : null}
                 </View>
               }
               contentStyle={{
@@ -1971,6 +1997,67 @@ function TrainingWorkspace() {
               }}
             />
 
+            <AnchoredDropdown
+              visible={Boolean(planningActionsLayout)}
+              layout={planningActionsLayout}
+              container={null}
+              animationStyle={{ opacity: 1 }}
+              align="end"
+              preferredWidth={230}
+              density="menu"
+              fitContent
+              maxHeight={280}
+              zIndex={9000}
+              nestedScrollEnabled
+              interactiveRefs={[planningActionsTriggerRef]}
+              onRequestClose={closePlanningActions}
+            >
+              <View ref={planningActionsPanelRef} style={{ gap: 4, padding: 4 }}>
+                {selectedPlan && workspaceHeaderControls && !(selectedPlan.id.startsWith("draft_") && workspaceDraftStatus === "idle") ? (
+                  <Text accessibilityLiveRegion="polite" style={{ color: workspaceHeaderControls.status === "error" ? colors.dangerText : colors.muted, fontSize: 12, padding: 8 }}>
+                    {workspaceHeaderControls.status === "error" ? "Falha ao salvar" : workspaceHeaderControls.status === "saving" ? "Salvando" : "Salvo"}
+                  </Text>
+                ) : null}
+                {selectedPlan && workspaceHeaderControls && (
+                  <AnchoredDropdownOption
+                    active={false}
+                    density="compact"
+                    accessibilityLabel="Baixar PDF"
+                    disabled={workspaceHeaderControls.downloadDisabled}
+                    onPress={() => {
+                      if (Platform.OS === "web") {
+                        downloadFocusRequest.current = document.getElementById("planning-more-actions");
+                      }
+                      closePlanningActions();
+                      workspaceHeaderControls.onDownload();
+                    }}
+                  >
+                    <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>Baixar PDF</Text>
+                  </AnchoredDropdownOption>
+                )}
+                <AnchoredDropdownOption
+                  active={false}
+                  density="compact"
+                  accessibilityLabel="Importar PDF"
+                  disabled={!organizationId}
+                  onPress={() => { closePlanningActions(); handleOpenPlanningPdfImport(); }}
+                >
+                  <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>Importar PDF</Text>
+                </AnchoredDropdownOption>
+                {selectedPlan && workspaceHeaderControls?.onApply && (
+                  <AnchoredDropdownOption
+                    active={false}
+                    density="compact"
+                    accessibilityLabel={workspaceHeaderControls.applyLabel}
+                    disabled={workspaceHeaderControls.applyDisabled}
+                    onPress={() => { closePlanningActions(); workspaceHeaderControls.onApply?.(); }}
+                  >
+                    <Text style={[workspaceHeaderStyles.actionText, { color: colors.text }]}>{workspaceHeaderControls.applyLabel}</Text>
+                  </AnchoredDropdownOption>
+                )}
+              </View>
+            </AnchoredDropdown>
+
             <View
               style={{
                 flex: 1,
@@ -1978,7 +2065,7 @@ function TrainingWorkspace() {
                 width: "100%",
                 maxWidth: responsiveLayout.supportsDenseGrid ? 1600 : 1440,
                 alignSelf: "center",
-                paddingHorizontal: responsiveLayout.isMobile ? 10 : 16,
+                paddingHorizontal: responsiveLayout.gutter ?? spacing.md,
                 paddingBottom: Math.max(insets.bottom + (responsiveLayout.usesWorkspaceShell ? 14 : 92), 14),
                 position: "relative",
               }}
@@ -1990,14 +2077,14 @@ function TrainingWorkspace() {
                       <ModalSheet
                         visible
                         onClose={() => setWorkspaceLibraryCollapsed(true)}
-                        position="right"
+                        position="bottom"
+                        dialogLabel="Biblioteca de planos"
                         overlayZIndex={5200}
                         containerPadding={12}
                         cardStyle={{
                           width: "92%",
-                          maxWidth: 360,
-                          height: "100%",
-                          maxHeight: "100%",
+                          maxWidth: 440,
+                          maxHeight: Math.max(0, Math.min(viewportHeight * 0.8, viewportHeight - insets.top - insets.bottom - 32)),
                           padding: 0,
                           paddingBottom: 0,
                           marginBottom: 0,
@@ -2008,43 +2095,30 @@ function TrainingWorkspace() {
                       >
                         {renderWorkspaceLibrary("sheet", false)}
                       </ModalSheet>
-                    ) : !selectedPlan ? (
-                      <View
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          top: 0,
-                          zIndex: 40,
-                        }}
-                      >
-                        {renderWorkspaceLibrary("rail", true)}
-                      </View>
                     ) : null}
                   </>
-                ) : !workspaceLibraryCollapsed || !selectedPlan ? (
+                ) : showWorkspaceLibraryPanel ? (
                   <View
                     style={{
                       position: "absolute",
-                      left: showWorkspaceLibraryPanel ? 0 : 10,
+                      left: 0,
                       top: 0,
                       bottom: 0,
                       zIndex: 40,
                       minHeight: 0,
                       justifyContent: "center",
-                      overflow: showWorkspaceLibraryPanel ? "hidden" : "visible",
-                      boxShadow: showWorkspaceLibraryPanel
-                        ? "10px 0 28px rgba(10, 19, 34, 0.26)"
-                        : "none",
+                      overflow: "hidden",
                     }}
                   >
-                    {showWorkspaceLibraryPanel ? (
                       <Animated.View
                         pointerEvents={workspaceLibraryCollapsed ? "none" : "auto"}
+                        {...(Platform.OS === "web" && workspaceLibraryCollapsed ? { inert: true } : {})}
+                        accessibilityElementsHidden={workspaceLibraryCollapsed}
+                        importantForAccessibility={workspaceLibraryCollapsed ? "no-hide-descendants" : "auto"}
                         style={[{ flex: 1 }, workspaceLibraryPanelAnimStyle]}
                       >
                         {renderWorkspaceLibrary("rail", false)}
                       </Animated.View>
-                    ) : renderWorkspaceLibrary("rail", true)}
                   </View>
                 ) : null}
 
@@ -2074,42 +2148,40 @@ function TrainingWorkspace() {
                         onDirtyChange={setWorkspaceHasUnsavedChanges}
                         onWorkspaceControlsChange={setWorkspaceHeaderControls}
                         onApplyPlan={handleApplyWorkspacePlan}
-                        workspaceLibraryExpanded={!workspaceLibraryCollapsed}
-                        onToggleWorkspaceLibrary={() => setWorkspaceLibraryCollapsed((current) => !current)}
+                        workspaceLibraryExpanded={responsiveLayout.isMobile ? !workspaceLibraryCollapsed : showWorkspaceLibraryPanel}
+                        onToggleWorkspaceLibrary={toggleWorkspaceLibrary}
                       />
                     </Suspense>
                   ) : (
-                    <View
-                      style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 10,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 14,
-                        backgroundColor: colors.card,
+                    <ScrollView
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={{
+                        paddingTop: spacing.md,
+                        paddingBottom: spacing.md,
+                        paddingLeft: !responsiveLayout.isMobile && showWorkspaceLibraryPanel ? 312 : 0,
                       }}
                     >
-                      <GoAtletaIcon name="document" size={30} color={colors.muted} />
-                      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>Comece um plano de aula</Text>
-                      <Pressable
-                        onPress={handleCreateWorkspacePlan}
-                        style={{
-                          minHeight: 40,
-                          paddingHorizontal: 14,
-                          borderRadius: 10,
-                          backgroundColor: colors.primaryBg,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 7,
-                        }}
-                      >
-                        <GoAtletaIcon name="add" size={18} color={colors.primaryText} />
-                        <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>Novo plano</Text>
-                      </Pressable>
-                    </View>
+                      {planningLoadFailed || !organizationId ? (
+                        <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { maxWidth: 440, width: "100%", alignSelf: "center", alignItems: "flex-start" }]}>
+                          <Text accessibilityRole="header" style={{ color: colors.text, fontWeight: "700", fontSize: compactUiMetrics.titleFontSize }}>
+                            {planningLoadFailed ? "Não foi possível carregar o planejamento" : "Selecione um workspace"}
+                          </Text>
+                          <Text accessibilityLiveRegion="polite" style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
+                            {planningLoadFailed ? "Tente carregar as turmas e a biblioteca novamente." : "O workspace define quais turmas e planos ficam disponíveis."}
+                          </Text>
+                          {planningLoadFailed ? <Button label="Tentar novamente" onPress={retryPlanningLoad} /> : null}
+                        </View>
+                      ) : (
+                        <TrainingWorkspaceStart
+                          key={`${targetClassId}:${targetDate}`}
+                          classes={sortedClasses}
+                          initialClassId={targetClassId}
+                          initialDate={toWorkspaceDateKey(targetDate)}
+                          onCreate={handleCreateWorkspacePlan}
+                          onOpenLibrary={responsiveLayout.isMobile || workspaceLibraryCollapsed ? () => setWorkspaceLibraryCollapsed(false) : undefined}
+                        />
+                      )}
+                    </ScrollView>
                   )}
                 </View>
               </View>
@@ -2117,6 +2189,20 @@ function TrainingWorkspace() {
           </>
         )}
       </KeyboardAvoidingView>
+      {showWorkspaceStart ? (
+        <ModalSheet visible position="center" dialogLabel="Novo plano de aula" cardStyle={{ maxWidth: 440 }} onClose={() => setShowWorkspaceStart(false)}>
+          <TrainingWorkspaceStart
+            classes={sortedClasses}
+            initialClassId={selectedPlan?.classId ?? targetClassId}
+            initialDate={toWorkspaceDateKey(workspaceLessonDate)}
+            onClose={() => setShowWorkspaceStart(false)}
+            onCreate={(classGroup, lessonDate) => {
+              setShowWorkspaceStart(false);
+              void confirmWorkspaceReplacement(() => handleCreateWorkspacePlan(classGroup, lessonDate));
+            }}
+          />
+        </ModalSheet>
+      ) : null}
       {showPlanningPdfImport && activeOrganization?.id ? (
         <Suspense fallback={null}>
           <TrainingPlanPdfImportModal
@@ -2370,27 +2456,6 @@ function TrainingWorkspace() {
 }
 
 const workspaceHeaderStyles = StyleSheet.create({
-  actionGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  divider: {
-    width: 1,
-    height: 28,
-  },
-  status: {
-    minHeight: 40,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
   action: {
     minHeight: 40,
     paddingHorizontal: 12,

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import { TextInput } from "react-native";
 
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
-import { typography } from "../theme/tokens";
 
 type NativeDateInputProps = {
   accessibilityLabel: string;
   value: string;
   onChangeText: (value: string) => void;
+  inputHeight?: number;
 };
 
 const formatIsoDate = (value: string) => {
@@ -39,10 +40,12 @@ const parseTypedDate = (value: string) => {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 };
 
-export function NativeDateInput({ accessibilityLabel, value, onChangeText }: NativeDateInputProps) {
+export function NativeDateInput({ accessibilityLabel, value, onChangeText, inputHeight }: NativeDateInputProps) {
   const { colors, mode } = useAppTheme();
   const pickerRef = useRef<HTMLInputElement>(null);
   const [displayValue, setDisplayValue] = useState(() => formatIsoDate(value));
+  const controlHeight = inputHeight ?? 48;
+  const calendarHeight = Math.min(40, controlHeight);
 
   useEffect(() => {
     // Keep the human-readable draft synchronized with the controlled ISO value.
@@ -60,14 +63,14 @@ export function NativeDateInput({ accessibilityLabel, value, onChangeText }: Nat
 
   return (
     <div style={{ display: "flex", flex: 1, minWidth: 0, position: "relative" }}>
-      <input
-        aria-label={accessibilityLabel}
-        type="text"
+      <TextInput
+        accessibilityLabel={accessibilityLabel}
         inputMode="numeric"
         placeholder="DD/MM/AAAA"
+        placeholderTextColor={colors.muted}
         value={displayValue}
-        onChange={(event: ChangeEvent<HTMLInputElement>) => {
-          const nextDisplayValue = formatTypedDate(event.currentTarget.value);
+        onChangeText={(text) => {
+          const nextDisplayValue = formatTypedDate(text);
           setDisplayValue(nextDisplayValue);
 
           if (!nextDisplayValue) {
@@ -82,15 +85,15 @@ export function NativeDateInput({ accessibilityLabel, value, onChangeText }: Nat
           flex: 1,
           minWidth: 0,
           width: "100%",
-          height: 48,
+          height: controlHeight,
+          paddingVertical: 0,
           paddingRight: 42,
-          border: 0,
+          borderWidth: 0,
           borderRadius: 0,
-          outline: "none",
-          background: "transparent",
+          outlineWidth: 0,
+          backgroundColor: "transparent",
           color: colors.text,
-          fontFamily: typography.body.fontFamily,
-          fontSize: 15,
+          fontSize: 14,
         }}
       />
       <button
@@ -100,9 +103,9 @@ export function NativeDateInput({ accessibilityLabel, value, onChangeText }: Nat
         style={{
           position: "absolute",
           right: 2,
-          top: 4,
+          top: (controlHeight - calendarHeight) / 2,
           width: 40,
-          height: 40,
+          height: calendarHeight,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

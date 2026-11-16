@@ -1,6 +1,8 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { useOptionalCopilotOpen } from "../../copilot/CopilotProvider";
+import { usesFinanceAssistantButton } from "../../copilot/route-visibility";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import {
   SafeAreaView,
@@ -52,6 +54,9 @@ import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { Button } from "../../ui/Button";
+import { CompactSelect } from "../../ui/CompactSelect";
+import { UnderlineTabs } from "../../ui/UnderlineTabs";
+import { ListEmptyState } from "../../ui/ListEmptyState";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -378,6 +383,24 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
     summaryMetricValueSuccess: { color: colors.success },
     summaryMetricValueWarning: { color: colors.warning },
     summaryMetricValueDanger: { color: colors.danger },
+    summaryStrip: {
+      flexDirection: "row",
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    summaryStripCell: { flex: 1, minWidth: 0, gap: 6 },
+    summaryStripCellDivided: { borderLeftWidth: 1, borderLeftColor: colors.border },
+    summaryStripCellCompact: { paddingHorizontal: 12 },
+    summaryStripCellWide: { paddingHorizontal: 20 },
+    summaryStripValue: {
+      color: colors.text,
+      fontSize: compactUiMetrics.titleFontSize,
+      fontWeight: "700",
+      lineHeight: 22,
+    },
+    summaryStripValueOverdue: { color: colors.dangerText },
+    summaryStripValueMuted: { color: colors.muted },
     sectionTabs: {
       flexDirection: "row",
       gap: 4,
@@ -442,6 +465,18 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
       fontSize: 11,
       fontWeight: "800",
     },
+    attentionEmptyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    monthlyReceiptCounts: { flexDirection: "row", gap: 16 },
+    monthlyReceiptCount: { flex: 1, gap: 6 },
+    monthlyReceiptCountValue: { color: colors.text, fontSize: 14, fontWeight: "600" },
+    monthlyReceiptAction: { alignSelf: "flex-start", marginTop: 8 },
     receiptBreakdownRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -649,407 +684,67 @@ function FinanceAction({
   );
 }
 
-function FinanceSummaryStrip({
-  summary,
-  compact,
-}: {
-  summary: OrganizationFinanceSummary;
-  compact: boolean;
-}) {
+function FinanceSummaryStrip({ summary, compact }: { summary: OrganizationFinanceSummary; compact: boolean }) {
   const { colors } = useAppTheme();
-  const dashboardStyles = useFinanceDashboardStyles(colors);
-  const receivedRate = summary.expectedCents
-    ? Math.min(
-        100,
-        Math.round((summary.receivedCents / summary.expectedCents) * 100),
-      )
-    : 0;
+  const styles = useFinanceDashboardStyles(colors);
   const items = [
-    {
-      label: "Recebido",
-      value: formatMoneyFromCents(summary.receivedCents),
-      valueStyle: dashboardStyles.summaryMetricValueSuccess,
-    },
-    {
-      label: "Em aberto",
-      value: formatMoneyFromCents(summary.openCents),
-      valueStyle: dashboardStyles.summaryMetricValueWarning,
-    },
-    {
-      label: "Vencido",
-      value: formatMoneyFromCents(summary.overdueCents),
-      valueStyle: dashboardStyles.summaryMetricValueDanger,
-    },
+    { label: "Recebido", value: summary.receivedCents, valueStyle: styles.summaryMetricValueSuccess },
+    { label: "Em aberto", value: summary.openCents },
+    { label: "Vencido", value: summary.overdueCents, valueStyle: summary.overdueCents ? styles.summaryStripValueOverdue : styles.summaryStripValueMuted },
   ];
-  const columns = compact ? 3 : 4;
+  const dividedCellStyle = compact ? styles.summaryStripCellCompact : styles.summaryStripCellWide;
+  return <View style={styles.summaryStrip}>
+    {items.map((item, index) => <View key={item.label} style={[styles.summaryStripCell, index > 0 && styles.summaryStripCellDivided, index > 0 && dividedCellStyle]}>
+      <Text style={styles.listSecondaryText}>{item.label}</Text>
+      <Text style={[styles.summaryStripValue, item.valueStyle]}>{formatMoneyFromCents(item.value)}</Text>
+    </View>)}
+  </View>;
+}
 
-  return (
-    <View
-      style={{
-        borderRadius: radius.container,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
-        overflow: "hidden",
-        flexDirection: "row",
-        flexWrap: "wrap",
-      }}
-    >
-      {items.map((item, index) => (
-        <View
-          key={item.label}
-          style={[
-            dashboardStyles.summaryMetricCell,
-            compact
-              ? dashboardStyles.summaryMetricCellCompact
-              : dashboardStyles.summaryMetricCellWide,
-            index % columns === 0
-              ? undefined
-              : dashboardStyles.summaryMetricCellLeftDivider,
-          ]}
-        >
-          <Text style={dashboardStyles.summaryMetricLabel}>{item.label}</Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            style={[dashboardStyles.summaryMetricValue, item.valueStyle]}
-          >
-            {item.value}
-          </Text>
-        </View>
-      ))}
-      <View
-        style={{
-          width: compact ? "100%" : "25%",
-          minHeight: compact ? 64 : 76,
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          justifyContent: "center",
-          gap: 8,
-          borderLeftWidth: compact ? 0 : 1,
-          borderTopWidth: compact ? 1 : 0,
-          borderColor: colors.border,
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <Text
-            style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}
-          >
-            Taxa recebida
-          </Text>
-          <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
-            {receivedRate}%
-          </Text>
-        </View>
-        <View
-          style={{
-            height: 7,
-            borderRadius: radius.full,
-            backgroundColor: colors.secondaryBg,
-            overflow: "hidden",
-          }}
-        >
-          <View
-            style={{
-              width: `${receivedRate}%`,
-              height: "100%",
-              borderRadius: radius.full,
-              backgroundColor: colors.success,
-            }}
-          />
-        </View>
+function FinanceSectionTabs({ active, compact, onChange }: { active: FinanceSection; compact: boolean; onChange: (section: FinanceSection) => void }) {
+  return <UnderlineTabs value={active} stretch={compact} onChange={value => onChange(value as FinanceSection)} accessibilityLabel="Áreas do Financeiro"
+    items={[{ value: "overview", label: "Visão geral" }, { value: "charges", label: "Cobranças" }, { value: "plans", label: "Planos" }, { value: "payers", label: "Pagadores" }]} />;
+}
+
+function FinanceOverviewPanel({ summary, invoices, providerSummary, compact, onOpenCharges, onOpenProviderReceivables, onNewCharge }: {
+  summary: OrganizationFinanceSummary; invoices: FinanceInvoice[]; providerSummary: ProviderReceivablesSummary | null;
+  compact: boolean; onOpenCharges: () => void; onOpenProviderReceivables: () => void; onNewCharge: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const styles = useFinanceDashboardStyles(colors);
+  const attentionInvoices = invoices.filter(invoice => invoiceMatchesFilter(invoice, "attention")).sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 5);
+  const receivedRate = summary.expectedCents ? Math.min(100, Math.round(summary.receivedCents / summary.expectedCents * 100)) : 0;
+  return <View style={{ gap: 24 }}>
+    <FinanceSummaryStrip summary={summary} compact={compact} />
+    <ProviderReceivablesSummaryCard summary={providerSummary} compact={compact} onOpen={onOpenProviderReceivables} />
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>Precisam de atenção</Text>
+        <Pressable accessibilityRole="button" onPress={onOpenCharges} suppressWebHoverFeedback style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 4 }}>
+          <Text style={{ color: colors.text, fontSize: 12 }}>Ver cobranças</Text>
+        </Pressable>
       </View>
+      {attentionInvoices.length ? attentionInvoices.map(invoice => <Pressable key={invoice.id} accessibilityRole="button" accessibilityLabel={`Ver cobrança de ${invoice.studentName}`} onPress={onOpenCharges} style={styles.attentionRow}>
+        <View style={styles.attentionPrimaryColumn}><Text style={styles.listPrimaryText}>{invoice.studentName}</Text><Text style={styles.listSecondaryText}>{invoice.payerName ?? invoice.description}</Text></View>
+        <View style={styles.attentionValueColumn}><Text style={styles.attentionValue}>{formatMoneyFromCents(getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents))}</Text><Text style={styles.attentionStatus}>{getOperationalStatusLabel(invoice) ?? "Requer atenção"}</Text></View>
+      </Pressable>) : <View style={styles.attentionEmptyRow}>
+        <GoAtletaIcon name="success" size={16} color={colors.success} /><Text style={styles.receiptBreakdownLabel}>Nenhuma cobrança precisa de atenção.</Text>
+      </View>}
     </View>
-  );
-}
-
-function FinanceSectionTabs({
-  active,
-  compact,
-  onChange,
-}: {
-  active: FinanceSection;
-  compact: boolean;
-  onChange: (section: FinanceSection) => void;
-}) {
-  const { colors } = useAppTheme();
-  const dashboardStyles = useFinanceDashboardStyles(colors);
-  const sections: readonly [FinanceSection, string][] = [
-    ["overview", "Visão geral"],
-    ["charges", "Cobranças"],
-    ["plans", "Planos"],
-    ["payers", "Pagadores"],
-  ];
-
-  return (
-    <View
-      accessibilityRole="tablist"
-      style={[
-        dashboardStyles.sectionTabs,
-        compact
-          ? dashboardStyles.sectionTabsCompact
-          : dashboardStyles.sectionTabsWide,
-      ]}
-    >
-      {sections.map(([value, label]) => {
-        const selected = value === active;
-        return (
-          <Pressable
-            key={value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            onPress={() => onChange(value)}
-            style={[
-              dashboardStyles.sectionTab,
-              selected
-                ? dashboardStyles.sectionTabSelected
-                : dashboardStyles.sectionTabIdle,
-            ]}
-          >
-            <Text
-              style={[
-                dashboardStyles.sectionTabLabel,
-                selected
-                  ? dashboardStyles.sectionTabLabelSelected
-                  : dashboardStyles.sectionTabLabelIdle,
-              ]}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function FinanceOverviewPanel({
-  summary,
-  invoices,
-  providerSummary,
-  compact,
-  onOpenCharges,
-  onOpenProviderReceivables,
-  onNewCharge,
-}: {
-  summary: OrganizationFinanceSummary;
-  invoices: FinanceInvoice[];
-  providerSummary: ProviderReceivablesSummary | null;
-  compact: boolean;
-  onOpenCharges: () => void;
-  onOpenProviderReceivables: () => void;
-  onNewCharge: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const dashboardStyles = useFinanceDashboardStyles(colors);
-  const attentionInvoices = invoices
-    .filter((invoice) => invoiceMatchesFilter(invoice, "attention"))
-    .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
-    .slice(0, 5);
-  const receivedRate = summary.expectedCents
-    ? Math.min(
-        100,
-        Math.round((summary.receivedCents / summary.expectedCents) * 100),
-      )
-    : 0;
-
-  return (
     <View style={{ gap: 16 }}>
-      <FinanceSummaryStrip summary={summary} compact={compact} />
-      <ProviderReceivablesSummaryCard
-        summary={providerSummary}
-        compact={compact}
-        onOpen={onOpenProviderReceivables}
-      />
-      <View
-        style={{
-          flexDirection: compact ? "column" : "row",
-          alignItems: "stretch",
-          gap: 16,
-        }}
-      >
-        <View
-          style={{
-            flex: compact ? undefined : 1.35,
-            minWidth: 0,
-            borderRadius: radius.container,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            overflow: "hidden",
-          }}
-        >
-          <View
-            style={{
-              minHeight: 52,
-              paddingHorizontal: 12,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}
-              >
-                Precisam de atenção
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {attentionInvoices.length
-                  ? `${attentionInvoices.length} cobrança(s) para resolver agora`
-                  : "Nenhuma pendência no mês"}
-              </Text>
-            </View>
-            <Pressable onPress={onOpenCharges}>
-              <Text
-                style={{
-                  color: colors.success,
-                  fontSize: 12,
-                  fontWeight: "800",
-                }}
-              >
-                Ver cobranças
-              </Text>
-            </Pressable>
-          </View>
-          {attentionInvoices.length ? (
-            attentionInvoices.map((invoice, index) => (
-              <Pressable
-                key={invoice.id}
-                onPress={onOpenCharges}
-                style={dashboardStyles.attentionRow}
-              >
-                <View style={dashboardStyles.attentionPrimaryColumn}>
-                  <Text
-                    numberOfLines={1}
-                    style={dashboardStyles.listPrimaryText}
-                  >
-                    {invoice.studentName}
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    style={dashboardStyles.listSecondaryText}
-                  >
-                    {invoice.payerName ?? invoice.description}
-                  </Text>
-                </View>
-                <View style={dashboardStyles.attentionValueColumn}>
-                  <Text style={dashboardStyles.attentionValue}>
-                    {formatMoneyFromCents(
-                      getInvoiceOutstandingCents(
-                        invoice.amountCents,
-                        invoice.paidCents,
-                      ),
-                    )}
-                  </Text>
-                  <Text style={dashboardStyles.attentionStatus}>
-                    {getOperationalStatusLabel(invoice) ?? "Requer atenção"}
-                  </Text>
-                </View>
-                {index === 0 ? (
-                  <GoAtletaIcon
-                    name="chevronRight"
-                    size={17}
-                    color={colors.muted}
-                  />
-                ) : null}
-              </Pressable>
-            ))
-          ) : (
-            <View
-              style={{
-                minHeight: 174,
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 7,
-                padding: 16,
-              }}
-            >
-              <GoAtletaIcon name="success" size={18} color={colors.success} />
-              <Text
-                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}
-              >
-                Tudo em dia
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View
-          style={{
-            flex: compact ? undefined : 0.8,
-            minWidth: compact ? 0 : 270,
-            borderRadius: radius.container,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 16,
-            gap: 14,
-          }}
-        >
-          <View style={{ gap: 3 }}>
-            <Text
-              style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" }}
-            >
-              Recebimentos do mês
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {receivedRate}% do valor emitido
-            </Text>
-          </View>
-          <View
-            style={{
-              height: 9,
-              borderRadius: radius.full,
-              backgroundColor: colors.secondaryBg,
-              overflow: "hidden",
-            }}
-          >
-            <View
-              style={{
-                width: `${receivedRate}%`,
-                height: "100%",
-                backgroundColor: colors.success,
-              }}
-            />
-          </View>
-          <View style={{ gap: 10 }}>
-            {[
-              ["Pagas", summary.paidCount],
-              ["Em aberto", summary.openCount],
-              ["Vencidas", summary.overdueCount],
-            ].map(([label, value]) => (
-              <View
-                key={String(label)}
-                style={dashboardStyles.receiptBreakdownRow}
-              >
-                <Text style={dashboardStyles.receiptBreakdownLabel}>
-                  {label}
-                </Text>
-                <Text style={dashboardStyles.receiptBreakdownValue}>
-                  {value}
-                </Text>
-              </View>
-            ))}
-          </View>
-          <View style={dashboardStyles.flexSpacer} />
-          <FinanceAction
-            label="Nova cobrança"
-            icon="add"
-            primary
-            onPress={onNewCharge}
-          />
-        </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <Text style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}>Recebimentos do mês</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{receivedRate}% recebido</Text>
       </View>
+      <View style={{ height: 5, borderRadius: radius.full, backgroundColor: colors.secondaryBg, overflow: "hidden" }}><View style={{ width: `${receivedRate}%`, height: "100%", backgroundColor: colors.success }} /></View>
+      <View style={styles.monthlyReceiptCounts}>
+        {[["Pagas", summary.paidCount], ["Em aberto", summary.openCount], ["Vencidas", summary.overdueCount]].map(([label, value]) => <View key={String(label)} style={styles.monthlyReceiptCount}>
+          <Text style={styles.listSecondaryText}>{label}</Text><Text style={styles.monthlyReceiptCountValue}>{value}</Text>
+        </View>)}
+      </View>
+      <View style={styles.monthlyReceiptAction}><FinanceAction label="Nova cobrança" icon="add" primary onPress={onNewCharge} /></View>
     </View>
-  );
+  </View>;
 }
 
 function FinancePayersPanel({
@@ -1091,11 +786,8 @@ function FinancePayersPanel({
       </View>
       <View
         style={{
-          borderRadius: radius.container,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          overflow: "hidden",
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
         }}
       >
         {agreements.length ? (
@@ -1151,34 +843,7 @@ function FinancePayersPanel({
             );
           })
         ) : (
-          <View
-            style={{
-              minHeight: 220,
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: 20,
-            }}
-          >
-            <GoAtletaIcon name="family" size={25} color={colors.muted} />
-            <Text
-              style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}
-            >
-              Nenhum pagador vinculado
-            </Text>
-            <Text
-              style={{
-                maxWidth: 360,
-                color: colors.muted,
-                fontSize: 12,
-                lineHeight: 18,
-                textAlign: "center",
-              }}
-            >
-              Cadastre o responsável no atleta e depois associe um plano de
-              mensalidade.
-            </Text>
-          </View>
+          <ListEmptyState title="Nenhum pagador vinculado" description="Associe um responsável e um plano de mensalidade ao atleta." />
         )}
       </View>
     </View>
@@ -1723,6 +1388,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const requestedStudentId = firstSearchParam(params.studentId);
   const requestedStudentName = firstSearchParam(params.studentName);
   const router = useRouter();
+  const pathname = usePathname();
+  const { width: viewportWidth } = useWindowDimensions();
+  const openAssistant = useOptionalCopilotOpen();
   const { colors } = useAppTheme();
   const dashboardStyles = useFinanceDashboardStyles(colors);
   const responsiveLayout = useResponsiveLayout("dashboard");
@@ -2170,7 +1838,8 @@ function CoordinationFinanceDashboardOrganizationScope() {
         style={{
           minHeight: 42,
           flexGrow: 1,
-          minWidth: compactHeader ? 220 : 250,
+          minWidth: compactHeader ? 0 : 250,
+          flexShrink: 1,
           maxWidth: compactHeader ? undefined : 320,
           borderRadius: radius.card,
           borderWidth: 1,
@@ -2204,6 +1873,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
           style={[
             {
               flex: 1,
+              minWidth: 0,
               minHeight: 40,
               borderWidth: 0,
               borderRadius: 0,
@@ -2227,29 +1897,10 @@ function CoordinationFinanceDashboardOrganizationScope() {
           </Pressable>
         ) : null}
       </View>
-      <FinanceAction
-        label="Filtros"
-        icon="options"
-        onPress={() => {
-          setFilter((current) =>
-            current === "attention" ? "all" : "attention",
-          );
-          setPage(1);
-        }}
-      />
     </>
   );
 
-  const financeHeaderControls = (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "nowrap",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      {activeSection === "overview" || activeSection === "charges" ? (
+  const financeMonthControl = activeSection === "overview" || activeSection === "charges" ? (
         <View ref={monthTriggerRef} collapsable={false}>
           <Pressable
             accessibilityLabel={`Selecionar mês. ${formatFinanceMonthLabel(selectedMonth)}`}
@@ -2293,16 +1944,30 @@ function CoordinationFinanceDashboardOrganizationScope() {
             />
           </Pressable>
         </View>
-      ) : null}
-      {!compactHeader && activeSection === "charges"
-        ? financeChargeControls
-        : null}
+  ) : null;
+
+  const financeHeaderControls = (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "nowrap",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+
       <FinanceAction
         label="Configurar financeiro"
         icon="management"
         compact
         onPress={() => setWorkspaceModal("settings")}
       />
+      {openAssistant && usesFinanceAssistantButton(pathname, viewportWidth) ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente do Financeiro" onPress={openAssistant}
+          style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>
+          <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.muted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -2365,16 +2030,15 @@ function CoordinationFinanceDashboardOrganizationScope() {
         }}
         right={financeHeaderControls}
       >
-        {compactHeader && activeSection === "charges" ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {financeChargeControls}
-          </View>
-        ) : null}
         <FinanceSectionTabs
           active={activeSection}
           compact={responsiveLayout.isMobile}
           onChange={changeFinanceSection}
         />
+        {financeMonthControl ? <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {activeSection === "charges" ? financeChargeControls : <Text style={{ flex: 1, color: colors.muted, fontSize: 12 }}>Competência</Text>}
+          {financeMonthControl}
+        </View> : null}
       </ScreenPageHeader>
 
       <ScrollView
@@ -2498,7 +2162,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
               onNewCharge={() => setNewChargeVisible(true)}
             />
           ) : activeSection === "plans" ? (
-            <View style={{ minHeight: responsiveLayout.isMobile ? 720 : 760 }}>
+            <View>
               <CoordinationTuitionSetup
                 embedded
                 showHeader={false}
@@ -2588,40 +2252,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
                         />
                       </View>
                     </View>
-                    <View
-                      style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}
-                    >
-                      {filters.map(([value, label]) => {
-                        const selected = filter === value;
-                        return (
-                          <Pressable
-                            key={value}
-                            onPress={() => {
-                              setFilter(value);
-                              if (value === "asaas") setDetailInvoice(null);
-                              setPage(1);
-                            }}
-                            style={[
-                              dashboardStyles.filterButton,
-                              selected
-                                ? dashboardStyles.filterButtonSelected
-                                : dashboardStyles.filterButtonIdle,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                dashboardStyles.filterLabel,
-                                selected
-                                  ? dashboardStyles.filterLabelSelected
-                                  : dashboardStyles.filterLabelIdle,
-                              ]}
-                            >
-                              {label}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
+                    <CompactSelect label="Exibir" value={filter} options={filters.map(([value, label]) => ({ value, label }))} onChange={value => {
+                      setFilter(value as FilterValue);
+                      if (value === "asaas") setDetailInvoice(null);
+                      setPage(1);
+                    }} />
                   </View>
 
                   <View
@@ -2985,7 +2620,6 @@ function CoordinationFinanceDashboardOrganizationScope() {
         cardStyle={{
           width: responsiveLayout.isMobile ? "100%" : 760,
           maxWidth: "100%",
-          height: responsiveLayout.isMobile ? "94%" : undefined,
           maxHeight: "94%",
           borderRadius: radius.container,
           borderWidth: 1,

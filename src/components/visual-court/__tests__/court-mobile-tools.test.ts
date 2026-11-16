@@ -15,11 +15,21 @@ import type { useCourtEditor } from "../useCourtEditor";
 jest.mock("../CourtPerspectiveCanvas", () => ({ CourtPerspectiveCanvas: "Perspective" }));
 jest.mock("../CourtEditorCanvas", () => ({ CourtEditorCanvas: "Canvas" }));
 jest.mock("../CourtEditorControls", () => ({ CourtActionButton: "Action", CourtToolIcon: "ToolIcon", CourtSwitchRow: "SwitchRow", CourtSizeControl: "Size", CourtRosterPicker: "Roster" }));
-jest.mock("../CourtSimulationControls", () => ({ CourtSimulationTransport: "Transport", CourtSimulationModes: "Modes", CourtSimulationSettings: "Settings" }));
+jest.mock("../CourtSimulationControls", () => {
+  const runtime = jest.requireActual<typeof import("react")>("react");
+  return {
+    CourtSimulationTransport: (props: { editingControls?: React.ReactNode }) => runtime.createElement("Transport", props, props.editingControls),
+    CourtSimulationModes: "Modes",
+    CourtSimulationSettings: "Settings",
+  };
+});
 jest.mock("../CourtStepGallery", () => ({ CourtStepGallery: "Gallery" }));
 jest.mock("../CourtLibraryBrowser", () => ({ CourtLibraryBrowser: "Library" }));
 jest.mock("../CourtEditableTitle", () => ({ CourtEditableTitle: "Title" }));
-jest.mock("../CourtWorkspacePanel", () => ({ CourtWorkspacePanel: "WorkspacePanel" }));
+jest.mock("../CourtWorkspacePanel", () => {
+  const runtime = jest.requireActual<typeof import("react")>("react");
+  return { CourtWorkspacePanel: (props: { open: boolean; tab: string; tools?: React.ReactNode }) => runtime.createElement("WorkspacePanel", props, props.open && props.tab === "tools" ? props.tools : null) };
+});
 jest.mock("../court-export", () => ({ exportCourt: jest.fn() }));
 jest.mock("../../../ui/web-portal", () => ({ createWebPortal: (children: React.ReactNode) => children }));
 jest.mock("../../../ui/AnchoredDropdown", () => {
@@ -30,11 +40,15 @@ jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 type Editor = ReturnType<typeof useCourtEditor>;
+type WorkspaceOptions = { readOnly?: boolean; suspended?: boolean };
 describe("court mobile tool flow", () => {
   const platform = Object.getOwnPropertyDescriptor(Platform, "OS");
+  const dom = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const browserWindow = window;
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
   let tree: TestRenderer.ReactTestRenderer;
   let editor: Editor;
-  let render: (extra?: { readOnly?: boolean; suspended?: boolean }) => void;
+  let render: (extra?: WorkspaceOptions) => void;
   const canvas = () => (tree.root.findAllByType("Canvas" as never)[0] ?? tree.root.findByType("Perspective" as never)).props as CourtEditorCanvasProps;
   const action = (label: string) => tree.root.findAllByType("Action" as never).find(node => node.props.label === label)!;
   const press = (label: string) => act(() => action(label).props.onPress());
@@ -56,7 +70,13 @@ describe("court mobile tool flow", () => {
     trigger.props.ref.current = { measureInWindow: callback => callback(110, 210, 44, 44) };
     act(() => trigger.props.children.props.onPress());
   };
-  const mount = async (width = 390, state: Partial<Editor> = {}, extra: { readOnly?: boolean; suspended?: boolean } = {}, height = 844) => {
+  const useWeb = () => {
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+    Object.defineProperty(globalThis, "window", { configurable: true, value: { ...browserWindow, addEventListener: jest.fn(), removeEventListener: jest.fn() } });
+    Object.defineProperty(window, "location", { configurable: true, value: new URL("http://localhost:8081") });
+    Object.defineProperty(globalThis, "document", { configurable: true, value: { body: {}, getElementById: () => null } });
+  };
+  const mount = async (width = 390, state: Partial<Editor> = {}, extra: WorkspaceOptions = {}, height = 844) => {
     jest.spyOn(Dimensions, "get").mockReturnValue({ width, height, scale: 1, fontScale: 1 });
     const history: Editor["payload"][] = [];
     render = (nextExtra = extra) => tree.update(React.createElement(CourtWorkspaceView, { classId: "test-class", onBack: jest.fn(), editor, ...nextExtra }));
@@ -77,6 +97,9 @@ describe("court mobile tool flow", () => {
   beforeEach(() => { Object.defineProperty(Platform, "OS", { configurable: true, value: "ios" }); });
   afterEach(() => {
     if (tree) act(() => tree.unmount());
+    if (windowDescriptor) Object.defineProperty(globalThis, "window", windowDescriptor);
+    if (dom) Object.defineProperty(globalThis, "document", dom);
+    else Reflect.deleteProperty(globalThis, "document");
     jest.restoreAllMocks();
     if (platform) Object.defineProperty(Platform, "OS", platform);
   });
@@ -92,6 +115,42 @@ describe("court mobile tool flow", () => {
     press("Selecionar e mover");
     expect(canvas().selected).toEqual(selected);
     expect(editor.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the mobile web sheet on Tools and reuses actions without committing on open or tab changes", async () => {
+    useWeb();
+    await mount();
+    const sheet = () => tree.root.findByType("WorkspacePanel" as never).props;
+    const transport = () => tree.root.findByType("Transport" as never).props;
+    expect(transport().editingControls).toBeTruthy();
+    act(() => transport().onOpenSteps());
+    expect(sheet().tab).toBe("adjustments");
+    act(() => sheet().onRequestClose());
+    act(() => paletteButton("Ferramentas").props.onPress());
+    expect(sheet()).toMatchObject({ open: true, tab: "tools" });
+    act(() => render({ suspended: true }));
+    expect(sheet().open).toBe(false);
+    act(() => render());
+    expect(sheet()).toMatchObject({ open: true, tab: "tools" });
+    act(() => sheet().onTabChange("steps"));
+    act(() => sheet().onRequestClose());
+    act(() => paletteButton("Ferramentas").props.onPress());
+    expect(sheet()).toMatchObject({ open: true, tab: "tools" });
+    press("Bola");
+    expect(sheet().open).toBe(false);
+    expect(canvas().tool).toBe("ball");
+    expect(editor.commit).not.toHaveBeenCalled();
+  });
+
+  it("keeps reader access to adjustments without exposing mobile editing tools", async () => {
+    useWeb();
+    await mount(390, {}, { readOnly: true });
+    const transport = tree.root.findByType("Transport" as never).props;
+    expect(transport.editingControls).toBeUndefined();
+    act(() => transport.onOpenSteps());
+    const panel = tree.root.findByType("WorkspacePanel" as never).props;
+    expect(panel).toMatchObject({ open: true, tab: "adjustments" });
+    expect(panel.tools).toBeUndefined();
   });
 
   it.each(["arrow", "pen", "area", "curve"] as const)("returns to selection after a completed mobile %s drawing", async kind => {

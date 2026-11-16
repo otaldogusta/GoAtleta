@@ -55,7 +55,8 @@ export function ClassStaffHistoryPanel({
   onReviseSummary,
   onCorrectDates,
 }: Props) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+  const compactFieldStyle = { minHeight: 39, borderRadius: 12, paddingHorizontal: 10, fontSize: 13, color: colors.text, backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg, borderWidth: 1, borderColor: colors.border };
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [absentTenureId, setAbsentTenureId] = useState("");
@@ -190,11 +191,11 @@ export function ClassStaffHistoryPanel({
                 ))}
               </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1 }}><DateInput accessibilityLabel="Início da substituição" value={startsOn} onChange={setStartsOn} placeholder="DD/MM/AAAA" /></View>
-                <View style={{ flex: 1 }}><DateInput accessibilityLabel="Fim da substituição" value={endsOn} onChange={setEndsOn} placeholder="DD/MM/AAAA" /></View>
+                <View style={{ flex: 1 }}><DateInput compact accessibilityLabel="Início da substituição" value={startsOn} onChange={setStartsOn} placeholder="DD/MM/AAAA" /></View>
+                <View style={{ flex: 1 }}><DateInput compact accessibilityLabel="Fim da substituição" value={endsOn} onChange={setEndsOn} placeholder="DD/MM/AAAA" /></View>
               </View>
-              <TextInput accessibilityLabel="Motivo da substituição" value={reason} onChangeText={(value) => { setReason(value); setError(""); }} placeholder="Motivo" placeholderTextColor={colors.muted} style={{ minHeight: 48, borderRadius: 12, paddingHorizontal: 14, color: colors.text, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }} />
-              <TextInput accessibilityLabel="Observação da substituição" value={notes} onChangeText={setNotes} placeholder="Observação (opcional)" placeholderTextColor={colors.muted} style={{ minHeight: 48, borderRadius: 12, paddingHorizontal: 14, color: colors.text, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }} />
+              <TextInput accessibilityLabel="Motivo da substituição" value={reason} onChangeText={(value) => { setReason(value); setError(""); }} placeholder="Motivo" placeholderTextColor={colors.muted} style={compactFieldStyle} />
+              <TextInput accessibilityLabel="Observação da substituição" value={notes} onChangeText={setNotes} placeholder="Observação (opcional)" placeholderTextColor={colors.muted} style={compactFieldStyle} />
               {error ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{error}</Text> : null}
               <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
                 <Pressable onPress={() => setShowForm(false)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12 }}><Text style={{ color: colors.muted, fontWeight: "700" }}>Cancelar</Text></Pressable>
@@ -211,7 +212,7 @@ export function ClassStaffHistoryPanel({
               {editingSummaryId === summary.id ? (
                 <View style={{ gap: 8 }}>
                   <TextInput multiline value={summaryDraft} onChangeText={setSummaryDraft} accessibilityLabel="Texto corrigido do resumo" style={{ minHeight: 90, borderRadius: 12, padding: 12, color: colors.text, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, textAlignVertical: "top" }} />
-                  <TextInput value={summaryReason} onChangeText={setSummaryReason} accessibilityLabel="Motivo da correção do resumo" placeholder="Motivo da correção" placeholderTextColor={colors.muted} style={{ minHeight: 48, borderRadius: 12, paddingHorizontal: 14, color: colors.text, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }} />
+                  <TextInput value={summaryReason} onChangeText={setSummaryReason} accessibilityLabel="Motivo da correção do resumo" placeholder="Motivo da correção" placeholderTextColor={colors.muted} style={compactFieldStyle} />
                   <Pressable onPress={() => void onReviseSummary(summary.id, summaryDraft, summaryReason).then(() => setEditingSummaryId(null))} style={{ alignSelf: "flex-end", minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primaryBg }}><Text style={{ color: colors.primaryText, fontWeight: "800" }}>Salvar revisão</Text></Pressable>
                 </View>
               ) : (
@@ -230,10 +231,10 @@ export function ClassStaffHistoryPanel({
               {correctingTenureId === tenure.id ? (
                 <View style={{ gap: 8, marginTop: 8 }}>
                   <View style={{ flexDirection: "row", gap: 8 }}>
-                    <View style={{ flex: 1 }}><DateInput accessibilityLabel="Início corrigido" value={correctedStart} onChange={setCorrectedStart} placeholder="DD/MM/AAAA" /></View>
-                    <View style={{ flex: 1 }}><DateInput accessibilityLabel="Fim corrigido" value={correctedEnd} onChange={setCorrectedEnd} placeholder="DD/MM/AAAA" /></View>
+                    <View style={{ flex: 1 }}><DateInput compact accessibilityLabel="Início corrigido" value={correctedStart} onChange={setCorrectedStart} placeholder="DD/MM/AAAA" /></View>
+                    <View style={{ flex: 1 }}><DateInput compact accessibilityLabel="Fim corrigido" value={correctedEnd} onChange={setCorrectedEnd} placeholder="DD/MM/AAAA" /></View>
                   </View>
-                  <TextInput value={correctionReason} onChangeText={setCorrectionReason} placeholder="Motivo da correção" placeholderTextColor={colors.muted} style={{ minHeight: 44, borderRadius: 10, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }} />
+                  <TextInput value={correctionReason} onChangeText={setCorrectionReason} placeholder="Motivo da correção" placeholderTextColor={colors.muted} style={compactFieldStyle} />
                   <Pressable onPress={() => void onCorrectDates(tenure.id, correctedStart, correctedEnd || null, correctionReason).then(() => setCorrectingTenureId(null))} style={{ alignSelf: "flex-end", minHeight: 38, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9, backgroundColor: colors.primaryBg }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>Salvar datas</Text></Pressable>
                 </View>
               ) : null}

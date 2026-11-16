@@ -60,6 +60,8 @@ export default function AdminLoginScreen() {
             subtitle="Disponível apenas em desenvolvimento."
           />
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para o início"
             onPress={() => router.replace("/welcome")}
             style={{
               width: 36,

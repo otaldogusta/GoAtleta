@@ -5,6 +5,15 @@ Go Atleta; estado remoto e eficácia pedagógica não são certificados por esta
 
 ## Responsabilidade e fluxo
 
+Na troca de ano pela seta, o aviso fora do ciclo recebe foco na web. Ao
+acionar o retorno ao ciclo, o foco volta à seta usada, respeitando outro
+controle já focado durante o carregamento.
+
+Revisão local de 13/11: o workspace combina cartões de mês com fase/carga,
+semanas e detalhe inline, sem reativar abas legadas. Fechar detalhe devolve
+o foco à aula; Assistente no cabeçalho somente com host montado, com margens
+de 16 px no painel móvel. [Composição atual e limites](../../ui/AJUSTES_PERIODIZACAO_GESTAO_2026-11-13.md).
+
 Configurar ciclos da turma, traduzir objetivo e perfil em semanas/dias, modular
 carga e gerar propostas coerentes com calendário, histórico e restrições.
 O domínio calcula políticas e contexto; aplicação coordena planos e persistência;
@@ -34,6 +43,8 @@ as telas apresentam revisão, edição e confirmação do professor.
   arquivou. Arquivamento filtra organização; ativação de outro ciclo é deliberada.
 - Existir registro técnico de ciclo não significa periodização configurada:
   usar `isClassPeriodizationConfigured` e seus critérios pedagógicos.
+- A composição distingue configuração pendente, mês fora de um ciclo e ciclo encerrado.
+  [Estados e ações](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).
 - Política tem `schemaVersion: 1`, limites normalizados e diagnóstico compatível.
   Formato de jogo e altura da rede não equivalem a domínio técnico ou intensidade.
 - A janela usa datas locais de calendário. No ano atual a regra prefere janeiro
@@ -76,3 +87,10 @@ Testes localizados, para executar quando o respectivo contrato mudar:
 Aplicar a [escada de validação](../../../docs/operations/validation-ladder.md);
 persistência/navegação pede org-scope e smoke autenticado com ciclo e data corretos.
 Esta rodada verificou fontes e caminhos; não executou testes funcionais nem ativou ciclos.
+
+Na continuação local de 14/11, o editor de periodização usa o botão existente
+do Assistente no cabeçalho, evitando sobrepor Voltar/Continuar. A opção é local
+ao host editor; workspace, aula e demais defaults permanecem. Conversa e
+rascunho usam o mesmo controlador. Diagnóstico atual fica na etapa Nível da
+turma; componentes antigos de histórico/versões sem consumidor não representam
+entrada atual. [Provas e limites desta rodada](../../ui/PENDENCIAS_ATUAIS_2026-11-14.md).

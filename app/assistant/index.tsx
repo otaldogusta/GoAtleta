@@ -356,21 +356,21 @@ const extractEmbeddedReplyError = (reply: string): string | null => {
 
 const toFriendlyAssistantError = (value: string | null | undefined) => {
   const raw = String(value ?? "").trim();
-  if (!raw) return "Nao consegui processar essa pergunta agora.";
+  if (!raw) return "Não foi possível responder agora.";
   const normalized = raw.toLowerCase();
   if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
-    return "Nao consegui interpretar essa pergunta. Tente reformular com mais contexto da turma.";
+    return "Não consegui interpretar a pergunta. Acrescente o contexto da turma.";
   }
   if (normalized.includes("timeout")) {
-    return "A resposta demorou mais que o esperado. Tente novamente em alguns instantes.";
+    return "A resposta demorou mais que o esperado.";
   }
   if (normalized.includes("token") || normalized.includes("auth")) {
-    return "Sua sessao expirou. Faca login novamente para continuar.";
+    return "Sua sessão expirou. Entre novamente para continuar.";
   }
   if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
-    return "Falha de conexao com o assistente. Verifique sua internet e tente novamente.";
+    return "Sem conexão com o assistente. Verifique sua internet.";
   }
-  return "Nao consegui processar essa pergunta agora. Tente novamente em instantes.";
+  return "Não foi possível responder agora.";
 };
 
 const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
@@ -446,6 +446,9 @@ export default function AssistantScreen() {
   const [classId, setClassId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [failedReply, setFailedReply] = useState<{ question: string; detail: string; scope: string } | null>(null);
+  const replyScope = JSON.stringify([session?.user?.id, activeOrganization?.id, classId]);
+  const retryableReply = failedReply?.scope === replyScope ? failedReply : null;
   const [modelPreference, setModelPreference] = useState<AssistantModelChoice>("auto");
   const activeReplyRequest = useRef<AbortController | null>(null);
   useEffect(() => () => { activeReplyRequest.current?.abort(); }, [activeOrganization?.id, classId]);
@@ -834,13 +837,15 @@ export default function AssistantScreen() {
   }, []);
 
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || loading) return;
+    const question = input.trim();
+    if (!question || loading || activeReplyRequest.current) return;
     const controller = new AbortController();
     activeReplyRequest.current = controller;
-    const nextMessages = [...messages, { role: "user" as const, content: input.trim() }];
+    const nextMessages = [...messages, { role: "user" as const, content: question }];
     const requestMessages = nextMessages.slice(-ASSISTANT_CONTEXT_MESSAGES);
     setMessages(nextMessages);
     setInput("");
+    setFailedReply(null);
     setLoading(true);
     setAssistantProgress(["preparing_context"]);
     setPartialReply("");
@@ -861,16 +866,9 @@ export default function AssistantScreen() {
 
     try {
       const accessToken = await getValidAccessToken();
+      if (controller.signal.aborted) return;
       if (!accessToken) {
-        Alert.alert("Sessão expirada", "Faca login novamente para usar o assistente.");
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "Sessão expirada. Faca login novamente e tente de novo.",
-          },
-        ]);
-        return;
+        throw new Error("Sessão expirada. Faça login novamente para usar o assistente.");
       }
 
       let memoryContext: string[] = [];
@@ -886,6 +884,7 @@ export default function AssistantScreen() {
       } catch {
         memoryContext = [];
       }
+      if (controller.signal.aborted) return;
       setMemoryContextHints(memoryContext);
       const appSnapshot = optionalCopilot?.appSnapshot ?? null;
 
@@ -915,25 +914,24 @@ export default function AssistantScreen() {
       if (controller.signal.aborted) return;
       setPartialReply("");
       const payloadError = extractAssistantPayloadError(data);
-      const rawReply =
-        typeof (data as AssistantResponse).reply === "string" && (data as AssistantResponse).reply.trim()
-           ? (data as AssistantResponse).reply
-          : "Sem resposta do assistente. Tente novamente.";
+      const rawReply = typeof (data as AssistantResponse).reply === "string"
+        ? (data as AssistantResponse).reply.trim()
+        : "";
       const embeddedReplyError = extractEmbeddedReplyError(rawReply);
       const responseError = payloadError || embeddedReplyError;
+      if (responseError) throw new Error(responseError);
       const draftFromReply = looksLikeJsonPayload(rawReply)
         ? parseDraftTrainingFromReply(rawReply)
         : null;
-      const nextDraft = responseError
-        ? null
-        : (data as AssistantResponse).draftTraining
+      const nextDraft = (data as AssistantResponse).draftTraining
         ? normalizeDraftTraining((data as AssistantResponse).draftTraining!)
         : draftFromReply;
-      const nextReportProposal = responseError ? null : (data as AssistantResponse).reportProposal ?? null;
-      const nextClassMemoryProposal = responseError ? null : (data as AssistantResponse).classMemoryProposal ?? null;
-      const reply = responseError
-        ? toFriendlyAssistantError(responseError)
-        : nextDraft
+      const nextReportProposal = (data as AssistantResponse).reportProposal ?? null;
+      const nextClassMemoryProposal = (data as AssistantResponse).classMemoryProposal ?? null;
+      if (!rawReply && !nextDraft && !nextReportProposal && !nextClassMemoryProposal) {
+        throw new Error("O assistente não retornou uma resposta.");
+      }
+      const reply = nextDraft
         ? "Montei um planejamento para você. Revise os blocos abaixo e ajuste se necessário."
         : resolveStructuredProposalReply({
             rawReply,
@@ -945,20 +943,18 @@ export default function AssistantScreen() {
       setAssistantProgress([]);
       setPartialReply("");
       showAssistantReply(reply);
-      setSources(responseError ? [] : Array.isArray((data as AssistantResponse).sources) ? (data as AssistantResponse).sources : []);
+      setSources(Array.isArray((data as AssistantResponse).sources) ? (data as AssistantResponse).sources : []);
       setConfidence(
-        responseError
-          ? null
-          : Number.isFinite((data as AssistantResponse).confidence)
+        Number.isFinite((data as AssistantResponse).confidence)
           ? Math.max(0, Math.min(1, Number((data as AssistantResponse).confidence)))
           : null
       );
-      setCitations(responseError ? [] : Array.isArray((data as AssistantResponse).citations) ? ((data as AssistantResponse).citations ?? []) : []);
-      setScientificEvidence(responseError ? undefined : (data as AssistantResponse).scientificEvidence);
+      setCitations(Array.isArray((data as AssistantResponse).citations) ? ((data as AssistantResponse).citations ?? []) : []);
+      setScientificEvidence((data as AssistantResponse).scientificEvidence);
       setReportProposal(nextReportProposal);
       setClassMemoryProposal(nextClassMemoryProposal);
-      setMissingData(responseError ? [] : Array.isArray((data as AssistantResponse).missingData) ? ((data as AssistantResponse).missingData ?? []) : []);
-      setAssumptions(responseError ? [] : Array.isArray((data as AssistantResponse).assumptions) ? ((data as AssistantResponse).assumptions ?? []) : []);
+      setMissingData(Array.isArray((data as AssistantResponse).missingData) ? ((data as AssistantResponse).missingData ?? []) : []);
+      setAssumptions(Array.isArray((data as AssistantResponse).assumptions) ? ((data as AssistantResponse).assumptions ?? []) : []);
       setDraft(nextDraft);
 
       const nowIso = new Date().toISOString();
@@ -1001,24 +997,25 @@ export default function AssistantScreen() {
         void notifyTrainingCreated({ inboxScope: notificationInboxScope });
       }
     } catch (error) {
+      if (controller.signal.aborted) return;
       const detailRaw =
         error instanceof Error
           ? error.message.replace(/\s+/g, " ").trim().slice(0, 180)
           : "Falha de rede ou deploy da Edge Function.";
       const detail = extractEmbeddedReplyError(detailRaw) ?? detailRaw;
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Erro ao consultar o assistente. " + toFriendlyAssistantError(detail),
-        },
-      ]);
+      setFailedReply({ question, detail: toFriendlyAssistantError(detail), scope: replyScope });
+      setInput((current) => current || question);
+      setMessages((current) => {
+        const failedMessage = nextMessages[nextMessages.length - 1];
+        return current.filter((message) => message !== failedMessage);
+      });
     } finally {
+      if (activeReplyRequest.current === controller) activeReplyRequest.current = null;
       setLoading(false);
       setPartialReply("");
       setAssistantProgress([]);
     }
-  }, [activeOrganization, classId, input, loading, messages, modelPreference, notificationInboxScope, optionalCopilot, selectedClass, session, showAssistantReply]);
+  }, [activeOrganization, classId, input, loading, messages, modelPreference, notificationInboxScope, optionalCopilot, replyScope, selectedClass, session, showAssistantReply]);
 
   const saveReportProposal = useCallback(() => {
     if (!reportProposal || !activeOrganization?.id || !session?.user?.id || savingReport) return;
@@ -1232,6 +1229,7 @@ export default function AssistantScreen() {
     if (Platform.OS !== "web" || !composerFocused) return;
 
     const onWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.target !== (composerInputRef.current as unknown as EventTarget | null)) return;
       if (event.key !== "Enter" || event.shiftKey) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1290,21 +1288,20 @@ export default function AssistantScreen() {
       <View
         style={{
           flex: 1,
-          paddingHorizontal: supportsSplitLayout ? 20 : 14,
+          paddingHorizontal: 16,
           paddingTop: 12,
           paddingBottom: 12,
           gap: 12,
-          flexDirection: supportsSplitLayout ? "row" : "column",
+          flexDirection: "column",
         }}
       >
         <View
           style={{
             flex: 1,
-            borderRadius: 22,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 14,
+            minHeight: 0,
+            width: "100%",
+            maxWidth: 720,
+            alignSelf: "center",
             gap: 12,
           }}
         >
@@ -1775,23 +1772,36 @@ export default function AssistantScreen() {
               if (next !== composerHeight) setComposerHeight(next);
             }}
             style={{
-              borderRadius: 28,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              paddingHorizontal: 10,
-              paddingVertical: 10,
               gap: 8,
               marginTop: 2,
               marginBottom: keyboardHeight,
-              paddingBottom: 10 + insets.bottom,
+              paddingBottom: insets.bottom,
             }}
           >
-            <AssistantComposer value={input} onChangeText={setInput} onSend={() => { void sendMessage(); }}
+            {retryableReply ? (
+              <View style={{ gap: 4 }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+                  <Text accessibilityRole="alert" style={{ flexGrow: 1, flexShrink: 1, flexBasis: 200, color: colors.muted, fontSize: 12, lineHeight: 16 }}>
+                    {retryableReply.detail}
+                  </Text>
+                  {input.trim() === retryableReply.question ? (
+                    <Pressable accessibilityRole="button" disabled={loading} onPress={() => {
+                      composerInputRef.current?.focus();
+                      void sendMessage();
+                    }} suppressWebHoverFeedback
+                      style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 4, borderRadius: 8 }}>
+                      <Text style={{ color: colors.text, fontSize: 12, lineHeight: 16, fontWeight: "600" }}>Tentar de novo</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {input.trim() !== retryableReply.question ? <Text selectable style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>Pergunta anterior: {retryableReply.question}</Text> : null}
+              </View>
+            ) : null}
+            <AssistantComposer variant="page" value={input} onChangeText={setInput} onSend={() => { void sendMessage(); }}
               busy={loading} inputRef={composerInputRef}
               onFocus={() => setComposerFocused(true)} onBlur={() => setComposerFocused(false)}
               onKeyPress={handleComposerKeyPress}
-              trailingControl={<AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={loading} compact />}
+              trailingControl={<AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={loading} compact keyboardNavigation />}
               voiceScope={activeOrganization && activeOrganization.role_level >= 10 ? { organizationId: activeOrganization.id, classId: classId || undefined } : undefined} />
           </View>
         </View>

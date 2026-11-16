@@ -1,16 +1,11 @@
 import { TextInput, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
-
 import { Pressable } from "../../ui/Pressable";
+import { CompactSelect } from "../../ui/CompactSelect";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { skillLabels } from "./activity-catalog-labels";
-import {
-  hasActiveCatalogFilters,
-  type CatalogFilterOptions,
-  type CatalogFilterState,
-} from "./activity-catalog-view-model";
-import { compactUiMetrics } from "../../theme/tokens";
+import { type CatalogFilterOptions, type CatalogFilterState } from "./activity-catalog-view-model";
 
 type Props = {
   filters: CatalogFilterState;
@@ -20,142 +15,33 @@ type Props = {
   onOpenFilters: () => void;
 };
 
-export function ActivityCatalogFilters({
-  filters,
-  options,
-  resultCount,
-  onChange,
-  onOpenFilters,
-}: Props) {
+export function ActivityCatalogFilters({ filters, options, resultCount, onChange, onOpenFilters }: Props) {
   const { colors } = useAppTheme();
-  const active = hasActiveCatalogFilters(filters);
-
+  const extraCount = Object.entries(filters).filter(([key, value]) => key !== "query" && key !== "skill" && Boolean(value)).length;
   return (
-    <View
-      style={{
-        gap: 12,
-        padding: 12,
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
-      }}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          borderWidth: 1,
-          borderColor: colors.border,
-          paddingVertical: 6,
-          paddingHorizontal: 12,
-          borderRadius: 14,
-          backgroundColor: colors.inputBg,
-        }}
-      >
-        <TextInput
-          testID="catalog-search-input"
-          placeholder="Buscar atividade..."
-          placeholderTextColor={colors.placeholder}
-          value={filters.query}
+    <View style={{ gap: 4 }}>
+      <View style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10,
+        borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.inputBg }}>
+        <GoAtletaIcon name="search" size={16} color={colors.muted} />
+        <TextInput testID="catalog-search-input" accessibilityLabel="Buscar atividade no catálogo"
+          placeholder="Buscar atividade" placeholderTextColor={colors.placeholder} value={filters.query}
           onChangeText={(query) => onChange({ ...filters, query })}
-          style={{ flex: 1, paddingVertical: 2, color: colors.inputText }}
-        />
-        <GoAtletaIcon name="search" size={18} color={colors.muted} />
+          style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: 0, color: colors.inputText }} />
       </View>
-
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
-          Fundamento
-        </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          <QuickFilterChip
-            label="Todos"
-            active={!filters.skill}
-            testID="catalog-skill-filter-all"
-            onPress={() => onChange({ ...filters, skill: "" })}
-          />
-          {options.skills.map((skill) => (
-            <QuickFilterChip
-              key={skill}
-              label={skillLabels[skill]}
-              active={filters.skill === skill}
-              testID={`catalog-skill-filter-${skill}`}
-              onPress={() =>
-                onChange({ ...filters, skill: filters.skill === skill ? "" : skill })
-              }
-            />
-          ))}
-        </View>
-      </View>
-
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Text style={{ flex: 1, color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>
-          {resultCount} atividades
-        </Text>
-        <Pressable
-          testID="catalog-open-filters"
-          onPress={onOpenFilters}
-          style={{
-            minHeight: 40,
-            paddingHorizontal: 14,
-            borderRadius: 12,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: active ? colors.infoBg : colors.secondaryBg,
-          }}
-        >
-          <Text
-            style={{
-              color: active ? colors.infoText : colors.secondaryText,
-              fontSize: compactUiMetrics.bodyFontSize,
-              fontWeight: "900",
-            }}
-          >
-            Filtros
-          </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <CompactSelect label="Fundamento" value={filters.skill}
+          options={[{ value: "", label: "Todos" }, ...options.skills.map((skill) => ({ value: skill, label: skillLabels[skill] }))]}
+          onChange={(skill) => onChange({ ...filters, skill: skill as CatalogFilterState["skill"] })} />
+        <Pressable testID="catalog-open-filters" accessibilityRole="button" aria-haspopup="dialog" onPress={onOpenFilters}
+          accessibilityLabel={extraCount ? `Mais filtros, ${extraCount} ativos` : "Mais filtros"} suppressWebHoverFeedback
+          style={{ minHeight: 44, paddingHorizontal: 4, flexDirection: "row", gap: 6, alignItems: "center", borderRadius: 8 }}>
+          <GoAtletaIcon name="options" size={16} color={colors.muted} />
+          <Text style={{ color: colors.text, fontSize: 12 }}>Filtros{extraCount ? ` · ${extraCount}` : ""}</Text>
         </Pressable>
       </View>
-    </View>
-  );
-}
-
-function QuickFilterChip({
-  label,
-  active,
-  testID,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  testID: string;
-  onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  return (
-    <Pressable
-      testID={testID}
-      onPress={onPress}
-      style={{
-        minHeight: 34,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: active ? colors.successBorder : colors.border,
-        backgroundColor: active ? colors.successBg : colors.secondaryBg,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text
-        style={{
-          color: active ? colors.successText : colors.text,
-          fontSize: compactUiMetrics.bodyFontSize,
-          fontWeight: "800",
-        }}
-      >
-        {label}
+      <Text accessibilityLiveRegion="polite" role="status" style={{ color: colors.muted, fontSize: 11, paddingBottom: 8 }}>
+        {resultCount === 1 ? "1 atividade" : `${resultCount} atividades`}
       </Text>
-    </Pressable>
+    </View>
   );
 }

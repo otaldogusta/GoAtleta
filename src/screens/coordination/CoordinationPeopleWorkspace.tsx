@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFriendlyErrorMessage } from "../../ui/error-messages";
 import * as Clipboard from "expo-clipboard";
-import { useFocusEffect, useIsFocused, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useLocalSearchParams, useNavigation, usePathname, useRouter } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AthleteAccessRequestRow } from "./AthleteAccessRequestRow";
@@ -28,6 +28,8 @@ import type {
 } from "../../api/reports";
 import { useAuth } from "../../auth/auth";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
+import { useOptionalCopilotOpen } from "../../copilot/CopilotProvider";
+import { usesManagementAssistantButton } from "../../copilot/route-visibility";
 import {
   createTrainerInvite,
   revokeTrainerInvite,
@@ -38,7 +40,7 @@ import {
   adminReviewOrgAccessRequest,
   type OrganizationAccessRequest,
 } from "../../api/organization-access-requests";
-import { brandPalette, radius } from "../../theme/tokens";
+import { brandPalette, compactUiMetrics, radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
@@ -52,6 +54,8 @@ import { useConfirmUndo } from "../../ui/confirm-undo";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
+import { UnderlineTabs } from "../../ui/UnderlineTabs";
+import { ListEmptyState } from "../../ui/ListEmptyState";
 import { useSaveToast } from "../../ui/save-toast";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
@@ -614,7 +618,7 @@ export function CoordinationPeopleWorkspace({
   onOpenReport,
   onNotifyAttendance,
 }: CoordinationPeopleWorkspaceProps) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const { session } = useAuth();
   const router = useRouter();
   const isFocused = useIsFocused();
@@ -628,6 +632,8 @@ export function CoordinationPeopleWorkspace({
   const { confirm: confirmUndo } = useConfirmUndo();
   const { showSaveToast } = useSaveToast();
   const { height, width } = useWindowDimensions();
+  const pathname = usePathname();
+  const openAssistant = useOptionalCopilotOpen();
   const responsiveLayout = useResponsiveLayout("dashboard");
   const supportsSplitLayout = responsiveLayout.supportsSplitView && width >= 1200;
   const compact = responsiveLayout.isMobile;
@@ -638,33 +644,53 @@ export function CoordinationPeopleWorkspace({
   const storageKey = `coordination_workspace_order_v2:${organizationId}`;
 
   const [search, setSearch] = useState("");
+  const peopleSearchRef = useRef<TextInput>(null);
+  const profileReturnTarget = useRef<string | null>(null);
   const [peopleSortKey, setPeopleSortKey] = useState<PeopleSortKey | null>(null);
   const [peopleSortIndicator] = useState(() => new Animated.Value(0));
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [peopleExpanded, setPeopleExpanded] = useState(true);
+  const tabRequestKey = JSON.stringify([requestedSection, assistantVisit, accessRequestId]);
+  const [tabSelection, setTabSelection] = useState({ request: tabRequestKey, value: requestedSection ? "overview" : "team" });
+  const workspaceTab = tabSelection.request === tabRequestKey
+    ? tabSelection.value : requestedSection ? "overview" : tabSelection.value;
+  if (tabSelection.request !== tabRequestKey) {
+    setTabSelection({ request: tabRequestKey, value: workspaceTab });
+  }
   const [organizing, setOrganizing] = useState(false);
+  const [lastMovedModule, setLastMovedModule] = useState<SecondaryModuleKey | null>(null);
+  const [showHealthDetails, setShowHealthDetails] = useState(false);
   const [moduleOrder, setModuleOrder] = useState(DEFAULT_MODULE_ORDER);
   const [expandedModules, setExpandedModules] = useState<
     Partial<Record<SecondaryModuleKey, boolean>>
   >({ attendance: true });
-  const revealRequestedSection = useCallback(() => {
-    if (!requestedSection) return;
+  const revealSection = useCallback((section: SecondaryModuleKey) => {
     // On web the document can own scrolling; scrolling only the nested RN
     // ScrollView leaves the target below the viewport on taller layouts.
-    const node = sectionNodes.current[requestedSection] as unknown as { scrollIntoView?: (options: { block: string; behavior: string }) => void } | null;
+    const node = sectionNodes.current[section] as unknown as { scrollIntoView?: (options: { block: string; behavior: string }) => void } | null;
     if (Platform.OS === "web" && node?.scrollIntoView) {
       node.scrollIntoView({ block: "start", behavior: "instant" });
       return;
     }
-    const y = sectionOffsets.current[requestedSection];
+    const y = sectionOffsets.current[section];
     if (y !== undefined) pageScrollRef.current?.scrollTo({ y: y + modulesOffset.current, animated: false });
-  }, [requestedSection]);
+  }, []);
+  const revealRequestedSection = useCallback(() => {
+    if (requestedSection && workspaceTab === "overview") revealSection(requestedSection);
+  }, [requestedSection, revealSection, workspaceTab]);
+  const openSummaryModule = (section: SecondaryModuleKey) => {
+    setExpandedModules((current) => ({ ...current, [section]: true }));
+    revealSection(section);
+    if (Platform.OS === "web") {
+      const node = sectionNodes.current[section] as unknown as HTMLElement | null;
+      node?.querySelector<HTMLElement>("button, [role='button']")?.focus({ preventScroll: true });
+    }
+  };
   useEffect(() => {
     revealRequestedSection();
     // Reapply after the departing modal restores the document scroll lock.
     const timer = setTimeout(revealRequestedSection, 400);
     return () => clearTimeout(timer);
-  }, [revealRequestedSection, assistantVisit]);
+  }, [revealRequestedSection, assistantVisit, workspaceTab]);
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
@@ -921,6 +947,7 @@ export function CoordinationPeopleWorkspace({
 
   const moveModule = useCallback(
     (key: SecondaryModuleKey, direction: -1 | 1) => {
+      setLastMovedModule(key);
       setModuleOrder((current) => {
         const index = current.indexOf(key);
         const target = index + direction;
@@ -961,7 +988,7 @@ export function CoordinationPeopleWorkspace({
     setShowInviteCloseConfirm(false);
     setInviteInitialSnapshot(null);
     setModalMode(null);
-  }, []);
+  }, [setShowInviteCloseConfirm, setModalMode]);
 
   const requestCloseInviteModal = useCallback(() => {
     if (inviteBusyChannel !== null) return;
@@ -970,7 +997,7 @@ export function CoordinationPeopleWorkspace({
       return;
     }
     closeInviteModal();
-  }, [closeInviteModal, inviteBusyChannel, isInviteDirty]);
+  }, [closeInviteModal, inviteBusyChannel, isInviteDirty, setShowInviteCloseConfirm]);
 
   const shakeInviteEmail = () => {
     const useNativeDriver = Platform.OS !== "web";
@@ -1073,7 +1100,7 @@ export function CoordinationPeopleWorkspace({
     setEditScope(null);
     setModalMember(null);
     setModalMode(null);
-  }, []);
+  }, [setShowEditCloseConfirm, setModalMode]);
 
   useEffect(() => () => { editPermissionRequestRef.current += 1; }, [organizationId, session?.user?.id]);
 
@@ -1086,7 +1113,7 @@ export function CoordinationPeopleWorkspace({
       closeEditModal();
       navigate();
     }
-  }, [closeEditModal, editBusy, isEditDirty]);
+  }, [closeEditModal, editBusy, isEditDirty, setShowEditCloseConfirm]);
 
   const accessNavigation = useNavigation();
   usePreventRemove(isEditDirty || editBusy, ({ data }) => requestAccessNavigation(() => accessNavigation.dispatch(data.action)));
@@ -1316,9 +1343,15 @@ export function CoordinationPeopleWorkspace({
     reports: { label: "Relatórios pendentes", value: pendingReports.length },
     activity: { label: "Atividade recente", value: recentActivity.length },
   };
+  const summaryMetrics: { icon: GoAtletaIconName; value: number; label: string; detail?: string; section?: SecondaryModuleKey }[] = [
+    { icon: "members", value: members.length, label: "Membros", detail: loading ? undefined : `${uniqueClasses} ${uniqueClasses === 1 ? "turma" : "turmas"} com equipe` },
+    { icon: "communications", value: pendingAccessCount, label: moduleMeta.access.label, section: "access" },
+    { icon: "attendance", value: pendingAttendance.length, label: moduleMeta.attendance.label, section: "attendance" },
+    { icon: "reports", value: pendingReports.length, label: moduleMeta.reports.label, section: "reports" },
+  ];
+  const summaryRows = compact ? [summaryMetrics.slice(0, 2), summaryMetrics.slice(2)] : [summaryMetrics];
 
   const border = colors.border;
-  const panel = colors.card;
   const inner = colors.secondaryBg;
   const inviteNoticePalette =
     inviteNotice?.tone === "success"
@@ -1731,6 +1764,17 @@ export function CoordinationPeopleWorkspace({
     <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}>
       <ModalSheet
         visible={isFocused && Boolean(profileMember)}
+        onExited={() => {
+          const targetId = profileReturnTarget.current;
+          profileReturnTarget.current = null;
+          if (Platform.OS !== "web" || typeof document === "undefined" || !targetId) return;
+          requestAnimationFrame(() => {
+            const trigger = document.getElementById(targetId);
+            if (document.activeElement === document.body && trigger?.isConnected && !trigger.closest('[inert], [aria-hidden="true"]') && trigger.getClientRects().length) {
+              trigger.focus({ preventScroll: true });
+            }
+          });
+        }}
         onClose={() => requestAccessNavigation(() => { setProfileTab("overview"); router.setParams({ memberProfile: "" }); })}
         position="center"
         cardStyle={{ width: "100%", maxWidth: 1040, height: "92%", padding: 0, overflow: "hidden", backgroundColor: colors.background, borderRadius: radius.card }}
@@ -1767,18 +1811,34 @@ export function CoordinationPeopleWorkspace({
       </ModalSheet>
       <>
       <ScreenPageHeader
-        title="Coordenação"
-        subtitle={`${organizationName} • ${new Date().toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        })}`}
+        title="Gestão"
+        subtitle={organizationName}
+        right={openAssistant && usesManagementAssistantButton(pathname, width) ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente da Gestão" onPress={openAssistant}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>
+            <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.muted} />
+          </Pressable>
+        ) : null}
         onBack={() => router.push("/coord/dashboard")}
         horizontalBleed={0}
         style={{ marginLeft: -pageHorizontalGutter, marginRight: -pageHorizontalGutter }}
         contentStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 0 }}
       />
 
+      <UnderlineTabs
+        value={workspaceTab}
+        onChange={(value) => {
+          setTabSelection({ request: tabRequestKey, value });
+          pageScrollRef.current?.scrollTo({ y: 0, animated: false });
+        }}
+        accessibilityLabel="Áreas da Gestão"
+        items={[
+          { value: "team", label: "Equipe", id: "management-team-tab", panelId: "management-team-panel" },
+          { value: "overview", label: "Visão geral", id: "management-overview-tab", panelId: "management-overview-panel" },
+        ]}
+        style={{ marginHorizontal: 4, marginTop: 4, marginBottom: 12 }}
+      />
+      <View role="tabpanel" nativeID={`management-${workspaceTab}-panel`} aria-labelledby={`management-${workspaceTab}-tab`} style={{ flex: 1, minHeight: 0 }}>
       <ScrollView
         ref={pageScrollRef}
         style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
@@ -1793,105 +1853,81 @@ export function CoordinationPeopleWorkspace({
           />
         }
       >
-      <View
+      {workspaceTab === "overview" ? <View
         style={{
-          borderRadius: radius.internal,
-          borderWidth: 1,
+          borderBottomWidth: 1,
           borderColor: border,
-          backgroundColor: panel,
-          paddingVertical: compact ? 9 : 8,
-          paddingHorizontal: compact ? 8 : 12,
-          flexDirection: "row",
+          paddingHorizontal: 4,
+          paddingTop: 8,
         }}
       >
-        {[
-          ["members", members.length, "membros"],
-          ["communications", pendingAccessCount, "acessos pendentes"],
-          ["attendance", pendingAttendance.length, "chamadas pendentes"],
-          ["classes", uniqueClasses, "turmas"],
-          ["reports", healthScore === null ? "..." : `${healthScore}%`, "operacional"],
-        ].map(([icon, value, label], index) => (
-          <View
-            key={String(label)}
-            accessible
-            accessibilityLabel={`${loading ? "Carregando" : value} ${label}`}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              minHeight: compact ? 72 : 48,
-              flexDirection: compact ? "column" : "row",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: compact ? 3 : 12,
-              paddingHorizontal: compact ? 3 : 8,
-              borderLeftWidth: index > 0 ? 1 : 0,
-              borderLeftColor: border,
-            }}
-          >
-            <GoAtletaIcon
-              name={icon as GoAtletaIconName}
-              size={18}
-              color={colors.muted}
-            />
-            <View style={{ gap: 2, alignItems: compact ? "center" : "flex-start", flexShrink: 1 }}>
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: 18,
-                lineHeight: compact ? 21 : 24,
-                fontWeight: "800",
-                textAlign: "center",
-              }}
-            >
-              {loading ? "..." : value}
-            </Text>
-            <Text
-              numberOfLines={2}
-              style={{
-                color: colors.muted,
-                fontSize: compact ? 9 : 12,
-                lineHeight: compact ? 11 : 14,
-                textAlign: "center",
-              }}
-            >
-              {label}
-            </Text>
-            </View>
+        {summaryRows.map((row, rowIndex) => (
+          <View key={row[0].label} style={{ flexDirection: "row", paddingVertical: 12, borderTopWidth: rowIndex ? 1 : 0, borderTopColor: border }}>
+            {row.map(({ value, label, detail, section }, index) => {
+              const copy = (
+                <>
+                  <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                    <Text style={{ color: colors.text, fontSize: 20, lineHeight: 24, fontWeight: "600" }}>
+                      {loading ? "…" : value}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
+                      {label}
+                    </Text>
+                    {detail ? <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, lineHeight: compactUiMetrics.metadataLineHeight }}>{detail}</Text> : null}
+                  </View>
+                </>
+              );
+              const metricStyle = { flex: 1, minWidth: 0, minHeight: 64, alignItems: "center" as const, flexDirection: "row" as const, paddingHorizontal: 12, gap: 7, borderLeftWidth: index ? 1 : 0, borderLeftColor: border };
+              const accessibleLabel = `${label}: ${loading ? "carregando" : value}${detail ? `. ${detail}` : ""}`;
+              return section ? (
+                <Pressable
+                  key={label}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir fila. ${accessibleLabel}`}
+                  disabled={loading}
+                  onPress={() => openSummaryModule(section)}
+                  style={({ hovered, pressed }) => [metricStyle, { backgroundColor: hovered || pressed ? inner : "transparent" }]}
+                >
+                  {copy}
+                  <GoAtletaIcon name="chevronRight" size={compactUiMetrics.secondaryIconSize} color={colors.muted} />
+                </Pressable>
+              ) : <View key={label} accessible accessibilityLabel={accessibleLabel} style={metricStyle}>{copy}</View>;
+            })}
           </View>
         ))}
-      </View>
+        <View style={{ borderTopWidth: 1, borderTopColor: border, paddingVertical: 4 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Índice operacional: ${healthScore === null ? "indisponível" : `${healthScore}%`}`}
+            accessibilityState={{ expanded: showHealthDetails }}
+            aria-expanded={showHealthDetails}
+            onPress={() => setShowHealthDetails((current) => !current)}
+            style={({ hovered, pressed }) => ({ minHeight: compactUiMetrics.touchTarget, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 6, borderRadius: radius.internal, backgroundColor: hovered || pressed ? inner : "transparent" })}
+          >
+            <GoAtletaIcon name="reports" size={compactUiMetrics.iconSize} color={colors.muted} />
+            <Text style={{ flex: 1, color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "700" }}>Índice operacional</Text>
+            <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "800" }}>{healthScore === null ? "…" : `${healthScore}%`}</Text>
+            <GoAtletaIcon name={showHealthDetails ? "chevronUp" : "chevronDown"} size={14} color={colors.muted} />
+          </Pressable>
+          {showHealthDetails ? (
+            <Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 6, paddingBottom: 8, color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
+              A nota usa a consulta atual. Parte de 100 e perde 2 pontos por chamada pendente, 3 por relatório pendente, 4 por item com muitas tentativas de sincronização e 5 por falha de sincronização. O mínimo é 8.
+            </Text>
+          ) : null}
+        </View>
+      </View> : null}
 
       <View onLayout={event => { modulesOffset.current = event.nativeEvent.layout.y; }} style={{ flexDirection: supportsSplitLayout ? "row" : "column", alignItems: "flex-start", gap: 12 }}>
         <View style={{ flex: supportsSplitLayout ? 1 : undefined, width: supportsSplitLayout ? undefined : "100%", minWidth: 0, gap: 8 }}>
-          <View
+          {workspaceTab === "team" ? <View
             style={{
-              borderRadius: radius.internal,
-              borderWidth: 1,
+              borderBottomWidth: 1,
               borderColor: border,
-              backgroundColor: panel,
-              overflow: "hidden",
             }}
           >
-            <Pressable
-              onPress={() => setPeopleExpanded((current) => !current)}
-              style={{ minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 }}
-            >
-              <GoAtletaIcon name="align" size={18} color={colors.muted} />
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", flex: 1 }}>
-                Equipe
-              </Text>
-              <GoAtletaIcon
-                name={peopleExpanded ? "chevronUp" : "chevronDown"}
-                size={18}
-                color={colors.text}
-              />
-            </Pressable>
-
-            {peopleExpanded ? (
-              <>
                 <View
                   style={{
-                    paddingHorizontal: 12,
+                    paddingHorizontal: 4,
                     paddingBottom: 8,
                     flexDirection: "row",
                     flexWrap: "wrap",
@@ -1913,6 +1949,8 @@ export function CoordinationPeopleWorkspace({
                     }}
                   >
                     <TextInput
+                      ref={peopleSearchRef}
+                      accessibilityLabel="Buscar pessoas da equipe"
                       value={search}
                       onChangeText={setSearch}
                       placeholder="Buscar pessoas..."
@@ -2006,11 +2044,12 @@ export function CoordinationPeopleWorkspace({
                   </View>
                 ) : null}
 
-                <ScrollView
-                  style={{ maxHeight: listMaxHeight }}
-                  showsVerticalScrollIndicator
-                  nestedScrollEnabled
-                >
+                <View>
+                  {!filteredMembers.length && !loading ? (
+                    <ListEmptyState title={search.trim() ? "Nenhuma pessoa encontrada" : "Nenhuma pessoa na equipe"}
+                      actionLabel={search.trim() ? "Limpar busca" : undefined}
+                      onAction={search.trim() ? () => { setSearch(""); peopleSearchRef.current?.focus(); } : undefined} />
+                  ) : null}
                   {filteredMembers.map((member) => {
                     const assigned = classesByUser.get(member.userId) ?? [];
                     const attendanceCount = assigned.filter((item) =>
@@ -2023,10 +2062,9 @@ export function CoordinationPeopleWorkspace({
                         key={member.userId}
                         style={{
                           marginHorizontal: 8,
-                          marginBottom: 1,
-                          borderRadius: radius.internal,
-                          backgroundColor: panel,
-                          paddingHorizontal: 8,
+                          borderBottomWidth: 1,
+                          borderBottomColor: border,
+                          paddingHorizontal: 0,
                           paddingVertical: compact ? 8 : 3,
                           minHeight: compact ? 60 : 50,
                           flexDirection: "row",
@@ -2036,7 +2074,11 @@ export function CoordinationPeopleWorkspace({
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={`Ver perfil de ${displayLabel}`}
-                          onPress={() => { setProfileTab("overview"); router.setParams({ memberProfile: member.userId }); }}
+                          nativeID={`management-person-${organizationId}-${member.userId}`}
+                          onPress={() => {
+                            profileReturnTarget.current = `management-person-${organizationId}-${member.userId}`;
+                            setProfileTab("overview"); router.setParams({ memberProfile: member.userId });
+                          }}
                           suppressWebHoverFeedback={selected}
                           disableWebPressScale
                           style={{
@@ -2085,7 +2127,7 @@ export function CoordinationPeopleWorkspace({
                             <View style={{ flex: 1, minWidth: 0, gap: compact ? 3 : 0 }}>
                               <Text
                                 numberOfLines={1}
-                                style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}
+                                style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}
                               >
                                 {displayLabel}
                               </Text>
@@ -2122,7 +2164,7 @@ export function CoordinationPeopleWorkspace({
                                 {roleLabel(member.roleLevel)}
                               </Text>
                               <Text style={{ color: colors.text, flex: 0.7, fontSize: 12 }}>
-                                {assigned.length ? `${assigned.length} turmas` : "—"}
+                                {assigned.length ? `${assigned.length} ${assigned.length === 1 ? "turma" : "turmas"}` : "—"}
                               </Text>
                               <Text
                                 style={{
@@ -2131,7 +2173,7 @@ export function CoordinationPeopleWorkspace({
                                   fontSize: 12,
                                 }}
                               >
-                                {attendanceCount ? `${attendanceCount} chamadas` : "—"}
+                                {attendanceCount ? `${attendanceCount} ${attendanceCount === 1 ? "chamada" : "chamadas"}` : "—"}
                               </Text>
                               <View
                                 style={{
@@ -2170,7 +2212,7 @@ export function CoordinationPeopleWorkspace({
                     );
                   })}
 
-                </ScrollView>
+                </View>
                 <Text
                   style={{
                     color: colors.muted,
@@ -2179,12 +2221,11 @@ export function CoordinationPeopleWorkspace({
                     paddingVertical: 10,
                   }}
                 >
-                  {filteredMembers.length} membros
+                  {filteredMembers.length} {filteredMembers.length === 1 ? "pessoa" : "pessoas"}
                 </Text>
-              </>
-            ) : null}
-          </View>
+          </View> : null}
 
+          {workspaceTab === "overview" ? <>
           {moduleOrder.map((key, index) => {
             const expanded = requestedSection === key || Boolean(expandedModules[key]);
             const metadata = moduleMeta[key];
@@ -2197,66 +2238,61 @@ export function CoordinationPeopleWorkspace({
                   if (requestedSection === key) revealRequestedSection();
                 }}
                 style={{
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
+                  borderBottomWidth: 1,
                   borderColor: border,
-                  backgroundColor: panel,
-                  overflow: "hidden",
                 }}
               >
-                <Pressable
-                  onPress={() => {
-                    if (requestedSection === key) router.setParams({ assistantSection: undefined });
-                    setExpandedModules((current) => ({ ...current, [key]: !expanded }));
-                  }}
-                  style={{
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 11,
-                  }}
-                >
-                  <GoAtletaIcon name="align" size={16} color={colors.muted} />
-                  <GoAtletaIcon name={moduleIcon[key]} size={18} color={colors.text} />
-                  <Text style={{ color: colors.text, fontWeight: "700", flex: key === "access" ? undefined : 1 }}>
-                    {metadata.label}
-                  </Text>
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontWeight: "700",
-                      ...(key === "access" ? { backgroundColor: colors.secondaryBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 } : {}),
+                <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 4 }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${metadata.label}: ${metadata.value}`}
+                    accessibilityState={{ expanded }}
+                    aria-expanded={expanded}
+                    onPress={() => {
+                      if (requestedSection === key) router.setParams({ assistantSection: undefined });
+                      setExpandedModules((current) => ({ ...current, [key]: !expanded }));
                     }}
+                    style={({ hovered, pressed }) => ({
+                      flex: 1, minWidth: 0, minHeight: compactUiMetrics.touchTarget,
+                      paddingHorizontal: 8, paddingVertical: 8, flexDirection: "row",
+                      alignItems: "center", gap: 8, borderRadius: radius.internal,
+                      backgroundColor: hovered || pressed ? inner : "transparent",
+                    })}
                   >
-                    {metadata.value}
-                  </Text>
-                  {key === "access" ? <View style={{ flex: 1 }} /> : null}
+                    <GoAtletaIcon name={moduleIcon[key]} size={compactUiMetrics.iconSize} color={colors.text} />
+                    <Text style={{ color: colors.text, fontWeight: "700", flex: 1, minWidth: 0 }}>
+                      {metadata.label}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontWeight: "600", paddingHorizontal: 7 }}>
+                      {metadata.value}
+                    </Text>
+                    <GoAtletaIcon name={expanded ? "chevronDown" : "chevronRight"} size={17} color={colors.muted} />
+                  </Pressable>
                   {organizing ? (
-                    <View style={{ flexDirection: "row", gap: 6 }}>
-                      <Pressable
-                        disabled={index === 0}
-                        onPress={() => moveModule(key, -1)}
-                        style={{ opacity: index === 0 ? 0.3 : 1 }}
-                      >
-                        <GoAtletaIcon name="arrowUp" size={17} color={colors.text} />
-                      </Pressable>
-                      <Pressable
-                        disabled={index === moduleOrder.length - 1}
-                        onPress={() => moveModule(key, 1)}
-                        style={{ opacity: index === moduleOrder.length - 1 ? 0.3 : 1 }}
-                      >
-                        <GoAtletaIcon name="chevronDown" size={17} color={colors.text} />
-                      </Pressable>
+                    <View style={{ flexDirection: "row" }}>
+                      {([-1, 1] as const).map((direction) => {
+                        const canMove = index + direction >= 0 && index + direction < moduleOrder.length;
+                        return (
+                          <Pressable
+                            key={direction}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Mover ${metadata.label} para ${direction === -1 ? "cima" : "baixo"}`}
+                            accessibilityState={{ disabled: !canMove }}
+                            onPress={() => { if (canMove) moveModule(key, direction); }}
+                            style={({ hovered, pressed }) => ({
+                              width: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget,
+                              alignItems: "center", justifyContent: "center", borderRadius: radius.full,
+                              opacity: canMove ? 1 : 0.4,
+                              backgroundColor: canMove && (hovered || pressed) ? inner : "transparent",
+                            })}
+                          >
+                            <GoAtletaIcon name={direction === -1 ? "arrowUp" : "chevronDown"} size={compactUiMetrics.iconSize} color={colors.text} />
+                          </Pressable>
+                        );
+                      })}
                     </View>
-                  ) : (
-                    <GoAtletaIcon
-                      name={expanded ? "chevronDown" : "chevronRight"}
-                      size={17}
-                      color={colors.text}
-                    />
-                  )}
-                </Pressable>
+                  ) : null}
+                </View>
                 {expanded ? (
                   <View style={{ borderTopWidth: 1, borderTopColor: border }}>
                     {renderModuleContent(key)}
@@ -2267,14 +2303,19 @@ export function CoordinationPeopleWorkspace({
           })}
 
           <View style={{ alignItems: "center", paddingTop: 12 }}>
+            {organizing && lastMovedModule ? (
+              <Text accessibilityLiveRegion="polite" style={{ color: colors.muted, paddingBottom: 4 }}>
+                {moduleMeta[lastMovedModule].label} · posição {moduleOrder.indexOf(lastMovedModule) + 1} de {moduleOrder.length}
+              </Text>
+            ) : null}
             <Pressable
-              onPress={() => setOrganizing((current) => !current)}
+              accessibilityRole="button"
+              onPress={() => { setLastMovedModule(null); setOrganizing((current) => !current); }}
               style={{
                 borderRadius: radius.internal,
-                borderWidth: 1,
-                borderColor: border,
                 paddingHorizontal: 18,
                 paddingVertical: 9,
+                minHeight: compactUiMetrics.touchTarget,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 8,
@@ -2286,18 +2327,17 @@ export function CoordinationPeopleWorkspace({
               </Text>
             </Pressable>
           </View>
+          </> : null}
         </View>
 
-        <View
+        {workspaceTab === "team" && selectedMember ? <View
           style={{
             width: supportsSplitLayout ? 360 : "100%",
             minHeight: supportsSplitLayout && !selectedMember ? 320 : undefined,
             display: !supportsSplitLayout && !selectedMember ? "none" : "flex",
             minWidth: 0,
-            borderRadius: radius.internal,
-            borderWidth: 1,
+            borderLeftWidth: supportsSplitLayout ? 1 : 0,
             borderColor: border,
-            backgroundColor: panel,
             padding: 12,
             gap: 12,
           }}
@@ -2484,13 +2524,15 @@ export function CoordinationPeopleWorkspace({
               </View>
             </>
           ) : null}
-        </View>
+        </View> : null}
       </View>
       </ScrollView>
+      </View>
       </>
 
       <ModalSheet
         visible={modalMode === "invite"}
+        dialogLabel="Convidar pessoa"
         onClose={requestCloseInviteModal}
         position="center"
         cardStyle={{
@@ -2598,10 +2640,12 @@ export function CoordinationPeopleWorkspace({
                       borderRadius: radius.internal,
                       borderWidth: inviteEmailError ? 2 : 1,
                       borderColor: inviteEmailError ? colors.dangerSolidBg : border,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg,
                       color: colors.inputText,
-                      paddingHorizontal: inviteEmailError ? 11 : 12,
-                      paddingVertical: inviteEmailError ? 10 : 11,
+                      minHeight: compactUiMetrics.modalFieldHeight,
+                      fontSize: 13,
+                      paddingHorizontal: 10,
+                      paddingVertical: 0,
                     }}
                   />
                 </Animated.View>

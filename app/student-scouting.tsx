@@ -1,6 +1,6 @@
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View, type PressableStateCallbackType } from "react-native";
 import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,11 +13,12 @@ import {
     scoutingSkills,
     studentScoutingLimits,
 } from "../src/core/scouting";
-import { getClasses, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
+import { getClassById, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { StudentAction, studentHighlighted } from "../src/screens/student/StudentUi";
 import { AppShell } from "../src/ui/AppShell";
+import { ListEmptyState } from "../src/ui/ListEmptyState";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 import { compactUiMetrics as uiMetrics, radius } from "../src/theme/tokens";
@@ -61,28 +62,22 @@ function StudentScoutingContent() {
     state.pressed ? skillStyles.pressedStep : null,
   ], [skillStyles]);
   const router = useRouter();
-  const { student } = useRole();
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const { student, loading: roleLoading } = useRole();
+  const studentId = student?.id;
+  const classId = student?.classId;
+  const organizationId = student?.organizationId;
+  const [currentClass, setCurrentClass] = useState<ClassGroup | null>(null);
   const [counts, setCounts] = useState(createEmptyCounts());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
+  const [failed, setFailed] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const mounted = useRef(true);
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      const cls = await measureAsync("screen.studentScouting.load.classes", () => getClasses());
-      if (!alive) return;
-      setClasses(cls);
-    })();
-    return () => {
-      alive = false;
-    };
+    mounted.current = true;
+    return () => { mounted.current = false; };
   }, []);
-
-  const currentClass = useMemo(() => {
-    if (!student) return null;
-    return classes.find((c) => c.id === student.classId) ?? null;
-  }, [classes, student]);
 
   const today = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatIsoDate(today), [today]);
@@ -101,33 +96,44 @@ function StudentScoutingContent() {
   }, [currentClass]);
 
   const canEdit = useMemo(() => {
-    if (!sessionWindow) return false;
+    if (!sessionWindow || loading || failed) return false;
     return sessionWindow.now >= sessionWindow.start && sessionWindow.now <= sessionWindow.end;
-  }, [sessionWindow]);
+  }, [sessionWindow, loading, failed]);
 
   useEffect(() => {
+    if (roleLoading) return;
     let alive = true;
     (async () => {
-      if (!student || !currentClass) {
-        setLoading(false);
-        return;
+      setLoading(true);
+      setFailed(false);
+      setCurrentClass(null);
+      setCounts(createEmptyCounts());
+      try {
+        if (!studentId || !classId || !organizationId) return;
+        const cls = await measureAsync("screen.studentScouting.load.class", () => getClassById(classId, { organizationId }));
+        if (!alive) return;
+        setCurrentClass(cls);
+        if (!cls) return;
+        const existing = await measureAsync("screen.studentScouting.load.scouting", () => getStudentScoutingByDate(studentId, cls.id, todayKey));
+        if (!alive) return;
+        if (existing) {
+          setCounts({
+            serve: { 0: existing.serve0, 1: existing.serve1, 2: existing.serve2 },
+            receive: { 0: existing.receive0, 1: existing.receive1, 2: existing.receive2 },
+            set: { 0: existing.set0, 1: existing.set1, 2: existing.set2 },
+            attack_send: { 0: existing.attackSend0, 1: existing.attackSend1, 2: existing.attackSend2 },
+          });
+        }
+      } catch {
+        if (alive) setFailed(true);
+      } finally {
+        if (alive) setLoading(false);
       }
-      const existing = await measureAsync("screen.studentScouting.load.scouting", () => getStudentScoutingByDate(student.id, currentClass.id, todayKey));
-      if (!alive) return;
-      if (existing) {
-        setCounts({
-          serve: { 0: existing.serve0, 1: existing.serve1, 2: existing.serve2 },
-          receive: { 0: existing.receive0, 1: existing.receive1, 2: existing.receive2 },
-          set: { 0: existing.set0, 1: existing.set1, 2: existing.set2 },
-          attack_send: { 0: existing.attackSend0, 1: existing.attackSend1, 2: existing.attackSend2 },
-        });
-      }
-      setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, [student, currentClass, todayKey]);
+  }, [studentId, classId, organizationId, todayKey, roleLoading, attempt]);
 
   const updateCount = (skillId: keyof typeof counts, score: 0 | 1 | 2, delta: number) => {
     setCounts((prev) => {
@@ -141,9 +147,9 @@ function StudentScoutingContent() {
   };
 
   const handleSave = async () => {
-    if (!student || !currentClass) return;
-    if (!canEdit) return;
+    if (!student || !currentClass || !organizationId || !canEdit || saving) return;
     setSaving(true);
+    setSaveFailed(false);
     try {
       await saveStudentScoutingLog({
         id: "",
@@ -163,10 +169,12 @@ function StudentScoutingContent() {
         attackSend1: counts.attack_send[1],
         attackSend2: counts.attack_send[2],
         createdAt: new Date().toISOString(),
-      });
-      navigateBackOrReplace({ router, fallback: "/student/home" });
+      }, { organizationId });
+      if (mounted.current) navigateBackOrReplace({ router, fallback: "/student/home" });
+    } catch {
+      if (mounted.current) setSaveFailed(true);
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -193,6 +201,12 @@ function StudentScoutingContent() {
 
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
+        ) : failed ? (
+          <ListEmptyState title="Não foi possível carregar seu scouting"
+            description="Confira sua conexão e tente novamente."
+            actionLabel="Tentar novamente" onAction={() => setAttempt(value => value + 1)} />
+        ) : !currentClass ? (
+          <ListEmptyState title="Nenhuma turma disponível" description="Seu scouting aparece quando houver uma turma vinculada." />
         ) : (
           <View style={skillStyles.grid}>
           {scoutingSkills.map((skill) => {
@@ -248,6 +262,7 @@ function StudentScoutingContent() {
           </View>
         )}
 
+        {saveFailed ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>Não foi possível salvar. Seus registros foram mantidos para tentar novamente.</Text> : null}
         <StudentAction label={saving ? "Salvando..." : "Salvar scouting"} primary onPress={handleSave} disabled={!canEdit || saving} />
       </ScrollView>
     </SafeAreaView>
@@ -255,5 +270,7 @@ function StudentScoutingContent() {
 }
 
 export default function StudentScouting() {
-  return <AppShell role="student"><StudentScoutingContent /></AppShell>;
+  const { student } = useRole();
+  const scope = JSON.stringify([student?.id, student?.organizationId, student?.classId]);
+  return <AppShell role="student"><StudentScoutingContent key={scope} /></AppShell>;
 }

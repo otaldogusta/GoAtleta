@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Platform, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { Platform, ScrollView, TextInput, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -277,8 +277,6 @@ export function PlatformAccessDashboard({
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const wide = width >= 1200;
   const { containerRef: listRef, onLayout: onListLayout, measuredWidth: listWidth, layout } = useContainerResponsiveLayout("dashboard");
   const usesTable = listWidth >= 760;
   const [requests, setRequests] = useState<OrganizationAccessRequest[]>([]);
@@ -288,12 +286,14 @@ export function PlatformAccessDashboard({
     "all" | OrganizationAccessRequest["status"]
   >("all");
   const [loading, setLoading] = useState(true);
+  const [listFailed, setListFailed] = useState(false);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setListFailed(false);
     if (designPreview) {
       setAuthorized(true);
       setDemo(true);
@@ -312,20 +312,14 @@ export function PlatformAccessDashboard({
       const loaded = await platformListAccessRequests();
       setRequests(loaded);
       setSelectedId((current) => current || loaded[0]?.id || "");
-    } catch (error) {
+    } catch {
       setRequests([]);
       setSelectedId("");
-      showSaveToast({
-        variant: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar os acessos.",
-      });
+      setListFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [designPreview, showSaveToast]);
+  }, [designPreview]);
 
   useEffect(() => {
     // Reconcile this dashboard with platform access records on mount/preview changes.
@@ -348,10 +342,15 @@ export function PlatformAccessDashboard({
       }),
     [query, requests, status],
   );
-  const selected =
-    requests.find((request) => request.id === selectedId) ??
-    filtered[0] ??
-    null;
+  const [page, setPage] = useState(0);
+  const pageSize = 12;
+  const lastPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
+  const currentPage = Math.min(page, lastPage);
+  const pageStart = currentPage * pageSize;
+  const visible = filtered.slice(pageStart, pageStart + pageSize);
+  const selected = visible.find((request) => request.id === selectedId) ?? null;
+  const updateQuery = (value: string) => { setQuery(value); setPage(0); setSelectedId(""); };
+  const clearFilters = () => { updateQuery(""); setStatus("all"); };
   const pending = demo
     ? 3
     : requests.filter((request) => request.status === "pending").length;
@@ -365,6 +364,7 @@ export function PlatformAccessDashboard({
   const review = async (decision: "approved" | "rejected") => {
     if (
       !selected ||
+      selected.status !== "pending" ||
       busy ||
       selected.requestKind === "athlete" ||
       selected.requestKind === "guardian"
@@ -452,48 +452,6 @@ export function PlatformAccessDashboard({
           paddingTop: Platform.OS === "web" ? 12 : 8,
           paddingBottom: 0,
         }}
-        right={
-          wide ? (
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-            >
-              <View
-                style={{
-                  width: 330,
-                  minHeight: 50,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                  paddingHorizontal: 14,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Buscar usuários, instituições..."
-                  placeholderTextColor={colors.placeholder}
-                  style={{ minWidth: 0,
-                    flex: 1,
-                    minHeight: 48,
-                    color: colors.inputText,
-                    borderRadius: 0,
-                  }}
-                />
-                <GoAtletaIcon name="search" size={17} color={colors.muted} />
-              </View>
-<Button label="Filtros" icon="options" onPress={() =>
-                  showSaveToast({
-                    variant: "info",
-                    message: "Use os filtros da lista para refinar os acessos.",
-                  })} />
-              <Button label="Configurações de acesso" icon="management" iconOnly onPress={() => showSaveToast({ variant: "info", message: "As regras de acesso são gerenciadas pela plataforma." })} />
-            </View>
-          ) : null
-        }
       />
       <ScrollView
         style={{ flex: 1 }}
@@ -506,7 +464,7 @@ export function PlatformAccessDashboard({
               ["members", String(active), "ativos", colors.successText, "Ativos"],
               ["close", String(rejected), "recusados", colors.dangerText, "Recusados"],
             ].map(([icon, value, label, color, compactLabel]) => (
-              <PlatformMetric key={label} icon={icon as GoAtletaIconName} value={value} label={label} compactLabel={compactLabel} color={color} compact={width < 768} />
+              <PlatformMetric key={label} icon={icon as GoAtletaIconName} value={value} label={label} compactLabel={compactLabel} color={color} compact={!usesTable} />
             ))}
           </View>
           <ResponsiveGrid
@@ -595,7 +553,8 @@ export function PlatformAccessDashboard({
                     />
                     <TextInput
                       value={query}
-                      onChangeText={setQuery}
+                      accessibilityLabel="Buscar acessos"
+                      onChangeText={updateQuery}
                       placeholder="Buscar usuário, instituição..."
                       placeholderTextColor={colors.placeholder}
                       style={{ minWidth: 0,
@@ -608,7 +567,7 @@ export function PlatformAccessDashboard({
                   </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                     {(["all", "pending", "approved"] as const).map((value) => (
-                      <Button key={value} onPress={() => setStatus(value)} selected={status === value} label={value === "all" ? "Todos" : statusLabel[value]} />
+                      <Button key={value} onPress={() => { setStatus(value); setPage(0); setSelectedId(""); }} selected={status === value} label={value === "all" ? "Todos" : statusLabel[value]} />
                     ))}
                   </View>
                 </View>
@@ -684,10 +643,26 @@ export function PlatformAccessDashboard({
                 <Text style={{ color: colors.muted, padding: 20 }}>
                   Carregando acessos...
                 </Text>
+              ) : listFailed ? (
+                <View style={{ padding: layout.density.cardPadding, gap: compactUiMetrics.gap, alignItems: "flex-start" }}>
+                  <Text accessibilityRole="alert" style={{ color: colors.text, fontWeight: "600" }}>Não foi possível carregar os acessos.</Text>
+                  <Button label="Tentar novamente" onPress={() => void load()} />
+                </View>
+              ) : !filtered.length ? (
+                <View style={{ padding: layout.density.cardPadding, gap: compactUiMetrics.gap, alignItems: "flex-start" }}>
+                  <Text accessibilityLiveRegion="polite" style={{ color: colors.text, fontWeight: "600" }}>
+                    {query.trim() || status !== "all" ? "Nenhum acesso corresponde aos filtros" : "Nenhum acesso registrado"}
+                  </Text>
+                  {query.trim() || status !== "all" ? <Button label="Limpar filtros" onPress={clearFilters} /> : null}
+                </View>
               ) : (
-                filtered.slice(0, 12).map((request) => (
+                visible.map((request) => (
                   <Pressable suppressWebHoverFeedback disableWebPressScale
                     key={request.id}
+                    nativeID={`access-request-${request.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${request.requesterName}, ${request.requesterEmail}, ${request.organizationName}, ${productLabel[request.requestedProduct]}, ${statusLabel[request.status]}`}
+                    accessibilityState={{ selected: selected?.id === request.id }}
                     onPress={() => setSelectedId(request.id)}
                     style={state => ({
                       minHeight: 58,
@@ -800,8 +775,7 @@ export function PlatformAccessDashboard({
                   }}
                 >
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Mostrando 1 a {Math.min(12, filtered.length)} de{" "}
-                    {demo ? 23 : filtered.length} acessos
+                    Mostrando {pageStart + 1} a {pageStart + visible.length} de {filtered.length} acessos
                   </Text>
                   <View
                     style={{
@@ -810,7 +784,7 @@ export function PlatformAccessDashboard({
                       gap: 8,
                     }}
                   >
-                    <Button label="Página anterior" icon="chevronBack" iconOnly />
+                    <Button label="Página anterior" icon="chevronBack" disabled={currentPage === 0} onPress={() => { setPage(currentPage - 1); setSelectedId(""); }} iconOnly />
                     <View
                       style={{
                         width: 32,
@@ -830,28 +804,10 @@ export function PlatformAccessDashboard({
                           fontWeight: "800",
                         }}
                       >
-                        1
+                        {currentPage + 1}
                       </Text>
                     </View>
-                    <Text
-                      style={{
-                        color: colors.text,
-                        fontSize: 12,
-                        fontWeight: "800",
-                      }}
-                    >
-                      2
-                    </Text>
-                    <Text
-                      style={{
-                        color: colors.text,
-                        fontSize: 12,
-                        fontWeight: "800",
-                      }}
-                    >
-                      3
-                    </Text>
-                    <Button label="Próxima página" icon="chevronForward" iconOnly />
+                    <Button label="Próxima página" icon="chevronForward" disabled={currentPage === lastPage} onPress={() => { setPage(currentPage + 1); setSelectedId(""); }} iconOnly />
                   </View>
                 </View>
               ) : null}
@@ -902,7 +858,19 @@ export function PlatformAccessDashboard({
                     </Text>
                     <StatusPill request={selected} />
                   </View>
-                  <GoAtletaIcon name="close" size={18} color={colors.muted} />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Fechar detalhes da solicitação"
+                    onPress={() => {
+                      setSelectedId("");
+                      if (Platform.OS === "web" && typeof document !== "undefined") {
+                        document.getElementById(`access-request-${selected.id}`)?.focus({ preventScroll: true });
+                      }
+                    }}
+                    style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}
+                  >
+                    <GoAtletaIcon name="close" size={18} color={colors.muted} />
+                  </Pressable>
                 </View>
                 <View style={{ height: 1, backgroundColor: colors.border }} />
                 <Text
@@ -916,7 +884,6 @@ export function PlatformAccessDashboard({
                 </Text>
                 {[
                   ["E-mail", selected.requesterEmail],
-                  ["Telefone", "(41) 9 9911-****"],
                   ["Instituição", selected.organizationName ?? "—"],
                   [
                     "Produto solicitado",
@@ -992,6 +959,11 @@ export function PlatformAccessDashboard({
                     <Button label="Recusar" variant="danger" disabled={busy} onPress={() => void review("rejected")} />
                   </View>
                 ) : null}
+              </View>
+            ) : !loading && !listFailed ? (
+              <View style={{ width: "100%", minWidth: 0, padding: layout.density.cardPadding, gap: 4 }}>
+                <Text accessibilityRole="header" style={{ color: colors.text, fontWeight: "700" }}>Detalhes do acesso</Text>
+                <Text style={{ color: colors.muted }}>{visible.length ? "Selecione um acesso da lista." : "Os detalhes aparecem quando houver um acesso selecionado."}</Text>
               </View>
             ) : null}
           </ResponsiveGrid>

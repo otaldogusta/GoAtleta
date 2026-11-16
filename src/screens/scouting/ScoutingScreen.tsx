@@ -12,6 +12,7 @@ import { loadScoutingOverview, type ScoutingOverview } from "../../db/scouting-c
 import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
+import { ListEmptyState } from "../../ui/ListEmptyState";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useTrainerRouteScope } from "../../navigation/use-trainer-route-scope";
 import { Copy, ErrorNotice, Input, Link, shortDate } from "./ScoutingUI";
@@ -44,6 +45,7 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
   const [rows, setRows] = useState<ScoutingOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [rosterError, setRosterError] = useState(false);
   const [ready, setReady] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [mode, setMode] = useState<"treino" | "jogo">("treino");
@@ -58,6 +60,7 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
   const pickedInitialMode = useRef(false);
   const alive = useRef(true);
   const epoch = useRef(0);
+  const rosterEpoch = useRef(0);
   const dirty = useRef(false);
   const restoreFocus = useRef(false);
   useEffect(() => {
@@ -77,15 +80,36 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
     finally { if (alive.current && token === epoch.current) setLoading(false); }
   }, [org, classId]);
   const reloadRows = (offset = 0) => { setLoading(true); setError(""); void fetchRows(offset); };
+  const fetchRoster = useCallback(async () => {
+    const token = ++rosterEpoch.current;
+    setRosterError(false);
+    try {
+      const [group, roster] = await Promise.all([
+        getClassById(classId, { organizationId: org }),
+        getStudentsByClass(classId, { organizationId: org }),
+      ]);
+      if (!alive.current || token !== rosterEpoch.current) return;
+      setCls(group);
+      setStudents(roster);
+    } catch {
+      if (alive.current && token === rosterEpoch.current) setRosterError(true);
+    }
+  }, [classId, org]);
+
   useEffect(() => {
     alive.current = true;
     // Start IO after this commit; cleanup can cancel a superseded mount.
-    void Promise.resolve().then(() => { if (alive.current) return fetchRows(); });
-    void Promise.all([getClassById(classId, { organizationId: org }), getStudentsByClass(classId, { organizationId: org })]).then(([group, roster]) => {
-      if (alive.current) { setCls(group); setStudents(roster); }
-    }).catch(() => { if (alive.current) setError("Não foi possível carregar a turma e os atletas."); });
-    return () => { alive.current = false; epoch.current += 1; };
-  }, [classId, org, fetchRows]);
+    void Promise.resolve().then(() => {
+      if (!alive.current) return;
+      void fetchRows();
+      void fetchRoster();
+    });
+    return () => {
+      alive.current = false;
+      epoch.current += 1;
+      rosterEpoch.current += 1;
+    };
+  }, [fetchRoster, fetchRows]);
   useEffect(() => {
     if (pickedInitialMode.current || !rows.length) return;
     pickedInitialMode.current = true;
@@ -102,6 +126,8 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
     { value: y, label: `Ano de ${y}` }, ...periods.filter(p => p.startsWith(y)).map(p => ({ value: p, label: new Date(`${p}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) })),
   ])];
   const historyRows = visible.filter(row => `${row.session.title} ${row.session.opponent ?? ""}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
+  const hasHistoryFilters = Boolean(query.trim()) || year !== "all" || month !== "all" || format !== "all";
+  const historySearchId = `scouting-history-search-${org}-${classId}`;
   const back = () => router.replace(classId ? { pathname: "/class/[id]", params: { id: classId } } : scoped.classes);
   const close = () => { restoreFocus.current = true; setCurrent(null); setWorkspace(null); if (dirty.current) { dirty.current = false; reloadRows(); } if (initialSessionId) router.replace({ pathname: "/class/[id]/scouting", params: { id: classId } }); };
   const openAnalysis = (id?:string, area:ScoutingWorkspaceMode='register') => { if (Platform.OS === 'web') setWorkspace({sessionId:id,mode:area}); else if(id) setCurrent(id); else setCreating(true); };
@@ -112,7 +138,11 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
       <ResponsivePage gap={layout.density.pageGap}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><ScoutingTabs segmented value={mode} onChange={v => setMode(v as "treino" | "jogo")} items={[{ value: "treino", label: "Treinos" }, { value: "jogo", label: "Jogos" }]} /><Copy muted>{cls?.name}</Copy></View>
       <ErrorNotice text={error} />
-      {error ? <Link label="Tentar novamente" onPress={() => reloadRows()} /> : null}
+      {error ? <Link label="Recarregar análises" onPress={() => reloadRows()} /> : null}
+      {rosterError ? <>
+        <ErrorNotice text="Não foi possível carregar a turma e os atletas." />
+        <Link label="Recarregar turma e atletas" onPress={() => { void fetchRoster(); }} />
+      </> : null}
       {!loading && !ready && !error ? <Copy muted>A nova coleta aguarda atualização do banco. Você pode consultar as análises existentes.</Copy> : null}
       {loading ? <ActivityIndicator color={colors.text} /> : null}
       <View style={{ gap: 16 }}>
@@ -125,8 +155,16 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
         </View> : null}
       </View>
       {tab === "overview" ? <ScoutingPerformanceOverview rows={completed} ready={ready} onReview={id=>openAnalysis(id)} /> : <View style={{ gap: 4 }}>
-        <Input label="Buscar análise" value={query} onChangeText={setQuery} placeholder="Título ou adversário" />
-        {!historyRows.length && !loading ? <Copy muted>Nenhuma análise neste filtro.</Copy> : null}
+        <Input nativeID={historySearchId} label="Buscar análise" value={query} onChangeText={setQuery} placeholder="Título ou adversário" />
+        {!historyRows.length && !loading && !error ? <ListEmptyState
+          title={hasHistoryFilters ? "Nenhuma análise corresponde aos filtros" : "Nenhuma análise registrada"}
+          description={hasHistoryFilters ? "Tente outro título ou ajuste os filtros." : `As análises de ${mode === "treino" ? "treinos" : "jogos"} aparecem aqui.`}
+          actionLabel={hasHistoryFilters ? "Limpar filtros" : undefined}
+          onAction={hasHistoryFilters ? () => {
+            setQuery(""); setYear("all"); setMonth("all"); setFormat("all");
+            if (Platform.OS === "web" && typeof document !== "undefined") document.getElementById(historySearchId)?.focus();
+          } : undefined}
+        /> : null}
         {historyRows.map(row => <Pressable key={row.session.id} accessibilityRole="button" accessibilityLabel={`Abrir ${row.session.title}, ${shortDate(row.session.date)}`} onPress={() => openAnalysis(row.session.id)} style={{ padding: 12, borderRadius: radius.internal, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", gap: 16, alignItems: "center" }}>
           <View style={{ flex: 1, gap: 4 }}><Copy>{row.session.title}</Copy><Copy muted>{shortDate(row.session.date)} · {row.session.format ?? "Contexto não informado"}{ready ? ` · ${row.counts.reduce((n, c) => n + c.count, 0)} ações` : ""}</Copy></View>
           <Copy muted>{row.session.status === "concluido" ? "Concluída" : "Em andamento"} ›</Copy>

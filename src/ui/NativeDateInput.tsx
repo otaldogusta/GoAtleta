@@ -6,6 +6,7 @@ type NativeDateInputProps = {
   accessibilityLabel: string;
   value: string;
   onChangeText: (value: string) => void;
+  inputHeight?: number;
 };
 
 export function NativeDateInput({ accessibilityLabel, value, onChangeText }: NativeDateInputProps) {
@@ -20,7 +21,7 @@ export function NativeDateInput({ accessibilityLabel, value, onChangeText }: Nat
       maxLength={10}
       value={value}
       onChangeText={onChangeText}
-      style={{ flex: 1, color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0 }}
+      style={{ flex: 1, color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0 }}
     />
   );
 }

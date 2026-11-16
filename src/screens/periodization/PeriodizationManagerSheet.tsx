@@ -1,9 +1,9 @@
-import { PlanningAssistantHost, usePlanningAssistant } from "./PlanningAssistant";
+import { PlanningAssistantButton, PlanningAssistantHost, usePlanningAssistant } from "./PlanningAssistant";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ScrollView, type StyleProp, TextInput, useWindowDimensions, View, type View as ViewType, type ViewStyle } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 
-import type { ThemeColors } from "../../ui/app-theme";
+import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
 import { useClassDiagnostic } from "../../assistant/hooks/useClassDiagnostic";
 import { profileDiagnosticValues } from "../../core/profile-planning";
 import {
@@ -25,6 +25,7 @@ import { getCourtDimensionsLabel } from "./components/periodization-court-geomet
 import { compactUiMetrics } from "../../theme/tokens";
 
 function ManagerSelect<T extends string | number>({ value, options, colors, onChange, label }: { value: T; options: readonly { value: T; label: string }[]; colors: ThemeColors; onChange: (value: T) => void; label: string }) {
+  const { mode } = useAppTheme();
   const triggerRef = useRef<ViewType | null>(null);
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -34,7 +35,7 @@ function ManagerSelect<T extends string | number>({ value, options, colors, onCh
     triggerRef.current?.measureInWindow((x, y, width, height) => { setLayout({ x, y, width, height }); setOpen(true); });
   };
   return <>
-    <View ref={triggerRef}><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={toggle} style={{ minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{activeLabel}</Text><GoAtletaIcon name={open ? "chevronUp" : "chevronDown"} size={15} color={colors.muted} /></Pressable></View>
+    <View ref={triggerRef}><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={toggle} style={{ minHeight: compactUiMetrics.modalFieldHeight, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{activeLabel}</Text><GoAtletaIcon name={open ? "chevronUp" : "chevronDown"} size={15} color={colors.muted} /></Pressable></View>
     <AnchoredDropdown
       visible={open}
       layout={layout}
@@ -597,6 +598,7 @@ export function PeriodizationManagerSheet({
   onResetAutomatic,
   onArchiveCycle,
 }: Props) {
+  const { mode: themeMode } = useAppTheme();
   const { width, height } = useWindowDimensions();
   const menuTriggerRef = useRef<ViewType | null>(null);
   const [menuLayout, setMenuLayout] = useState<{
@@ -800,6 +802,7 @@ export function PeriodizationManagerSheet({
             </Text>
           </View>
 
+          <PlanningAssistantButton colors={colors} surface="editor" />
           <View
             ref={menuTriggerRef}
             style={{
@@ -984,7 +987,7 @@ export function PeriodizationManagerSheet({
           })}
         </ScrollView>
 
-        <PlanningAssistantHost colors={colors} surface="editor">
+        <PlanningAssistantHost colors={colors} surface="editor" launcher="header">
         <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
         {showDiagnostic ? (
           <PeriodizationDiagnosticStep
@@ -1059,13 +1062,13 @@ export function PeriodizationManagerSheet({
                     placeholder="Desenvolvimento motor e fundamentos"
                     placeholderTextColor={colors.placeholder}
                     style={{
-                      minHeight: 44,
+                      minHeight: compactUiMetrics.modalFieldHeight,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
+                      borderRadius: 12,
+                      backgroundColor: themeMode === "dark" ? "#121c30" : colors.inputBg,
                       color: colors.inputText,
-                      paddingHorizontal: 12,
+                      paddingHorizontal: 10,
                       fontSize: 12,
                     }}
                   />
@@ -1104,13 +1107,13 @@ export function PeriodizationManagerSheet({
                     placeholder="DD/MM/AAAA"
                     placeholderTextColor={colors.placeholder}
                     style={{
-                      minHeight: 44,
+                      minHeight: compactUiMetrics.modalFieldHeight,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
+                      borderRadius: 12,
+                      backgroundColor: themeMode === "dark" ? "#121c30" : colors.inputBg,
                       color: colors.inputText,
-                      paddingHorizontal: 12,
+                      paddingHorizontal: 10,
                       fontSize: 12,
                     }}
                   />

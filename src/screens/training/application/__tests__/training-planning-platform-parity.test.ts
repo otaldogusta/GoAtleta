@@ -90,12 +90,11 @@ describe("training planning platform parity", () => {
   });
 
   it("keeps compact web plan actions in the header and above page FABs", () => {
-    expect(trainingRoute).toContain("workspaceHeaderStyles.actionGroup");
-    expect(trainingRoute).toContain("workspaceHeaderStyles.divider");
+    expect(trainingRoute).toContain('accessibilityLabel="Mais ações do planejamento"');
     expect(trainingRoute).toContain(">Baixar PDF</Text>");
     expect(trainingRoute).toContain("backgroundColor: colors.primaryBg");
-    expect(trainingRoute.indexOf('accessibilityLabel="Importar PDF"')).toBeLessThan(
-      trainingRoute.indexOf('accessibilityLabel="Criar novo plano"')
+    expect(trainingRoute.indexOf('accessibilityLabel="Criar novo plano"')).toBeLessThan(
+      trainingRoute.indexOf('accessibilityLabel="Importar PDF"')
     );
     expect(classPlanWorkspace).toContain("{inlinePdfEditor ? inlineSaveButton : null}");
     expect(classPlanWorkspace).toContain("{menuButton}\n          </>");
@@ -123,14 +122,10 @@ describe("training planning platform parity", () => {
     expect(classPlanWorkspace).toContain("onToggleWorkspaceLibrary");
     expect(classPlanWorkspace).toContain('accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}');
     expect(trainingRoute).toContain("{responsiveLayout.isMobile ? (");
-    expect(trainingRoute).toContain('position="right"');
+    expect(trainingRoute).toContain('position="bottom"');
     expect(trainingRoute).toContain('renderWorkspaceLibrary("sheet", false)');
-    expect(trainingRoute).toContain('renderWorkspaceLibrary("rail", true)');
-    expect(trainingRoute).toContain(") : !workspaceLibraryCollapsed || !selectedPlan ? (");
-    expect(trainingRoute).toContain("boxShadow: showWorkspaceLibraryPanel");
-    expect(trainingRoute).toContain('"10px 0 28px rgba(10, 19, 34, 0.26)"');
-    expect(trainingRoute).toContain(': "none"');
-    expect(trainingRoute).toContain("workspaceLibraryExpanded={!workspaceLibraryCollapsed}");
+    expect(trainingRoute).toContain('renderWorkspaceLibrary("rail", false)');
+    expect(trainingRoute).toContain("workspaceLibraryExpanded={responsiveLayout.isMobile ? !workspaceLibraryCollapsed : showWorkspaceLibraryPanel}");
     expect(trainingRoute).not.toContain("paddingLeft: responsiveLayout.isMobile && workspaceLibraryCollapsed ? 64 : 0");
   });
 

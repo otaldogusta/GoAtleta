@@ -38,3 +38,15 @@ test("adapts access rows to their measured region while preserving filters and p
   expect(platformListAccessRequests).not.toHaveBeenCalled();
   expect(platformReviewAccessRequest).not.toHaveBeenCalled();
 });
+
+test("closes a detail without a decision and never invents a phone number", async () => {
+  jest.clearAllMocks();
+  const screen = render(createElement(PlatformAccessDashboard, { designPreview: true }));
+  await screen.findByText("Informações da conta");
+  expect(screen.queryByText("Telefone")).toBeNull();
+  expect(screen.queryByText("(41) 9 9911-****")).toBeNull();
+  fireEvent.press(screen.getByRole("button", { name: "Fechar detalhes da solicitação" }));
+  expect(screen.queryByText("Informações da conta")).toBeNull();
+  expect(screen.getByRole("button", { name: /Alessandro, / })).toBeTruthy();
+  expect(platformReviewAccessRequest).not.toHaveBeenCalled();
+});

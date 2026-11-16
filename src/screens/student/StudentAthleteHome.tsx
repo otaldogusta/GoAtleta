@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, AppState, PanResponder, Platform, ScrollView, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import { ModalSheet } from "../../ui/ModalSheet";
@@ -15,7 +15,7 @@ import type { ClassGroup } from "../../core/models";
 import { getClassById } from "../../db/seed";
 import { useStudentProfilePhoto } from "../../hooks/use-student-profile-photo";
 import { getScopedProfilePath } from "../../navigation/profile-routes";
-import { getNotifications, subscribeNotifications, type AppNotification } from "../../notificationsInbox";
+import { getNotificationsPage, subscribeNotifications, type AppNotification } from "../../notificationsInbox";
 import { compactUiMetrics as metrics, radius } from "../../theme/tokens";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { useAppTheme } from "../../ui/app-theme";
@@ -75,9 +75,10 @@ export function StudentAthleteHome() {
   const { role, student } = useRole();
   const { session } = useAuth();
   const profilePhotoUri = useStudentProfilePhoto(student);
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [inbox, setInbox] = useState<AppNotification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [scheduleRead, setScheduleRead] = useState<{ scope: string; classes: ClassGroup[]; failed: boolean } | null>(null);
+  const [inboxRead, setInboxRead] = useState<{ scope: string; items: AppNotification[]; failed: boolean } | null>(null);
+  const loadSequence = useRef(0);
+  const inboxUpdate = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -85,35 +86,60 @@ export function StudentAthleteHome() {
   const [cardOpacity] = useState(() => new Animated.Value(1));
   const studentClassId = student?.classId;
   const studentOrganizationId = student?.organizationId;
+  const scope = JSON.stringify([session?.user?.id, studentOrganizationId, studentClassId]);
+  const currentSchedule = scheduleRead?.scope === scope ? scheduleRead : null;
+  const currentInbox = inboxRead?.scope === scope ? inboxRead : null;
+  const inbox = currentInbox?.items;
+  const loading = !currentSchedule;
 
   const load = useCallback(async () => {
-    const [notifications, studentClass] = await Promise.all([
-      getNotifications("student", studentOrganizationId),
-      studentClassId
-        ? getClassById(studentClassId, { organizationId: studentOrganizationId })
-        : Promise.resolve(null),
-    ]);
-    setInbox(notifications);
-    setClasses(studentClass ? [studentClass] : []);
-  }, [studentClassId, studentOrganizationId]);
+    const request = ++loadSequence.current;
+    const inboxVersion = inboxUpdate.current;
+    const loadSchedule = async () => {
+      try {
+        const studentClass = studentClassId && studentOrganizationId
+          ? await getClassById(studentClassId, { organizationId: studentOrganizationId })
+          : null;
+        if (request === loadSequence.current) setScheduleRead({ scope, classes: studentClass ? [studentClass] : [], failed: false });
+      } catch {
+        if (request === loadSequence.current) setScheduleRead({ scope, classes: [], failed: true });
+      }
+    };
+    const loadInbox = async () => {
+      try {
+        const items = studentOrganizationId ? (await getNotificationsPage({
+          inboxScope: "student",
+          organizationId: studentOrganizationId,
+          limit: 1,
+          throwOnError: true,
+        })).items : [];
+        if (request === loadSequence.current && inboxVersion === inboxUpdate.current) setInboxRead({ scope, items, failed: false });
+      } catch {
+        if (request === loadSequence.current && inboxVersion === inboxUpdate.current) setInboxRead({ scope, items: [], failed: true });
+      }
+    };
+    await Promise.all([loadSchedule(), loadInbox()]);
+  }, [scope, studentClassId, studentOrganizationId]);
 
   useEffect(() => {
     let alive = true;
     // Load the external inbox/class sources when the athlete scope changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load().finally(() => {
-      if (alive) setLoading(false);
-    });
-    const unsubscribe = subscribeNotifications(
-      (items) => alive && setInbox(items),
+    void load();
+    const unsubscribe = studentOrganizationId ? subscribeNotifications(
+      (items) => {
+        if (!alive) return;
+        inboxUpdate.current += 1;
+        setInboxRead({ scope, items, failed: false });
+      },
       "student",
       studentOrganizationId,
-    );
+    ) : undefined;
     return () => {
       alive = false;
-      unsubscribe();
+      loadSequence.current += 1;
+      unsubscribe?.();
     };
-  }, [load, studentOrganizationId]);
+  }, [load, scope, studentOrganizationId]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -142,7 +168,7 @@ export function StudentAthleteHome() {
       const date = new Date(now);
       date.setDate(now.getDate() + offset);
       date.setHours(0, 0, 0, 0);
-      for (const cls of classes) {
+      for (const cls of currentSchedule?.classes ?? []) {
         if (!cls.daysOfWeek.includes(date.getDay())) continue;
         const time = parseTime(cls.startTime);
         if (!time) continue;
@@ -160,7 +186,7 @@ export function StudentAthleteHome() {
       }
     }
     return result.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
-  }, [classes, now]);
+  }, [currentSchedule, now]);
 
   const defaultTrainingIndex = Math.max(0, schedule.findIndex((item) => item.endsAt.getTime() > now.getTime()));
   const defaultTraining = schedule[defaultTrainingIndex] ?? null;
@@ -169,7 +195,7 @@ export function StudentAthleteHome() {
   const selectedTraining = selectedTrainingIndex >= 0 ? schedule[selectedTrainingIndex] : null;
   const selectedDayIndex = weekDays.findIndex((day) => day.key === effectiveSelectedDateKey);
   const followingTraining = selectedTrainingIndex >= 0 ? schedule[selectedTrainingIndex + 1] ?? null : null;
-  const latestNotification = inbox[0] ?? null;
+  const latestNotification = inbox?.[0] ?? null;
   const firstName = student?.name?.trim().split(" ")[0] ?? "";
   const todayLabel = capitalize(now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }));
   const missingProfileFields = useMemo(
@@ -297,8 +323,11 @@ export function StudentAthleteHome() {
                     <Pressable
                       key={day.key}
                       accessibilityRole="button"
-                      accessibilityLabel={trainingIndex >= 0 ? `Ver treino de ${day.weekday}, dia ${day.day}` : `Ver ${day.weekday}, dia ${day.day}, sem treino`}
+                      accessibilityLabel={currentSchedule?.failed
+                        ? `${day.weekday}, dia ${day.day}`
+                        : trainingIndex >= 0 ? `Ver treino de ${day.weekday}, dia ${day.day}` : `Ver ${day.weekday}, dia ${day.day}, sem treino`}
                       accessibilityState={{ selected }}
+                      aria-pressed={selected}
                       onPress={() => animateToDate(day.key, weekDays.indexOf(day) > selectedDayIndex ? 1 : -1)}
                       suppressWebHoverFeedback disableWebPressScale
                       style={({ pressed, hovered }: any) => ({
@@ -324,7 +353,7 @@ export function StudentAthleteHome() {
               <View style={{ flexDirection: layout.supportsSplitView ? "row" : "column", gap: layout.density.pageGap, alignItems: "stretch" }}>
                 <View style={{ flex: layout.supportsSplitView ? 2 : undefined, minWidth: 0, gap: metrics.gap }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: metrics.gap }}>
-                    <Text style={{ color: colors.text, fontSize: layout.density.sectionTitleFontSize, fontWeight: "800" }}>{selectedDateKey === null ? "Próximo treino" : selectedTraining ? "Treino do dia" : "Sem treino"}</Text>
+                    <Text style={{ color: colors.text, fontSize: layout.density.sectionTitleFontSize, fontWeight: "800" }}>{currentSchedule?.failed ? "Treinos" : selectedDateKey === null ? "Próximo treino" : selectedTraining ? "Treino do dia" : "Sem treino"}</Text>
                     <Text style={{ color: colors.muted, fontSize: layout.density.metadataFontSize }}>{weekDays[selectedDayIndex]?.active ? "Hoje" : weekDays[selectedDayIndex]?.weekday ?? ""}</Text>
                   </View>
                   <View
@@ -352,7 +381,12 @@ export function StudentAthleteHome() {
                         transform: [{ translateX: cardTranslateX }],
                       }, Platform.OS === "web" ? ({ touchAction: "pan-y", userSelect: "none" } as any) : null]}
                     >
-                      {selectedTraining ? (
+                      {currentSchedule?.failed ? (
+                        <View style={{ gap: metrics.gap, alignItems: "flex-start" }}>
+                          <Text accessibilityRole="alert" style={{ color: colors.text, fontWeight: "700" }}>Não foi possível carregar os treinos.</Text>
+                          <StudentAction label="Tentar novamente" onPress={() => { void load(); }} />
+                        </View>
+                      ) : selectedTraining ? (
                         <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: metrics.gap }}>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: metrics.gap, flex: 1, minWidth: 120 }}>
                             <View style={{ width: metrics.controlHeight, height: metrics.controlHeight, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}><GoAtletaIcon name="classes" size={metrics.iconSize} color={colors.success} /></View>
@@ -387,7 +421,7 @@ export function StudentAthleteHome() {
                     <GoAtletaIcon name="achievements" size={metrics.iconSize} color={colors.success} /><Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>Conquistas</Text><GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
                   </Pressable>
                   <Pressable onPress={() => router.push("/communications")} suppressWebHoverFeedback disableWebPressScale style={state => [{ minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "center", gap: metrics.gap, paddingVertical: metrics.gap, paddingHorizontal: metrics.gap, borderRadius: radius.internal }, rowBorder, rowFeedback(state)]}>
-                    <GoAtletaIcon name="absenceNotices" size={metrics.iconSize} color={colors.success} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>{latestNotification ? latestNotification.title : "Comunicados"}</Text>{latestNotification ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{latestNotification.body}</Text> : null}</View><GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
+                    <GoAtletaIcon name="absenceNotices" size={metrics.iconSize} color={colors.success} /><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: "700" }}>{latestNotification ? latestNotification.title : "Comunicados"}</Text>{latestNotification || currentInbox?.failed ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{latestNotification?.body ?? "Avisos indisponíveis agora."}</Text> : null}</View><GoAtletaIcon name="chevronForward" size={metrics.secondaryIconSize} color={colors.muted} />
                   </Pressable>
                   {role === "pending" ? (
                     <Pressable onPress={() => router.push("/pending")} suppressWebHoverFeedback disableWebPressScale style={state => [{ minHeight: metrics.touchTarget, flexDirection: "row", alignItems: "center", gap: metrics.gap, paddingVertical: metrics.gap, paddingHorizontal: metrics.gap, borderRadius: radius.internal }, rowBorder, rowFeedback(state)]}>

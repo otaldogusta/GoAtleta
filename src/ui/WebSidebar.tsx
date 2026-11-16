@@ -1,6 +1,6 @@
 import { useNavigationContainerRef, usePathname, useRootNavigationState, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ScrollView, useWindowDimensions, View, type GestureResponderEvent } from "react-native";
 import { OperationalText as Text } from "./OperationalText";
 
 import { useAuth } from "../auth/auth";
@@ -57,6 +57,9 @@ const SIDEBAR_FINANCE_WIDTH = 220;
 const SIDEBAR_EXPANSION_DISTANCE =
   SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
 const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded-v2";
+const SIDEBAR_PANEL_ID = "goatleta-sidebar-expanded";
+const SIDEBAR_EXPAND_ID = "goatleta-sidebar-expand";
+const SIDEBAR_COLLAPSE_ID = "goatleta-sidebar-collapse";
 const PROFILE_MENU_WIDTH = 248;
 const PROFILE_SWITCHER_WIDTH = 208;
 const profileFeedback = (state: { pressed: boolean }) =>
@@ -215,8 +218,11 @@ function SidebarToggleButton({
 
   return (
     <Pressable
+      nativeID={expanded ? SIDEBAR_COLLAPSE_ID : SIDEBAR_EXPAND_ID}
+      accessibilityRole="button"
       accessibilityLabel={expanded ? "Recolher menu" : "Expandir menu"}
       accessibilityState={{ expanded }}
+      {...{ "aria-controls": SIDEBAR_PANEL_ID }}
       suppressWebHoverFeedback
       disableWebPressScale
       onHoverIn={() => setHovered(true)}
@@ -342,6 +348,8 @@ export function WebSidebar({
   } | null>(null);
   const profileMenuRootRef = useRef<View | null>(null);
   const profileSwitcherTriggerRef = useRef<View | null>(null);
+  const sidebarOpener = useRef<HTMLElement | null>(null);
+  const focusToggle = useRef(false);
 
   useEffect(() => {
     if (
@@ -454,28 +462,51 @@ export function WebSidebar({
     [canPersistExpansion, closeProfileMenu],
   );
 
+  const toggleSidebar = useCallback((nextExpanded: boolean) => {
+    if (nextExpanded && typeof document !== "undefined") {
+      const active = document.activeElement;
+      sidebarOpener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
+    focusToggle.current = true;
+    setSidebarExpanded(nextExpanded);
+  }, [setSidebarExpanded]);
+
+  useLayoutEffect(() => {
+    if (!focusToggle.current || typeof document === "undefined") return;
+    focusToggle.current = false;
+
+    const toggleId = expanded ? SIDEBAR_COLLAPSE_ID : SIDEBAR_EXPAND_ID;
+    const toggle = document.getElementById(toggleId);
+    const opener = sidebarOpener.current;
+    (toggle ?? (opener?.isConnected ? opener : null))?.focus({ preventScroll: true });
+    if (!expanded) sidebarOpener.current = null;
+  }, [expanded]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleToggle = () => {
-      setSidebarExpanded(!expanded);
+      toggleSidebar(!expanded);
     };
     window.addEventListener("goatleta:toggle-sidebar", handleToggle);
     return () =>
       window.removeEventListener("goatleta:toggle-sidebar", handleToggle);
-  }, [expanded, setSidebarExpanded]);
+  }, [expanded, toggleSidebar]);
 
   useEffect(() => {
     if (!expanded || typeof document === "undefined") return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSidebarExpanded(false);
-      }
+      if (event.defaultPrevented || event.key !== "Escape") return;
+      const panel = document.getElementById(SIDEBAR_PANEL_ID);
+      if (!panel?.contains(document.activeElement)) return;
+      if (isProfileMenuOpen) return;
+      event.preventDefault();
+      toggleSidebar(false);
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [expanded, setSidebarExpanded]);
+  }, [expanded, isProfileMenuOpen, toggleSidebar]);
 
   useEffect(() => {
     if (!isProfileMenuOpen || typeof document === "undefined") return;
@@ -1129,18 +1160,30 @@ export function WebSidebar({
     pathname === "/classes" ||
     pathname === "/class" ||
     pathname.startsWith("/class/");
-  const isActiveItem = (item: SidebarItem) => {
-    if (isPlatformWorkspace) return pathname === item.href;
-    return (
+  const sectionItem = navigationItems.reduce<SidebarItem | undefined>((closest, item) => {
+    if (pathname.startsWith(`${item.href}/`) && (!closest || item.href.length > closest.href.length)) return item;
+    return closest;
+  }, undefined);
+  const activeItem = navigationItems.find(item => pathname === item.href)
+    ?? sectionItem
+    ?? navigationItems.find(item => (
       (isClassRoute && item.key === "classes") ||
-      pathname === item.href ||
-      pathname.startsWith(`${item.href}/`) ||
-      (item.href === "/prof/home" && pathname === "/prof")
-    );
+      (pathname === "/prof" && item.href === "/prof/home")
+    ));
+
+  const activateItem = (event: GestureResponderEvent, item: SidebarItem, collapse: boolean) => {
+    // Let the browser handle modifier-click and middle-click on the actual link.
+    const mouseEvent = event as GestureResponderEvent & Partial<MouseEvent>;
+    if (mouseEvent?.metaKey || mouseEvent?.ctrlKey || mouseEvent?.shiftKey ||
+      mouseEvent?.altKey || (mouseEvent?.button ?? 0) !== 0) return;
+    event?.preventDefault?.();
+    closeProfileMenu();
+    if (collapse) setSidebarExpanded(false);
+    navigateTo(item.href);
   };
 
   const renderCompactNavItem = (item: SidebarItem) => {
-    const active = isActiveItem(item);
+    const active = item === activeItem;
     const hovered = hoveredCompactItemKey === item.key;
     const accessibilityLabel = item.badge
       ? `${item.label}, ${item.badge} notificações não lidas`
@@ -1186,14 +1229,12 @@ export function WebSidebar({
         {...compactTooltipEvents}
         key={item.key}
         accessibilityLabel={accessibilityLabel}
+        accessibilityRole="link"
+        {...{ href: item.href, "aria-current": active ? "page" : undefined }}
         suppressWebHoverFeedback
         onHoverIn={showCompactTooltip}
         onHoverOut={hideCompactTooltip}
-        onPress={() => {
-          closeProfileMenu();
-          setSidebarExpanded(false);
-          navigateTo(item.href);
-        }}
+        onPress={(event) => activateItem(event, item, true)}
         style={{
           width: 52,
           minHeight: 46,
@@ -1292,7 +1333,7 @@ export function WebSidebar({
   };
 
   const renderNavItem = (item: SidebarItem) => {
-    const active = isActiveItem(item);
+    const active = item === activeItem;
     const accessibilityLabel = item.badge
       ? `${item.label}, ${item.badge} notificações não lidas`
       : item.label;
@@ -1300,13 +1341,9 @@ export function WebSidebar({
       <Pressable
         key={item.key}
         accessibilityLabel={expanded ? accessibilityLabel : undefined}
-        onPress={() => {
-          closeProfileMenu();
-          if (!showCompact) {
-            setSidebarExpanded(false);
-          }
-          navigateTo(item.href);
-        }}
+        accessibilityRole="link"
+        {...{ href: item.href, "aria-current": active && expanded ? "page" : undefined }}
+        onPress={(event) => activateItem(event, item, !showCompact)}
         style={{
           minHeight: 46,
           borderRadius: radius.card,
@@ -1411,8 +1448,10 @@ export function WebSidebar({
     <>
       <Pressable
         accessibilityLabel={expanded ? "Fechar menu lateral" : undefined}
+        aria-hidden={!expanded}
+        tabIndex={-1}
         suppressWebHoverFeedback
-        onPress={() => setSidebarExpanded(false)}
+        onPress={() => toggleSidebar(false)}
         style={({ pressed }) =>
           ({
             position: "fixed",
@@ -1435,10 +1474,12 @@ export function WebSidebar({
       />
 
       <View
+        nativeID={SIDEBAR_PANEL_ID}
         testID="web-sidebar-expanded-panel"
         {...sidebarRevealEvents}
         accessibilityElementsHidden={!expanded}
         importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
+        {...{ inert: !expanded }}
         style={
           {
             width: activeExpandedWidth,
@@ -1464,7 +1505,7 @@ export function WebSidebar({
       >
         <SidebarToggleButton
           expanded
-          onPress={() => setSidebarExpanded(false)}
+          onPress={() => toggleSidebar(false)}
           revealed={isFinanceWorkspace || revealSidebarToggle}
           reduceMotion={prefersReducedMotion}
           edgeOffset={expanded ? 0 : -SIDEBAR_EXPANSION_DISTANCE}
@@ -1645,7 +1686,9 @@ export function WebSidebar({
 
   return (
     <View
+      nativeID="goatleta-navigation"
       accessibilityLabel="Navegação principal"
+      role={showCompact || expanded ? "navigation" : undefined}
       style={{
         width: showCompact ? SIDEBAR_COMPACT_WIDTH : 0,
         alignSelf: "stretch",
@@ -1656,6 +1699,12 @@ export function WebSidebar({
         zIndex: 1000,
       }}
     >
+      <style>{`
+        #goatleta-navigation [role="link"]:focus-visible {
+          outline: 2px solid ${webShellTokens.primaryLight};
+          outline-offset: -2px;
+        }
+      `}</style>
       {showCompact && !expanded ? (
         <View
           {...sidebarRevealEvents}
@@ -1715,7 +1764,7 @@ export function WebSidebar({
           {canExpand ? (
             <SidebarToggleButton
               expanded={false}
-              onPress={() => setSidebarExpanded(true)}
+              onPress={() => toggleSidebar(true)}
               revealed={isFinanceWorkspace || revealSidebarToggle}
               reduceMotion={prefersReducedMotion}
             />

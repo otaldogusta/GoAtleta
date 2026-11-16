@@ -107,6 +107,12 @@ export default function AgendaScreen() {
   const { colors } = useAppTheme();
   const [loaded, setLoaded] = useState<{ scopeKey: string; classes: ClassGroup[] } | null>(null);
   const [failedScope, setFailedScope] = useState<string | null>(null);
+  const [retryRevision, setRetryRevision] = useState(0);
+  const retryStudentAgenda = () => {
+    setFailedScope(null);
+    setLoaded(null);
+    setRetryRevision((current) => current + 1);
+  };
   const classes = useMemo(() => loaded?.scopeKey === scopeKey ? loaded.classes : [], [loaded, scopeKey]);
   const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState(formatDate(new Date()));
@@ -139,7 +145,7 @@ export default function AgendaScreen() {
     return () => {
       alive = false;
     };
-  }, [classId, isStudentAgenda, organizationId, scopeKey]);
+  }, [classId, isStudentAgenda, organizationId, scopeKey, retryRevision]);
 
   const grid = useMemo(
     () => getMonthGrid(month.getFullYear(), month.getMonth()),
@@ -225,7 +231,7 @@ export default function AgendaScreen() {
 
   if (isStudentAgenda) {
     return <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <CalendarScreen key={scopeKey} studentClasses={classes} studentLoading={loaded?.scopeKey !== scopeKey} studentError={failedScope === scopeKey} onMonthChange={setMonth} headerActions={<CalendarExportMenu disabled={!classes.length} onExport={exportIcs} />} />
+      <CalendarScreen key={scopeKey} studentClasses={classes} studentLoading={loaded?.scopeKey !== scopeKey} studentError={failedScope === scopeKey} onStudentRetry={retryStudentAgenda} onMonthChange={setMonth} headerActions={<CalendarExportMenu disabled={!classes.length} onExport={exportIcs} />} />
       {icsPreview ? <TextInput accessibilityLabel="Arquivo .ics" value={icsPreview} multiline style={{ color: colors.text, backgroundColor: colors.card, minHeight: 140 }} /> : null}
     </View>;
   }

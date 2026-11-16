@@ -19,6 +19,14 @@ type Conflict = {
   kind: "conflict" | "integration";
 };
 
+export const compactClassTableColumns = {
+  name: { minWidth: 164 },
+  time: { minWidth: 100 },
+  age: { minWidth: 100 },
+  students: { minWidth: 86 },
+  teacher: { minWidth: 152 },
+};
+
 type ClassCardProps = {
   item: ClassGroup;
   conflicts?: Conflict[] | null;
@@ -33,6 +41,7 @@ type ClassCardProps = {
   onDuplicate?: (value: ClassGroup) => void;
   onDelete?: (value: ClassGroup) => void;
   layout?: "card" | "table";
+  compactTable?: boolean;
   showUnit?: boolean;
   narrowCard?: boolean;
 };
@@ -164,7 +173,7 @@ const TeacherAvatarItem = memo(function TeacherAvatarItem({
   imageStyle,
   textStyle,
 }: {
-  teacher: ClassCardViewModel["teacher"];
+  teacher: Pick<ClassCardViewModel["teacher"], "initials" | "photoUrl">;
   infoBg: string;
   infoText: string;
   containerStyle: any;
@@ -402,6 +411,7 @@ export const ClassCard = memo(function ClassCard({
   onDuplicate,
   onDelete,
   layout = "card",
+  compactTable = false,
   showUnit = false,
   narrowCard = false,
 }: ClassCardProps) {
@@ -424,6 +434,9 @@ export const ClassCard = memo(function ClassCard({
     .map((conflict) => `${conflict.name} (${dayNames[conflict.day]})`)
     .join(", ");
   const classInitial = getClassInitial(item.name);
+  const soleIntern = viewModel.supportStaff.length === 1 && viewModel.supportStaff[0].role === "intern"
+    ? viewModel.supportStaff[0]
+    : null;
   const menuItems = [
     { label: "Editar", action: () => onEdit?.(item), danger: false },
     ...(onDuplicate ? [{ label: "Duplicar", action: () => onDuplicate(item), danger: false }] : []),
@@ -532,10 +545,11 @@ export const ClassCard = memo(function ClassCard({
           },
         ]}
       >
-        <View style={[styles.tableCell, styles.tableIdentityCell]}>
+        <View style={[styles.tableCell, styles.tableIdentityCell, compactTable && compactClassTableColumns.name, compactTable && styles.tableIdentityCompact]}>
           <View
             style={[
               styles.tableClassAvatar,
+              compactTable && styles.tableClassAvatarCompact,
               { backgroundColor: colors.primaryBg },
             ]}
           >
@@ -558,7 +572,7 @@ export const ClassCard = memo(function ClassCard({
           </View>
         </View>
 
-        <View style={[styles.tableCell, styles.tableScheduleCell]}>
+        <View style={[styles.tableCell, styles.tableScheduleCell, compactTable && compactClassTableColumns.time]}>
           <Text numberOfLines={1} style={[styles.tablePrimaryText, { color: colors.textPrimary ?? colors.text }]}>
             {timeLabel}
           </Text>
@@ -567,7 +581,7 @@ export const ClassCard = memo(function ClassCard({
           </Text>
         </View>
 
-        <View style={[styles.tableCell, styles.tableFocusCell]}>
+        <View style={[styles.tableCell, styles.tableFocusCell, compactTable && compactClassTableColumns.age]}>
           <Text numberOfLines={1} style={[styles.tablePrimaryText, { color: colors.textPrimary ?? colors.text }]}>
             {item.ageBand || "Faixa não definida"}
           </Text>
@@ -582,7 +596,7 @@ export const ClassCard = memo(function ClassCard({
           </Text>
         </View>
 
-        <View style={[styles.tableCell, styles.tableStudentsCell]}>
+        <View style={[styles.tableCell, styles.tableStudentsCell, compactTable && compactClassTableColumns.students]}>
           <View style={styles.studentStack}>
             {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
               <StudentAvatarItem
@@ -604,7 +618,7 @@ export const ClassCard = memo(function ClassCard({
           </View>
         </View>
 
-        <View style={[styles.tableCell, styles.tableTeacherCell]}>
+        <View style={[styles.tableCell, styles.tableTeacherCell, compactTable && compactClassTableColumns.teacher]}>
           <TeacherAvatarItem
             teacher={viewModel.teacher}
             infoBg={colors.infoBg}
@@ -613,10 +627,17 @@ export const ClassCard = memo(function ClassCard({
             imageStyle={styles.teacherAvatarImage}
             textStyle={styles.teacherAvatarText}
           />
-          <Text numberOfLines={1} style={[styles.tableTeacherName, { color: colors.textPrimary ?? colors.text }]}>
-            {viewModel.teacher.compactName}
-          </Text>
-          <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact />
+          <View style={styles.inlineInternText}>
+            <Text numberOfLines={1} style={[styles.tableTeacherName, { color: colors.textPrimary ?? colors.text }]}>
+              {viewModel.teacher.compactName}
+            </Text>
+            {soleIntern ? (
+              <Text numberOfLines={1} accessibilityLabel={`${soleIntern.roleLabel}: ${soleIntern.name}`} style={[styles.teacherName, { color: colors.textMuted ?? colors.muted }]}>
+                {soleIntern.name}
+              </Text>
+            ) : null}
+          </View>
+          {!soleIntern ? <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact /> : null}
         </View>
 
         <View ref={actionWrapRef} style={styles.tableActionCell}>
@@ -659,15 +680,12 @@ export const ClassCard = memo(function ClassCard({
           styles.container,
           narrowCard ? styles.containerNarrow : null,
           {
-            backgroundColor: colors.surface ?? colors.background,
+            backgroundColor: isHovered || actionMenuOpen ? colors.secondaryBg : "transparent",
             borderColor: colors.borderSubtle ?? colors.border,
           },
           isHovered || actionMenuOpen
             ? {
                 borderColor: colors.borderSubtle ?? colors.border,
-                ...(Platform.OS === "web"
-                  ? { boxShadow: "0px 12px 24px rgba(0, 0, 0, 0.2)" }
-                  : null),
               }
             : null,
         ];
@@ -691,17 +709,13 @@ export const ClassCard = memo(function ClassCard({
           </View>
           <View style={styles.titleWrap}>
             <View style={styles.titleLine}>
-              <Text numberOfLines={1} style={[styles.title, narrowCard ? styles.titleNarrow : null, { color: colors.textPrimary ?? colors.text }]}>
+              <Text numberOfLines={2} style={[styles.title, narrowCard ? styles.titleNarrow : null, { color: colors.textPrimary ?? colors.text }]}>
                 {item.name}
               </Text>
               <ClassGenderBadge gender={item.gender} />
             </View>
-            <Text numberOfLines={1} style={[styles.subtitle, narrowCard ? styles.subtitleNarrow : null, { color: colors.textMuted ?? colors.muted }]}>
-              {[
-                timeLabel,
-                daysLabel,
-                item.trainingSpace?.trim(),
-              ].filter(Boolean).join(" · ")}
+            <Text style={[styles.subtitle, { color: colors.textMuted ?? colors.muted }]}>
+              {timeLabel}
             </Text>
           </View>
         </View>
@@ -762,9 +776,13 @@ export const ClassCard = memo(function ClassCard({
         </View>
       </View>
 
+      <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize, marginTop: 6, lineHeight: 17 }}>
+        {[daysLabel, item.trainingSpace?.trim(), showUnit ? item.unit : null].filter(Boolean).join(" · ")}
+      </Text>
       <View style={[styles.metaGrid, narrowCard ? styles.metaGridNarrow : null]}>
-        <MetaPill label={item.ageBand || "Faixa não definida"} colors={colors} compact={narrowCard} />
-        <MetaPill label={viewModel.developmentLevelLabel} colors={colors} compact={narrowCard} />
+        <Text style={{ color: colors.muted, fontSize: compactUiMetrics.metadataFontSize }}>
+          {[item.ageBand || "Faixa não definida", viewModel.developmentLevelLabel].filter(Boolean).join(" · ")}
+        </Text>
         {viewModel.coverageSummary ? (
           <MetaPill
             label={`${viewModel.coverageSummary.label} · ${viewModel.coverageSummary.dateLabel}`}
@@ -830,10 +848,31 @@ export const ClassCard = memo(function ClassCard({
             <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>Professor</Text>
           ) : null}
           <Text numberOfLines={1} style={[styles.teacherName, { color: colors.textPrimary ?? colors.text }]}>
-            {viewModel.teacher.compactName}
+            {viewModel.teacher.name}
           </Text>
         </View>
-        <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact={narrowCard} />
+        {soleIntern ? (
+          <View style={styles.inlineIntern}>
+            <TeacherAvatarItem
+              teacher={soleIntern}
+              infoBg={colors.infoBg}
+              infoText={colors.infoText}
+              containerStyle={[styles.teacherAvatar, narrowCard ? styles.teacherAvatarNarrow : null]}
+              imageStyle={styles.teacherAvatarImage}
+              textStyle={styles.teacherAvatarText}
+            />
+            <View style={styles.inlineInternText}>
+              <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>
+                {soleIntern.roleLabel}
+              </Text>
+              <Text numberOfLines={1} style={[styles.teacherName, { color: colors.textPrimary ?? colors.text }]}>
+                {soleIntern.name}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact={narrowCard} />
+        )}
       </View>
 
       {hasConflicts ? (
@@ -864,6 +903,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  tableIdentityCompact: {
+    paddingHorizontal: 6,
+    gap: 6,
   },
   tableScheduleCell: {
     flex: 1.15,
@@ -898,6 +941,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+  },
+  tableClassAvatarCompact: {
+    width: 26,
+    height: 26,
   },
   tableClassAvatarText: {
     fontSize: 14,
@@ -940,14 +987,14 @@ const styles = StyleSheet.create({
   },
   container: {
     minHeight: 0,
-    padding: 12,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     position: "relative",
     elevation: 0,
   },
   containerNarrow: {
-    padding: 10,
+    paddingVertical: 14,
   },
   conflictPill: {
     alignSelf: "flex-start",
@@ -1106,19 +1153,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   actionButton: {
-    width: 28,
-    height: 28,
+    width: compactUiMetrics.touchTarget,
+    height: compactUiMetrics.touchTarget,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
   actionButtonHover: {
-    ...(Platform.OS === "web"
-      ? {
-          boxShadow:
-            "0px 8px 16px rgba(0, 0, 0, 0.22), 0px 0px 0px 1px rgba(148, 163, 184, 0.22)",
-        }
-      : null),
+    opacity: 0.9,
   },
   actionMenuContent: {
     padding: 6,
@@ -1148,7 +1190,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: compactUiMetrics.bodyFontSize,
-    fontWeight: "900",
+    fontWeight: "600",
     minWidth: 0,
     flexShrink: 1,
   },
@@ -1200,12 +1242,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginTop: 8,
-    paddingTop: 7,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 4,
   },
   teacherRowNarrow: {
     marginTop: 6,
-    paddingTop: 6,
+    paddingTop: 4,
   },
   teacherAvatar: {
     width: 24,
@@ -1233,8 +1274,19 @@ const styles = StyleSheet.create({
   },
   teacherName: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "600",
     marginTop: 0,
+  },
+  inlineIntern: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  inlineInternText: {
+    flex: 1,
+    minWidth: 0,
   },
   staffPillWrap: {
     position: "relative",

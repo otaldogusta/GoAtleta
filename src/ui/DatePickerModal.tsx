@@ -518,6 +518,7 @@ export function DatePickerModal({
     visible={visible}
     onClose={onClose}
     position="center"
+    dialogLabel="Selecionar data"
     cardStyle={{
       width: "100%",
       maxWidth: 440,

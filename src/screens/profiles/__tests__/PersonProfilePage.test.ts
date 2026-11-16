@@ -1,12 +1,30 @@
 import React, { useState } from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { Text, TextInput } from "react-native";
+import { Pressable } from "../../../ui/Pressable";
 import { PersonProfilePage } from "../PersonProfilePage";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { text: "#fff", muted: "#aaa", border: "#222", card: "#111", primaryBg: "#0f0" } }) }));
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
 jest.mock("react-native-svg", () => ({ __esModule: true, default: "Svg", Circle: "Circle", Path: "Path", Rect: "Rect" }));
+
+it("keeps the same optional assistant action across own-profile tabs without exposing it on another person's profile", () => {
+  const openAssistant = jest.fn();
+  const props = { name: "Ana", role: "Professor", organizationName: "Rede", classes: [], onBack: jest.fn(),
+    headerAction: React.createElement(Pressable, { testID: "assistant-header", onPress: openAssistant }, React.createElement(Text, null, "Assistente")),
+    settingsContent: React.createElement(TextInput, { testID: "settings-field" }) };
+  let view!: TestRenderer.ReactTestRenderer;
+  const headerAction = () => view.root.findAll(n => n.props.testID === "assistant-header" && typeof n.props.onPress === "function")[0];
+  act(() => { view = TestRenderer.create(React.createElement(PersonProfilePage, { ...props, ownProfile: true })); });
+  act(() => headerAction().props.onPress());
+  expect(openAssistant).toHaveBeenCalledTimes(1);
+  act(() => { view.update(React.createElement(PersonProfilePage, { ...props, ownProfile: true, selectedTab: "settings" })); });
+  expect(headerAction()).toBeTruthy();
+  act(() => { view.update(React.createElement(PersonProfilePage, props)); });
+  expect(view.root.findAllByProps({ testID: "assistant-header" })).toHaveLength(0);
+  act(() => view.unmount());
+});
 
 it("edits below the same header and preserves the caller's draft across tabs", () => {
   function Profile() {

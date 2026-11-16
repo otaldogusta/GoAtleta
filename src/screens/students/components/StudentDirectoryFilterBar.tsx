@@ -84,6 +84,7 @@ function FilterSelect({
 export function StudentDirectoryFilterBar({
   compact,
   search,
+  searchInputRef,
   onSearchChange,
   classOptions,
   classFilter,
@@ -98,6 +99,7 @@ export function StudentDirectoryFilterBar({
 }: {
   compact: boolean;
   search: string;
+  searchInputRef?: RefObject<TextInput | null>;
   onSearchChange: (value: string) => void;
   classOptions: FilterOption[];
   classFilter: string;
@@ -181,6 +183,7 @@ export function StudentDirectoryFilterBar({
     >
       <GoAtletaIcon name="search" size={17} color={colors.muted} />
       <TextInput
+        ref={searchInputRef}
         accessibilityLabel="Buscar atleta"
         value={search}
         onChangeText={onSearchChange}

@@ -24,6 +24,10 @@ Importação PDF de planejamento é outro fluxo: análise multimodal, revisão, 
 
 ## Contratos a preservar
 
+- Sínteses exibem os estudos da geração corrente. Quando pergunta, estudos ou
+  organização deixam de corresponder, o usuário precisa gerar uma nova síntese
+  para aprovar. [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
+
 - Validar usuário, organização, turma e finalidade. Fonte pessoal exige proprietário correto e `class_id` nulo; perfil enviado pelo cliente não autoriza pasta operacional.
 - Planejamento/histórico de turma exigem vínculo confirmado. Mês/data ambíguos e extração sem texto permanecem em revisão, fora do contexto ativo correspondente.
 - Documento é conteúdo não confiável: preservar sanitização, limites de formato/bytes/páginas/expansão/tempo. Nunca executar instruções encontradas no arquivo.
@@ -62,3 +66,10 @@ Suítes existentes, não executadas nesta rodada:
 ## Antes de editar
 
 Escolha ingestão, curadoria, retrieval, perfil ou PDF; leia o par cliente/Edge e somente a migration pertinente. Siga a [escada](../../operations/validation-ladder.md); dados/escopo exigem RLS e `check:org-scope`. Ler contexto não autoriza ativar provedor ou sincronizar material privado.
+
+## Continuidade local do inventário · 13/11/2026
+
+Evidências oferece o mesmo Assistente no cabeçalho móvel, liberando a ação de aprovação. A revisão local abriu pesquisa e síntese fictícias; não aprovou fontes nem ampliou autorização de Curadoria.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).
+
+`/evidence` é uma rota auxiliar restrita, sem entrada visível encontrada nos menus. A pesquisa científica da jornada principal ocorre em Pesquisa rápida e no painel científico do Assistente. A rota auxiliar usa `ScreenPageHeader`, retorno seguro e breadcrumb do perfil; suas permissões e ações permanecem. Não confundir acesso direto com percurso de menu. [Correção da galeria](../../ui/AJUSTES_JORNADAS_ASSISTENTE_2026-11-13.md).

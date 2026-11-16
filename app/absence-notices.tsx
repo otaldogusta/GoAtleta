@@ -1,6 +1,6 @@
-import { usePathname, useRouter } from "expo-router";
+import { useIsFocused, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { SectionList, View } from "react-native";
+import { Platform, SectionList, View } from "react-native";
 import { OperationalText as Text } from "../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,8 +36,11 @@ import {
   resolveNoticeFeedCategory,
   type NoticeFeedFilter,
 } from "../src/screens/absence-notices/notice-feed-view-model";
-import { compactUiMetrics, radius, spacing } from "../src/theme/tokens";
-import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
+import { borders, compactUiMetrics, radius, spacing } from "../src/theme/tokens";
+import { UnderlineTabs } from "../src/ui/UnderlineTabs";
+import { CompactSelect } from "../src/ui/CompactSelect";
+import { ListEmptyState } from "../src/ui/ListEmptyState";
+import { Button } from "../src/ui/Button";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
@@ -82,16 +85,18 @@ const filterLabels: Record<NoticeFeedFilter, string> = {
   archived: "Arquivados",
 };
 
-const filterOrder: readonly NoticeFeedFilter[] = [
-  "all",
-  "unread",
-  "absence",
-  "birthday",
-  "other",
-  "archived",
-];
+const emptyFilterLabels: Record<NoticeFeedFilter, string> = {
+  all: "Nenhum aviso por aqui",
+  unread: "Nenhum aviso não lido",
+  absence: "Nenhum aviso de ausência",
+  birthday: "Nenhum aniversário",
+  other: "Nenhuma atualização",
+  archived: "Nenhum aviso arquivado",
+};
 
 const NOTIFICATIONS_PAGE_SIZE = 20;
+const noticeItemFocusId = (id: string) => `notice-feed-item-${id}`;
+const noticeFilterFocusId = (filter: NoticeFeedFilter) => `notice-feed-filter-${filter}`;
 
 type NoticeListItem =
   | {
@@ -143,6 +148,7 @@ export function NotificationsCenterScreen({
   const { activeOrganization } = useOrganization();
   const { student } = useRole();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const pathname = usePathname();
   const effectiveProfile = useEffectiveProfile();
   const inboxScope = resolveNotificationInboxScope({
@@ -172,24 +178,38 @@ export function NotificationsCenterScreen({
   const [isArchivingRead, setIsArchivingRead] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ scope: string; message: string } | null>(null);
+  const [focusAfterAction, setFocusAfterAction] = useState<{
+    scope: string;
+    filter: NoticeFeedFilter;
+    preferredId: string | null;
+    waitsForReturn: boolean;
+  } | null>(null);
+  const detailWasOpened = useRef(false);
 
   const showingArchived = selectedFilter === "archived";
   const noticesContextKey = `${notificationOrganizationId ?? "none"}:${inboxScope}`;
   const noticesContextKeyRef = useRef(noticesContextKey);
+  const showingArchivedRef = useRef(showingArchived);
   const loadNoticesRequestIdRef = useRef(0);
   const loadMoreRequestIdRef = useRef(0);
   useLayoutEffect(() => {
     noticesContextKeyRef.current = noticesContextKey;
   }, [noticesContextKey]);
   const [loadedNoticesContextKey, setLoadedNoticesContextKey] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<{ context: string; archived: boolean } | null>(null);
+  const hasVisibleSnapshot = snapshot?.context === noticesContextKey && snapshot.archived === showingArchived;
+  const switchingArchive = !hasVisibleSnapshot && !loadError;
 
-  const loadNotices = useCallback(async () => {
+  const loadNotices = useCallback(async (archived = showingArchived) => {
+    const requestContextKey = noticesContextKey;
+    if (noticesContextKeyRef.current !== requestContextKey || showingArchivedRef.current !== archived) return;
     const requestId = ++loadNoticesRequestIdRef.current;
     loadMoreRequestIdRef.current += 1;
-    const requestContextKey = noticesContextKey;
     const isCurrentRequest = () =>
       loadNoticesRequestIdRef.current === requestId &&
-      noticesContextKeyRef.current === requestContextKey;
+      noticesContextKeyRef.current === requestContextKey &&
+      showingArchivedRef.current === archived;
 
     setIsLoading(true);
     setIsLoadingMore(false);
@@ -204,7 +224,8 @@ export function NotificationsCenterScreen({
                 inboxScope,
                 organizationId: notificationOrganizationId,
                 limit: NOTIFICATIONS_PAGE_SIZE,
-                archiveScope: showingArchived ? "archived" : "active",
+                archiveScope: archived ? "archived" : "active",
+                throwOnError: true,
               }),
               getAbsenceNotices({
                 organizationId: notificationOrganizationId,
@@ -221,16 +242,11 @@ export function NotificationsCenterScreen({
       setAbsenceNotices(absenceList);
       setStudents(studentList);
       setClasses(classList);
+      setSnapshot({ context: requestContextKey, archived });
     } catch {
       if (!isCurrentRequest()) return;
-      setNotifications([]);
-      setHasMoreNotifications(false);
-      setNotificationOffset(0);
-      setAbsenceNotices([]);
-      setStudents([]);
-      setClasses([]);
       setLoadError(
-        "Não foi possível carregar as notificações agora. Verifique sua sessão e tente novamente.",
+        "Tente novamente para consultar a caixa de avisos.",
       );
     } finally {
       if (isCurrentRequest()) {
@@ -327,11 +343,46 @@ export function NotificationsCenterScreen({
     () => buildNoticeFeedSections(feedCandidates, selectedFilter),
     [feedCandidates, selectedFilter],
   );
+  const visibleItems = useMemo(() => sections.flatMap((section) => section.data), [sections]);
+  const queueFeedFocus = useCallback((id: string | null, removed: boolean, waitsForReturn = false) => {
+    if (Platform.OS !== "web") return;
+    const index = visibleItems.findIndex((item) => item.id === id);
+    const nextItem = index >= 0 ? visibleItems[index + 1] : undefined;
+    const preferredItem = !removed && id ? id : nextItem?.id;
+    detailWasOpened.current = false;
+    setFocusAfterAction({
+      scope: noticesContextKey,
+      filter: selectedFilter,
+      preferredId: preferredItem ? noticeItemFocusId(preferredItem) : null,
+      waitsForReturn,
+    });
+  }, [noticesContextKey, selectedFilter, visibleItems]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !focusAfterAction) return;
+    if (!isFocused) {
+      detailWasOpened.current = true;
+      return;
+    }
+    if (focusAfterAction.waitsForReturn && !detailWasOpened.current) return;
+    if (focusAfterAction.scope !== noticesContextKey || focusAfterAction.filter !== selectedFilter) return;
+
+    const frame = requestAnimationFrame(() => {
+      const fallbackIds = [noticeFilterFocusId(selectedFilter), "notice-feed-empty"];
+      const focusIds = focusAfterAction.preferredId ? [focusAfterAction.preferredId, ...fallbackIds] : fallbackIds;
+      const target = focusIds
+        .map((id) => document.getElementById(id))
+        .find((element) => element && element.getClientRects().length > 0);
+      target?.focus();
+      setFocusAfterAction(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusAfterAction, isFocused, noticesContextKey, selectedFilter]);
 
   const filterCounts = useMemo<Record<NoticeFeedFilter, number>>(
     () => ({
       all: feedCandidates.length,
-      unread: feedCandidates.filter((item) => item.unread).length,
+      unread: showingArchived ? 0 : feedCandidates.filter((item) => item.unread).length,
       absence: feedCandidates.filter((item) => item.category === "absence")
         .length,
       birthday: feedCandidates.filter((item) => item.category === "birthday")
@@ -346,12 +397,12 @@ export function NotificationsCenterScreen({
   const pendingAbsenceCount = absenceNotices.filter(
     (notice) => notice.status === "pending",
   ).length;
-  const headerSubtitle = showingArchived
-    ? `${notifications.length}${hasMoreNotifications ? "+" : ""} ${
+  const headerSubtitle = isLoading || switchingArchive ? "Atualizando avisos…" : loadError ? undefined : showingArchived
+    ? (notifications.length ? `${notifications.length}${hasMoreNotifications ? "+" : ""} ${
         notifications.length === 1
           ? "notificação arquivada"
           : "notificações arquivadas"
-      }`
+      }` : undefined)
     : unreadCount > 0 || pendingAbsenceCount > 0
       ? [
           unreadCount > 0
@@ -363,7 +414,7 @@ export function NotificationsCenterScreen({
         ]
           .filter(Boolean)
           .join(" · ")
-      : "Tudo em dia";
+      : hasMoreNotifications ? "Há mais avisos para consultar" : undefined;
 
   const readActiveCount = notifications.filter(
     (item) => item.read && !item.archived,
@@ -387,8 +438,8 @@ export function NotificationsCenterScreen({
     (status: AbsenceNotice["status"] | "new" | "default") => {
       if (status === "confirmed") {
         return {
-          backgroundColor: "rgba(65, 217, 132, 0.14)",
-          color: colors.primaryBg,
+          backgroundColor: colors.successBg,
+          color: colors.successText,
         };
       }
       if (status === "ignored") {
@@ -402,8 +453,8 @@ export function NotificationsCenterScreen({
       }
       if (status === "pending") {
         return {
-          backgroundColor: "rgba(255, 210, 120, 0.14)",
-          color: colors.warning ?? colors.text,
+          backgroundColor: colors.warningBg,
+          color: colors.warningText,
         };
       }
       return { backgroundColor: colors.secondaryBg, color: colors.muted };
@@ -412,8 +463,10 @@ export function NotificationsCenterScreen({
       colors.muted,
       colors.primaryBg,
       colors.secondaryBg,
-      colors.text,
-      colors.warning,
+      colors.successBg,
+      colors.successText,
+      colors.warningBg,
+      colors.warningText,
     ],
   );
 
@@ -424,6 +477,7 @@ export function NotificationsCenterScreen({
       inboxScope,
       notificationOrganizationId,
     );
+    if (noticesContextKeyRef.current !== noticesContextKey) return;
     const readAt = new Date().toISOString();
     setNotifications((prev) =>
       prev.map((item) =>
@@ -432,28 +486,32 @@ export function NotificationsCenterScreen({
           : item,
       ),
     );
-  }, [inboxScope, notificationOrganizationId]);
+  }, [inboxScope, noticesContextKey, notificationOrganizationId]);
 
   const markAllNotificationsAsRead = useCallback(async () => {
     if (isMarkingAllRead || unreadCount === 0) return;
     setIsMarkingAllRead(true);
     setActionError(null);
+    setActionFeedback(null);
     try {
       await markAllRead(inboxScope, notificationOrganizationId);
+      if (noticesContextKeyRef.current !== noticesContextKey) return;
       const readAt = new Date().toISOString();
-      setNotifications((current) =>
-        current.map((item) => ({
+      if (!showingArchivedRef.current) {
+        setNotifications((current) => current.map((item) => ({
           ...item,
           read: true,
           readAt: item.readAt ?? readAt,
-        })),
-      );
+        })));
+      }
+      setActionFeedback({ scope: noticesContextKey, message: "Avisos marcados como lidos." });
+      queueFeedFocus(null, true);
     } catch {
-      setActionError("Não foi possível marcar as notificações como lidas.");
+      if (noticesContextKeyRef.current === noticesContextKey) setActionError("Não foi possível marcar os avisos como lidos.");
     } finally {
       setIsMarkingAllRead(false);
     }
-  }, [inboxScope, isMarkingAllRead, notificationOrganizationId, unreadCount]);
+  }, [inboxScope, isMarkingAllRead, noticesContextKey, notificationOrganizationId, queueFeedFocus, unreadCount]);
 
   const loadMoreNotifications = useCallback(async () => {
     if (isLoadingMore || !hasMoreNotifications) return;
@@ -472,6 +530,7 @@ export function NotificationsCenterScreen({
         limit: NOTIFICATIONS_PAGE_SIZE,
         offset: notificationOffset,
         archiveScope: showingArchived ? "archived" : "active",
+        throwOnError: true,
       });
       if (!isCurrentRequest()) return;
       setNotifications((current) => {
@@ -485,7 +544,7 @@ export function NotificationsCenterScreen({
       setHasMoreNotifications(page.hasMore);
     } catch {
       if (!isCurrentRequest()) return;
-      setActionError("Não foi possível carregar mais notificações.");
+      setActionError("Não foi possível carregar mais avisos.");
     } finally {
       if (isCurrentRequest()) {
         setIsLoadingMore(false);
@@ -504,19 +563,24 @@ export function NotificationsCenterScreen({
   const requestArchiveReadNotifications = useCallback(() => {
     if (isArchivingRead || readActiveCount === 0) return;
     void confirmDialog({
-      title: "Limpar notificações lidas?",
-      message:
-        "As notificações lidas sairão da lista principal e poderão ser recuperadas em Arquivados. Chamadas, ausências, planejamentos e outros registros não serão apagados.",
-      confirmLabel: "Limpar lidos",
+      title: "Arquivar avisos lidos?",
+      message: "Os avisos lidos podem ser recuperados no filtro Arquivados.",
+      confirmLabel: "Arquivar lidos",
       cancelLabel: "Cancelar",
       onConfirm: async () => {
+        if (noticesContextKeyRef.current !== noticesContextKey) return;
         setIsArchivingRead(true);
         setActionError(null);
+        setActionFeedback(null);
         try {
           await archiveRead(inboxScope, notificationOrganizationId);
-          await loadNotices();
+          if (noticesContextKeyRef.current !== noticesContextKey) return;
+          await loadNotices(showingArchivedRef.current);
+          if (noticesContextKeyRef.current !== noticesContextKey) return;
+          setActionFeedback({ scope: noticesContextKey, message: "Avisos lidos movidos para Arquivados." });
+          queueFeedFocus(null, true);
         } catch {
-          setActionError("Não foi possível arquivar as notificações lidas.");
+          if (noticesContextKeyRef.current === noticesContextKey) setActionError("Não foi possível arquivar os avisos lidos.");
         } finally {
           setIsArchivingRead(false);
         }
@@ -527,7 +591,9 @@ export function NotificationsCenterScreen({
     inboxScope,
     isArchivingRead,
     loadNotices,
+    noticesContextKey,
     notificationOrganizationId,
+    queueFeedFocus,
     readActiveCount,
   ]);
 
@@ -536,32 +602,45 @@ export function NotificationsCenterScreen({
       if (restoringId) return;
       setRestoringId(notificationId);
       setActionError(null);
+      setActionFeedback(null);
       try {
         await restoreNotification(
           notificationId,
           inboxScope,
           notificationOrganizationId,
         );
-        setNotifications((current) =>
-          current.filter((item) => item.id !== notificationId),
-        );
+        if (noticesContextKeyRef.current !== noticesContextKey) return;
+        if (showingArchivedRef.current) {
+          setNotifications((current) => current.filter((item) => item.id !== notificationId));
+        }
+        await loadNotices(showingArchivedRef.current);
+        if (noticesContextKeyRef.current !== noticesContextKey) return;
+        setActionFeedback({ scope: noticesContextKey, message: "Aviso restaurado na lista principal." });
+        queueFeedFocus(notificationId, true);
       } catch {
-        setActionError("Não foi possível restaurar esta notificação.");
+        if (noticesContextKeyRef.current === noticesContextKey) setActionError("Não foi possível restaurar este aviso.");
       } finally {
         setRestoringId(null);
       }
     },
-    [inboxScope, notificationOrganizationId, restoringId],
+    [inboxScope, loadNotices, noticesContextKey, notificationOrganizationId, queueFeedFocus, restoringId],
   );
 
   const openNotification = useCallback(
     async (notification: AppNotification) => {
-      await markRead(notification);
-      if (notification.actionUrl) {
-        router.push(notification.actionUrl as never);
+      setActionError(null);
+      try {
+        await markRead(notification);
+        if (noticesContextKeyRef.current !== noticesContextKey) return;
+        queueFeedFocus(notification.id, selectedFilter === "unread" && !notification.read, Boolean(notification.actionUrl));
+        if (notification.actionUrl) router.push(notification.actionUrl as never);
+      } catch {
+        if (noticesContextKeyRef.current === noticesContextKey) {
+          setActionError("Não foi possível abrir este aviso. Tente novamente.");
+        }
       }
     },
-    [markRead, router],
+    [markRead, noticesContextKey, queueFeedFocus, router, selectedFilter],
   );
 
   const updateStatus = useCallback(
@@ -574,6 +653,7 @@ export function NotificationsCenterScreen({
       setActionError(null);
       try {
         await updateAbsenceNoticeStatus(notice.id, status);
+        if (noticesContextKeyRef.current !== noticesContextKey) return;
         setAbsenceNotices((prev) =>
           prev.map((item) =>
             item.id === notice.id ? { ...item, status } : item,
@@ -582,68 +662,52 @@ export function NotificationsCenterScreen({
         if (notification) {
           await markRead(notification);
         }
+        if (noticesContextKeyRef.current !== noticesContextKey) return;
+        queueFeedFocus(notification?.id ?? `absence-${notice.id}`, selectedFilter === "unread");
       } catch {
-        setActionError("Não foi possível atualizar este aviso de ausência.");
+        if (noticesContextKeyRef.current === noticesContextKey) setActionError("Não foi possível atualizar este aviso de ausência.");
       } finally {
         setUpdatingId(null);
       }
     },
-    [markRead],
+    [markRead, noticesContextKey, queueFeedFocus, selectedFilter],
   );
+
+  const selectFilter = (filter: NoticeFeedFilter) => {
+    if ((filter === "archived") !== showingArchived) {
+      showingArchivedRef.current = filter === "archived";
+      setLoadError(null);
+      loadNoticesRequestIdRef.current += 1;
+      loadMoreRequestIdRef.current += 1;
+    }
+    setSelectedFilter(filter);
+    setFocusAfterAction(null);
+    setActionError(null);
+    setActionFeedback(null);
+  };
 
   if (loadedNoticesContextKey !== noticesContextKey) {
     return <FullscreenLoadingState overlay />;
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ResponsivePage style={{ flex: 1, maxWidth: undefined, paddingHorizontal: 16 }} gap={0}>
+    <SafeAreaView nativeID="notice-center" style={{ flex: 1, backgroundColor: colors.background }}>
+      {Platform.OS === "web" ? (
+        <style>{`
+          #notice-center :is(button, [role="button"], [tabindex="-1"]):focus-visible {
+            outline: ${borders.focus}px solid ${colors.text};
+            outline-offset: ${borders.focus}px;
+          }
+        `}</style>
+      ) : null}
+      <ResponsivePage style={{ flex: 1 }} gap={0}>
         <ScreenPageHeader
-          title="Notificações"
+          title="Avisos"
           subtitle={headerSubtitle}
           horizontalBleed={0}
-          contentStyle={{ paddingHorizontal: 0, paddingBottom: spacing.md }}
+          contentStyle={{ paddingHorizontal: 0, paddingBottom: spacing.xs }}
           onBack={() =>
             navigateBackOrReplace({ router, fallback: fallbackRoute })
-          }
-          right={
-            unreadCount > 0 ? (
-              <Pressable
-                accessibilityLabel="Marcar todas as notificações como lidas"
-                disabled={isMarkingAllRead}
-                onPress={() => void markAllNotificationsAsRead()}
-                style={{
-                  minHeight: 40,
-                  paddingHorizontal: responsive.isMobile ? 10 : 14,
-                  borderRadius: radius.card,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  opacity: isMarkingAllRead ? 0.6 : 1,
-                }}
-              >
-                <GoAtletaIcon
-                  name="checkmarkCircle"
-                  size={18}
-                  color={colors.primaryBg}
-                />
-                {!responsive.isMobile ? (
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontSize: compactUiMetrics.bodyFontSize,
-                      fontWeight: "800",
-                    }}
-                  >
-                    Marcar como lidos
-                  </Text>
-                ) : null}
-              </Pressable>
-            ) : null
           }
         />
 
@@ -651,95 +715,36 @@ export function NotificationsCenterScreen({
           style={{
             flex: 1,
             minWidth: 0,
-            gap: spacing.sm,
-            paddingBottom: spacing.md,
+            gap: responsive.density.sectionGap,
+            paddingBottom: spacing.sm,
           }}
         >
-          <FadeHorizontalScroll
-            fadeColor={colors.background}
-            fadeWidth={28}
-            contentContainerStyle={{ gap: spacing.xs, paddingRight: 28 }}
-          >
-            {filterOrder.map((filter) => {
-              const active = filter === selectedFilter;
-              return (
-                <Pressable
-                  key={filter}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setSelectedFilter(filter)}
-                  style={{
-                    minHeight: 38,
-                    paddingHorizontal: 13,
-                    borderRadius: radius.full,
-                    borderWidth: 1,
-                    borderColor: active ? colors.successBorder : colors.border,
-                    backgroundColor: active ? colors.successBg : colors.card,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 7,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active ? colors.successText : colors.text,
-                      fontSize: compactUiMetrics.bodyFontSize,
-                      fontWeight: active ? "800" : "700",
-                    }}
-                  >
-                    {filterLabels[filter]}
-                  </Text>
-                  {filter !== "archived" || showingArchived ? (
-                    <Text
-                      style={{
-                        color: active ? colors.successText : colors.muted,
-                        fontSize: 12,
-                        fontWeight: "800",
-                      }}
-                    >
-                      {filterCounts[filter]}
-                      {filterCounts[filter] > 0 && hasMoreNotifications
-                        ? "+"
-                        : ""}
-                    </Text>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </FadeHorizontalScroll>
+          <View style={{ gap: 4 }}>
+            <UnderlineTabs accessibilityLabel="Caixa de avisos"
+              value={selectedFilter === "unread" || selectedFilter === "archived" ? selectedFilter : "all"}
+              items={(["all", "unread", "archived"] as const).map((filter) => ({ value: filter,
+                id: noticeFilterFocusId(filter), label: filter === "unread" && unreadCount > 0 && !showingArchived ? `Não lidos · ${unreadCount}${hasMoreNotifications ? "+" : ""}` : filterLabels[filter] }))}
+              onChange={(filter) => selectFilter(filter as NoticeFeedFilter)} />
+            <CompactSelect label="Tipo" value={["absence", "birthday", "other"].includes(selectedFilter) ? selectedFilter : "all"}
+              nativeID={["absence", "birthday", "other"].includes(selectedFilter) ? noticeFilterFocusId(selectedFilter) : "notice-type-filter"}
+              options={(["all", "absence", "birthday", "other"] as const).map((value) => ({ value, label: filterLabels[value] }))}
+              onChange={(filter) => selectFilter(filter as NoticeFeedFilter)} />
+          </View>
 
-          {!showingArchived && readActiveCount > 0 ? (
-            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-              <Pressable
-                accessibilityLabel="Limpar notificações lidas"
-                disabled={isArchivingRead}
-                onPress={requestArchiveReadNotifications}
-                style={{
-                  minHeight: 36,
-                  paddingHorizontal: 12,
-                  borderRadius: radius.internal,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 7,
-                  opacity: isArchivingRead ? 0.6 : 1,
-                }}
-              >
-                <GoAtletaIcon name="archive" size={17} color={colors.muted} />
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: 12,
-                    fontWeight: "800",
-                  }}
-                >
-                  Limpar lidos
-                </Text>
-              </Pressable>
+          {!isLoading && !switchingArchive && !loadError && !showingArchived && (unreadCount > 0 || readActiveCount > 0) ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+              {unreadCount > 0 ? (
+                <Button label="Marcar todos como lidos" variant="secondary" loading={isMarkingAllRead} onPress={() => void markAllNotificationsAsRead()} />
+              ) : null}
+              {readActiveCount > 0 ? (
+                <Button label="Arquivar lidos" variant="ghost" loading={isArchivingRead} onPress={requestArchiveReadNotifications} />
+              ) : null}
             </View>
+          ) : null}
+          {actionFeedback?.scope === noticesContextKey ? (
+            <Text role="status" accessibilityLiveRegion="polite" style={{ color: colors.successText }}>
+              {actionFeedback.message}
+            </Text>
           ) : null}
 
           {actionError ? (
@@ -781,28 +786,22 @@ export function NotificationsCenterScreen({
                 gap: 10,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "800" }}>
-                Notificações indisponíveis
-              </Text>
-              <Text style={{ color: colors.muted }}>{loadError}</Text>
-              <Pressable
-                onPress={loadNotices}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: radius.internal,
-                  backgroundColor: colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-                  Tentar novamente
+              <View accessibilityRole="alert" style={{ gap: 4 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {hasVisibleSnapshot ? "Não foi possível atualizar os avisos" : "Avisos indisponíveis"}
                 </Text>
-              </Pressable>
+                <Text style={{ color: colors.muted }}>
+                  {hasVisibleSnapshot ? "Mostrando os avisos da última consulta." : loadError}
+                </Text>
+              </View>
+              <View style={{ alignSelf: "flex-start" }}>
+                <Button label="Tentar novamente" variant="secondary" onPress={() => void loadNotices()} />
+              </View>
             </View>
-          ) : isLoading && listItems.length === 0 ? (
+          ) : null}
+          {switchingArchive || (isLoading && !hasVisibleSnapshot) ? (
             <SectionLoadingState />
-          ) : (
+          ) : hasVisibleSnapshot ? (
             <SectionList
               sections={sections}
               keyExtractor={(item) => item.id}
@@ -814,47 +813,20 @@ export function NotificationsCenterScreen({
               windowSize={7}
               ListEmptyComponent={
                 <View
-                  style={{
-                    padding: spacing.lg,
-                    borderRadius: radius.container,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    gap: 6,
-                  }}
+                  nativeID="notice-feed-empty"
+                  tabIndex={-1}
+                  style={{ width: "100%" }}
                 >
-                  <GoAtletaIcon
-                    name={
-                      selectedFilter === "unread"
-                        ? "checkmarkCircle"
-                        : selectedFilter === "archived"
-                          ? "archive"
-                          : "notifications"
-                    }
-                    size={18}
-                    color={
-                      selectedFilter === "unread"
-                        ? colors.success
-                        : colors.muted
-                    }
+                  <ListEmptyState
+                    title={hasMoreNotifications ? "Sem resultados nos avisos carregados" : emptyFilterLabels[selectedFilter]}
+                    description={selectedFilter === "archived" ? "Os avisos arquivados ficam aqui para consulta." : selectedFilter === "all" ? "Novos avisos da sua instituição aparecerão aqui." : "Os outros avisos continuam na caixa de entrada."}
+                    actionLabel="Ver todos os avisos"
+                    onAction={selectedFilter !== "all" ? () => selectFilter("all") : undefined}
                   />
-                  <Text style={{ color: colors.text, fontWeight: "800" }}>
-                    {listItems.length === 0
-                      ? "Nenhuma notificação registrada"
-                      : `Nenhuma notificação em ${filterLabels[selectedFilter].toLowerCase()}`}
-                  </Text>
-                  <Text style={{ color: colors.muted, textAlign: "center" }}>
-                    {selectedFilter === "unread"
-                      ? "Você já revisou todas as notificações."
-                      : selectedFilter === "archived"
-                        ? "As notificações limpas poderão ser recuperadas aqui."
-                        : "Novas notificações aparecerão aqui quando forem registradas."}
-                  </Text>
                 </View>
               }
               ListFooterComponent={
-                notifications.length > 0 ? (
+                hasMoreNotifications && !loadError && !isLoading ? (
                   <View
                     style={{
                       paddingTop: spacing.md,
@@ -863,51 +835,7 @@ export function NotificationsCenterScreen({
                       gap: spacing.xs,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: colors.muted,
-                        fontSize: 12,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {notifications.length}
-                      {hasMoreNotifications ? "+" : ""} notificações carregadas
-                    </Text>
-                    {hasMoreNotifications ? (
-                      <Pressable
-                        accessibilityLabel="Carregar mais notificações"
-                        disabled={isLoadingMore}
-                        onPress={() => void loadMoreNotifications()}
-                        style={{
-                          minHeight: 38,
-                          paddingHorizontal: 14,
-                          borderRadius: radius.internal,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 7,
-                          opacity: isLoadingMore ? 0.6 : 1,
-                        }}
-                      >
-                        <GoAtletaIcon
-                          name="chevronDown"
-                          size={17}
-                          color={colors.text}
-                        />
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {isLoadingMore ? "Carregando..." : "Carregar mais"}
-                        </Text>
-                      </Pressable>
-                    ) : null}
+                    <Button label="Carregar mais avisos" variant="secondary" loading={isLoadingMore} onPress={() => void loadMoreNotifications()} />
                   </View>
                 ) : null
               }
@@ -922,10 +850,11 @@ export function NotificationsCenterScreen({
                   }}
                 >
                   <Text
+                    accessibilityRole="header"
                     style={{
                       color: colors.text,
                       fontSize: compactUiMetrics.bodyFontSize,
-                      fontWeight: "900",
+                      fontWeight: "700",
                     }}
                   >
                     {section.title}
@@ -990,251 +919,109 @@ export function NotificationsCenterScreen({
                   ? getStatusColors(notice.status)
                   : null;
 
-                return (
-                  <Pressable
-                    accessibilityLabel={`${unread ? "Não lido. " : ""}${title}`}
-                    onPress={() => {
-                      if (notification) void openNotification(notification);
-                    }}
-                    disabled={!notification && !isPending}
-                    style={{
-                      paddingHorizontal: responsive.isMobile ? 12 : 14,
-                      paddingVertical: 12,
-                      backgroundColor: unread
-                        ? colors.surfaceElevated
-                        : colors.card,
-                      borderWidth: 1,
-                      borderBottomWidth: last ? 1 : 0,
-                      borderColor: unread
-                        ? colors.successBorder
-                        : colors.border,
-                      borderTopLeftRadius: first ? radius.container : 0,
-                      borderTopRightRadius: first ? radius.container : 0,
-                      borderBottomLeftRadius: last ? radius.container : 0,
-                      borderBottomRightRadius: last ? radius.container : 0,
-                      flexDirection: "row",
-                      alignItems: "flex-start",
-                      gap: 12,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: radius.internal,
-                        backgroundColor: iconBackground,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name={iconName}
-                        size={19}
-                        color={iconColor}
-                      />
-                    </View>
-
-                    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        {unread ? (
-                          <View
-                            accessibilityLabel="Não lido"
-                            style={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: 4,
-                              backgroundColor: colors.primaryBg,
-                            }}
-                          />
-                        ) : null}
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            flex: 1,
-                            color: colors.text,
-                            fontSize: compactUiMetrics.bodyFontSize,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {title}
-                        </Text>
-                        {notice && statusColors ? (
-                          <View
-                            style={{
-                              borderRadius: radius.full,
-                              paddingHorizontal: 9,
-                              paddingVertical: 3,
-                              backgroundColor: statusColors.backgroundColor,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: statusColors.color,
-                                fontSize: 11,
-                                fontWeight: "800",
-                              }}
-                            >
-                              {statusLabels[notice.status]}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-
-                      {body ? (
-                        <Text
-                          numberOfLines={2}
-                          style={{
-                            color: colors.textSecondary,
-                            lineHeight: 19,
-                          }}
-                        >
-                          {body}
-                        </Text>
-                      ) : null}
-                      {contextLabel ? (
-                        <Text
-                          numberOfLines={1}
-                          style={{ color: colors.muted, fontSize: 12 }}
-                        >
-                          {contextLabel}
-                        </Text>
-                      ) : null}
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {typeLabel}
-                        {notification
-                          ? ` • ${formatTime(notification.createdAt)}`
-                          : ""}
-                      </Text>
-
-                      {notice && isPending ? (
-                        <View
-                          style={{
-                            marginTop: 5,
-                            flexDirection: "row",
-                            flexWrap: "wrap",
-                            gap: 8,
-                          }}
-                        >
-                          <Pressable
-                            onPress={() =>
-                              void updateStatus(
-                                notice,
-                                "confirmed",
-                                notification,
-                              )
-                            }
-                            disabled={isUpdating}
-                            style={{
-                              minHeight: 34,
-                              paddingHorizontal: 12,
-                              borderRadius: radius.internal,
-                              backgroundColor: isUpdating
-                                ? colors.primaryDisabledBg
-                                : colors.primaryBg,
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: colors.primaryText,
-                                fontSize: 12,
-                                fontWeight: "800",
-                              }}
-                            >
-                              Confirmar
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() =>
-                              void updateStatus(notice, "ignored", notification)
-                            }
-                            disabled={isUpdating}
-                            style={{
-                              minHeight: 34,
-                              paddingHorizontal: 12,
-                              borderRadius: radius.internal,
-                              backgroundColor: colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              alignItems: "center",
-                              justifyContent: "center",
-                              opacity: isUpdating ? 0.6 : 1,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: colors.text,
-                                fontSize: 12,
-                                fontWeight: "800",
-                              }}
-                            >
-                              Ignorar
-                            </Text>
-                          </Pressable>
+                const isInteractive = notification && (Boolean(notification.actionUrl) || unread);
+                const itemFocusId = noticeItemFocusId(item.id);
+                const focusableContent = <>
+                  <View style={{ width: 32, height: 32, borderRadius: radius.internal, backgroundColor: iconBackground, alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <GoAtletaIcon name={iconName} size={compactUiMetrics.iconSize} color={iconColor} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 4 }}>
+                      {unread ? <View aria-hidden={true} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primaryBg }} /> : null}
+                      <Text style={{ flexShrink: 1, color: colors.text, fontSize: responsive.density.cardTitleFontSize, fontWeight: "700" }}>{title}</Text>
+                      {notice && statusColors ? (
+                        <View style={{ borderRadius: radius.full, paddingHorizontal: spacing.xs, paddingVertical: 3, backgroundColor: statusColors.backgroundColor }}>
+                          <Text style={{ color: statusColors.color, fontSize: responsive.density.metadataFontSize, fontWeight: "700" }}>{statusLabels[notice.status]}</Text>
                         </View>
-                      ) : showingArchived && notification ? (
-                        <Pressable
-                          accessibilityLabel={`Restaurar notificação ${title}`}
-                          disabled={restoringId === notification.id}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void restoreArchivedNotification(notification.id);
-                          }}
-                          style={{
-                            marginTop: 5,
-                            alignSelf: "flex-start",
-                            minHeight: 34,
-                            paddingHorizontal: 11,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.secondaryBg,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                            opacity: restoringId === notification.id ? 0.6 : 1,
-                          }}
-                        >
-                          <GoAtletaIcon
-                            name="restore"
-                            size={16}
-                            color={colors.text}
-                          />
-                          <Text
-                            style={{
-                              color: colors.text,
-                              fontSize: 12,
-                              fontWeight: "800",
-                            }}
-                          >
-                            Restaurar
-                          </Text>
-                        </Pressable>
                       ) : null}
                     </View>
+                    {body ? <Text style={{ color: colors.textSecondary, lineHeight: compactUiMetrics.bodyLineHeight }}>{body}</Text> : null}
+                    {contextLabel ? <Text style={{ color: colors.muted, fontSize: responsive.density.metadataFontSize }}>{contextLabel}</Text> : null}
+                    <Text style={{ color: colors.muted, fontSize: responsive.density.metadataFontSize }}>
+                      {typeLabel}{notification ? ` · ${formatTime(notification.createdAt)}` : ""}
+                    </Text>
+                  </View>
+                  {notification?.actionUrl ? <GoAtletaIcon name="chevronForward" size={compactUiMetrics.iconSize} color={colors.muted} style={{ marginTop: 8 }} /> : null}
+                </>;
+                const itemLayout = { flexDirection: "row", alignItems: "flex-start", minHeight: compactUiMetrics.touchTarget, gap: spacing.xs } as const;
+                const itemLabel = [title, unread ? "Não lido" : null, body, contextLabel, notice ? statusLabels[notice.status] : null].filter(Boolean).join(". ");
+                const actionButtonStyle = {
+                  minHeight: compactUiMetrics.touchTarget,
+                  paddingHorizontal: spacing.sm,
+                  borderRadius: radius.internal,
+                  alignItems: "center",
+                  justifyContent: "center",
+                } as const;
 
-                    {notification?.actionUrl ? (
-                      <GoAtletaIcon
-                        name="chevronForward"
-                        size={17}
-                        color={colors.muted}
-                        style={{ marginTop: 10 }}
-                      />
+                return (
+                  <View style={{
+                    padding: responsive.density.cardPadding,
+                    backgroundColor: unread ? colors.surfaceElevated : colors.card,
+                    borderWidth: 1,
+                    borderBottomWidth: last ? 1 : 0,
+                    borderColor: colors.border,
+                    borderTopLeftRadius: first ? radius.container : 0,
+                    borderTopRightRadius: first ? radius.container : 0,
+                    borderBottomLeftRadius: last ? radius.container : 0,
+                    borderBottomRightRadius: last ? radius.container : 0,
+                  }}>
+                    {isInteractive ? (
+                      <Pressable
+                        nativeID={itemFocusId}
+                        accessibilityRole="button"
+                        accessibilityLabel={itemLabel}
+                        accessibilityHint={notification.actionUrl ? "Abre os detalhes do aviso" : "Marca este aviso como lido"}
+                        onPress={() => void openNotification(notification)}
+                        style={[itemLayout, { borderRadius: radius.sm }]}
+                      >
+                        {focusableContent}
+                      </Pressable>
+                    ) : (
+                      <View nativeID={itemFocusId} tabIndex={-1} style={itemLayout}>
+                        {focusableContent}
+                      </View>
+                    )}
+                    {notice && isPending ? (
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", marginLeft: 40, marginTop: spacing.xs, gap: spacing.xs }}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Confirmar ausência de ${getStudentName(notice.studentId)}`}
+                          accessibilityState={{ busy: isUpdating }}
+                          onPress={() => void updateStatus(notice, "confirmed", notification)}
+                          disabled={isUpdating}
+                          style={[actionButtonStyle, { backgroundColor: isUpdating ? colors.primaryDisabledBg : colors.primaryBg }]}
+                        >
+                          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Confirmar</Text>
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Ignorar ausência de ${getStudentName(notice.studentId)}`}
+                          accessibilityState={{ busy: isUpdating }}
+                          onPress={() => void updateStatus(notice, "ignored", notification)}
+                          disabled={isUpdating}
+                          style={[actionButtonStyle, { backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, opacity: isUpdating ? 0.6 : 1 }]}
+                        >
+                          <Text style={{ color: colors.text, fontWeight: "700" }}>Ignorar</Text>
+                        </Pressable>
+                      </View>
+                    ) : showingArchived && notification ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Restaurar aviso ${title}`}
+                        accessibilityState={{ busy: restoringId === notification.id }}
+                        disabled={restoringId === notification.id}
+                        onPress={() => void restoreArchivedNotification(notification.id)}
+                        style={[actionButtonStyle, { alignSelf: "flex-start", flexDirection: "row", marginTop: spacing.xs, marginLeft: 40, gap: spacing.xs, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }]}
+                      >
+                        <GoAtletaIcon name="restore" size={compactUiMetrics.iconSize} color={colors.text} />
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>Restaurar</Text>
+                      </Pressable>
                     ) : null}
-                  </Pressable>
+                  </View>
                 );
               }}
             />
-          )}
+          ) : null}
         </View>
       </ResponsivePage>
     </SafeAreaView>

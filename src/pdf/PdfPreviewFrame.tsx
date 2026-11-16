@@ -9,6 +9,8 @@ type PdfPreviewFrameProps = {
   editable?: boolean;
   zoom?: number;
   minimumPageWidth?: number;
+  fitPageWidth?: boolean;
+  workspaceZoom?: boolean;
   onMessage?: (data: unknown) => void;
   onError?: () => void;
 };

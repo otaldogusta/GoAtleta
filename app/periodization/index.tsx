@@ -1,10 +1,10 @@
-import { PlanningAssistantProvider } from "../../src/screens/periodization/PlanningAssistant";
+import { PlanningAssistantButton, PlanningAssistantProvider } from "../../src/screens/periodization/PlanningAssistant";
 import { subscribeClassProfile } from "../../src/api/class-pedagogical-profile";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from "expo-router";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { Alert, Animated, Dimensions, FlatList, Platform, ScrollView, View } from "react-native";
+import { Alert, Animated, Dimensions, Platform, ScrollView, useWindowDimensions, View } from "react-native";
 import { OperationalText as Text } from "../../src/ui/OperationalText";
 
 import {
@@ -20,6 +20,7 @@ import {
   useCopilotActions,
   useCopilotContext,
 } from "../../src/copilot/CopilotProvider";
+import { usesPeriodizationAssistantButton } from "../../src/copilot/route-visibility";
 import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
 import { resolveWeeklyAutopilotKnowledgeDomain } from "../../src/core/autopilot/weekly-autopilot";
 import {
@@ -211,9 +212,11 @@ import { hasRenderableWeekPlans } from "../../src/screens/periodization/has-rend
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { Button } from "../../src/ui/Button";
 
 const DEFAULT_ANNUAL_CYCLE_LENGTH =
   annualCycleOptions[annualCycleOptions.length - 1];
+const EMPTY_RECENT_SESSION_SUMMARIES: RecentSessionSummary[] = [];
 
 type WeekPlan = {
   week: number;
@@ -612,6 +615,8 @@ export default function PeriodizationScreen() {
   markRender("screen.periodization.render.root");
 
   const router = useRouter();
+  const pathname = usePathname();
+  const { width: viewportWidth } = useWindowDimensions();
   const scopedRoutes = useTrainerRouteScope();
   const {
     classId: initialClassId,
@@ -634,6 +639,10 @@ export default function PeriodizationScreen() {
   const initialMonthParam = getSingleSearchParam(initialMonth).trim();
   const hasInitialClass = initialClassParam.length > 0;
   const { colors } = useAppTheme();
+  const classPickerStyles = useMemo(() => ({
+    options: { gap: 6 },
+    label: { color: colors.text, fontSize: compactUiMetrics.bodyFontSize },
+  }), [colors.text]);
   const responsiveLayout = useResponsiveLayout("dashboard");
   const insets = useSafeAreaInsets();
   const organization = useOptionalOrganization();
@@ -703,6 +712,7 @@ export default function PeriodizationScreen() {
   const [classesLoadState, setClassesLoadState] = useState<
     "loading" | "ready" | "error"
   >("loading");
+  const [classesLoadAttempt, setClassesLoadAttempt] = useState(0);
 
   const [selectedUnit, setSelectedUnit] = useState("");
 
@@ -745,9 +755,14 @@ export default function PeriodizationScreen() {
   const [recentDailyLessonPlans, setRecentDailyLessonPlans] = useState<
     DailyLessonPlan[]
   >([]);
-  const [recentSessionSummaries, setRecentSessionSummaries] = useState<
-    RecentSessionSummary[]
-  >([]);
+  const [recentSessionHistory, setRecentSessionHistory] = useState<{
+    classId: string;
+    entries: RecentSessionSummary[];
+  }>({ classId: "", entries: [] });
+  const recentSessionHistoryRequest = useRef(0);
+  const recentSessionSummaries = recentSessionHistory.classId === selectedClassId
+    ? recentSessionHistory.entries
+    : EMPTY_RECENT_SESSION_SUMMARIES;
   const [planObservabilityHistory, setPlanObservabilityHistory] = useState<
     PlanObservabilityRecord[]
   >([]);
@@ -847,6 +862,7 @@ export default function PeriodizationScreen() {
   const containerRef = useRef<View>(null);
 
   const classTriggerRef = useRef<View>(null);
+  const classOptionsRef = useRef<View>(null);
 
   const unitTriggerRef = useRef<View>(null);
 
@@ -880,6 +896,12 @@ export default function PeriodizationScreen() {
     animatedStyle: classPickerAnimStyle,
     isVisible: showClassPickerContent,
   } = useCollapsibleAnimation(showClassPicker);
+
+  const isClassPickerReady = Boolean(showClassPicker && showClassPickerContent && classTriggerLayout);
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web" || !isClassPickerReady) return;
+    (classOptionsRef.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true });
+  }, [isClassPickerReady]);
 
   const {
     animatedStyle: mesoPickerAnimStyle,
@@ -937,6 +959,12 @@ export default function PeriodizationScreen() {
   ]);
 
   const closeAllPickers = closeAllPickersFromHook;
+  const closeClassPicker = useCallback(() => {
+    if (Platform.OS === "web" && (classOptionsRef.current as unknown as HTMLElement | null)?.contains(document.activeElement)) {
+      (classTriggerRef.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>('[role="button"]')?.focus({ preventScroll: true });
+    }
+    setShowClassPicker(false);
+  }, [setShowClassPicker]);
 
   useEffect(() => {
     if (!showClassPicker) return;
@@ -1028,7 +1056,7 @@ export default function PeriodizationScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [classesLoadAttempt]);
 
   useEffect(() => {
     let alive = true;
@@ -1094,10 +1122,9 @@ export default function PeriodizationScreen() {
       const match = classes.find((item) => item.id === classParam);
 
       if (match) {
-        if (match.unit)
-          Promise.resolve().then(() => {
-            setSelectedUnit(match.unit);
-          });
+        Promise.resolve().then(() => {
+          setSelectedUnit(match.unit || "Sem unidade");
+        });
 
         Promise.resolve().then(() => {
           setSelectedClassId(match.id);
@@ -1154,7 +1181,7 @@ export default function PeriodizationScreen() {
     if (!hasUnitSelected) return [];
 
     const list = classes.filter(
-      (item) => normalizeUnitKey(item.unit) === selectedKey,
+      (item) => normalizeUnitKey(item.unit || "Sem unidade") === selectedKey,
     );
 
     return [...list].sort((a, b) => {
@@ -1327,15 +1354,6 @@ export default function PeriodizationScreen() {
   }, [planFabAnim, showPlanFabMenu]);
 
   const classNameLabel = normalizeText(selectedClass?.name ?? "Turma");
-  const classAgeLabel = normalizeText(selectedClass?.ageBand ?? "")
-    .replace(/\s*[-–]\s*/g, "–")
-    .trim();
-  const classAgeDisplay = classAgeLabel
-    ? /anos?/i.test(classAgeLabel)
-      ? classAgeLabel
-      : `${classAgeLabel} anos`
-    : "Faixa etária não definida";
-
   const classGenderLabel = selectedClass?.gender ?? "misto";
   const classStartTimeLabel = selectedClass?.startTime
     ? normalizeText(`Horário ${selectedClass.startTime}`)
@@ -1693,8 +1711,9 @@ export default function PeriodizationScreen() {
   ]);
 
   const refreshRecentSessionSummaries = useCallback(async () => {
+    const request = ++recentSessionHistoryRequest.current;
     if (!selectedClass) {
-      setRecentSessionSummaries([]);
+      setRecentSessionHistory({ classId: "", entries: [] });
       return null;
     }
     try {
@@ -1717,6 +1736,7 @@ export default function PeriodizationScreen() {
             limit: 24,
           }),
       ]);
+      if (request !== recentSessionHistoryRequest.current) return null;
       const summaries = buildRecentSessionSummary({
             classId: selectedClass.id,
             plans,
@@ -1725,10 +1745,11 @@ export default function PeriodizationScreen() {
             sessionLogs,
             limit: 6,
       });
-      setRecentSessionSummaries(summaries);
+      setRecentSessionHistory({ classId: selectedClass.id, entries: summaries });
       return summaries;
     } catch (error) {
-      setRecentSessionSummaries([]);
+      if (request !== recentSessionHistoryRequest.current) return null;
+      setRecentSessionHistory({ classId: selectedClass.id, entries: [] });
       logAction("periodization_recent_history_load_failed", {
           classId: selectedClass.id,
           organizationId:
@@ -1797,7 +1818,7 @@ export default function PeriodizationScreen() {
 
     if (
       selectedClass &&
-      normalizeUnitKey(selectedClass.unit) !== normalizeUnitKey(selectedUnit)
+      normalizeUnitKey(selectedClass.unit || "Sem unidade") !== normalizeUnitKey(selectedUnit)
     ) {
       Promise.resolve().then(() => {
         setSelectedClassId("");
@@ -3097,7 +3118,7 @@ export default function PeriodizationScreen() {
       if (
         !changed &&
         selectedClass &&
-        normalizeUnitKey(selectedClass.unit) !== nextKey
+        normalizeUnitKey(selectedClass.unit || "Sem unidade") !== nextKey
       ) {
         setSelectedClassId("");
 
@@ -3117,13 +3138,14 @@ export default function PeriodizationScreen() {
 
       setAllowEmptyClass(false);
 
-      if (cls.unit) setSelectedUnit(cls.unit);
+      setSelectedUnit(cls.unit || "Sem unidade");
+      setCurrentSelectedMonth(initialMonthParam || "");
 
       setUnitMismatchWarning("");
 
-      setShowClassPicker(false);
+      closeClassPicker();
     },
-    [setShowClassPicker],
+    [initialMonthParam, closeClassPicker],
   );
 
   const handleClearClass = useCallback(() => {
@@ -3133,8 +3155,8 @@ export default function PeriodizationScreen() {
 
     setUnitMismatchWarning("");
 
-    setShowClassPicker(false);
-  }, [setShowClassPicker]);
+    closeClassPicker();
+  }, [closeClassPicker]);
 
   const handleSelectMeso = useCallback(
     (value: (typeof cycleOptions)[number]) => {
@@ -3209,19 +3231,15 @@ export default function PeriodizationScreen() {
         active,
 
         onSelect,
-
-        isFirst,
       }: {
         cls: ClassGroup;
 
         active: boolean;
 
         onSelect: (value: ClassGroup) => void;
-
-        isFirst: boolean;
       }) {
         return (
-          <AnchoredDropdownOption active={active} onPress={() => onSelect(cls)}>
+          <AnchoredDropdownOption active={active} onPress={() => onSelect(cls)} density="compact" accessibilityLabel={[cls.name, cls.unit, cls.ageBand].filter(Boolean).join(" · ")}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               <Text
                 style={{
@@ -3237,6 +3255,7 @@ export default function PeriodizationScreen() {
 
               <ClassGenderBadge gender={cls.gender} />
             </View>
+            {cls.unit ? <Text style={{ color: active ? colors.primaryText : colors.muted, fontSize: compactUiMetrics.metadataFontSize }}>{cls.unit}</Text> : null}
           </AnchoredDropdownOption>
         );
       }),
@@ -4346,14 +4365,28 @@ export default function PeriodizationScreen() {
   );
 
   const renderLegacyPeriodizationTabs: boolean = false;
+  const selectableClasses = renderLegacyPeriodizationTabs ? filteredClasses : classes;
+  const hasResolvedCycle = resolvedPlanningCyclesClassId === selectedClassId;
+  const cycleStatus = !isPeriodizationConfigured
+    ? "Configuração pendente"
+    : !hasResolvedCycle
+      ? "Carregando ciclo"
+      : activeCycle
+        ? "Ciclo ativo"
+        : historyCycles.length
+          ? "Ciclo encerrado"
+          : "Sem ciclo ativo";
+  const cycleStatusColor = isPeriodizationConfigured && activeCycle && hasResolvedCycle
+    ? colors.successText
+    : isPeriodizationConfigured ? colors.muted : colors.warningText;
 
-  const periodizationHeaderActions = selectedClass ? (
+  const periodizationHeaderActions = selectedClass && isPeriodizationConfigured ? (
     <View
       style={{
         width: responsiveLayout.isMobile ? "100%" : undefined,
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: responsiveLayout.isMobile ? "flex-end" : "flex-start",
+        justifyContent: "flex-start",
         flexWrap: "wrap",
         gap: 8,
       }}
@@ -4367,7 +4400,7 @@ export default function PeriodizationScreen() {
         }
         onPress={() => openPeriodizationManager("cycle", "manage")}
         style={(state) => ({
-          minHeight: 40,
+          minHeight: compactUiMetrics.touchTarget,
           paddingHorizontal: responsiveLayout.isMobile ? 11 : 15,
           borderRadius: 12,
           borderWidth: 1,
@@ -4398,7 +4431,7 @@ export default function PeriodizationScreen() {
     </View>
   ) : null;
 
-  if (hasInitialClass && classesLoadState === "loading") {
+  if (classesLoadState === "loading") {
     return <ScreenLoadingState />;
   }
 
@@ -4463,7 +4496,11 @@ export default function PeriodizationScreen() {
               fallback: periodizationBackFallback,
             })
           }
-          right={!responsiveLayout.isMobile ? periodizationHeaderActions : null}
+          right={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {selectedClass && usesPeriodizationAssistantButton(pathname, viewportWidth) ? <PlanningAssistantButton colors={colors} /> : null}
+            </View>
+          }
           fadeHeight={responsiveLayout.isMobile ? 0 : 14}
           style={
             Platform.OS !== "web"
@@ -4472,33 +4509,40 @@ export default function PeriodizationScreen() {
           }
         >
           {selectedClass ? (
-            <View style={{ gap: 8 }}>
-              {responsiveLayout.isMobile ? periodizationHeaderActions : null}
+            <View style={{ gap: 8, flexDirection: responsiveLayout.isMobile ? "column" : "row", alignItems: responsiveLayout.isMobile ? "stretch" : "center", justifyContent: "space-between" }}>
               <View
                 style={{
-                  marginLeft: 36,
-                  flexDirection: responsiveLayout.isMobile ? "column" : "row",
-                  alignItems: responsiveLayout.isMobile ? "flex-start" : "center",
+                  marginLeft: 0,
+                  flex: responsiveLayout.isMobile ? undefined : 1,
+                  minWidth: 0,
+                  flexDirection: "row",
+                  alignItems: "center",
                   flexWrap: "wrap",
                   gap: 7,
                 }}
               >
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {normalizeText(
-                  [classNameLabel, classAgeDisplay, classGenderLabel]
-                    .filter(Boolean)
-                    .join(" · "),
-                )}
-              </Text>
+              <View ref={classTriggerRef} collapsable={false} style={{ maxWidth: "100%", flexShrink: 1 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Trocar turma. ${classNameLabel}`}
+                  aria-haspopup="true"
+                  accessibilityState={{ expanded: showClassPicker }}
+                  onPress={() => togglePicker("class")}
+                  style={{ minHeight: compactUiMetrics.touchTarget, width: "100%", minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Text style={{ flexShrink: 1, color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>
+                    {[classNameLabel, selectedClass.unit].filter(Boolean).join(" · ")}
+                  </Text>
+                  <GoAtletaIcon name="chevronDown" size={compactUiMetrics.secondaryIconSize} color={colors.muted} />
+                </Pressable>
+              </View>
               <View
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 5,
-                  borderWidth: 1,
-                  borderColor: isPeriodizationConfigured && activeCycle
-                    ? colors.success
-                    : colors.warning,
+                  borderWidth: 0,
+                  borderColor: colors.border,
                   borderRadius: 999,
                   paddingHorizontal: 8,
                   paddingVertical: 3,
@@ -4509,26 +4553,21 @@ export default function PeriodizationScreen() {
                     width: 6,
                     height: 6,
                     borderRadius: 3,
-                    backgroundColor: isPeriodizationConfigured && activeCycle
-                      ? colors.success
-                      : colors.warning,
+                    backgroundColor: cycleStatusColor,
                   }}
                 />
                 <Text
                   style={{
-                    color: isPeriodizationConfigured && activeCycle
-                      ? colors.successText
-                      : colors.warningText,
-                    fontSize: 10,
+                    color: cycleStatusColor,
+                    fontSize: compactUiMetrics.metadataFontSize,
                     fontWeight: "700",
                   }}
                 >
-                  {isPeriodizationConfigured && activeCycle
-                    ? "Ciclo ativo"
-                    : "Configuração pendente"}
+                  {cycleStatus}
                 </Text>
               </View>
               </View>
+              {periodizationHeaderActions}
             </View>
           ) : null}
         </ScreenPageHeader>
@@ -4555,6 +4594,9 @@ export default function PeriodizationScreen() {
               colors={colors}
               classId={selectedClass.id}
               initialMonthKey={initialMonthParam}
+              operationalCycle={resolvedPlanningCyclesClassId === selectedClass.id ? activeCycle : undefined}
+              archivedCycles={resolvedPlanningCyclesClassId === selectedClass.id ? historyCycles : undefined}
+              recentSessionSummaries={recentSessionSummaries}
               regenerateMonthSignal={regenerateMonthSignal}
               refreshSignal={planningWorkspaceRefreshSignal}
               onMonthChange={setCurrentSelectedMonth}
@@ -4562,16 +4604,62 @@ export default function PeriodizationScreen() {
               onRegenerateCycle={handleGenerateCycle}
             />
           ) : (
-            <View style={[getSectionCardStyle(colors, "neutral"), { gap: 8 }]}>
+            <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { gap: 8, width: "100%", maxWidth: 440, alignSelf: "center" }]}>
               <Text
+                accessibilityRole="header"
                 style={{ color: colors.text, fontSize: compactUiMetrics.titleFontSize, fontWeight: "700" }}
               >
-                Selecione uma turma
+                {classesLoadState === "error"
+                  ? "Não foi possível carregar as turmas"
+                  : classes.length
+                    ? hasInitialClass ? "Turma indisponível" : "Escolha uma turma"
+                    : "Nenhuma turma disponível"}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Volte para Turmas e abra a periodização da turma que deseja
-                acompanhar.
+              <Text accessibilityLiveRegion="polite" style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize, lineHeight: compactUiMetrics.bodyLineHeight }}>
+                {classesLoadState === "error"
+                  ? "Tente carregar a lista novamente."
+                  : classes.length
+                    ? "Selecione a turma para abrir o ciclo e os planos de aula."
+                    : "Abra Turmas para conferir as turmas deste workspace."}
               </Text>
+              {classesLoadState === "error" ? (
+                <View style={{ alignSelf: "flex-start" }}>
+                  <Button label="Tentar novamente" onPress={() => {
+                    setClassesLoadState("loading");
+                    setClassesLoadAttempt((attempt) => attempt + 1);
+                  }} />
+                </View>
+              ) : classes.length ? (
+                <View ref={classTriggerRef} collapsable={false}>
+                  <Pressable
+                    accessibilityRole="button"
+                    aria-haspopup="true"
+                    accessibilityState={{ expanded: showClassPicker }}
+                    onPress={() => togglePicker("class")}
+                    style={{
+                      minHeight: compactUiMetrics.touchTarget,
+                      paddingHorizontal: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <GoAtletaIcon name="classes" size={compactUiMetrics.iconSize} color={colors.muted} />
+                    <Text style={{ flex: 1, color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" }}>
+                      Selecionar turma
+                    </Text>
+                    <GoAtletaIcon name="chevronDown" size={compactUiMetrics.secondaryIconSize} color={colors.muted} />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ alignSelf: "flex-start" }}>
+                  <Button label="Ver turmas" onPress={() => router.push(scopedRoutes.classes)} variant="outline" />
+                </View>
+              )}
             </View>
           )}
 
@@ -5171,62 +5259,28 @@ export default function PeriodizationScreen() {
 
           maxHeight={220}
           nestedScrollEnabled
-          onRequestClose={closeAllPickers}
+          density="compact"
+          interactiveRefs={[classTriggerRef]}
+          onRequestClose={closeClassPicker}
 
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
-          {filteredClasses.length ? (
-            <>
-              <Pressable
-                onPress={handleClearClass}
-
-                style={{
-                  paddingVertical: 12,
-
-                  paddingHorizontal: 12,
-
-                  borderRadius: 14,
-
-                  marginVertical: 3,
-
-                  backgroundColor: !selectedClassId
-                    ? colors.primaryBg
-                    : colors.card,
-                }}
-              >
-                <Text
-                  style={{
-                    color: !selectedClassId ? colors.primaryText : colors.text,
-
-                    fontSize: compactUiMetrics.bodyFontSize,
-
-                    fontWeight: !selectedClassId ? "700" : "500",
-                  }}
-                >
-                  Selecione
-                </Text>
-              </Pressable>
-
-              <FlatList
-                data={filteredClasses}
-                keyExtractor={(cls) => cls.id}
-                scrollEnabled={false}
-                contentContainerStyle={{ gap: 0 }}
-                renderItem={({ item: cls, index }) => (
-                  <ClassOption
-                    cls={cls}
-                    active={cls.id === selectedClassId}
-                    onSelect={handleSelectClass}
-                    isFirst={index === 0}
-                  />
-                )}
-              />
-            </>
+          {selectableClasses.length ? (
+            <View ref={classOptionsRef} collapsable={false} style={classPickerStyles.options}>
+              {selectedClass && renderLegacyPeriodizationTabs ? (
+                <AnchoredDropdownOption active={false} onPress={handleClearClass} density="compact" accessibilityLabel="Limpar seleção de turma">
+                  <Text style={classPickerStyles.label}>Limpar seleção</Text>
+                </AnchoredDropdownOption>
+              ) : null}
+              {selectableClasses.map((cls) => (
+                <ClassOption key={cls.id} cls={cls} active={cls.id === selectedClassId} onSelect={handleSelectClass} />
+              ))}
+            </View>
           ) : (
             <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
               {hasUnitSelected
                 ? "Nenhuma turma cadastrada."
-                : "Selecione uma unidade."}
+                : "Nenhuma turma disponível."}
             </Text>
           )}
         </AnchoredDropdown>

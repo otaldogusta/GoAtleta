@@ -7,6 +7,8 @@ type PdfPreviewFrameProps = {
   editable?: boolean;
   zoom?: number;
   minimumPageWidth?: number;
+  fitPageWidth?: boolean;
+  workspaceZoom?: boolean;
   onMessage?: (data: unknown) => void;
   onError?: () => void;
 };
@@ -25,24 +27,14 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
       }
       .pdf-editable-cell:hover {
         background: #f0fdf4 !important;
-        box-shadow: inset 0 0 0 1px #22c55e;
-      }
-      .pdf-editable-cell:focus {
-        background: #ffffff !important;
-        box-shadow: inset 0 0 0 2px #22c55e;
       }
       tr.goatleta-active-block > td,
       tr.goatleta-active-block > th {
         background: #f0fdf4 !important;
-        box-shadow: inset 0 2px 0 #22c55e, inset 0 -2px 0 #22c55e;
       }
-      tr.goatleta-active-block > td:first-child,
-      tr.goatleta-active-block > th:first-child {
-        box-shadow: inset 2px 0 0 #22c55e, inset 0 2px 0 #22c55e, inset 0 -2px 0 #22c55e;
-      }
-      tr.goatleta-active-block > td:last-child,
-      tr.goatleta-active-block > th:last-child {
-        box-shadow: inset -2px 0 0 #22c55e, inset 0 2px 0 #22c55e, inset 0 -2px 0 #22c55e;
+      html:not([data-pointer-focus]) .pdf-editable-cell:focus-visible {
+        outline: 2px solid #166534;
+        outline-offset: -2px;
       }
       `
           : ""
@@ -106,6 +98,8 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
     <script>
       var viewportZoom = 1;
       var requestedZoom = ${normalizedZoom / 100};
+      var workspaceZoom = false;
+      var fitPageWidth = false;
       var spaceHeld = false;
       var pan = null;
       var suppressPanClick = false;
@@ -182,6 +176,12 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         }
       }
 
+      document.addEventListener('pointerdown', function() {
+        document.documentElement.setAttribute('data-pointer-focus', '');
+      }, true);
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') document.documentElement.removeAttribute('data-pointer-focus');
+      }, true);
       document.addEventListener('focusin', function(e) {
         var el = getEl(e.target);
         var cell = el ? el.closest('[data-block-key], [data-section]') : null;
@@ -353,13 +353,19 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         var a4WidthPx = 210 * 96 / 25.4;
         var fitScale = Math.min(1, Math.max(0.2, (window.innerWidth - horizontalPadding) / a4WidthPx));
         var minimumScale = ${normalizedMinimumPageWidth} > 0 ? ${normalizedMinimumPageWidth} / a4WidthPx : 0;
-        var effectiveScale = Math.min(4, Math.max(minimumScale, fitScale * requestedZoom) * viewportZoom);
+        var scale = fitPageWidth
+          ? fitScale * requestedZoom
+          : workspaceZoom && minimumScale > 0
+            ? Math.max(minimumScale * requestedZoom / 0.7, fitScale * requestedZoom)
+            : Math.max(minimumScale, fitScale * requestedZoom);
+        var effectiveScale = Math.min(4, scale * viewportZoom);
         document.documentElement.style.setProperty('--goatleta-page-scale', String(effectiveScale));
         var scaledWidth = a4WidthPx * effectiveScale;
         var availableWidth = window.innerWidth - horizontalPadding;
         var inset = Math.max(0, (availableWidth - scaledWidth) / 2);
         document.body.style.paddingLeft = (horizontalPadding / 2 + inset) + 'px';
         document.body.style.paddingRight = (horizontalPadding / 2 + inset) + 'px';
+        document.body.style.paddingTop = fitPageWidth && window.innerWidth <= 640 ? '30px' : '';
       }
 
       window.addEventListener('message', function(event) {
@@ -368,6 +374,9 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         var nextZoom = Number(data.zoom);
         if (!Number.isFinite(nextZoom)) return;
         requestedZoom = Math.max(0.7, Math.min(1.4, nextZoom / 100));
+        fitPageWidth = data.fitPageWidth === true;
+        workspaceZoom = data.workspaceZoom === true;
+        if (fitPageWidth && nextZoom === 100) viewportZoom = 1;
         updatePageScale();
       });
 
@@ -394,6 +403,8 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
   editable,
   zoom = 100,
   minimumPageWidth = 0,
+  fitPageWidth = false,
+  workspaceZoom = false,
   onError,
 }: PdfPreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -413,8 +424,10 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
     iframeRef.current?.contentWindow?.postMessage({
       type: "GOATLETA_PDF_SET_ZOOM",
       zoom,
+      fitPageWidth,
+      workspaceZoom,
     }, "*");
-  }, [zoom]);
+  }, [fitPageWidth, workspaceZoom, zoom]);
 
   useEffect(() => {
     if (!html || !editable) return;

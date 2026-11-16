@@ -16,7 +16,7 @@ import type {
 } from "../../../core/models";
 import { deriveStudentHealthAssessment } from "../../../core/student-health";
 import { normalizeRaDigits } from "../../../utils/student-ra";
-import type { ThemeColors } from "../../../ui/app-theme";
+import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../../ui/DateInput";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
@@ -685,6 +685,17 @@ export function StudentEditModal({
     SelectOption,
 }: StudentEditModalProps) {
     const responsiveLayout = useResponsiveLayout("content");
+    const { mode } = useAppTheme();
+    const compactContactFieldStyle = {
+        minHeight: compactUiMetrics.modalFieldHeight,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: 10,
+        fontSize: 13,
+        borderRadius: 12,
+        backgroundColor: mode === "dark" ? "#121c30" : colors.inputBg,
+        color: colors.inputText,
+    };
     const nameInputRef = useRef<TextInput | null>(null);
     const birthDateInputRef = useRef<TextInput | null>(null);
     const raInputRef = useRef<TextInput | null>(null);
@@ -1268,7 +1279,7 @@ export function StudentEditModal({
                                                             accessibilityLabel="Nome do aluno"
                                                             placeholderTextColor={colors.placeholder}
                                                             style={[
-                                                                { borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText },
+                                                                compactContactFieldStyle,
                                                                 getValidationFieldStyle(validationIssue?.field === "name", colors.dangerSolidBg),
                                                             ]}
                                                         />
@@ -1284,7 +1295,7 @@ export function StudentEditModal({
                                                         autoCapitalize="none"
                                                         autoCorrect={false}
                                                         placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
+                                                        style={compactContactFieldStyle}
                                                     />
                                                 </View>
                                             </View>
@@ -1296,6 +1307,7 @@ export function StudentEditModal({
                                                         attempt={validationIssue?.field === "birthDate" ? validationIssue.attempt : 0}
                                                     >
                                                         <DateInput
+                                                            compact
                                                             inputRef={birthDateInputRef}
                                                             value={birthDate}
                                                             onChange={(value) => {
@@ -1316,7 +1328,7 @@ export function StudentEditModal({
                                                         onChangeText={(value) => setPhone(formatPhone(value))}
                                                         keyboardType="phone-pad"
                                                         placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
+                                                        style={compactContactFieldStyle}
                                                     />
                                                 </View>
                                             </View>
@@ -1648,7 +1660,7 @@ export function StudentEditModal({
                                                         value={guardianName}
                                                         onChangeText={setGuardianName}
                                                         placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
+                                                        style={compactContactFieldStyle}
                                                     />
                                                 </View>
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
@@ -1659,7 +1671,7 @@ export function StudentEditModal({
                                                         onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                                                         keyboardType="phone-pad"
                                                         placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
+                                                        style={compactContactFieldStyle}
                                                     />
                                                 </View>
                                             </View>
@@ -1829,6 +1841,8 @@ export function StudentEditModal({
                     </ScrollView>
                     <View style={{ paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
                         <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={editSaving ? "Salvando" : "Salvar"}
                             onPress={async () => {
                                 setEditSaving(true);
                                 try {

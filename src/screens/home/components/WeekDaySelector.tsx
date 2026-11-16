@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ScrollView, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
 import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import { Pressable } from "../../../ui/Pressable";
@@ -65,6 +65,10 @@ export const WeekDaySelector = memo(function WeekDaySelector({
             <Pressable
               key={day.dateKey}
               onPress={() => onSelect(day.dateKey)}
+              accessibilityRole="button"
+              accessibilityLabel={`${day.fullLabel}, ${day.lessonCount} ${day.lessonCount === 1 ? "aula" : "aulas"}`}
+              accessibilityState={Platform.OS === "web" ? undefined : { selected: isSelected }}
+              {...(Platform.OS === "web" ? { "aria-pressed": isSelected } : {})}
               style={{
                 flex: 1,
                 minWidth: mobile ? metrics.touchTarget : compact ? 56 : 64,

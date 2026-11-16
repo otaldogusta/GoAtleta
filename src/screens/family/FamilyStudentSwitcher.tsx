@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { useEffect, useId, useRef, useState } from "react";
+import { Platform, ScrollView, View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useRole } from "../../auth/role";
@@ -20,6 +20,27 @@ export function FamilyStudentSwitcher() {
     setActiveFamilyStudent,
   } = useRole();
   const [open, setOpen] = useState(false);
+  const triggerId = useId();
+  const returnFocusFrame = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (returnFocusFrame.current !== null) {
+      cancelAnimationFrame(returnFocusFrame.current);
+      returnFocusFrame.current = null;
+    }
+  }, [open]);
+
+  const restoreTriggerFocus = () => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (returnFocusFrame.current !== null) cancelAnimationFrame(returnFocusFrame.current);
+    returnFocusFrame.current = requestAnimationFrame(() => {
+      returnFocusFrame.current = null;
+      const trigger = document.getElementById(triggerId);
+      if (document.activeElement === document.body && trigger?.isConnected && trigger.getClientRects().length && !trigger.closest('[inert], [aria-hidden="true"]')) {
+        trigger.focus({ preventScroll: true });
+      }
+    });
+  };
 
   if (!selectedFamilyStudent) {
     return (
@@ -75,6 +96,8 @@ export function FamilyStudentSwitcher() {
     <>
       {familyContexts.length > 1 ? (
         <Pressable
+          nativeID={triggerId}
+          accessibilityRole="button"
           accessibilityLabel="Trocar atleta acompanhado"
           accessibilityState={{ expanded: open }}
           onPress={() => setOpen(true)}
@@ -116,6 +139,8 @@ export function FamilyStudentSwitcher() {
       <ModalSheet
         visible={open}
         onClose={() => setOpen(false)}
+        dialogLabel="Trocar atleta acompanhado"
+        onExited={restoreTriggerFocus}
         position="center"
         cardStyle={{
           width: "100%",
@@ -136,6 +161,7 @@ export function FamilyStudentSwitcher() {
             </Text>
           </View>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Fechar"
             onPress={() => setOpen(false)}
             disableWebPressScale

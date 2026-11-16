@@ -1,4 +1,4 @@
-import { Redirect } from "expo-router";
+import { Redirect, usePathname } from "expo-router";
 import { Platform } from "react-native";
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
@@ -14,12 +14,7 @@ export default function Home() {
   const organization = useOptionalOrganization();
   const profile = useEffectiveProfile();
   const isWeb = Platform.OS === "web";
-  const browserPathname =
-    isWeb && typeof window !== "undefined"
-      ? window.location.pathname.length > 1
-        ? window.location.pathname.replace(/\/+$/, "")
-        : window.location.pathname
-      : "/";
+  const pathname = usePathname();
   const shouldWaitForOrganization =
     devProfilePreview === "auto" &&
     role === "trainer" &&
@@ -29,7 +24,7 @@ export default function Home() {
   if (authLoading || roleLoading || shouldWaitForOrganization) {
     return <FullscreenLoadingState />;
   }
-  if (isWeb && browserPathname !== "/" && browserPathname !== "/index") return null;
+  if (isWeb && pathname !== "/" && pathname !== "/index") return null;
 
   if (!session) return <Redirect href="/welcome" />;
   if (role === "pending") return <Redirect href="/student/home" />;

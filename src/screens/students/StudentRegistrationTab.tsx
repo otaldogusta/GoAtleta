@@ -706,7 +706,8 @@ export function StudentRegistrationTab({
                 </View>
               ) : null}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 200, gap: 6 }}>
+                  <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Nascimento</Text>
                   <FormFieldValidationFeedback
                     message={
                       validationIssue?.field === "birthDate"
@@ -726,20 +727,19 @@ export function StudentRegistrationTab({
                         onClearValidation?.("birthDate");
                         setBirthDate(value);
                       }}
-                      placeholder="Data de nascimento"
+                      placeholder="DD/MM/AAAA"
+                      accessibilityLabel="Data de nascimento"
                       onOpenCalendar={() => setShowCalendar(true)}
                       invalid={validationIssue?.field === "birthDate"}
                     />
                   </FormFieldValidationFeedback>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {ageNumber !== null
-                      ? `Idade: ${ageNumber} anos`
-                      : "Idade calculada automaticamente"}
-                  </Text>
+                  {ageNumber !== null ? <Text style={{ color: colors.muted, fontSize: 12 }}>Idade: {ageNumber} anos</Text> : null}
                 </View>
                 <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize }}>Telefone</Text>
                   <TextInput
-                    placeholder="Telefone"
+                    placeholder="(00) 00000-0000"
+                    accessibilityLabel="Telefone do atleta"
                     value={phone}
                     onChangeText={(v) => setPhone(formatPhone(v))}
                     keyboardType="phone-pad"

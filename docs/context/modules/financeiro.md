@@ -23,6 +23,9 @@ autoriza emissão/captura real. Ativação/configuração remota não foi consul
 
 ## Contratos a preservar
 
+- Falha ao consultar o Asaas deve ter nova tentativa antes de exibir a ação de
+  conectar conta. [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
+
 - Valores monetários em centavos/inteiros; não misturar reais exibidos com payload.
 - `platform_saas` e `institution_tuition` são escopos distintos. Provider mock não
   comprova pagamento real; baixa manual registra recebimento, não processa cartão/PIX.
@@ -56,3 +59,13 @@ Localizados, não reexecutados nesta rodada:
 Mudanças funcionais exigem casos de outra organização, repetição do webhook,
 troca sandbox/production, paginação e totalização; `typecheck:app` e
 `check:org-scope` conforme a escada. Smoke local usa fixtures, sem cobrar pessoas.
+
+## Continuidade local do inventário · 13/11/2026
+
+Financeiro reutiliza abas sublinhadas e seletor compacto; Planos embutido tem altura pelo conteúdo. Assistente no cabeçalho abaixo de 1100 px libera ações. Valores, filtros, RPCs e condições de baixa permanecem.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).
+
+Em 14/11/2026, Configurações embutidas também usam altura pelo conteúdo no
+celular, limitada a 94% do espaço do modal, com cabeçalho fixo e rolagem interna.
+Modo standalone e lógica do provedor permanecem. Abertura e falha do status não
+certificam conexão Asaas. [Validação local](../../ui/REVISAO_TELAS_ATUAIS_2026-11-14.md).

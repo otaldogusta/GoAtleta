@@ -22,6 +22,7 @@ type Props = {
   bodyStyle?: object;
   footerStyle?: object;
   closeAccessibilityLabel?: string;
+  dialogLabel?: string;
 };
 
 export function ModalDialogFrame({
@@ -38,9 +39,10 @@ export function ModalDialogFrame({
   bodyStyle,
   footerStyle,
   closeAccessibilityLabel = "Fechar modal",
+  dialogLabel,
 }: Props) {
   return (
-    <ModalSheet visible={visible} onClose={onClose} cardStyle={cardStyle} position={position}>
+    <ModalSheet visible={visible} onClose={onClose} cardStyle={cardStyle} position={position} dialogLabel={dialogLabel}>
       <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         <View
           style={{

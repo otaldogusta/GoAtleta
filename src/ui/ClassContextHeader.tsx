@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { View } from "react-native";
 import { OperationalText as Text } from "./OperationalText";
 import type { ClassGender } from "../core/models";
@@ -29,6 +30,7 @@ type ClassContextHeaderProps = {
   classColorKey: string | null;
   scheduleFormat?: "split" | "combined";
   backFallback?: BackFallback;
+  headerAction?: ReactNode;
 };
 
 export function ClassContextHeader({
@@ -43,6 +45,7 @@ export function ClassContextHeader({
   classColorKey,
   scheduleFormat = "split",
   backFallback = "/classes",
+  headerAction,
 }: ClassContextHeaderProps) {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -70,6 +73,14 @@ export function ClassContextHeader({
     backgroundColor: colors.secondaryBg,
     justifyContent: "center" as const,
   };
+
+  const classIdentity = (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
+      <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: isOnline ? classPalette.bg : colors.border, opacity: isOnline ? 1 : 0.45 }} />
+      <Text numberOfLines={1} style={{ fontSize: density.sectionTitleFontSize, fontWeight: "700", color: colors.text, maxWidth: 140 }}>{safeClassName}</Text>
+      {gender ? <ClassGenderBadge gender={gender} size="md" /> : null}
+    </View>
+  );
 
   return (
     <View style={{ gap: 8, marginBottom: 12 }}>
@@ -102,22 +113,9 @@ export function ClassContextHeader({
           ) : null}
         </Pressable>
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 999,
-              backgroundColor: isOnline ? classPalette.bg : colors.border,
-              opacity: isOnline ? 1 : 0.45,
-            }}
-          />
-          <Text numberOfLines={1} style={{ fontSize: density.sectionTitleFontSize, fontWeight: "700", color: colors.text, maxWidth: 140 }}>
-            {safeClassName}
-          </Text>
-          {gender ? <ClassGenderBadge gender={gender} size="md" /> : null}
-        </View>
+        {headerAction ? headerAction : classIdentity}
       </View>
+      {headerAction ? classIdentity : null}
       {hasChips ? (
         <FadeHorizontalScroll
           fadeColor={colors.background}

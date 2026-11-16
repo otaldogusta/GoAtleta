@@ -8,15 +8,26 @@ import {
   NativeScrollEvent,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { markRender } from "../src/observability/perf";
+import { brandPalette } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaBrandLockup } from "../src/ui/GoAtletaBrand";
 import { Pressable } from "../src/ui/Pressable";
+
+const styles = StyleSheet.create({
+  indicatorButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 const CAROUSEL_SLIDES = [
   {
@@ -121,7 +132,7 @@ export default function WelcomeScreen() {
   };
 
   const primaryBtnBg = mode === "dark" ? "#3DDC84" : "#27B86A";
-  const primaryBtnText = "#FFFFFF";
+  const primaryBtnText = brandPalette.navyDeep;
   const secondaryBtnBg = mode === "dark" ? "#121c30" : colors.secondaryBg;
   const currentSlide = CAROUSEL_SLIDES[activeIndex] || CAROUSEL_SLIDES[0];
 
@@ -261,6 +272,7 @@ export default function WelcomeScreen() {
           <View style={{ gap: 14, marginBottom: 6 }}>
             <View style={{ gap: 10 }}>
               <Pressable
+                accessibilityRole="button"
                 onPress={() => router.push("/signup")}
                 suppressWebHoverFeedback
                 style={({ pressed, hovered }: any) => ({
@@ -285,6 +297,7 @@ export default function WelcomeScreen() {
               </Pressable>
 
               <Pressable
+                accessibilityRole="button"
                 onPress={() => router.push("/login")}
                 suppressWebHoverFeedback
                 style={({ pressed, hovered }: any) => ({
@@ -319,18 +332,19 @@ export default function WelcomeScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 8,
-                marginTop: 4,
               }}
             >
-              {CAROUSEL_SLIDES.map((_, idx) => {
+              {CAROUSEL_SLIDES.map((slide, idx) => {
                 const isActive = activeIndex === idx;
                 return (
                   <Pressable
-                    key={String(idx)}
+                    key={slide.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={slide.sportLabel}
+                    aria-pressed={isActive}
                     onPress={() => scrollToSlide(idx)}
                     suppressWebHoverFeedback
-                    style={{ padding: 4 }}
+                    style={styles.indicatorButton}
                   >
                     <View
                       style={{

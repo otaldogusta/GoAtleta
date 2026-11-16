@@ -1671,7 +1671,7 @@ export async function saveStudent(student: Student) {
   }
 }
 
-export async function updateStudent(student: Student) {
+export async function updateStudent(student: Student, healthBaseline?: Student) {
   const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
   const activeOrganizationId =
     student.organizationId || (await getActiveOrganizationId());
@@ -1710,11 +1710,6 @@ export async function updateStudent(student: Student) {
     guardian_relation: student.guardianRelation?.trim() || null,
     address: student.address?.trim() || null,
     gender_identity: student.genderIdentity?.trim() || null,
-    health_issue: student.healthIssue ?? false,
-    health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-    medication_use: student.medicationUse ?? false,
-    medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-    health_observations: student.healthObservations?.trim() || null,
     position_primary: student.positionPrimary ?? "indefinido",
     position_secondary: student.positionSecondary ?? "indefinido",
     athlete_objective: student.athleteObjective ?? "base",
@@ -1722,6 +1717,26 @@ export async function updateStudent(student: Student) {
     birthdate: student.birthDate ? student.birthDate : null,
     createdat: student.createdAt,
   };
+  const healthIssue = student.healthIssue ?? false;
+  const healthIssueNotes = healthIssue ? student.healthIssueNotes?.trim() || null : null;
+  const medicationUse = student.medicationUse ?? false;
+  const medicationNotes = medicationUse ? student.medicationNotes?.trim() || null : null;
+  const healthObservations = student.healthObservations?.trim() || null;
+  const baselineHealthIssue = healthBaseline?.healthIssue ?? false;
+  const baselineMedicationUse = healthBaseline?.medicationUse ?? false;
+  if (!healthBaseline || healthIssue !== baselineHealthIssue ||
+      healthIssueNotes !== (baselineHealthIssue ? healthBaseline.healthIssueNotes?.trim() || null : null)) {
+    payload.health_issue = healthIssue;
+    payload.health_issue_notes = healthIssueNotes;
+  }
+  if (!healthBaseline || medicationUse !== baselineMedicationUse ||
+      medicationNotes !== (baselineMedicationUse ? healthBaseline.medicationNotes?.trim() || null : null)) {
+    payload.medication_use = medicationUse;
+    payload.medication_notes = medicationNotes;
+  }
+  if (!healthBaseline || healthObservations !== (healthBaseline.healthObservations?.trim() || null)) {
+    payload.health_observations = healthObservations;
+  }
   if (cpfCandidate) {
     if (shouldProcessCpf) {
       payload.cpf_input = cpfDigits;

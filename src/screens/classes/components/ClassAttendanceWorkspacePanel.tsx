@@ -14,7 +14,7 @@ import type { EmbeddedAttendanceDetails, EmbeddedAttendanceStatus, EmbeddedAtten
 import { StudentPhotoViewerModal } from "../../students/components/StudentPhotoViewerModal";
 import { ClassLessonDateNavigator } from "./ClassLessonDateNavigator";
 
-const STACKED_ATTENDANCE_PANEL_WIDTH = 360;
+const STACKED_ATTENDANCE_PANEL_WIDTH = 300;
 
 const PAIN_OPTIONS = [
   {
@@ -220,10 +220,10 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
         </View>
         <View onPointerEnter={() => setHoveredActionsId(student.id)} onPointerLeave={() => setHoveredActionsId(null)} style={[styles.rowActions, mobile ? styles.rowActionsMobile : null, stacked ? styles.rowActionsStacked : null, densePanel && !mobile ? styles.rowActionsDense : null]}>
           <View style={[styles.segmentedControl, mobile ? styles.segmentedControlMobile : null, stacked ? styles.segmentedControlStacked : null, densePanel && !mobile ? styles.segmentedControlDense : null, { borderColor: colors.border }]}>
-            <Pressable onPress={() => requestSavedAttendanceEdit(() => onSetStatus(student.id, "presente"))} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityState={{ selected: status === "presente", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, status === "presente" ? { backgroundColor: colors.successBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
+            <Pressable onPress={() => requestSavedAttendanceEdit(() => onSetStatus(student.id, "presente"))} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Presente: ${student.name}`} aria-pressed={status === "presente"} accessibilityState={{ selected: status === "presente", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, status === "presente" ? { backgroundColor: colors.successBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
               <Text style={[styles.segmentLabel, mobile || densePanel ? styles.segmentLabelDense : null, { color: status === "presente" ? colors.successText : colors.text }]}>Presente</Text>
             </Pressable>
-            <Pressable onPress={() => requestSavedAttendanceEdit(() => onSetStatus(student.id, "faltou"))} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityState={{ selected: status === "faltou", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, styles.segmentDivider, { borderLeftColor: colors.border }, status === "faltou" ? { backgroundColor: colors.dangerBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
+            <Pressable onPress={() => requestSavedAttendanceEdit(() => onSetStatus(student.id, "faltou"))} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Faltou: ${student.name}`} aria-pressed={status === "faltou"} accessibilityState={{ selected: status === "faltou", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, styles.segmentDivider, { borderLeftColor: colors.border }, status === "faltou" ? { backgroundColor: colors.dangerBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
               <Text style={[styles.segmentLabel, mobile || densePanel ? styles.segmentLabelDense : null, { color: status === "faltou" ? colors.dangerText : colors.text }]}>Faltou</Text>
             </Pressable>
           </View>

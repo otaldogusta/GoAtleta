@@ -67,6 +67,7 @@ function ScalePicker({
               accessibilityRole="button"
               accessibilityLabel={`${label}: ${item}`}
               accessibilityState={{ selected: active }}
+              aria-pressed={active}
               onPress={() => onChange(item)}
               suppressWebHoverFeedback disableWebPressScale
               style={{ width: compactUiMetrics.touchTarget, height: compactUiMetrics.touchTarget, alignItems: "center", justifyContent: "center" }}>

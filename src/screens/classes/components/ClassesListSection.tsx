@@ -8,21 +8,21 @@ import { markRender } from "../../../observability/perf";
 import { compactUiMetrics, radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AppRefreshControl } from "../../../ui/AppRefreshControl";
-import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
-import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
+import { Button } from "../../../ui/Button";
+import { CompactSelect } from "../../../ui/CompactSelect";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
-import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
 import type { ClassCardViewModel } from "../application/class-card-view-model";
-import { ClassCard } from "./ClassCard";
+import { ClassCard, compactClassTableColumns } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];
 type Conflict = { name: string; day: number; modality?: string; kind: "conflict" | "integration" };
-type Layout = { x: number; y: number; width: number; height: number };
 
 const ALL_UNITS_KEY = "__all_units__";
-const TABLE_LAYOUT_MIN_WIDTH = 680;
+// The five columns and their action target need 764 px before any extra room.
+const TABLE_LAYOUT_MIN_WIDTH = 820;
+const COMPACT_WEB_TABLE_MIN_WIDTH = 660;
 
 type Props = {
   grouped: GroupedClasses;
@@ -36,6 +36,7 @@ type Props = {
   classCardViewModelsById: Record<string, ClassCardViewModel>;
   onVisiblePhotoClassesChange?: (classIds: string[]) => void;
   refreshing?: boolean;
+  loadFailed?: boolean;
   onRefresh?: () => void | Promise<void>;
   onScrollBeginDrag?: () => void;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -56,6 +57,7 @@ export const ClassesListSection = memo(function ClassesListSection({
   classCardViewModelsById,
   onVisiblePhotoClassesChange,
   refreshing,
+  loadFailed,
   onRefresh,
   onScrollBeginDrag,
   contentContainerStyle,
@@ -64,8 +66,9 @@ export const ClassesListSection = memo(function ClassesListSection({
   markRender("screen.classes.render.listSection");
   const { containerRef, onLayout, width: availableWidth } =
     useContainerResponsiveLayout("dashboard");
-  const showTable = availableWidth >= TABLE_LAYOUT_MIN_WIDTH;
-  const compactControls = availableWidth < 520;
+  const compactTable = Platform.OS === "web" && availableWidth >= COMPACT_WEB_TABLE_MIN_WIDTH && availableWidth < TABLE_LAYOUT_MIN_WIDTH;
+  const showTable = availableWidth >= TABLE_LAYOUT_MIN_WIDTH || compactTable;
+  const stackedFilters = availableWidth < 430;
   const [selectedUnitKey, setSelectedUnitKey] = useState(ALL_UNITS_KEY);
   const [classSearch, setClassSearch] = useState("");
   const [viewableClassIds, setViewableClassIds] = useState<string[]>([]);
@@ -77,16 +80,7 @@ export const ClassesListSection = memo(function ClassesListSection({
   const [tableAscending, setTableAscending] = useState(true);
   const [sortKey, setSortKey] = useState<"name" | "time" | "age" | "students" | "teacher" | null>(null);
   const [sortIndicator] = useState(() => new Animated.Value(0));
-  const unitTriggerRef = useRef<View | null>(null);
-  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
-  const [unitDropdownLayout, setUnitDropdownLayout] = useState<Layout | null>(null);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
-  const { animatedStyle: unitDropdownAnimationStyle, isVisible: unitDropdownVisible } =
-    useCollapsibleAnimation(unitDropdownOpen, {
-      durationIn: 140,
-      durationOut: 100,
-      translateY: -4,
-    });
 
   const units = useMemo(
     () => grouped.map(([label, items]) => ({ key: unitKey(label), label, items })),
@@ -157,6 +151,11 @@ export const ClassesListSection = memo(function ClassesListSection({
   }, [sortIndicator, sortKey]);
 
   const selectedTitle = selectedUnit?.label ?? "Todas as unidades";
+  const hasFilters = Boolean(classSearch.trim()) || Boolean(selectedUnit);
+  const resetFilters = () => {
+    setClassSearch("");
+    chooseUnit(ALL_UNITS_KEY);
+  };
   const closeActionMenu = useCallback(() => setOpenActionMenuId(null), []);
   const toggleActionMenu = useCallback((classId: string) => {
     setOpenActionMenuId((current) => (current === classId ? null : classId));
@@ -164,20 +163,8 @@ export const ClassesListSection = memo(function ClassesListSection({
 
   const chooseUnit = useCallback((key: string) => {
     setSelectedUnitKey(key);
-    setUnitDropdownOpen(false);
     setOpenActionMenuId(null);
   }, []);
-
-  const toggleUnitDropdown = useCallback(() => {
-    if (unitDropdownOpen) {
-      setUnitDropdownOpen(false);
-      return;
-    }
-    unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
-      setUnitDropdownLayout({ x, y, width, height });
-      setUnitDropdownOpen(true);
-    });
-  }, [unitDropdownOpen]);
 
   const renderClass = useCallback(
     ({ item }: { item: ClassGroup }) => (
@@ -201,6 +188,7 @@ export const ClassesListSection = memo(function ClassesListSection({
           onDuplicate={onDuplicateClass}
           onDelete={onDeleteClass}
           layout={showTable ? "table" : "card"}
+          compactTable={compactTable}
           showUnit={selectedUnitKey === ALL_UNITS_KEY}
           narrowCard={availableWidth < 520}
         />
@@ -210,6 +198,7 @@ export const ClassesListSection = memo(function ClassesListSection({
       classCardViewModelsById,
       closeActionMenu,
       colors,
+      compactTable,
       conflictsById,
       dayNames,
       onDeleteClass,
@@ -224,13 +213,8 @@ export const ClassesListSection = memo(function ClassesListSection({
     ]
   );
 
-  if (!grouped.length) {
-    return (
-      <View style={[styles.emptyState, { backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg }]}>
-        <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 13 }}>Nenhuma turma encontrada.</Text>
-      </View>
-    );
-  }
+  const showFilters = totalClasses > 0;
+  const showLoadError = loadFailed && onRefresh;
 
   return (
     <View
@@ -239,57 +223,42 @@ export const ClassesListSection = memo(function ClassesListSection({
       style={[styles.root, { backgroundColor: colors.background }, style]}
     >
       <View style={[styles.classesPanel, { backgroundColor: colors.background }]}>
-        <View
+        {showLoadError ? (
+          <View style={[styles.loadNotice, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <GoAtletaIcon name="warningCircle" size={18} color={colors.dangerText} />
+            <View style={styles.noticeCopy} accessibilityLiveRegion="polite">
+              <Text style={[styles.stateTitle, { color: colors.text }]}>Não foi possível carregar as turmas</Text>
+              {showFilters ? <Text style={{ color: colors.muted }}>A lista mostra a última consulta disponível.</Text> : null}
+            </View>
+            <View style={styles.noticeAction}>
+              <Button label="Tentar novamente" variant="outline" onPress={() => void onRefresh()} loading={refreshing} />
+            </View>
+          </View>
+        ) : null}
+        {showFilters ? <View
           style={[
             styles.classesHeader,
+            stackedFilters && styles.stackedFilters,
             { borderBottomColor: colors.borderSubtle ?? colors.border },
           ]}
         >
-          <View
-            ref={unitTriggerRef}
-            collapsable={false}
-            style={[
-              styles.unitSelectAnchor,
-              compactControls ? styles.unitSelectAnchorCompact : null,
-            ]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Selecionar unidade. Atual: ${selectedTitle}`}
-              onPress={toggleUnitDropdown}
-              style={(state) => [
-                styles.unitSelectTrigger,
-                {
-                  backgroundColor:
-                    state.hovered || unitDropdownOpen
-                      ? colors.secondaryBg
-                      : colors.backgroundSubtle ?? colors.secondaryBg,
-                  borderColor:
-                    unitDropdownOpen ? colors.primaryBg : colors.borderSubtle ?? colors.border,
-                },
+          <View style={[styles.unitSelectAnchor, stackedFilters && styles.stackedFilter]}>
+            <CompactSelect
+              label="Unidade"
+              value={selectedUnitKey}
+              onChange={chooseUnit}
+              options={[
+                { value: ALL_UNITS_KEY, label: "Todas as unidades" },
+                ...sortedUnits.map((unit) => ({ value: unit.key, label: unit.label })),
               ]}
-            >
-              <GoAtletaIcon name="organization" size={16} color={colors.primaryBg} />
-              <Text
-                numberOfLines={1}
-                style={[styles.unitSelectText, { color: colors.textPrimary ?? colors.text }]}
-              >
-                {selectedTitle}
-              </Text>
-              <Text style={[styles.unitSelectCount, { color: colors.textMuted ?? colors.muted }]}>
-                {selectedUnit?.items.length ?? totalClasses}
-              </Text>
-              <GoAtletaIcon
-                name={unitDropdownOpen ? "chevronUp" : "chevronDown"}
-                size={14}
-                color={colors.textMuted ?? colors.muted}
-              />
-            </Pressable>
+            />
           </View>
 
           <View
+            testID="classes-search-field"
             style={[
               styles.classSearchField,
+              stackedFilters && styles.stackedSearchField,
               {
                 backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
                 borderColor: colors.borderSubtle ?? colors.border,
@@ -318,13 +287,13 @@ export const ClassesListSection = memo(function ClassesListSection({
               </Pressable>
             ) : null}
           </View>
-        </View>
+        </View> : null}
 
-        {showTable ? (
+        {showTable && selectedClasses.length > 0 ? (
           <View style={[styles.tableHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
             {([['TURMA', 'name', styles.tableIdentityHeading], ['HORÁRIO', 'time', styles.tableScheduleHeading], ['IDADE / NÍVEL', 'age', styles.tableFocusHeading], ['ALUNOS', 'students', styles.tableStudentsHeading], ['PROFESSOR', 'teacher', styles.tableTeacherHeading]] as const).map(([label, key, style]) => (
-              <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Ordenar por ${label}`} suppressWebHoverFeedback disableWebPressScale onPress={() => selectSort(key)} style={[styles.tableHeadingButton, style]}>
-                <Text style={[styles.tableHeading, { color: sortKey === key ? colors.text : (colors.textMuted ?? colors.muted) }]}>{label}</Text>
+              <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Ordenar por ${label}`} suppressWebHoverFeedback disableWebPressScale onPress={() => selectSort(key)} style={[styles.tableHeadingButton, style, compactTable && compactClassTableColumns[key]]}>
+                <Text numberOfLines={1} style={[styles.tableHeading, compactTable && styles.tableHeadingCompact, { color: sortKey === key ? colors.text : (colors.textMuted ?? colors.muted) }]}>{label}</Text>
                 {sortKey === key ? <Animated.View style={{ opacity: sortIndicator, transform: [{ scale: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [0.78, 1] }) }, { translateY: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }] }}><GoAtletaIcon name="swapVertical" size={13} color={colors.text} /></Animated.View> : <GoAtletaIcon name="swapVertical" size={13} color={colors.textMuted ?? colors.muted} />}
               </Pressable>
             ))}
@@ -347,13 +316,19 @@ export const ClassesListSection = memo(function ClassesListSection({
             !showTable ? styles.mobileClassListContent : null,
             contentContainerStyle,
           ]}
-          ListEmptyComponent={
+          ListEmptyComponent={showLoadError && !showFilters ? null : (
             <View style={styles.filteredEmptyState}>
-              <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 13 }}>
-                Nenhuma turma corresponde aos filtros.
+              <Text style={[styles.stateTitle, { color: colors.text }]} accessibilityLiveRegion="polite">
+                {hasFilters ? "Nenhuma turma corresponde aos filtros" : "Nenhuma turma disponível"}
               </Text>
+              {hasFilters ? <>
+                <Text style={[styles.emptyDescription, { color: colors.muted }]}>
+                  {classSearch.trim() ? `Busca: ${classSearch.trim()} · ${selectedTitle}` : selectedTitle}
+                </Text>
+                <Button label="Limpar filtros" variant="ghost" onPress={resetFilters} />
+              </> : null}
             </View>
-          }
+          )}
           onScrollBeginDrag={() => {
             closeActionMenu();
             onScrollBeginDrag?.();
@@ -372,79 +347,7 @@ export const ClassesListSection = memo(function ClassesListSection({
         />
       </View>
 
-      <AnchoredDropdown
-        visible={unitDropdownVisible}
-        layout={unitDropdownLayout}
-        container={null}
-        animationStyle={unitDropdownAnimationStyle}
-        zIndex={12500}
-        maxHeight={Math.min(220, (sortedUnits.length + 1) * 42 + 12)}
-        nestedScrollEnabled
-        onRequestClose={() => setUnitDropdownOpen(false)}
-        interactiveRefs={[unitTriggerRef]}
-        density="compact"
-        showVerticalScrollIndicator={sortedUnits.length > 4}
-      >
-        <AnchoredDropdownOption
-          active={selectedUnitKey === ALL_UNITS_KEY}
-          density="compact"
-          onPress={() => chooseUnit(ALL_UNITS_KEY)}
-        >
-          <View style={styles.dropdownOptionContent}>
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.dropdownOptionText,
-                {
-                  color:
-                    selectedUnitKey === ALL_UNITS_KEY ? colors.primaryText : colors.textPrimary ?? colors.text,
-                },
-              ]}
-            >
-              Todas as unidades
-            </Text>
-            <Text
-              style={[
-                styles.dropdownOptionCount,
-                { color: selectedUnitKey === ALL_UNITS_KEY ? colors.primaryText : colors.textMuted ?? colors.muted },
-              ]}
-            >
-              {totalClasses}
-            </Text>
-          </View>
-        </AnchoredDropdownOption>
-        {sortedUnits.map((unit) => {
-          const active = unit.key === selectedUnitKey;
-          return (
-            <AnchoredDropdownOption
-              key={unit.key}
-              active={active}
-              density="compact"
-              onPress={() => chooseUnit(unit.key)}
-            >
-              <View style={styles.dropdownOptionContent}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.dropdownOptionText,
-                    { color: active ? colors.primaryText : colors.textPrimary ?? colors.text },
-                  ]}
-                >
-                  {unit.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.dropdownOptionCount,
-                    { color: active ? colors.primaryText : colors.textMuted ?? colors.muted },
-                  ]}
-                >
-                  {unit.items.length}
-                </Text>
-              </View>
-            </AnchoredDropdownOption>
-          );
-        })}
-      </AnchoredDropdown>
+
     </View>
   );
 });
@@ -466,25 +369,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  stackedFilters: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: compactUiMetrics.gap,
+    paddingVertical: 8,
   },
   unitSelectAnchor: {
     width: 264,
     minWidth: 0,
+    flexShrink: 1,
   },
-  unitSelectAnchorCompact: {
-    width: "46%",
-    minWidth: 180,
-    maxWidth: 240,
-    flexShrink: 0,
+  stackedFilter: {
+    width: "100%",
   },
   unitSelectTrigger: {
-    height: 42,
+    minHeight: compactUiMetrics.touchTarget,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.internal,
     paddingHorizontal: 12,
+    paddingVertical: 5,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
@@ -502,8 +410,7 @@ const styles = StyleSheet.create({
   classSearchField: {
     flex: 1,
     minWidth: 0,
-    height: 42,
-    minHeight: 42,
+    minHeight: compactUiMetrics.touchTarget,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.internal,
     paddingLeft: 12,
@@ -512,15 +419,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  stackedSearchField: {
+    flex: 0,
+  },
   classSearchInput: {
     flex: 1,
     minWidth: 0,
     fontSize: compactUiMetrics.bodyFontSize,
+    borderRadius: 0,
     paddingVertical: Platform.OS === "web" ? 0 : 8,
   },
   clearSearchButton: {
-    width: 30,
-    height: 30,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.full,
@@ -544,10 +455,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   filteredEmptyState: {
-    minHeight: 160,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  stateTitle: {
+    fontSize: compactUiMetrics.bodyFontSize,
+    fontWeight: "700",
+  },
+  emptyDescription: {
+    fontSize: compactUiMetrics.metadataFontSize,
+    textAlign: "center",
+  },
+  loadNotice: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: compactUiMetrics.gap,
+    padding: 12,
+    marginBottom: 4,
+    borderRadius: radius.internal,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  noticeCopy: {
+    flex: 1,
+    minWidth: 148,
+    gap: 2,
+  },
+  noticeAction: {
+    flexShrink: 0,
   },
   tableHeader: {
     height: 42,
@@ -560,6 +497,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
   },
+  tableHeadingCompact: { paddingHorizontal: 4 },
   tableHeadingButton: { justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 4, minHeight: 36 },
   tableIdentityHeading: { flex: 2.2, minWidth: 200 },
   tableScheduleHeading: { flex: 1.15, minWidth: 112 },
@@ -582,14 +520,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   classCardWrapper: {
-    marginBottom: 10,
+    marginBottom: 0,
   },
   mobileClassListContent: {
-    padding: 10,
-    gap: 8,
-  },
-  emptyState: {
-    padding: 16,
-    borderRadius: radius.internal,
+    paddingHorizontal: 8,
+    paddingTop: 4,
   },
 });

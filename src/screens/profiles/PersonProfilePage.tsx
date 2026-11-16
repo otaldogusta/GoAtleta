@@ -47,6 +47,7 @@ type Activity = { id: string; title: string; detail: string; date: string };
 export type PersonProfilePageProps = {
   density?: "default" | "compact";
   context?: string;
+  headerAction?: ReactNode;
   joinedLabel?: string;
   summary?: ReactNode;
   overviewContent?: ReactNode;
@@ -169,7 +170,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
   return (
     <ScrollView refreshControl={props.refreshControl} testID={`${props.testID ?? "staff-profile"}-scroll`} style={{ flex: 1, minHeight: 0, ...(Platform.OS === "web" ? { overflowY: "scroll", scrollbarGutter: "stable", scrollbarWidth: "thin" } as any : {}) }} contentContainerStyle={{ padding: compact ? 16 : 24, paddingBottom: 100 }}>
       <View style={{ width: "100%", maxWidth: 1120, alignSelf: "center", gap: sectionGap }}>
-        <PageBreadcrumbHeader title={props.ownProfile ? "Meu perfil" : "Perfil"} context={props.context ?? "Equipe"} breadcrumbs={props.ownProfile ? [] : undefined} onBack={props.onBack} backLabel="Voltar" />
+        <PageBreadcrumbHeader title={props.ownProfile ? "Meu perfil" : "Perfil"} context={props.context ?? "Equipe"} breadcrumbs={props.ownProfile ? [] : undefined} onBack={props.onBack} backLabel="Voltar" accessory={props.ownProfile ? props.headerAction : undefined} />
         <View style={{ ...card, overflow: "hidden" }}>
           <View testID={`${props.testID ?? "staff-profile"}-cover`} style={{ height: compact ? 72 : 84, backgroundColor: coverColor, overflow: "hidden" }}>
             <Svg width={compact ? 290 : 420} height={330} viewBox="0 0 420 330" fill="none" style={{ position: "absolute", right: compact ? -20 : 50, top: -120, transform: [{ rotate: "-15deg" }] }}>

@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { OperationalText as Text } from "./OperationalText";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -12,6 +12,7 @@ export function SettingsRow({
   subtitle,
   onPress,
   rightContent,
+  checked,
 }: {
   icon: GoAtletaIconName;
   iconBg: string;
@@ -19,6 +20,7 @@ export function SettingsRow({
   subtitle?: string;
   onPress?: () => void;
   rightContent?: React.ReactNode;
+  checked?: boolean;
 }) {
   const { colors } = useAppTheme();
   const rowStyle = {
@@ -81,7 +83,14 @@ export function SettingsRow({
   }
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={rowStyle}>
+    <Pressable
+      accessibilityRole={checked === undefined || Platform.OS === "web" ? "button" : "switch"}
+      accessibilityLabel={checked === undefined ? undefined : label}
+      accessibilityState={checked === undefined ? undefined : { checked }}
+      {...(Platform.OS === "web" && checked !== undefined ? { "aria-pressed": checked } : {})}
+      onPress={onPress}
+      style={rowStyle}
+    >
       {content}
     </Pressable>
   );

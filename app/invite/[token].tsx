@@ -54,6 +54,26 @@ export default function StudentInviteScreen() {
   const lastClaimUserRef = useRef<string | null>(null);
   const verificationRedirectUserRef = useRef<string | null>(null);
   const claimInFlightRef = useRef(false);
+  const modeTabsRef = useRef<View>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = modeTabsRef.current as unknown as HTMLElement | null;
+    if (!node?.addEventListener) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || ![" ", "Enter", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const tabs = [...node.querySelectorAll<HTMLElement>('[role="tab"]')];
+      const index = tabs.indexOf((event.target as HTMLElement).closest<HTMLElement>('[role="tab"]')!);
+      if (index < 0) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowRight" ? 1 - index : index;
+      setMode(next === 0 ? "signup" : "login");
+      tabs[next]?.focus({ preventScroll: true });
+    };
+    node.addEventListener("keydown", handleKey);
+    return () => node.removeEventListener("keydown", handleKey);
+  }, [inviteState, session]);
 
   const passwordChecks = useMemo(() => {
     const value = password;
@@ -387,7 +407,7 @@ export default function StudentInviteScreen() {
                   elevation: 5,
                 }}
               >
-                <View role="tablist" style={{ flexDirection: "row", gap: 8 }}>
+                <View ref={modeTabsRef} role="tablist" accessibilityLabel="Acesso ao convite" style={{ flexDirection: "row", gap: 8 }}>
                   {[
                     { id: "signup" as const, label: "Criar conta" },
                     { id: "login" as const, label: "Entrar" },
@@ -396,6 +416,8 @@ export default function StudentInviteScreen() {
                     return (
                       <Pressable
                         accessibilityRole="tab"
+                        accessibilityLabel={option.label}
+                        aria-selected={active}
                         accessibilityState={{ selected: active }}
                         key={option.id}
                         onPress={() => setMode(option.id)}
@@ -481,8 +503,7 @@ export default function StudentInviteScreen() {
                     borderRadius: 0,
                   }}
                 />
-                <Pressable
-                  accessibilityElementsHidden={password.length === 0}
+                {password.length > 0 ? <Pressable
                   accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   accessibilityRole="button"
                   onPress={() => setShowPassword((prev) => !prev)}
@@ -502,7 +523,7 @@ export default function StudentInviteScreen() {
                     size={18}
                     color={colors.muted}
                   />
-                </Pressable>
+                </Pressable> : <View style={{ width: 34, height: 34 }} />}
               </View>
 
               { mode === "signup" ? (
@@ -533,8 +554,7 @@ export default function StudentInviteScreen() {
                       borderRadius: 0,
                     }}
                   />
-                  <Pressable
-                    accessibilityElementsHidden={confirm.length === 0}
+                  {confirm.length > 0 ? <Pressable
                     accessibilityLabel={showConfirm ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}
                     accessibilityRole="button"
                     onPress={() => setShowConfirm((prev) => !prev)}
@@ -554,7 +574,7 @@ export default function StudentInviteScreen() {
                       size={18}
                       color={colors.muted}
                     />
-                  </Pressable>
+                  </Pressable> : <View style={{ width: 34, height: 34 }} />}
                 </View>
               ) : null}
 

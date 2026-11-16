@@ -14,6 +14,16 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Formulários e configurações (referência: perfil) | [FORM_SETTINGS_PATTERNS.md](FORM_SETTINGS_PATTERNS.md) |
 | Decisões assistidas | [AI_DECISION_EXPLAINABILITY.md](AI_DECISION_EXPLAINABILITY.md) |
 | Validação proporcional e ciclo rápido | [validation-ladder.md](../operations/validation-ladder.md) |
+| Correções operacionais por aba — 13/11/2026 | [Revisão operacional](REVISAO_OPERACIONAL_2026-11-13.md) |
+| Antes e depois por aba — lote 2 | [Revisão por abas](REVISAO_POR_ABAS_LOTE_2_2026-11-13.md) |
+| Composição das nove telas apontadas — 13/11/2026 | [Revisão visual e evidências](REVISAO_VISUAL_COMPOSICAO_2026-11-13.md) |
+| Continuidade: Planejamento, Turmas, Gestão e Regulamentos | [20 comparativos e validação local](REVISAO_INVENTARIO_CONTINUIDADE_2026-11-13.md) |
+| Ajustes após revisão: cartões de mês, Assistente e Equipe | [Periodização e Gestão](AJUSTES_PERIODIZACAO_GESTAO_2026-11-13.md) |
+| Restante do inventário — Financeiro, Atletas e demais papéis | [Cobertura e correções locais](REVISAO_INVENTARIO_RESTANTE_2026-11-13.md) |
+| Correção das jornadas e área de escrita do Assistente | [Rotas atuais, legado e compositor](AJUSTES_JORNADAS_ASSISTENTE_2026-11-13.md) |
+| Telas atuais — revisão local de 14/11 | [Cobertura e correções da rodada anterior](REVISAO_TELAS_ATUAIS_2026-11-14.md) |
+| Pendências atuais — dados fictícios e comparativos | [Acessos, convites, WhatsApp, Planejamento e Scouting](PENDENCIAS_ATUAIS_2026-11-14.md) |
+| Inventário organizado — acervo e novos estados atuais | [Hub por área, Avisos, Regulamentos e Planejamento](INVENTARIO_ORGANIZADO_2026-11-14.md) |
 | Revisão de minimalismo da quadra — 04/10/2026 | [QUADRA_MINIMALISMO_REVIEW_2026-10-04.md](QUADRA_MINIMALISMO_REVIEW_2026-10-04.md) |
 | Relatório da aula — visual aprovado e aplicação local | [RELATORIO_AULA_2026-10-06.md](RELATORIO_AULA_2026-10-06.md) |
 | Histórico de relatórios — visual aprovado e aplicação local | [HISTORICO_RELATORIOS_2026-10-06.md](HISTORICO_RELATORIOS_2026-10-06.md) |

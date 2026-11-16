@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 import {
+  FamilyAccessRequestError,
   getMyFamilyFinance,
   getMyFamilyOverview,
   type FamilyFinanceData,
@@ -12,6 +13,7 @@ import { useFamilyFinanceData } from "../FamilyPaymentsScreen";
 import { useFamilyOverview } from "../useFamilyOverview";
 
 jest.mock("../../../api/family-access", () => ({
+  FamilyAccessRequestError: jest.requireActual("../../../api/family-access").FamilyAccessRequestError,
   getMyFamilyFinance: jest.fn(),
   getMyFamilyOverview: jest.fn(),
 }));
@@ -191,6 +193,55 @@ describe("family request race protection", () => {
     expect(latest!.overview?.studentId).toBe("student-b");
     expect(latest!.loading).toBe(false);
     expect(latest!.failed).toBe(false);
+  });
+
+  it("keeps the current overview during a timeout, clears it on denial, and can retry", async () => {
+    const relationshipId = "relationship-a";
+    const overview = buildOverview(relationshipId, "student-a");
+    let latest: ReturnType<typeof useFamilyOverview> | null = null;
+    mockUseRole.mockReturnValue({ selectedFamilyStudent: { relationshipId } });
+    mockGetMyFamilyOverview
+      .mockResolvedValueOnce(overview)
+      .mockRejectedValueOnce(new FamilyAccessRequestError("Timeout", 408, "get_my_family_overview_v1"))
+      .mockRejectedValueOnce(new FamilyAccessRequestError("Denied", 403, "get_my_family_overview_v1"))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(overview);
+
+    function Harness() {
+      latest = useFamilyOverview();
+      return React.createElement("OverviewProbe");
+    }
+    const retry = async () => {
+      await act(async () => {
+        await latest!.refresh();
+      });
+    };
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness));
+      await flushPromises();
+    });
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      await flushPromises();
+    });
+    expect(latest!.overview).toBe(overview);
+
+    await retry();
+    expect(latest!.failed).toBe(true);
+    expect(latest!.overview).toBe(overview);
+
+    await retry();
+    expect(latest!.failed).toBe(true);
+    expect(latest!.overview).toBeNull();
+
+    await retry();
+    expect(latest!.failed).toBe(true);
+    expect(latest!.overview).toBeNull();
+
+    await retry();
+    expect(latest!.failed).toBe(false);
+    expect(latest!.overview).toBe(overview);
   });
 
   it("hides the previous invoices immediately and ignores their late refresh", async () => {

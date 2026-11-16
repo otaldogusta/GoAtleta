@@ -400,8 +400,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   const insets = useSafeAreaInsets();
   const [lessonContentAnim] = useState(() => new Animated.Value(1));
   const [internalCompactNavigationOpen, setInternalCompactNavigationOpen] = useState(false);
-  const [planActionHovered, setPlanActionHovered] = useState(false);
-  const [planActionFocused, setPlanActionFocused] = useState(false);
   const isCompactNavigationOpen = compact && (compactNavigationOpen ?? internalCompactNavigationOpen);
   if (!compact && internalCompactNavigationOpen) setInternalCompactNavigationOpen(false);
   const setIsCompactNavigationOpen = useCallback((open: boolean) => {
@@ -551,7 +549,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         isLoading={isLoadingLessonPlan}
         calendarAccessibilityHint="Abre o calendário de aulas"
       />
-      <View style={[styles.planPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.planPanel, { borderColor: colors.border }]}>
         <View style={styles.planHeader}>
           <Text style={[styles.planTitle, { color: colors.text }]}>Plano da aula</Text>
           {!isLoadingLessonPlan && appliedPlan ? (
@@ -562,7 +560,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           ) : null}
         </View>
         {isLoadingLessonPlan ? (
-          <View style={styles.lessonLoadingContent} accessibilityLiveRegion="polite">
+          <View style={styles.emptyPlanContent} accessibilityLiveRegion="polite">
             <ActivityIndicator size="small" color={colors.primaryBg} />
             <Text style={[styles.emptyPlanTitle, { color: colors.text }]}>Carregando a aula</Text>
             <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Atualizando o plano e os indicadores do dia.</Text>
@@ -570,8 +568,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         ) : (
           <Animated.View
             style={[
-              styles.lessonPlanContent,
-              !appliedPlan && styles.emptyLessonPlanContent,
+              appliedPlan && styles.lessonPlanContent,
               {
                 opacity: lessonContentAnim,
                 transform: [{ translateX: lessonContentAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
@@ -648,38 +645,26 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
             <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Organizando atividades para esta aula.</Text>
           </View>
         ) : (
-          <View style={styles.emptyPlanContent}>
-              <Pressable
-                onPress={onGeneratePlan}
-                disabled={isGeneratingPlan}
-                accessibilityRole="button"
-                accessibilityLabel="Montar plano"
-                suppressWebHoverFeedback
-                disableWebPressScale
-                onHoverIn={() => setPlanActionHovered(true)}
-                onHoverOut={() => setPlanActionHovered(false)}
-                onFocus={() => setPlanActionFocused(true)}
-                onBlur={() => setPlanActionFocused(false)}
-                style={styles.emptyPlanAction}
-              >
-                {({ pressed }) => (
-                  <>
-                  <GoAtletaIcon
-                    name="document"
-                    size={24}
-                    color={planActionHovered || planActionFocused || pressed ? colors.primaryBg : colors.muted}
-                  />
-                  <Text style={[
-                    styles.emptyPlanTitle,
-                    styles.emptyPlanActionLabel,
-                    { color: planActionHovered || planActionFocused || pressed ? colors.primaryBg : colors.muted },
-                    (planActionHovered || planActionFocused || pressed) && styles.emptyPlanActionActive,
-                  ]}>
-                    Sem plano aplicado
-                  </Text>
-                  </>
-                )}
-              </Pressable>
+          <View style={styles.emptyPlanRow}>
+            <View style={styles.emptyPlanStatus}>
+              <GoAtletaIcon name="document" size={compactUiMetrics.iconSize} color={colors.muted} />
+              <Text style={[styles.emptyPlanStatusLabel, { color: colors.muted }]}>Sem plano aplicado</Text>
+            </View>
+            <Pressable
+              onPress={onGeneratePlan}
+              accessibilityRole="button"
+              accessibilityLabel="Montar plano"
+              style={({ pressed, hovered }) => [
+                styles.planSecondaryButton,
+                styles.emptyPlanButton,
+                {
+                  backgroundColor: pressed || hovered ? colors.secondaryBg : "transparent",
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.planSecondaryButtonLabel, { color: colors.text }]}>Montar plano</Text>
+            </Pressable>
           </View>
         )}
           </Animated.View>
@@ -1030,27 +1015,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   planPanel: {
-    borderWidth: 1,
-    borderRadius: 18,
-    overflow: "hidden",
+    paddingBottom: 0,
   },
   lessonPlanContent: {
     minHeight: 180,
   },
-  emptyLessonPlanContent: {
-    justifyContent: "center",
-  },
-  lessonLoadingContent: {
-    minHeight: 180,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    gap: 8,
-  },
   planHeader: {
-    minHeight: 52,
-    paddingHorizontal: 12,
+    minHeight: 44,
+    paddingHorizontal: 0,
     paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
@@ -1058,8 +1030,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   planTitle: {
-    fontSize: compactUiMetrics.titleFontSize,
-    fontWeight: "800",
+    fontSize: compactUiMetrics.bodyFontSize,
+    fontWeight: "600",
   },
   planAppliedStatus: {
     flexDirection: "row",
@@ -1071,7 +1043,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   planSummary: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
     paddingBottom: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -1082,15 +1054,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   planSummaryTitle: {
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: compactUiMetrics.bodyFontSize,
+    fontWeight: "600",
   },
   planSummaryMeta: {
     marginTop: 3,
     fontSize: 12,
   },
   planBlocks: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
   },
   planBlockRow: {
     minHeight: 52,
@@ -1124,19 +1096,28 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  emptyPlanAction: {
-    alignSelf: "center",
+  emptyPlanRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
+    paddingBottom: 12,
   },
-  emptyPlanActionLabel: {
-    paddingVertical: 12,
+  emptyPlanStatus: {
+    flex: 1,
+    minWidth: 126,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
   },
-  emptyPlanActionActive: {
-    textDecorationLine: "underline",
+  emptyPlanStatusLabel: {
+    flexShrink: 1,
+    fontSize: compactUiMetrics.bodyFontSize,
+  },
+  emptyPlanButton: {
+    minHeight: compactUiMetrics.touchTarget,
+    paddingHorizontal: 12,
   },
   planPrimaryButton: {
     minHeight: 46,
@@ -1165,8 +1146,8 @@ const styles = StyleSheet.create({
   },
   emptyPlanContent: {
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 8,
   },
   emptyPlanTitle: {

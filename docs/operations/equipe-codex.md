@@ -91,6 +91,30 @@ aceite e formato de entrega**. Um worktree não é uma sandbox. Escrita paralela
 em checkouts diferentes exige divisão explícita e integração cuidadosa; o
 procedimento não concede autorização de commit, push, PR, deploy ou banco remoto.
 
+## Ferramentas de design para UI e UX
+
+Os perfis usam o [design system](../ui/DESIGN_SYSTEM.md) e a
+[escada de validação](validation-ladder.md) para decidir o que aplicar em cada tarefa.
+
+| Recurso | Papel e uso |
+| --- | --- |
+| [Taste Skill](https://github.com/Leonxlnx/taste-skill) | UI e Marca consultam princípios de hierarquia, composição e direção visual para páginas públicas e protótipos. No app, a UI seleciona o que cabe nos componentes, na densidade e na identidade existentes. |
+| [Awesome Design MD](https://github.com/VoltAgent/awesome-design-md) | UI consulta análises de interfaces de outras marcas para resolver um problema concreto de composição. Registra o padrão escolhido e como adaptá-lo ao Go Atleta. A [Agenda inspirada no Samsung Calendar](../ui/AGENDA_SAMSUNG_REFERENCIA_2026-10-29.md) exemplifica essa adaptação. |
+| Imagem para código | Com um print ou mockup escolhido, UI registra estado, viewport e o trecho relevante e especifica o reflow. UX define as interações e os estados que a imagem deixa em aberto. Implementação usa as primitives do produto e UI compara o resultado renderizado com a referência. Para um protótipo isolado, o catálogo do Codex já oferece Product Design Image to Code. |
+| [Web Interface Guidelines](https://github.com/vercel-labs/web-interface-guidelines) | UX revisa código e interações web com foco em semântica, ordem e retorno de foco, mensagens de erro, reflow e movimento reduzido. UI verifica contraste e estados. Cada achado indica rota, estado, evidência e impacto. |
+| [Playwright CLI](https://playwright.dev/agent-cli/introduction) | UX define o percurso, UI inspeciona as capturas e Testes repete as interações no diff estável. Usar a CLI quando disponível ou o navegador existente, começando por `localhost:8081` no app. Registrar viewport, tema, interação e resultado. |
+
+Exemplo de piloto em `/login`: navegar com Tab e Shift+Tab, conferir foco
+visível, alternar a visibilidade de uma senha fictícia e verificar o estado de
+Entrar com campos vazios. Em quadra, uma fixture pode exercitar seleção de ator,
+abertura da ferramenta e desfazer na largura móvel. Alcance com uma mão,
+gesto físico e leitor de tela nativo pedem conferência em aparelho quando
+fizerem parte do aceite.
+
+Em 13/11/2026, o comando e a skill do Playwright CLI ficaram indisponíveis
+nos caminhos conferidos nesta estação. O [registro de ferramentas](agent-skills.md#ferramentas-externas-nesta-máquina)
+mantém o histórico da instalação anterior.
+
 ## Carregamento dos perfis
 
 Os TOML em `.codex/agents/` são descobertos pelo Codex em projeto confiável.
@@ -283,8 +307,28 @@ não houve fallback manual. A configuração dos 13 arquivos está concluída, m
 seu ensaio nativo e exibição no Habblaud permanecem pendentes em conversa que
 carregue os novos tipos. Em turno posterior de 11/11/2026, o schema real da
 ferramenta passou a anunciar os 16 perfis nesta conversa, também observado pelo
-revisor. Isso comprova disponibilidade anunciada; criação nativa e exibição dos
-13 novos no Habblaud ainda dependem de ensaio executado.
+revisor. Naquele momento, a disponibilidade estava confirmada. A seleção nativa
+e a exibição dos 13 novos perfis no Habblaud ainda aguardavam ensaio.
+
+Em 13/11/2026, `goatleta_ui` e `goatleta_ux` foram selecionados por
+`agent_type` para a análise de ferramentas de design. Os metadados confirmaram
+os dois papéis e o vínculo à conversa principal. O painel estava parado nessa
+primeira conferência.
+
+No piloto do mesmo dia, o launcher local iniciou o Habblaud. Na sala Go Atleta,
+o painel mostrou Miguel e Bruna sob Alice. O snapshot do Habblaud e os metadados
+do Codex associaram Miguel a `goatleta_ui` e Bruna a `goatleta_ux`. O painel
+rotulou ambos como **Subagente (Codex)**. O carregamento das instruções
+atualizadas em outra conversa segue por conferir.
+
+O login foi exercitado no navegador do Codex em tema escuro, em 1280×720 e
+390×844. Como `localhost` restaurava a sessão existente, o formulário foi
+testado na mesma instância Expo pelo endereço local IPv6 `[::1]:8081/login`.
+Tab e Shift+Tab percorreram os campos na ordem esperada. Enter e Espaço
+alternaram a visibilidade da senha fictícia e Entrar habilitou com os dois
+campos preenchidos. O cursor foi o único indicador de foco dos campos. O botão
+Mostrar senha, invisível quando vazio, continuou na árvore de acessibilidade
+como desabilitado. Não houve envio do formulário ou teste com leitor de tela.
 
 Exemplos de pedido: “Arrume este modal”; “Monte o plano de lançamento”; “Prepare
 rascunhos para redes sociais”; “Analise este funil”. O coordenador escolhe as

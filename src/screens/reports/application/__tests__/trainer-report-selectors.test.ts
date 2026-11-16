@@ -7,6 +7,7 @@ import {
   buildTrainerReportSummary,
   buildUniqueSessionLogs,
   buildWeeklySummary,
+  countClassDaysWithAttendance,
 } from "../trainer-report-selectors";
 import type {
   AttendanceRecord,
@@ -17,6 +18,12 @@ import type {
 } from "../../../../core/models";
 
 describe("trainer-report-selectors", () => {
+  it("counts each class and date once regardless of how many students were marked", () => {
+    const first = { classId: "u15", date: "2026-11-13", present: 1, total: 2 };
+    expect(countClassDaysWithAttendance([first, first, { ...first, classId: "u17" }, { ...first, date: "2026-11-14" }, { ...first, date: "2026-11-15", total: 0 }])).toBe(3);
+    expect(countClassDaysWithAttendance([first])).toBe(1);
+  });
+
   it("counts historical empty and Object prototype class names safely", () => {
     const ids = ["", "__proto__", "constructor"];
     const days = ids.map(classId => ({classId,date:"2026-10-31",total:7,present:5}));

@@ -49,6 +49,8 @@ type ClassUnitAutocompleteProps = {
   value: string;
   units: string[];
   onChangeText: (value: string) => void;
+  fieldBackgroundColor?: string;
+  compact?: boolean;
   label?: string;
   placeholder?: string;
   showValueAsBadge?: boolean;
@@ -61,6 +63,8 @@ export function ClassUnitAutocomplete({
   value,
   units,
   onChangeText,
+  fieldBackgroundColor = colors.inputBg,
+  compact = false,
   label = "Unidade",
   placeholder = "Digite para buscar",
   showValueAsBadge = false,
@@ -121,10 +125,10 @@ export function ClassUnitAutocomplete({
       <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
       <View ref={triggerRef} collapsable={false} onLayout={measureTrigger} style={{ position: "relative" }}>
         {showValueAsBadge && typedValue && !isEditing ? (
-          <View style={{ minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.inputBg, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={{ flex: 1, minWidth: 0, minHeight: 34, borderRadius: 9, backgroundColor: colors.secondaryBg, paddingLeft: 11, paddingRight: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ minHeight: compact ? 39 : 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: fieldBackgroundColor, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flex: 1, minWidth: 0, minHeight: compact ? 30 : 34, borderRadius: 9, backgroundColor: colors.secondaryBg, paddingLeft: 11, paddingRight: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 12, fontWeight: "700" }}>{typedValue}</Text>
-              <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Remover ${label.toLocaleLowerCase("pt-BR")} ${typedValue}`} onPress={() => { onChangeText(""); setIsEditing(true); setShowSuggestions(true); }} style={{ width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center" }}>
+              <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Remover ${label.toLocaleLowerCase("pt-BR")} ${typedValue}`} onPress={() => { onChangeText(""); setIsEditing(true); setShowSuggestions(true); }} style={{ width: 34, height: compact ? 30 : 34, borderRadius: 9, alignItems: "center", justifyContent: "center" }}>
                 <GoAtletaIcon name="close" size={16} color={colors.muted} />
               </Pressable>
             </View>
@@ -149,11 +153,11 @@ export function ClassUnitAutocomplete({
               }}
               placeholderTextColor={colors.placeholder}
               style={{
-                backgroundColor: colors.inputBg,
+                backgroundColor: fieldBackgroundColor,
                 borderColor: colors.border,
                 borderWidth: 1,
                 borderRadius: 12,
-                minHeight: 50,
+                minHeight: compact ? undefined : 50,
                 paddingVertical: 10,
                 paddingLeft: 10,
                 paddingRight: 36,

@@ -1,5 +1,5 @@
-import {  useMemo, useState } from "react";
-import { ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { OperationalText as Text } from "../../../ui/OperationalText";
 
 import type { ClassGroup } from "../../../core/models";
@@ -8,6 +8,8 @@ import { compactUiMetrics, radius } from "../../../theme/tokens";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
+import { UnderlineTabs } from "../../../ui/UnderlineTabs";
+import { ListEmptyState } from "../../../ui/ListEmptyState";
 import { getClassIdentityLabel } from "../application/class-identity";
 
 type Props = {
@@ -16,6 +18,7 @@ type Props = {
   plans: TrainingPlanSummary[];
   classes: ClassGroup[];
   selectedPlanId?: string;
+  loadingPlanId?: string | null;
   onToggleCollapsed: () => void;
   onSelectPlan: (plan: TrainingPlanSummary) => void;
 };
@@ -107,6 +110,7 @@ export function TrainingPlanningWorkspaceLibrary({
   plans,
   classes,
   selectedPlanId,
+  loadingPlanId,
   onToggleCollapsed,
   onSelectPlan,
 }: Props) {
@@ -204,12 +208,16 @@ export function TrainingPlanningWorkspaceLibrary({
 
   const renderPlanRow = (plan: TrainingPlanSummary, nested = false) => {
     const selected = selectedPlanId === plan.id;
+    const loading = loadingPlanId === plan.id;
+    const label = planRowLabel(plan);
     return (
       <Pressable
         key={plan.id}
-        onPress={() => onSelectPlan(plan)}
         accessibilityRole="button"
-        accessibilityState={{ selected }}
+        accessibilityLabel={loading ? `Abrindo plano: ${label}` : `Abrir plano: ${label}`}
+        accessibilityState={{ selected, busy: loading, disabled: loading }}
+        disabled={loading}
+        onPress={() => onSelectPlan(plan)}
         style={({ pressed }) => [
           styles.planRow,
           nested ? styles.nestedPlanRow : null,
@@ -217,11 +225,11 @@ export function TrainingPlanningWorkspaceLibrary({
           { opacity: pressed ? 0.72 : 1 },
         ]}
       >
-        <View style={[styles.planDot, { backgroundColor: selected ? colors.primaryBg : colors.warningText }]} />
+        <View style={[styles.planDot, { backgroundColor: selected ? colors.primaryBg : colors.muted }]} />
         <Text numberOfLines={1} style={[styles.planLabel, { color: selected ? colors.successText : colors.text }]}>
-          {planRowLabel(plan)}
+          {label}
         </Text>
-        <GoAtletaIcon name="chevronForward" size={15} color={colors.muted} />
+        {loading ? <ActivityIndicator size="small" color={colors.primaryBg} /> : <GoAtletaIcon name="chevronForward" size={15} color={colors.muted} />}
       </Pressable>
     );
   };
@@ -238,6 +246,7 @@ export function TrainingPlanningWorkspaceLibrary({
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Biblioteca</Text>
         <Pressable
+          nativeID={sheetMode ? undefined : "planning-library-close"}
           onPress={onToggleCollapsed}
           accessibilityRole="button"
           accessibilityLabel={sheetMode ? "Fechar biblioteca" : "Recolher biblioteca"}
@@ -258,49 +267,31 @@ export function TrainingPlanningWorkspaceLibrary({
           style={[styles.searchInput, { color: colors.inputText }]}
         />
         {search ? (
-          <Pressable onPress={() => setSearch("")} accessibilityLabel="Limpar busca" style={styles.searchClear}>
+          <Pressable onPress={() => setSearch("")} accessibilityRole="button" accessibilityLabel="Limpar busca" style={styles.searchClear}>
             <GoAtletaIcon name="close" size={15} color={colors.muted} />
           </Pressable>
         ) : null}
       </View>
 
-      <View style={styles.modeRow}>
-        <Pressable
-          onPress={() => setMode("classes")}
-          accessibilityRole="button"
-          accessibilityState={{ selected: mode === "classes" }}
-          style={({ pressed }) => [
-            styles.modeButton,
-            { borderColor: mode === "classes" ? colors.primaryBg : colors.border, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <GoAtletaIcon name="students" size={17} color={mode === "classes" ? colors.primaryBg : colors.muted} />
-          <Text style={[styles.modeLabel, { color: mode === "classes" ? colors.primaryBg : colors.text }]}>Por turma</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode("drafts")}
-          accessibilityRole="button"
-          accessibilityState={{ selected: mode === "drafts" }}
-          style={({ pressed }) => [
-            styles.modeButton,
-            { borderColor: mode === "drafts" ? colors.primaryBg : colors.border, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <GoAtletaIcon name="document" size={16} color={mode === "drafts" ? colors.primaryBg : colors.muted} />
-          <Text style={[styles.modeLabel, { color: mode === "drafts" ? colors.primaryBg : colors.text }]}>Rascunhos</Text>
-          <Text style={[styles.modeCount, { color: colors.muted }]}>{draftPlans.length}</Text>
-        </Pressable>
-      </View>
+      <UnderlineTabs
+        items={[
+          { value: "classes", label: "Por turma" },
+          { value: "drafts", label: "Rascunhos" },
+        ]}
+        value={mode}
+        onChange={(value) => setMode(value as LibraryMode)}
+        accessibilityLabel="Biblioteca de planos"
+      />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator nestedScrollEnabled>
+      <ScrollView style={[styles.scroll, sheetMode && styles.sheetScroll]} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator nestedScrollEnabled>
         {searchToken ? (
           <View style={styles.section}>
-            <View style={styles.sectionHeading}>
+            {searchPlans.length ? <View style={styles.sectionHeading}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Resultados</Text>
               <Text style={[styles.sectionCount, { color: colors.muted }]}>{searchPlans.length}</Text>
-            </View>
+            </View> : null}
             {searchPlans.map((plan) => renderPlanRow(plan))}
-            {!searchPlans.length ? <Text style={[styles.emptyText, { color: colors.muted }]}>Nenhum plano encontrado.</Text> : null}
+            {!searchPlans.length ? <ListEmptyState title="Nenhum plano encontrado" description="Busque por plano, turma ou unidade." actionLabel="Limpar busca" onAction={() => setSearch("")} /> : null}
           </View>
         ) : mode === "classes" ? (
           <>
@@ -322,6 +313,7 @@ export function TrainingPlanningWorkspaceLibrary({
                 <View style={styles.monthRow}>
                   <Pressable
                     onPress={() => setActiveMonth(moveMonth(effectiveMonth, -1))}
+                    accessibilityRole="button"
                     accessibilityLabel="Mês anterior"
                     style={({ pressed }) => [styles.monthButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                   >
@@ -330,6 +322,7 @@ export function TrainingPlanningWorkspaceLibrary({
                   <Text style={[styles.monthLabel, { color: colors.text }]}>{formatMonth(effectiveMonth)}</Text>
                   <Pressable
                     onPress={() => setActiveMonth(moveMonth(effectiveMonth, 1))}
+                    accessibilityRole="button"
                     accessibilityLabel="Próximo mês"
                     style={({ pressed }) => [styles.monthButton, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                   >
@@ -360,13 +353,12 @@ export function TrainingPlanningWorkspaceLibrary({
                     );
                   })}
                   {!weekGroups.length ? (
-                    <Text style={[styles.emptyText, { color: colors.muted }]}>Nenhum plano neste mês.</Text>
+                    <ListEmptyState title="Nenhum plano neste mês" description="Navegue entre os meses para ver os planos da turma." />
                   ) : null}
                 </View>
               </>
             ) : (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Turmas por unidade</Text>
                 {[...new Set(assignedClasses.map((item) => item.unit || "Sem unidade"))].map((unit) => (
                   <View key={unit} style={styles.unitGroup}>
                     <Text style={[styles.unitLabel, { color: colors.muted }]}>{unit}</Text>
@@ -377,6 +369,8 @@ export function TrainingPlanningWorkspaceLibrary({
                         return (
                           <Pressable
                             key={item.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Planos de ${getClassIdentityLabel(item, classes)}`}
                             onPress={() => {
                               setActiveClassId(item.id);
                               const firstPlan = assignedPlans.find((plan) => plan.classId === item.id);
@@ -395,18 +389,18 @@ export function TrainingPlanningWorkspaceLibrary({
                       })}
                   </View>
                 ))}
-                {!assignedClasses.length ? <Text style={[styles.emptyText, { color: colors.muted }]}>Nenhum plano vinculado a turmas.</Text> : null}
+                {!assignedClasses.length ? <ListEmptyState title="Nenhum plano vinculado a turmas" description="Os planos ficam organizados aqui depois de vinculados." /> : null}
               </View>
             )}
           </>
         ) : (
           <View style={styles.section}>
-            <View style={styles.sectionHeading}>
+            {draftPlans.length ? <View style={styles.sectionHeading}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Rascunhos sem turma</Text>
               <Text style={[styles.sectionCount, { color: colors.muted }]}>{draftPlans.length}</Text>
-            </View>
+            </View> : null}
             {draftPlans.map((plan) => renderPlanRow(plan))}
-            {!draftPlans.length ? <Text style={[styles.emptyText, { color: colors.muted }]}>Nenhum rascunho sem turma.</Text> : null}
+            {!draftPlans.length ? <ListEmptyState title="Nenhum rascunho sem turma" description="Novos planos sem turma aparecem aqui." /> : null}
           </View>
         )}
 
@@ -423,8 +417,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
     maxHeight: "100%",
     overflow: "hidden",
-    borderWidth: 1,
-    borderRadius: radius.card,
+    borderRightWidth: 1,
     padding: 12,
     gap: 10,
   },
@@ -432,31 +425,33 @@ const styles = StyleSheet.create({
     width: "100%",
     minWidth: 0,
     borderWidth: 0,
+    borderRightWidth: 0,
     borderRadius: 0,
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: "auto",
+    maxHeight: undefined,
   },
   collapsedRail: { width: 36, minWidth: 36, borderWidth: 0, borderRadius: 9, padding: 0, alignItems: "center" },
   header: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { flex: 1, fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
-  iconButton: { width: 36, height: 36, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  searchShell: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  title: { flex: 1, fontSize: compactUiMetrics.titleFontSize, fontWeight: "600" },
+  iconButton: { width: 44, height: 44, borderRadius: radius.internal, alignItems: "center", justifyContent: "center" },
+  searchShell: { minHeight: 50, borderWidth: 1, borderRadius: radius.internal, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8 },
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 8, fontSize: 12, outlineStyle: "none", borderRadius: 0 } as any,
-  searchClear: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-  modeRow: { flexDirection: "row", gap: 8 },
-  modeButton: { flex: 1, minHeight: 42, paddingHorizontal: 10, borderWidth: 1, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
-  modeLabel: { fontSize: 12, fontWeight: "900" },
-  modeCount: { marginLeft: "auto", fontSize: 11, fontWeight: "800" },
+  searchClear: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   scroll: { flex: 1, minHeight: 0 },
+  sheetScroll: { flexGrow: 0, flexShrink: 1, flexBasis: "auto" },
   scrollContent: { paddingBottom: 8 },
   breadcrumbRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  backButton: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  backButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   breadcrumb: { flex: 1, minWidth: 0, fontSize: 10.5, lineHeight: 15 },
   monthRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  monthButton: { width: 38, height: 38, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  monthLabel: { flex: 1, textAlign: "center", fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
-  weekList: { borderWidth: 1, borderRadius: 10, overflow: "hidden" },
+  monthButton: { width: 44, height: 44, borderRadius: radius.internal, alignItems: "center", justifyContent: "center" },
+  monthLabel: { flex: 1, textAlign: "center", fontSize: compactUiMetrics.bodyFontSize, fontWeight: "600" },
+  weekList: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   weekRow: { minHeight: 48, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 },
   weekCopy: { flex: 1, minWidth: 0 },
-  weekLabel: { fontSize: 12.5, fontWeight: "900" },
+  weekLabel: { fontSize: 12.5, fontWeight: "600" },
   weekMeta: { marginTop: 2, fontSize: 10.5 },
   weekPlans: { paddingBottom: 6 },
   planRow: { minHeight: 50, paddingHorizontal: 10, borderLeftWidth: 3, borderLeftColor: "transparent", flexDirection: "row", alignItems: "center", gap: 8 },
@@ -465,11 +460,10 @@ const styles = StyleSheet.create({
   planLabel: { flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: "700" },
   section: { gap: 7, paddingVertical: 10 },
   sectionHeading: { minHeight: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { fontSize: 12, fontWeight: "900" },
-  sectionCount: { fontSize: 10.5, fontWeight: "800" },
-  emptyText: { padding: 12, fontSize: 11, lineHeight: 16 },
+  sectionTitle: { fontSize: 12, fontWeight: "600" },
+  sectionCount: { fontSize: 10.5, fontWeight: "600" },
   unitGroup: { gap: 5, marginTop: 4 },
-  unitLabel: { paddingHorizontal: 4, paddingVertical: 5, fontSize: 10.5, fontWeight: "900", textTransform: "uppercase" },
-  classRow: { minHeight: 48, paddingHorizontal: 10, borderWidth: 1, borderRadius: 9, flexDirection: "row", alignItems: "center", gap: 8 },
-  classLabel: { flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: "800" },
+  unitLabel: { paddingHorizontal: 4, paddingVertical: 5, fontSize: 10.5, fontWeight: "600", textTransform: "uppercase" },
+  classRow: { minHeight: 48, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, flexDirection: "row", alignItems: "center", gap: 8 },
+  classLabel: { flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: "600" },
 });

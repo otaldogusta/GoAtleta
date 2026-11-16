@@ -1,6 +1,6 @@
 import { scheduleEffectTask } from "../../../hooks/schedule-effect-task";
 import * as Clipboard from "expo-clipboard";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { ActivityIndicator, Platform, ScrollView, Share, StyleSheet, TextInput, View } from "react-native";
 import { OperationalText as Text } from "../../../ui/OperationalText";
@@ -107,10 +107,16 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
     const [permissions, setPermissions] = useState<StudentRelationshipPermissions>(seed.permissions);
     const [showChoices, setShowChoices] = useState(false);
     const [relationshipLayout, setRelationshipLayout] = useState<AnchorLayout | null>(null);
-    const [showPermissions, setShowPermissions] = useState(!compact);
+    const [showPermissions, setShowPermissions] = useState(false);
     const [busy, setBusy] = useState(false);
     const [inviteUrl, setInviteUrl] = useState("");
+    const copyInviteId = useId();
     const relationshipTriggerRef = useRef<View | null>(null);
+
+    useEffect(() => {
+        if (!inviteUrl || !onCancel || Platform.OS !== "web") return;
+        document.getElementById(copyInviteId)?.focus({ preventScroll: true });
+    }, [copyInviteId, inviteUrl, onCancel]);
 
     const [previousSeed, setPreviousSeed] = useState(seed);
     const [previousCompact, setPreviousCompact] = useState(compact);
@@ -122,7 +128,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
         setPermissions(seed.permissions);
         setShowChoices(false);
         setRelationshipLayout(null);
-        setShowPermissions(!compact);
+        setShowPermissions(false);
         setBusy(false);
         setInviteUrl("");
     }
@@ -217,10 +223,12 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
 
     return (
         <View style={[styles.composer, compact ? styles.composerCompact : null]}>
+            {(!inviteUrl || !onCancel) ? <>
             <View style={styles.fieldGroup}>
                 <Text style={[styles.label, { color: colors.textMuted }]}>E-mail</Text>
                 <View style={[styles.inputFrame, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
                     <TextInput
+                        autoFocus={Boolean(onCancel)}
                         accessibilityLabel="E-mail do responsável"
                         autoCapitalize="none"
                         autoComplete="email"
@@ -286,7 +294,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
                 </AnchoredDropdown>
             </View>
 
-            <Pressable onPress={() => setShowPermissions((current) => !current)} suppressWebHoverFeedback style={styles.moreOptions}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showPermissions }} onPress={() => setShowPermissions((current) => !current)} suppressWebHoverFeedback style={styles.moreOptions}>
                 <GoAtletaIcon name="options" size={15} color={colors.muted} />
                 <Text style={[styles.moreOptionsText, { color: colors.muted }]}>{showPermissions ? "Ocultar opções" : "Mais opções"}</Text>
             </Pressable>
@@ -316,6 +324,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
                     })}
                 </View>
             ) : null}
+            </> : null}
 
             {inviteUrl ? (
                 <View
@@ -334,7 +343,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
                         </Text>
                     </View>
                     <View style={styles.linkActions}>
-                        <Pressable onPress={() => void copyInvite()} style={styles.textAction}>
+                        <Pressable nativeID={copyInviteId} accessibilityRole="button" onPress={() => void copyInvite()} style={styles.textAction}>
                             <GoAtletaIcon name="copy" size={15} color={colors.primaryBg} />
                             <Text style={[styles.textActionLabel, { color: colors.primaryBg }]}>Copiar</Text>
                         </Pressable>
@@ -348,11 +357,11 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
 
             <View style={styles.composerActions}>
                 {onCancel ? (
-                    <Pressable onPress={onCancel} style={styles.cancelAction} suppressWebHoverFeedback>
-                        <Text style={[styles.cancelText, { color: colors.muted }]}>Cancelar</Text>
+                    <Pressable accessibilityRole="button" onPress={onCancel} style={styles.cancelAction} suppressWebHoverFeedback>
+                        <Text style={[styles.cancelText, { color: colors.muted }]}>{inviteUrl ? "Voltar aos acessos" : "Cancelar"}</Text>
                     </Pressable>
                 ) : null}
-                <View style={styles.primaryAction}>
+                {!inviteUrl || !onCancel ? <View style={styles.primaryAction}>
                     <Button
                         label={inviteUrl ? "Criar outro" : "Salvar e convidar"}
                         loading={busy}
@@ -367,7 +376,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
                             void createInvite();
                         }}
                     />
-                </View>
+                </View> : null}
             </View>
         </View>
     );
@@ -534,6 +543,15 @@ function FamilyAccessPanelContent({
     const [composerSeed, setComposerSeed] = useState<InviteSeed | null>(null);
     const [editingRelationship, setEditingRelationship] = useState<StudentRelationship | null>(null);
     const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+    const addAccessId = useId();
+    const returnToAccessList = useCallback(() => {
+        setComposerSeed(null);
+        if (Platform.OS === "web") {
+            requestAnimationFrame(() => {
+                document.getElementById(addAccessId)?.focus({ preventScroll: true });
+            });
+        }
+    }, [addAccessId]);
     const studentId = student?.id ?? null;
 
     const accessRequest = useRef(0);
@@ -693,16 +711,17 @@ function FamilyAccessPanelContent({
 
             <ModalSheet
                 visible={mode === "drawer"}
-                onClose={onClose}
+                dialogLabel="Acessos familiares"
+                onClose={composerSeed ? returnToAccessList : onClose}
                 position={compact ? "bottom" : "right"}
                 backdropOpacity={compact ? 0.7 : 0.48}
                 overlayZIndex={17000}
-                containerPadding={0}
+                containerPadding={compact ? 12 : 0}
                 cardStyle={{
                     width: compact ? "100%" : 410,
-                    maxWidth: compact ? "100%" : 410,
-                    height: compact ? "92%" : "100%",
-                    maxHeight: "100%",
+                    maxWidth: compact ? 480 : 410,
+                    height: compact ? undefined : "100%",
+                    maxHeight: compact ? "92%" : "100%",
                     borderRadius: compact ? 24 : 0,
                     borderTopLeftRadius: compact ? 24 : 0,
                     borderTopRightRadius: compact ? 24 : 0,
@@ -711,7 +730,7 @@ function FamilyAccessPanelContent({
                     backgroundColor: colors.card,
                     padding: 0,
                     overflow: "hidden",
-                    alignSelf: compact ? "stretch" : "flex-end",
+                    alignSelf: compact ? "center" : "flex-end",
                     marginBottom: 0,
                 }}
             >
@@ -719,19 +738,33 @@ function FamilyAccessPanelContent({
                 <View style={[styles.drawerHeader, { borderBottomColor: colors.border }]}>
                     <View style={styles.drawerTitleGroup}>
                         <Text numberOfLines={1} style={[styles.drawerTitle, { color: colors.text }]}>
-                            {student.name}
+                            {composerSeed ? (composerSeed.replaceInvite ? "Editar convite" : "Adicionar responsável") : "Acessos familiares"}
                         </Text>
-                        <Text style={[styles.drawerMeta, { color: colors.muted }]}>{className || "Sem turma"}</Text>
+                        <Text style={[styles.drawerMeta, { color: colors.muted }]}>{student.name}{className ? ` · ${className}` : ""}</Text>
                     </View>
-                    <Pressable accessibilityLabel="Fechar acessos" onPress={onClose} style={styles.closeButton}>
-                        <GoAtletaIcon name="close" size={20} color={colors.muted} />
+                    <Pressable accessibilityRole="button" accessibilityLabel={composerSeed ? "Voltar aos acessos" : "Fechar acessos"} onPress={composerSeed ? returnToAccessList : onClose} style={styles.closeButton}>
+                        <GoAtletaIcon name={composerSeed ? "chevronBack" : "close"} size={20} color={colors.muted} />
                     </Pressable>
                 </View>
 
-                <ScrollView style={styles.drawerScroll} contentContainerStyle={styles.drawerContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                <ScrollView key={composerSeed ? "invite" : "access"} style={[styles.drawerScroll, compact ? styles.compactDrawerScroll : null]} contentContainerStyle={styles.drawerContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                    {composerSeed ? (
+                        <FamilyInviteComposer
+                            organizationId={organizationId}
+                            student={student}
+                            compact
+                            seed={composerSeed}
+                            onCancel={returnToAccessList}
+                            onCreated={async () => {
+                                await loadAccess();
+                                await onAccessChanged?.();
+                            }}
+                        />
+                    ) : <>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Acessos familiares</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.muted }]}>Pessoas com acesso</Text>
                         <Pressable
+                            nativeID={addAccessId}
                             accessibilityRole="button"
                             accessibilityLabel="Adicionar outro responsável"
                             onPress={() => {
@@ -739,30 +772,13 @@ function FamilyAccessPanelContent({
                                 setComposerSeed(defaultInviteSeed());
                                 setOpenActionsId(null);
                             }}
-                            style={styles.addLink}
+                            style={[styles.addLink, { backgroundColor: colors.primaryBg }]}
                             suppressWebHoverFeedback
                         >
-                            <GoAtletaIcon name="add" size={16} color={colors.primaryBg} />
-                            <Text style={[styles.addLinkText, { color: colors.primaryBg }]}>Adicionar</Text>
+                            <GoAtletaIcon name="add" size={16} color={colors.primaryText} />
+                            <Text style={[styles.addLinkText, { color: colors.primaryText }]}>Adicionar</Text>
                         </Pressable>
                     </View>
-
-                    {composerSeed ? (
-                        <View style={[styles.drawerComposer, { borderColor: colors.border }]}>
-                            <FamilyInviteComposer
-                                organizationId={organizationId}
-                                student={student}
-                                compact={false}
-                                seed={composerSeed}
-                                onCancel={() => setComposerSeed(null)}
-                                onCreated={async () => {
-                                    await loadAccess();
-                                    await onAccessChanged?.();
-                                    setComposerSeed(null);
-                                }}
-                            />
-                        </View>
-                    ) : null}
 
                     {editingRelationship ? (
                         <RelationshipEditor
@@ -801,10 +817,10 @@ function FamilyAccessPanelContent({
                                     styles.accessCard,
                                     {
                                         borderColor: colors.border,
-                                        backgroundColor: colors.backgroundSubtle,
                                     },
                                 ]}
                             >
+                                <View style={styles.accessRow}>
                                 <View style={[styles.avatar, { backgroundColor: colors.successBg }]}>
                                     <Text style={[styles.avatarText, { color: colors.successText }]}>{(relationship.contactEmail ?? "A").slice(0, 1).toUpperCase()}</Text>
                                 </View>
@@ -812,14 +828,15 @@ function FamilyAccessPanelContent({
                                     <Text numberOfLines={1} style={[styles.accessTitle, { color: colors.text }]}>
                                         {relationship.contactEmail ?? "Conta vinculada"}
                                     </Text>
-                                    <Text style={[styles.accessMeta, { color: colors.muted }]}>{relationship.label ?? relationshipKindLabel[relationship.kind]}</Text>
-                                    <View style={[styles.statusBadge, { backgroundColor: colors.successBg }]}>
+                                    <View style={styles.accessDetails}>
+                                        <Text style={[styles.accessMeta, { color: colors.muted }]}>{relationship.label ?? relationshipKindLabel[relationship.kind]}</Text>
                                         <Text style={[styles.statusText, { color: colors.successText }]}>Acesso ativo</Text>
                                     </View>
                                 </View>
-                                <Pressable accessibilityLabel="Ações do vínculo" accessibilityState={{ expanded: actionsOpen }} onPress={() => setOpenActionsId(actionsOpen ? null : relationship.id)} style={styles.iconButton}>
+                                <Pressable accessibilityRole="button" accessibilityLabel="Ações do vínculo" accessibilityState={{ expanded: actionsOpen }} onPress={() => setOpenActionsId(actionsOpen ? null : relationship.id)} style={styles.iconButton}>
                                     <GoAtletaIcon name="ellipsisHorizontal" size={20} color={colors.muted} />
                                 </Pressable>
+                                </View>
                                 {actionsOpen ? (
                                     <View
                                         style={[
@@ -885,10 +902,10 @@ function FamilyAccessPanelContent({
                                     styles.accessCard,
                                     {
                                         borderColor: colors.border,
-                                        backgroundColor: colors.backgroundSubtle,
                                     },
                                 ]}
                             >
+                                <View style={styles.accessRow}>
                                 <View style={[styles.avatar, { backgroundColor: colors.infoBg }]}>
                                     <GoAtletaIcon name="message" size={17} color={colors.infoText} />
                                 </View>
@@ -900,13 +917,12 @@ function FamilyAccessPanelContent({
                                         {invite.relationshipLabel ?? relationshipKindLabel[invite.relationshipKind]}
                                         {` · expira ${formatDate(invite.expiresAt)}`}
                                     </Text>
-                                    <View style={[styles.statusBadge, { backgroundColor: colors.infoBg }]}>
-                                        <Text style={[styles.statusText, { color: colors.infoText }]}>Convite enviado</Text>
-                                    </View>
+                                    <Text style={[styles.statusText, { color: colors.infoText }]}>Convite pendente</Text>
                                 </View>
-                                <Pressable accessibilityLabel="Ações do convite" accessibilityState={{ expanded: actionsOpen }} onPress={() => setOpenActionsId(actionsOpen ? null : invite.id)} style={styles.iconButton}>
+                                <Pressable accessibilityRole="button" accessibilityLabel="Ações do convite" accessibilityState={{ expanded: actionsOpen }} onPress={() => setOpenActionsId(actionsOpen ? null : invite.id)} style={styles.iconButton}>
                                     <GoAtletaIcon name="ellipsisHorizontal" size={20} color={colors.muted} />
                                 </Pressable>
+                                </View>
                                 {actionsOpen ? (
                                     <View
                                         style={[
@@ -966,6 +982,7 @@ function FamilyAccessPanelContent({
                     })}
 
                     {invites.length > 0 ? <Text style={[styles.expiryNote, { color: colors.muted }]}>Convites pendentes expiram em 30 dias.</Text> : null}
+                    </>}
                 </ScrollView>
             </ModalSheet>
         </>
@@ -1077,7 +1094,7 @@ const styles = StyleSheet.create({
     },
     drawerHeader: {
         minHeight: 64,
-        paddingHorizontal: 12,
+        paddingHorizontal: 18,
         paddingVertical: 10,
         borderBottomWidth: StyleSheet.hairlineWidth,
         flexDirection: "row",
@@ -1088,17 +1105,19 @@ const styles = StyleSheet.create({
     drawerTitle: { fontSize: compactUiMetrics.titleFontSize, fontWeight: "900" },
     drawerMeta: { fontSize: 12 },
     drawerScroll: { flex: 1, minHeight: 0 },
-    drawerContent: { padding: 12, paddingBottom: 24, gap: 8 },
+    compactDrawerScroll: { flexGrow: 0, flexShrink: 1, flexBasis: "auto" },
+    drawerContent: { padding: 18, paddingBottom: 22, gap: 8 },
     sectionHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
     sectionTitle: { flex: 1, minWidth: 0, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" },
     addLink: {
         minHeight: 40,
+        paddingHorizontal: 12,
+        borderRadius: radius.internal,
         flexDirection: "row",
         alignItems: "center",
         gap: 5,
     },
     addLinkText: { fontSize: 12, fontWeight: "900" },
-    drawerComposer: { borderWidth: 1, borderRadius: 16, padding: 14 },
     editor: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12 },
     editorHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
     editorTitleGroup: { flex: 1, minWidth: 0, gap: 3 },
@@ -1130,14 +1149,14 @@ const styles = StyleSheet.create({
     emptyTitle: { fontSize: 14, fontWeight: "900" },
     emptyText: { fontSize: 12, textAlign: "center" },
     accessCard: {
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    accessRow: {
         minHeight: 64,
-        borderWidth: 1,
-        borderRadius: 14,
-        padding: 12,
+        paddingVertical: 8,
         flexDirection: "row",
-        alignItems: "flex-start",
+        alignItems: "center",
         gap: 10,
-        position: "relative",
     },
     avatar: {
         width: 38,
@@ -1150,19 +1169,11 @@ const styles = StyleSheet.create({
     accessContent: { flex: 1, minWidth: 0, gap: 3 },
     accessTitle: { fontSize: 12, fontWeight: "900" },
     accessMeta: { fontSize: 11 },
-    statusBadge: {
-        alignSelf: "flex-start",
-        borderRadius: 6,
-        paddingHorizontal: 7,
-        paddingVertical: 3,
-        marginTop: 2,
-    },
+    accessDetails: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
     statusText: { fontSize: 10, fontWeight: "800" },
     actionMenu: {
-        position: "absolute",
-        top: 48,
-        right: 10,
-        zIndex: 20,
+        alignSelf: "flex-end",
+        marginBottom: 8,
         minWidth: 190,
         borderWidth: 1,
         borderRadius: 12,

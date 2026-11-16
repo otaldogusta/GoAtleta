@@ -450,6 +450,7 @@ export function TrainingPlanPdfImportModal({
   return (
     <ModalSheet
       visible={visible}
+      dialogLabel="Importar plano em PDF"
       onClose={busy ? () => undefined : onClose}
       position="center"
       containerPadding={width < 600 ? 10 : 20}

@@ -828,7 +828,8 @@ function ClassEditModalPickersBase({
 }
 
 function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+  const fieldBackgroundColor = mode === "dark" ? "#121c30" : colors.inputBg;
   const { width } = useWindowDimensions();
   const stacked = width < 820;
   const sectionRoot = useRef<View>(null), basicsSection = useRef<View>(null), profileSection = useRef<View>(null), agendaSection = useRef<View>(null);
@@ -938,14 +939,14 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
     });
   };
   const fieldStyle = {
-    minHeight: 50,
+    minHeight: 39,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.inputBg,
-    paddingHorizontal: 14,
+    backgroundColor: fieldBackgroundColor,
+    paddingHorizontal: 10,
     color: colors.inputText,
-    fontSize: 14,
+    fontSize: 13,
   } as const;
   const selectStyle = {
     ...fieldStyle,
@@ -1007,14 +1008,14 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
                 <View style={{ width: 72, gap: 4 }}>
                   <Text style={labelStyle}>Cor</Text>
                   <View ref={colorTriggerRef} collapsable={false}>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Cor da turma: ${selectedColorOption?.label ?? "Padrão"}`} accessibilityState={{ expanded: showColorOptions }} onPress={toggleColorMenu} style={[selectStyle, { height: 50, minHeight: 50, paddingHorizontal: 9 }]}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Cor da turma: ${selectedColorOption?.label ?? "Padrão"}`} accessibilityState={{ expanded: showColorOptions }} onPress={toggleColorMenu} style={[selectStyle, { paddingHorizontal: 9 }]}>
                       <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: selectedColorOption?.palette.bg ?? colors.inputBg }} />
                       <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} style={{ transform: [{ rotate: showColorOptions ? "180deg" : "0deg" }] }} />
                     </Pressable>
                   </View>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <ClassUnitAutocomplete colors={colors} value={fields.editName} units={options.classNameOptions ?? []} onChangeText={fields.setEditName} label="Nome da turma" placeholder="Digite para buscar ou criar" />
+                  <ClassUnitAutocomplete colors={colors} fieldBackgroundColor={fieldBackgroundColor} compact value={fields.editName} units={options.classNameOptions ?? []} onChangeText={fields.setEditName} label="Nome da turma" placeholder="Digite para buscar ou criar" />
                 </View>
               </View>
               <AnchoredDropdown visible={showColorOptions && Boolean(colorMenuLayout)} layout={colorMenuLayout} container={null} animationStyle={{ opacity: 1 }} zIndex={9800} maxHeight={320} nestedScrollEnabled portalToBodyOnWeb fitContent preferredWidth={colorMenuLayout?.width} density="menu" onRequestClose={() => setShowColorOptions(false)} interactiveRefs={[colorTriggerRef]}>
@@ -1039,8 +1040,8 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
                 })}
               </AnchoredDropdown>
             </View>
-            <ClassUnitAutocomplete colors={colors} value={fields.editUnit} units={options.unitOptions ?? []} onChangeText={fields.setEditUnit} label="Unidade" placeholder="Digite para buscar ou criar" />
-            <ClassUnitAutocomplete colors={colors} value={fields.editTrainingSpace} units={options.trainingSpaceOptions ?? []} onChangeText={fields.setEditTrainingSpace} label="Quadra / espaço" placeholder="Pesquisar ou cadastrar espaço" showValueAsBadge />
+            <ClassUnitAutocomplete colors={colors} fieldBackgroundColor={fieldBackgroundColor} compact value={fields.editUnit} units={options.unitOptions ?? []} onChangeText={fields.setEditUnit} label="Unidade" placeholder="Digite para buscar ou criar" />
+            <ClassUnitAutocomplete colors={colors} fieldBackgroundColor={fieldBackgroundColor} compact value={fields.editTrainingSpace} units={options.trainingSpaceOptions ?? []} onChangeText={fields.setEditTrainingSpace} label="Quadra / espaço" placeholder="Pesquisar ou cadastrar espaço" showValueAsBadge />
             {fields.editModality !== undefined && options.modalityOptions?.length ? renderSelect({
               label: "Modalidade",
               value: formatModalityLabel(options.modalityOptions.find((option) => option.value === fields.editModality)?.label ?? fields.editModality),
@@ -1265,9 +1266,9 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
                   const timeSurfaceStyle = {
                     flex: 1,
                     minWidth: 0,
-                    minHeight: 44,
+                    minHeight: 39,
                     borderRadius: 10,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: fieldBackgroundColor,
                     paddingHorizontal: stacked ? 8 : 11,
                     flexDirection: "row" as const,
                     alignItems: "center" as const,

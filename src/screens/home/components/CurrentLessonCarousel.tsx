@@ -279,6 +279,8 @@ export const CurrentLessonCarousel = memo(function CurrentLessonCarousel({
           return (
             <View
               accessibilityElementsHidden={index !== currentIndex}
+              aria-hidden={index !== currentIndex || undefined}
+              {...(Platform.OS === "web" ? { inert: index !== currentIndex } : {})}
               importantForAccessibility={
                 index === currentIndex ? "auto" : "no-hide-descendants"
               }
@@ -312,7 +314,7 @@ export const CurrentLessonCarousel = memo(function CurrentLessonCarousel({
         onKeyDown={handleKeyDown}
         role="region"
         tabIndex={0}
-        style={{ outline: "none", width: "100%" }}
+        style={{ width: "100%", outlineOffset: 3 }}
       >
         {carousel}
       </div>

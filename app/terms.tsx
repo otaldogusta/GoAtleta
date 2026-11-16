@@ -39,6 +39,10 @@ export default function TermsScreen() {
           paragraphs: [
             "O acesso pode ser suspenso em caso de violação, risco à segurança ou obrigação legal. O usuário pode solicitar exclusão conforme a página de Exclusão de Dados e a Política de Privacidade.",
           ],
+          links: [
+            { label: "Política de Privacidade", href: "/privacy" },
+            { label: "Exclusão de Dados", href: "/data-deletion" },
+          ],
         },
         {
           title: "Contato",

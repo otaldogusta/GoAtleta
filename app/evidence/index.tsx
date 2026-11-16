@@ -1,6 +1,7 @@
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, TextInput, View } from "react-native";
+import { usePathname, useRouter } from "expo-router";
+import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { OperationalText as Text } from "../../src/ui/OperationalText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,10 +18,43 @@ import { Button } from "../../src/ui/Button";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
+import { useOptionalCopilotOpen } from "../../src/copilot/CopilotProvider";
+import { usesEvidenceAssistantButton } from "../../src/copilot/route-visibility";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { compactUiMetrics } from "../../src/theme/tokens";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
+
+const styles = StyleSheet.create({
+  assistantAction: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
+const reviewKey = (organizationId: string | null | undefined, question: string, studies: EvidenceStudy[]) =>
+  JSON.stringify([organizationId, question.trim(), studies.map(study => study.pmid).sort()]);
 
 export default function EvidenceScreen() {
   markRender("screen.evidence.render.root");
   const { colors } = useAppTheme();
+  const studyTitleStyle = useMemo(() => ({ color: colors.muted }), [colors.muted]);
+  const pathname = usePathname();
+  const router = useRouter();
+  const trainerRoutes = useTrainerRouteScope();
+  const { width } = useWindowDimensions();
+  const openAssistant = useOptionalCopilotOpen();
+  const assistantHeaderAction = openAssistant && usesEvidenceAssistantButton(pathname, width) ? (
+    <Pressable accessibilityRole="button" accessibilityLabel="Abrir Assistente de Evidências" onPress={openAssistant}
+      style={styles.assistantAction}>
+      <GoAtletaIcon name="chat" size={compactUiMetrics.iconSize} color={colors.muted} />
+    </Pressable>
+  ) : null;
   const responsiveLayout = useResponsiveLayout();
   const { role } = useRole();
   const { activeOrganizationId, activeOrganization } = useOrganization();
@@ -29,7 +63,7 @@ export default function EvidenceScreen() {
   const [question, setQuestion] = useState("Quais ações práticas para microciclo semanal?");
   const [studies, setStudies] = useState<EvidenceStudy[]>([]);
   const [selectedPmids, setSelectedPmids] = useState<string[]>([]);
-  const [summary, setSummary] = useState<EvidenceSummary | null>(null);
+  const [review, setReview] = useState<{ key: string; summary: EvidenceSummary; studyTitles: string[] } | null>(null);
   const [busyAction, setBusyAction] = useState<"search" | "summarize" | "approve" | null>(null);
   const [feedback, setFeedback] = useState("");
 
@@ -39,6 +73,9 @@ export default function EvidenceScreen() {
     const selectedSet = new Set(selectedPmids);
     return studies.filter((study) => selectedSet.has(study.pmid));
   }, [selectedPmids, studies]);
+  const currentReviewKey = reviewKey(activeOrganizationId, question, selectedStudies);
+  const reviewIsCurrent = review?.key === currentReviewKey;
+  const summary = review?.summary;
 
   const toggleSelection = (pmid: string) => {
     setSelectedPmids((current) =>
@@ -66,8 +103,8 @@ export default function EvidenceScreen() {
       }));
       setStudies(result);
       setSelectedPmids(result.slice(0, 3).map((study) => study.pmid));
-      setSummary(null);
-      setFeedback(result.length ? `${result.length} estudo(s) encontrados.` : "Nenhum estudo encontrado.");
+      setReview(null);
+      setFeedback(result.length ? `${result.length} estudos encontrados. Os primeiros resultados foram sugeridos na seleção.` : "Nenhum estudo encontrado. Tente ajustar o termo da busca.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha na busca PubMed.";
       setFeedback(message);
@@ -92,7 +129,7 @@ export default function EvidenceScreen() {
         studies: selectedStudies,
         question,
       }));
-      setSummary(result);
+      setReview({ key: currentReviewKey, summary: result, studyTitles: selectedStudies.map(study => study.title) });
       setFeedback("Resumo científico gerado.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao gerar resumo.";
@@ -103,13 +140,13 @@ export default function EvidenceScreen() {
   };
 
   const handleApprove = async () => {
-    if (busyAction) return;
+    if (busyAction || !isAdmin) return;
     if (!activeOrganizationId) {
       setFeedback("Selecione uma organização ativa antes de aprovar.");
       return;
     }
-    if (!selectedStudies.length || !summary) {
-      setFeedback("Busque, selecione estudos e gere um resumo antes de aprovar.");
+    if (!selectedStudies.length || !summary || !reviewIsCurrent) {
+      setFeedback("Gere uma síntese para a pergunta e os estudos selecionados.");
       return;
     }
 
@@ -133,9 +170,21 @@ export default function EvidenceScreen() {
     }
   };
 
+  const contentWidth = Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2;
+  const pageHeader = (
+    <ScreenPageHeader
+      title="Evidências científicas"
+      onBack={() => navigateBackOrReplace({ router, fallback: role === "trainer" ? trainerRoutes.home : "/" })}
+      horizontalBleed={0}
+      contentStyle={{ width: "100%", maxWidth: contentWidth, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter }}
+      right={assistantHeaderAction}
+    />
+  );
+
   if (role !== "trainer") {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        {pageHeader}
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
             Acesso restrito
@@ -150,18 +199,14 @@ export default function EvidenceScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      {pageHeader}
       <ScrollView
-        contentContainerStyle={{ width: "100%", maxWidth: Math.min(responsiveLayout.maxContentWidth, 960) + responsiveLayout.gutter * 2, alignSelf: "center", padding: responsiveLayout.gutter, gap: responsiveLayout.density.pageGap, paddingBottom: 36 }}
+        contentContainerStyle={{ width: "100%", maxWidth: contentWidth, alignSelf: "center", padding: responsiveLayout.gutter, gap: responsiveLayout.density.pageGap, paddingBottom: 36 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontSize: responsiveLayout.density.pageTitleFontSize, lineHeight: responsiveLayout.density.pageTitleLineHeight, fontWeight: "700" }}>
-            Evidências científicas
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Buscar no PubMed, gerar síntese e aprovar para a base interna.
-          </Text>
-        </View>
+        <Text style={{ color: colors.muted }}>
+          Buscar no PubMed, gerar síntese e aprovar para a base interna.
+        </Text>
 
         <View
           style={{
@@ -174,6 +219,7 @@ export default function EvidenceScreen() {
           }}
         >
           <TextInput
+            accessibilityLabel="Buscar estudos no PubMed"
             value={query}
             onChangeText={setQuery}
             placeholder="Ex.: volleyball youth training load"
@@ -197,11 +243,18 @@ export default function EvidenceScreen() {
         </View>
 
         <View style={{ gap: 8 }}>
+          {selectedStudies.length ? (
+            <View style={{ alignItems: "flex-start" }}>
+              <Button label="Limpar seleção" variant="outline" onPress={() => setSelectedPmids([])} />
+            </View>
+          ) : null}
           {studies.map((study) => {
             const selected = selectedPmids.includes(study.pmid);
             return (
               <Pressable
                 key={study.pmid}
+                accessibilityRole="checkbox"
+                aria-checked={selected}
                 onPress={() => toggleSelection(study.pmid)}
                 style={{
                   borderWidth: 1,
@@ -239,6 +292,7 @@ export default function EvidenceScreen() {
           }}
         >
           <TextInput
+            accessibilityLabel="Pergunta da síntese"
             value={question}
             onChangeText={setQuestion}
             placeholder="Pergunta da síntese"
@@ -254,7 +308,7 @@ export default function EvidenceScreen() {
             }}
           />
           <Button
-            label={`Gerar síntese (${selectedStudies.length} selecionados)`}
+            label={`${summary && !reviewIsCurrent ? "Gerar nova síntese" : "Gerar síntese"} (${selectedStudies.length})`}
             onPress={handleSummarize}
             loading={busyAction === "summarize"}
             disabled={!selectedStudies.length}
@@ -275,6 +329,13 @@ export default function EvidenceScreen() {
             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
               {summary.headline}
             </Text>
+            {!reviewIsCurrent ? <Text accessibilityLiveRegion="polite" style={{ color: colors.warningText }}>
+              A seleção ou a pergunta mudou. Gere uma nova síntese para aprovar.
+            </Text> : null}
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Estudos desta síntese</Text>
+            {review?.studyTitles.map((title, index) => (
+              <Text key={`${index}:${title}`} style={studyTitleStyle}>{title}</Text>
+            ))}
             <Text style={{ color: colors.muted }}>
               Confiança: {summary.confidence.toUpperCase()}
             </Text>
@@ -296,7 +357,7 @@ export default function EvidenceScreen() {
           label={isAdmin ? "Aprovar e publicar no KB" : "Aprovação exige admin"}
           onPress={handleApprove}
           loading={busyAction === "approve"}
-          disabled={!isAdmin || !summary || !selectedStudies.length}
+          disabled={!isAdmin || !reviewIsCurrent || !selectedStudies.length || Boolean(busyAction)}
         />
 
         {feedback ? (

@@ -8,15 +8,17 @@ import { Pressable } from "./Pressable";
 import { GoAtletaIcon } from "./icon-registry";
 import { useDisclosureMotion } from "./useDisclosureMotion";
 
-export function PositionPicker<T extends string>({ value, options, onChange, lockedValues = [], maxSelections = 2, searchLabel = "Pesquisar posições" }: {
+export function PositionPicker<T extends string>({ value, options, onChange, lockedValues = [], maxSelections = 2, searchLabel = "Pesquisar posições", fieldMinHeight }: {
   value: T[];
   options: readonly { value: T; label: string }[];
   onChange: (value: T[]) => void;
   maxSelections?: number;
   searchLabel?: string;
   lockedValues?: T[];
+  fieldMinHeight?: number;
 }) {
   const { colors } = useAppTheme();
+  const controlMinHeight = fieldMinHeight === undefined ? 40 : fieldMinHeight - 2;
   const anchor = useRef<View>(null);
   const listId = useId();
   const input = useRef<TextInput>(null);
@@ -40,10 +42,10 @@ export function PositionPicker<T extends string>({ value, options, onChange, loc
   };
   return (
     <View>
-      <View ref={anchor} collapsable={false} style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, paddingVertical: 6, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+      <View ref={anchor} collapsable={false} style={{ minHeight: fieldMinHeight ?? 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, paddingVertical: fieldMinHeight === undefined ? 6 : 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         {selected.map((option) => <View key={option.value} style={{ flexDirection: "row", alignItems: "center", borderRadius: 18, backgroundColor: colors.primaryBg, paddingLeft: 12 }}>
           <Text style={{ color: colors.primaryText, fontWeight: "700" }}>{option.label}</Text>
-          {lockedValues.includes(option.value) ? <Text accessibilityLabel={`${option.label}: vinculada a um plano ativo`} style={{ color: colors.primaryText, paddingHorizontal: 12, paddingVertical: 12, fontSize: 11 }}>Plano</Text> : <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={`Remover ${option.label}`} onPress={() => onChange(value.filter((position) => position !== option.value))} style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}>
+          {lockedValues.includes(option.value) ? <Text accessibilityLabel={`${option.label}: vinculada a um plano ativo`} style={{ color: colors.primaryText, paddingHorizontal: 12, paddingVertical: fieldMinHeight === undefined ? 12 : 6, fontSize: 11 }}>Plano</Text> : <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={`Remover ${option.label}`} onPress={() => onChange(value.filter((position) => position !== option.value))} style={{ width: 40, height: controlMinHeight, alignItems: "center", justifyContent: "center" }}>
             <GoAtletaIcon name="close" size={16} color={colors.primaryText} />
           </Pressable>}
         </View>)}
@@ -65,7 +67,7 @@ export function PositionPicker<T extends string>({ value, options, onChange, loc
                 select(filtered[activeIndex].value);
               } else if (key === "Tab") setOpen(false);
             }}
-            style={{ flex: 1, minWidth: 120, minHeight: 40, borderRadius: 0, color: colors.text, paddingVertical: 0, ...(Platform.OS === "web" ? { outlineStyle: "none", boxShadow: "none" } : {}) } as TextStyle}
+            style={{ flex: 1, minWidth: 120, minHeight: controlMinHeight, borderRadius: 0, color: colors.text, paddingVertical: 0, ...(Platform.OS === "web" ? { outlineStyle: "none", boxShadow: "none" } : {}) } as TextStyle}
           />
           <GoAtletaIcon name="search" size={20} color={open ? colors.primaryBg : colors.muted} />
         </> : null}

@@ -63,6 +63,17 @@ describe("notifications inbox organization propagation", () => {
     );
   });
 
+  test("the notice center can distinguish a failed request from an empty page", async () => {
+    const error = new Error("Network unavailable");
+    mockListNotifications.mockRejectedValueOnce(error).mockRejectedValueOnce(error);
+    const options = { inboxScope: "coord", organizationId: "org-coord", archiveScope: "archived", offset: 20 } as const;
+
+    await expect(getNotificationsPage({ ...options, throwOnError: true })).rejects.toThrow(error);
+    await expect(getNotificationsPage(options)).resolves.toEqual({ items: [], hasMore: false, nextOffset: 20 });
+    await expect(getNotificationsPage({ ...options, throwOnError: true })).resolves.toEqual({ items: [], hasMore: false, nextOffset: 20 });
+    expect(mockListNotifications).toHaveBeenCalledWith({ ...options, limit: 21 });
+  });
+
   test("forwards the explicit student organization to mutations and unread count", async () => {
     await markAllRead("student", "org-student");
     await markNotificationRead("notification-1", "student", "org-student");

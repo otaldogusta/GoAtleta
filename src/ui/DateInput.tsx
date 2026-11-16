@@ -50,6 +50,7 @@ export const parseDateInputToIso = (value: string) => {
 };
 
 export type DateInputProps = {
+  compact?: boolean;
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
@@ -63,6 +64,7 @@ export type DateInputProps = {
 };
 
 function DateInputField({
+  compact = false,
   value,
   onChange,
   placeholder = "Selecione a data",
@@ -119,10 +121,10 @@ function DateInputField({
         borderWidth: invalid ? 2 : 1,
         borderColor: invalid ? colors.dangerSolidBg : colors.border,
         borderRadius: 12,
-        backgroundColor: colors.inputBg,
-        paddingHorizontal: 14,
+        backgroundColor: compact && mode === "dark" ? "#121c30" : colors.inputBg,
+        paddingHorizontal: compact ? 10 : 14,
         overflow: "hidden",
-        minHeight: 50,
+        minHeight: compact ? 39 : 50,
         position: "relative",
       }}
     >
@@ -147,13 +149,14 @@ function DateInputField({
         style={{
           flex: 1,
           borderRadius: 0,
-          paddingVertical: 12,
+          paddingVertical: compact ? 8 : 12,
           paddingRight: 36,
           color: colors.inputText,
           backgroundColor: "transparent",
         }}
       />
       <Pressable
+        accessibilityRole="button"
         accessibilityLabel={`Abrir calendário: ${accessibilityLabel ?? placeholder}`}
         onPress={openCalendar}
         disabled={!canOpenCalendar}

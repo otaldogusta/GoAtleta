@@ -13,6 +13,7 @@ type StudentDuplicateBadgeProps = {
 export function StudentDuplicateBadge({ colors, onPress }: StudentDuplicateBadgeProps) {
   return (
     <Pressable
+      accessibilityRole="button"
       accessibilityLabel="Revisar nome repetido"
       onPress={(event) => {
         event.stopPropagation();
@@ -59,6 +60,8 @@ export function StudentDuplicateReviewPrompt({
       </Text>
       <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Revisar nome repetido"
           onPress={onReview}
           style={{
             borderWidth: 1,
@@ -72,6 +75,8 @@ export function StudentDuplicateReviewPrompt({
           <Text style={{ color: colors.text, fontWeight: "700" }}>Revisar</Text>
         </Pressable>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Manter os dois cadastros"
           onPress={onKeep}
           style={{
             borderWidth: 1,

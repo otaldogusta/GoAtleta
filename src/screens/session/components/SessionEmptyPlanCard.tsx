@@ -16,6 +16,7 @@ type Props = {
   savedPlans: SessionSavedPlanPreview[];
   isGeneratingPlan: boolean;
   isSavingPlan: boolean;
+  isApplyingPlan: boolean;
   onToggleSavedClassPlans: () => void;
   onGeneratePlan: () => void;
   onApplySavedPlan: (planId: string) => void;
@@ -31,11 +32,12 @@ export function SessionEmptyPlanCard({
   savedPlans,
   isGeneratingPlan,
   isSavingPlan,
+  isApplyingPlan,
   onToggleSavedClassPlans,
   onGeneratePlan,
   onApplySavedPlan,
 }: Props) {
-  const planActionBusy = isGeneratingPlan || isSavingPlan;
+  const planActionBusy = isGeneratingPlan || isSavingPlan || isApplyingPlan;
 
   return (
     <View
@@ -142,17 +144,20 @@ export function SessionEmptyPlanCard({
                   </Text>
                   <Pressable
                     onPress={() => onApplySavedPlan(savedPlan.id)}
-                    disabled={savedPlan.isApplying}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Aplicar ${savedPlan.title} nesta aula`}
+                    accessibilityState={{ busy: savedPlan.isApplying, disabled: planActionBusy }}
+                    disabled={planActionBusy}
                     style={{
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 999,
-                      backgroundColor: savedPlan.isApplying ? colors.border : colors.primaryBg,
+                      backgroundColor: planActionBusy ? colors.border : colors.primaryBg,
                     }}
                   >
                     <Text
                       style={{
-                        color: savedPlan.isApplying ? colors.muted : colors.primaryText,
+                        color: planActionBusy ? colors.muted : colors.primaryText,
                         fontSize: 12,
                         fontWeight: "800",
                       }}

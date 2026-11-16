@@ -220,6 +220,8 @@ export function HomeProfessorScreen({
 
   const [upcomingEvents, setUpcomingEvents] = useState<EventListItem[]>([]);
   const [resolvedScheduleRequestKey, setResolvedScheduleRequestKey] = useState<string | null>(null);
+  const [failedScheduleRequestKey, setFailedScheduleRequestKey] = useState<string | null>(null);
+  const [scheduleRetry, setScheduleRetry] = useState(0);
 
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
   const [manualIndex, setManualIndex] = useState<number | null>(null);
@@ -266,6 +268,7 @@ export function HomeProfessorScreen({
     requestKey: scheduleRequestKey,
     resolvedRequestKey: resolvedScheduleRequestKey,
   });
+  const scheduleUnavailable = Boolean(scheduleRequestKey) && failedScheduleRequestKey === scheduleRequestKey;
 
   const [inboxX] = useState(() => new Animated.Value(panelWidth));
 
@@ -403,6 +406,8 @@ export function HomeProfessorScreen({
     return {
       classes: classListResult.status === "fulfilled" ? classListResult.value : [],
       events: eventsListResult.status === "fulfilled" ? eventsListResult.value : [],
+      unavailable: classListResult.status === "rejected" &&
+        (eventsListResult.status === "rejected" || eventsListResult.value.length === 0),
     };
   }, [activeOrganization?.id, adminMode, ensureSeedData, role, session?.user?.id, upcomingWindowDays]);
   const loadProfilePhoto = useCallback(
@@ -449,6 +454,7 @@ export function HomeProfessorScreen({
       }
 
       if (alive) {
+        setFailedScheduleRequestKey(null);
         setClasses([]);
         setUpcomingEvents([]);
         setManualIndex(null);
@@ -473,6 +479,7 @@ export function HomeProfessorScreen({
             if (alive) {
               setClasses(result.classes);
               setUpcomingEvents(result.events);
+              setFailedScheduleRequestKey(result.unavailable ? scheduleRequestKey : null);
               setResolvedScheduleRequestKey(scheduleRequestKey);
               setAgendaRefreshToken((value) => value + 1);
             }
@@ -489,6 +496,7 @@ export function HomeProfessorScreen({
           setClasses([]);
           setUpcomingEvents([]);
           setResolvedScheduleRequestKey(scheduleRequestKey);
+          setFailedScheduleRequestKey(scheduleRequestKey);
         }
       }
 
@@ -520,6 +528,7 @@ export function HomeProfessorScreen({
     notificationInboxScope,
     role,
     scheduleRequestKey,
+    scheduleRetry,
   ]);
 
   useEffect(() => {
@@ -1365,6 +1374,7 @@ export function HomeProfessorScreen({
             setClasses(result.classes);
             setUpcomingEvents(result.events);
             setResolvedScheduleRequestKey(scheduleRequestKey);
+            setFailedScheduleRequestKey(null);
           })
       );
     }
@@ -1679,7 +1689,10 @@ export function HomeProfessorScreen({
 
               onPress={openInbox}
               suppressWebHoverFeedback
+              accessibilityRole="button"
               accessibilityLabel={notificationsAccessibilityLabel}
+              accessibilityState={{ expanded: showInbox }}
+              {...(Platform.OS === "web" ? { "aria-expanded": showInbox } : {})}
               onHoverIn={() => setNotificationControlHighlighted(true)}
               onHoverOut={() => setNotificationControlHighlighted(false)}
               onFocus={() => setNotificationControlHighlighted(true)}
@@ -1951,7 +1964,12 @@ export function HomeProfessorScreen({
                 gap: isUx2CCompact ? 12 : 14,
               }}
             >
-              <CurrentLessonCarousel
+              {scheduleUnavailable ? (
+                <View style={{ gap: 8, padding: 12, alignItems: "flex-start", backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 14 }}>
+                  <Text accessibilityRole="alert" style={{ color: colors.text, fontWeight: "700" }}>Não foi possível carregar a agenda.</Text>
+                  <Button label="Tentar novamente" variant="outline" onPress={() => setScheduleRetry((value) => value + 1)} />
+                </View>
+              ) : <CurrentLessonCarousel
                 slots={heroScheduleSlots}
                 currentIndex={currentHeroIndex}
                 selectedDateLabel={todayLabel}
@@ -1963,7 +1981,7 @@ export function HomeProfessorScreen({
                 onOpenLesson={handleOpenLesson}
                 onOpenAttendance={handleOpenAttendance}
                 onHorizontalGestureChange={handleHorizontalGestureChange}
-              />
+              />}
 
               <WeekDaySelector
                 days={weekDaySummaries}
@@ -2498,6 +2516,9 @@ export function HomeProfessorScreen({
 
           <Pressable
             suppressWebHoverFeedback
+            accessible={false}
+            focusable={false}
+            {...(Platform.OS === "web" ? { tabIndex: -1 } : {})}
             style={
               [
                 { flex: 1 },
@@ -2568,7 +2589,9 @@ export function HomeProfessorScreen({
                 <View style={{ flexDirection: "row", gap: 8 }}>
 
                   <Pressable
-
+                    accessibilityRole="button"
+                    accessibilityLabel="Limpar notificações"
+                    suppressWebHoverFeedback
                     onPress={() => {
 
                       const handleClear = async () => {
@@ -2600,26 +2623,16 @@ export function HomeProfessorScreen({
                     }}
 
                     style={{
-
-                      width: 36,
-
-                      height: 36,
-
-                      borderRadius: 18,
-
-                      backgroundColor: colors.secondaryBg,
-
+                      width: 44,
+                      height: 44,
+                      margin: -4,
+                      borderRadius: 22,
                       alignItems: "center",
-
                       justifyContent: "center",
-
-                      borderWidth: 1,
-
-                      borderColor: colors.border,
                     }}
 
                   >
-
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}>
                     <View
 
                       style={{
@@ -2685,31 +2698,26 @@ export function HomeProfessorScreen({
                       />
 
                     </View>
-
+                    </View>
                   </Pressable>
 
                   <Pressable
-
+                    accessibilityRole="button"
+                    accessibilityLabel="Fechar notificações"
+                    suppressWebHoverFeedback
                     onPress={closeInbox}
 
                     style={{
-
-                      width: 36,
-
-                      height: 36,
-
-                      borderRadius: 18,
-
-                      backgroundColor: colors.primaryBg,
-
+                      width: 44,
+                      height: 44,
+                      margin: -4,
+                      borderRadius: 22,
                       alignItems: "center",
-
                       justifyContent: "center",
-
                     }}
 
                   >
-
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center" }}>
                     <View
 
                       style={{
@@ -2773,7 +2781,7 @@ export function HomeProfessorScreen({
                       />
 
                     </View>
-
+                    </View>
                   </Pressable>
 
                 </View>

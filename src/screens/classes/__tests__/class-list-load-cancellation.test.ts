@@ -20,7 +20,7 @@ function setup() {
   const calls = { classes: jest.fn().mockResolvedValue([{ id: "class-a", organizationId: "org-a" }]),
     students: jest.fn().mockResolvedValue([{ id: "student-a", name: "Atleta", classId: "class-a", organizationId: "org-a" }]),
     heads: jest.fn().mockResolvedValue([]), staff: jest.fn().mockResolvedValue([]), members: jest.fn().mockResolvedValue([]),
-    coverage: jest.fn().mockResolvedValue([]), publish: jest.fn(), loading: jest.fn() };
+    coverage: jest.fn().mockResolvedValue([]), publish: jest.fn(), loading: jest.fn(), failure: jest.fn(), setLoadedScope: jest.fn() };
   const scope = { activeOrganization: { id: "org-a" }, isCoordinationScope: true, setLoading: calls.loading,
     classFocused: true, classLoadScope: "scope-a", classLoadScopeRef: { current: "scope-a" }, classLoadRequestRef: { current: 0 },
     classDataScope: "data-a", loadedClassDataScopeRef: { current: null as string | null },
@@ -34,7 +34,7 @@ function setup() {
     toLocalDateKey: () => "2026-10-25", getCoverageSummary: () => null,
     setClasses: calls.publish, setIntegrationRules: calls.publish, setStudents: calls.publish,
     setOrganizationMembers: calls.publish, setClassHeadsById: calls.publish, setClassStaffById: calls.publish,
-    setClassCoverageSummariesByClassId: calls.publish };
+    setClassCoverageSummariesByClassId: calls.publish, setFailedClassDataScope: calls.failure, setLoadedClassDataScope: calls.setLoadedScope };
   const load = new Function(...Object.keys(scope), code)(...Object.values(scope)) as (alive: { current: boolean }) => Promise<void>;
   return { calls, load, scope };
 }
@@ -43,7 +43,7 @@ test("blur during the shared base read skips subsequent identity/coverage reques
   const alive = { current: true }; const pending = load(alive); await flush(); alive.current = false;
   gate.resolve([]); await pending;
   expect(calls.heads).not.toHaveBeenCalled(); expect(calls.staff).not.toHaveBeenCalled(); expect(calls.coverage).not.toHaveBeenCalled();
-  expect(calls.publish).not.toHaveBeenCalled(); expect(calls.students).toHaveBeenCalledWith({ organizationId: "org-a" });
+  expect(calls.publish).not.toHaveBeenCalled(); expect(calls.setLoadedScope).not.toHaveBeenCalled(); expect(calls.students).toHaveBeenCalledWith({ organizationId: "org-a" });
   expect(await gate.promise).toEqual([]);
 });
 test("blur during the identity phase prevents the later coverage request and stale publication", async () => {
@@ -75,6 +75,7 @@ test("retained list revalidates without replacing its loaded content with a shim
   await load({ current: true });
   expect(calls.loading).toHaveBeenNthCalledWith(1, true);
   expect(scope.loadedClassDataScopeRef.current).toBe("data-a");
+  expect(calls.setLoadedScope).toHaveBeenCalledWith("data-a");
   calls.loading.mockClear();
   await load({ current: true });
   expect(calls.classes).toHaveBeenCalledTimes(2);
@@ -87,4 +88,21 @@ test("a different authorization scope cannot reuse the prior loaded list", async
   scope.loadedClassDataScopeRef.current = "other-user-org-permissions";
   await load({ current: true });
   expect(calls.loading).toHaveBeenNthCalledWith(1, true);
+});
+
+test("a failed refresh keeps the last list in its scope and a successful retry clears the error", async () => {
+  const { calls, load, scope } = setup();
+  await load({ current: true });
+  calls.publish.mockClear();
+  calls.classes.mockRejectedValueOnce(new Error("Falha de rede"));
+
+  await expect(load({ current: true })).rejects.toThrow("Falha de rede");
+  expect(calls.failure).toHaveBeenLastCalledWith("data-a");
+  expect(calls.publish).not.toHaveBeenCalled();
+  expect(scope.loadedClassDataScopeRef.current).toBe("data-a");
+  expect(calls.setLoadedScope).toHaveBeenCalledWith("data-a");
+
+  await load({ current: true });
+  expect(calls.failure).toHaveBeenLastCalledWith(null);
+  expect(calls.publish).toHaveBeenCalled();
 });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
@@ -17,7 +17,7 @@ import {
   type CatalogFilterOptions,
   type CatalogFilterState,
 } from "./activity-catalog-view-model";
-import { compactUiMetrics } from "../../theme/tokens";
+import { CompactSelect } from "../../ui/CompactSelect";
 
 type Props = {
   visible: boolean;
@@ -55,13 +55,14 @@ export function ActivityCatalogFilterSheet({
       onClose={onClose}
       colors={colors}
       title="Filtros do catálogo"
-      subtitle="Refine a vitrine sem abrir todos os metadados na tela principal."
+      dialogLabel="Filtros do catálogo"
       position="bottom"
-      cardStyle={{ width: "100%", maxWidth: 720, maxHeight: "86%" }}
+      cardStyle={{ width: "100%", maxWidth: 440, maxHeight: "86%" }}
       contentContainerStyle={{ gap: 14, paddingTop: 14, paddingBottom: 18 }}
       footer={
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable
+            accessibilityRole="button"
             testID="catalog-filter-clear"
             onPress={clear}
             style={{
@@ -78,6 +79,7 @@ export function ActivityCatalogFilterSheet({
             </Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
             testID="catalog-filter-apply"
             onPress={apply}
             style={{
@@ -184,6 +186,7 @@ export function ActivityCatalogFilterSheet({
         }
       />
       <Pressable
+        accessibilityRole="button"
         testID="catalog-filter-close"
         onPress={onClose}
         style={{
@@ -215,49 +218,5 @@ function FilterRow({
   testPrefix: string;
   onSelect: (value: string) => void;
 }) {
-  const { colors } = useAppTheme();
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={{ color: colors.text, fontSize: compactUiMetrics.bodyFontSize, fontWeight: "900" }}>
-        {title}
-      </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingRight: 8 }}
-      >
-        {values.map((item) => {
-          const active = item.value === activeValue;
-          const idSuffix = item.value || "all";
-          return (
-            <Pressable
-              key={idSuffix}
-              testID={`${testPrefix}-${idSuffix}`}
-              onPress={() => onSelect(active ? "" : item.value)}
-              style={{
-                minHeight: 34,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: active ? colors.successBorder : colors.border,
-                backgroundColor: active ? colors.successBg : colors.card,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text
-                style={{
-                  color: active ? colors.successText : colors.text,
-                  fontSize: compactUiMetrics.bodyFontSize,
-                  fontWeight: "800",
-                }}
-              >
-                {item.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
+  return <CompactSelect label={title} value={activeValue} options={values} onChange={onSelect} testID={testPrefix} />;
 }

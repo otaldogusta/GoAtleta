@@ -178,7 +178,7 @@ export default function ClassesScreen() {
   const prefillNameParam = Array.isArray(prefillName) ? prefillName[0] : prefillName;
   const prefillModalityParam = Array.isArray(prefillModality) ? prefillModality[0] : prefillModality;
   const prefillUnitParam = Array.isArray(prefillUnit) ? prefillUnit[0] : prefillUnit;
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const responsiveLayout = useResponsiveLayout("content");
   const { session } = useAuth();
   const {
@@ -195,6 +195,7 @@ export default function ClassesScreen() {
     activeOrganization?.id, activeOrganization?.role_level, isCoordinationScope, memberPermissions,
   ]);
   const loadedClassDataScopeRef = useRef<string | null>(null);
+  const [loadedClassDataScope, setLoadedClassDataScope] = useState<string | null>(null);
   const classLoadScopeRef = useRef(classLoadScope);
   const classLoadRequestRef = useRef(0);
   useLayoutEffect(() => {
@@ -337,6 +338,7 @@ export default function ClassesScreen() {
   const [handledEditId, setHandledEditId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [failedClassDataScope, setFailedClassDataScope] = useState<string | null>(null);
   const [duplicatingClassName, setDuplicatingClassName] = useState<string | null>(null);
   const duplicationInFlightRef = useRef(false);
   const [editName, setEditName] = useState("");
@@ -608,11 +610,26 @@ export default function ClassesScreen() {
     chipTextBaseStyle,
     active ? { color: palette?.text ?? colors.primaryText } : chipInactiveTextStyle,
   ];
+  const pairCreateFields = !responsiveLayout.isMobile;
+  const createFieldGap = pairCreateFields ? 12 : 8;
+  const createFieldColumn = pairCreateFields
+    ? { flex: 1, flexBasis: 0, minWidth: 0 }
+    : { width: "100%" as const, minWidth: 0 };
+  const createFieldBackgroundColor = mode === "dark" ? "#121c30" : colors.inputBg;
+  const createTextFieldStyle = {
+    backgroundColor: createFieldBackgroundColor,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    fontSize: 13,
+    color: colors.text,
+  };
   const selectFieldStyle = {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: colors.background,
+    backgroundColor: createFieldBackgroundColor,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: "row" as const,
@@ -1058,7 +1075,9 @@ export default function ClassesScreen() {
       }
       if (isAlive()) {
         loadedClassDataScopeRef.current = classDataScope;
+        setLoadedClassDataScope(classDataScope);
         setClasses(data);
+        setFailedClassDataScope(null);
       }
       if (isAlive()) setIntegrationRules(rules);
       if (isAlive()) setStudents(studentList);
@@ -1077,7 +1096,10 @@ export default function ClassesScreen() {
         setClassCoverageSummariesByClassId(classCoverageSummariesByClassId);
       }
     } catch (error) {
-      if (isAlive()) throw error;
+      if (isAlive()) {
+        setFailedClassDataScope(classDataScope);
+        throw error;
+      }
     } finally {
       if (isAlive()) setLoading(false);
     }
@@ -1086,13 +1108,23 @@ export default function ClassesScreen() {
   useFocusEffect(
     useCallback(() => {
       const alive = { current: true };
-      loadClasses(alive);
+      void loadClasses(alive).catch(() => undefined);
       return () => {
         alive.current = false;
       };
     }, [loadClasses])
   );
 
+  const refreshClassList = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadClasses();
+    } catch {
+      // loadClasses exposes the scoped failure in the list.
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadClasses]);
 
   const toggleDay = (value: number) => {
     setNewDays((prev) =>
@@ -2050,7 +2082,9 @@ export default function ClassesScreen() {
     setEditColorKey(value);
   }, []);
 
-  if (loading && !classes.length) {
+  const classDataCurrent = loadedClassDataScope === classDataScope;
+  const classLoadFailed = failedClassDataScope === classDataScope;
+  if (!classDataCurrent && !classLoadFailed && (loading || classFocused)) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <ScreenLoadingState />
@@ -2071,7 +2105,7 @@ export default function ClassesScreen() {
           right={
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <ClassesExportSyncMenu
-                classes={displayClasses}
+                classes={classDataCurrent ? displayClasses : []}
                 classCardViewModelsById={classCardViewModelsById}
                 colors={colors}
                 googleAccountConnected={googleAccountConnected}
@@ -2125,7 +2159,8 @@ export default function ClassesScreen() {
         >
           <View style={{ flex: 1, minHeight: 0 }}>
             <ClassesListSection
-              grouped={grouped}
+              key={`${classIdentity.userId ?? ""}:${activeOrganization?.id ?? ""}:${isCoordinationScope}`}
+              grouped={classDataCurrent ? grouped : []}
               conflictsById={conflictsById}
               dayNames={dayNames}
               colors={colors}
@@ -2136,14 +2171,8 @@ export default function ClassesScreen() {
               classCardViewModelsById={classCardViewModelsById}
               onVisiblePhotoClassesChange={onVisiblePhotoClassesChange}
               refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                try {
-                  await loadClasses();
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
+              loadFailed={classLoadFailed}
+              onRefresh={refreshClassList}
               onScrollBeginDrag={closeAllPickers}
               contentContainerStyle={{
                 paddingBottom: bottomScrollPadding,
@@ -2200,48 +2229,35 @@ export default function ClassesScreen() {
           colors={colors}
           title="Criar turma"
           subtitle="Cadastre unidade, horários e perfil da turma."
-          contentContainerStyle={{ gap: 12, paddingBottom: 24, paddingHorizontal: 12, paddingTop: 12 }}
+          contentContainerStyle={{ gap: createFieldGap, paddingBottom: 24, paddingHorizontal: 12, paddingTop: 12 }}
         >
-        <View style={{ gap: 12 }}>
+        <View style={{ gap: createFieldGap }}>
           <View
             style={{
-              flexDirection: responsiveLayout.isMobile ? "column" : "row",
+              flexDirection: pairCreateFields ? "row" : "column",
               flexWrap: "wrap",
-              gap: 12,
+              gap: createFieldGap,
             }}
           >
             <View
               style={{
-                flex: responsiveLayout.isMobile ? undefined : 1,
-                width: responsiveLayout.isMobile ? "100%" : undefined,
-                minWidth: 0,
-                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                ...createFieldColumn,
                 gap: 4,
               }}
             >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
               <TextInput
+                accessibilityLabel="Nome da turma"
                 placeholder="Nome da turma"
                 value={newName}
                 onChangeText={setNewName}
                 placeholderTextColor={colors.placeholder}
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 10,
-                  fontSize: 13,
-                  color: colors.text,
-                }}
+                style={createTextFieldStyle}
               />
             </View>
             <View
               style={{
-                flex: responsiveLayout.isMobile ? undefined : 1,
-                width: responsiveLayout.isMobile ? "100%" : undefined,
-                minWidth: 0,
-                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                ...createFieldColumn,
                 zIndex: 5300,
               }}
             >
@@ -2249,23 +2265,23 @@ export default function ClassesScreen() {
                 colors={colors}
                 value={newUnit}
                 units={existingUnitOptions}
+                placeholder="Buscar unidade"
+                fieldBackgroundColor={createFieldBackgroundColor}
+                compact
                 onChangeText={setNewUnit}
               />
             </View>
           </View>
           <View
             style={{
-              flexDirection: responsiveLayout.isMobile ? "column" : "row",
+              flexDirection: pairCreateFields ? "row" : "column",
               flexWrap: "wrap",
-              gap: 12,
+              gap: createFieldGap,
             }}
           >
             <View
               style={{
-                flex: responsiveLayout.isMobile ? undefined : 1,
-                width: responsiveLayout.isMobile ? "100%" : undefined,
-                minWidth: 0,
-                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                ...createFieldColumn,
                 gap: 4,
               }}
             >
@@ -2293,10 +2309,7 @@ export default function ClassesScreen() {
             </View>
             <View
               style={{
-                flex: responsiveLayout.isMobile ? undefined : 1,
-                width: responsiveLayout.isMobile ? "100%" : undefined,
-                minWidth: 0,
-                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                ...createFieldColumn,
                 gap: 4,
               }}
             >
@@ -2308,15 +2321,7 @@ export default function ClassesScreen() {
                 onChangeText={setNewTrainingSpace}
                 autoCapitalize="words"
                 placeholderTextColor={colors.placeholder}
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 10,
-                  fontSize: 13,
-                  color: colors.text,
-                }}
+                style={createTextFieldStyle}
               />
               {newTrainingSpaceOptions.length ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
@@ -2344,7 +2349,7 @@ export default function ClassesScreen() {
             style={{
               flexDirection: responsiveLayout.isMobile ? "column" : "row",
               flexWrap: "wrap",
-              gap: 12,
+              gap: createFieldGap,
             }}
           >
             <View
@@ -2419,7 +2424,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.background,
+                    backgroundColor: createFieldBackgroundColor,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -2431,7 +2436,7 @@ export default function ClassesScreen() {
             style={{
               flexDirection: responsiveLayout.isMobile ? "column" : "row",
               flexWrap: "wrap",
-              gap: 12,
+              gap: createFieldGap,
             }}
           >
             <View
@@ -2450,15 +2455,7 @@ export default function ClassesScreen() {
                 onChangeText={(value) => setNewStartTime(normalizeTimeInput(value))}
                 keyboardType="numeric"
                 placeholderTextColor={colors.placeholder}
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 10,
-                  fontSize: 13,
-                  color: colors.text,
-                }}
+                style={createTextFieldStyle}
               />
             </View>
             <View
@@ -2477,15 +2474,7 @@ export default function ClassesScreen() {
                 onChangeText={(value) => setNewEndTime(normalizeTimeInput(value))}
                 keyboardType="numeric"
                 placeholderTextColor={colors.placeholder}
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 10,
-                  fontSize: 13,
-                  color: colors.text,
-                }}
+                style={createTextFieldStyle}
               />
               <Text style={{ color: colors.muted, fontSize: 11 }}>
                 {newDuration ? `Duração automática: ${newDuration} min` : "A duração será calculada automaticamente."}

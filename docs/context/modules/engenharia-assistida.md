@@ -29,8 +29,13 @@ do produto, nem concede acesso ao banco ou autorização para publicar.
   sem exigir funções no pedido; microajustes podem seguir diretamente. Até três
   subagentes simultâneos; entregas de
   marketing são planos/rascunhos, sem autorização de publicação, mensagens,
-  gastos ou rastreio. A seleção nativa dos 13 perfis novos deve ser comprovada
-  separadamente do ensaio já concluído dos três perfis de engenharia.
+  gastos ou rastreio. A seleção nativa de UI e UX foi confirmada por metadados
+  em 13/11/2026. As duas sessões apareceram no Habblaud com rótulo genérico.
+  O ensaio dos outros onze especialistas segue pendente.
+
+- UI usa referências visuais sob o design system local. UX define e audita a
+  jornada web. Testes repete o percurso no navegador conforme a escada de
+  validação. Ver o [roteiro de ferramentas de design](../../operations/equipe-codex.md#ferramentas-de-design-para-ui-e-ux).
 
 - Até seis skills principais por etapa, sem mínimo: núcleo local, engenharia
   da tecnologia envolvida, auxiliares somente para necessidade concreta. Registrar

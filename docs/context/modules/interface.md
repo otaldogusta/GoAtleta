@@ -4,6 +4,23 @@ Referência inspecionada: `d5120cff`, 05/10/2026. [Índice e regra de leitura](.
 
 ## Responsabilidade e implementação atual
 
+O token `compactUiMetrics.modalFieldHeight` define os 39 px dos campos de
+uma linha nos modais que adotam a densidade de Turmas. A adoção é local ao
+formulário. Áreas de toque, editores de várias linhas, autenticação e
+controles que exibem mais de uma informação têm seus próprios tamanhos.
+
+O shell web separa foco de teclado e de ponteiro. Campos comuns recebem um
+indicador interno ao navegar com Tab e mantêm a borda de repouso no clique.
+Login e Regulamentos usam o contêiner do próprio campo como indicador.
+Os campos de texto do Relatório da aula e as buscas de Turmas e da Agenda
+mensal também mostram o indicador no contêiner arredondado, com espaço entre
+a linha e o texto.
+O editor de plano aplica a regra dentro do documento embutido.
+
+`ModalSheet` coordena Tab/Escape pela camada superior e captura no card os eventos
+interrompidos por TextInput web. Calendário e confirmação usam diálogo semântico;
+seletores portados mantêm controle próprio. [Validação local de 13/11](../../ui/REVISAO_INVENTARIO_CONTINUIDADE_2026-11-13.md).
+
 Expo Router compõe rotas; telas de feature usam primitives em `src/ui` e
 componentes compartilhados. Existem adaptações `.web` e nativas. O contrato de
 camadas está em [higiene arquitetural](../../architecture-hygiene.md); estas
@@ -22,6 +39,16 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 | [lazy-screen.tsx](../../../src/ui/lazy-screen.tsx), [perf.ts](../../../src/observability/perf.ts) | Carregamento e medição |
 
 ## Contratos a preservar
+
+- `UnderlineTabs` reutiliza a seleção sublinhada do Scouting com teclado na web;
+  `CompactSelect` concentra escolhas em lista ancorada; `ListEmptyState` segue o
+  vazio sem card de Turmas. `ModalSheet.dialogLabel` ativa, por consumidor, diálogo
+  no card, contenção de Tab e retorno do foco. A Consultoria compacta usa o
+  Assistente no cabeçalho. [Composição e limites da revisão](../../ui/REVISAO_VISUAL_COMPOSICAO_2026-11-13.md).
+
+- Na web, ações rápidas fechadas saem da navegação por teclado. Escape fecha o
+  menu e devolve foco ao gatilho. A lateral marca o destino ativo mais específico.
+  [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
 
 - As abas de professor/coordenação definem o fundo da cena com o tema atual,
   incluindo o intervalo em que a rota ainda aguarda permissões ou importação.
@@ -42,6 +69,10 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
 - Antes de criar um estado visual, reutilizar o equivalente aprovado e comparar
   a renderização. Erros de autenticação seguem o balão da confirmação de senha;
   ver [paridade entre campos](../../ui/FORM_SETTINGS_PATTERNS.md#paridade-visual-entre-campos).
+- No [login web](../../../app/login.tsx), a navegação por teclado destaca o
+  contêiner do campo ativo. O campo clicado ou tocado mantém sua borda
+  padrão. Senha vazia mantém o espaço do ícone sem montar o controle de
+  visibilidade na árvore de acessibilidade.
 - Marca pública **Go Atleta**, tema e primitives existentes. Selecionar tokens
   antes de criar medidas/cores independentes ou trocar bibliotecas.
 - Densidade compacta é o padrão operacional: `responsiveLayout.density` define
@@ -97,6 +128,11 @@ primitives não devem conhecer banco, RLS ou integrações privilegiadas.
   ao chamador e sobrevive à troca de abas. [Contrato local](../../operations/staff-access-profile.md).
 - Em aluno, professor e coordenação, Configurações renderiza os formulários abaixo
   das abas do próprio perfil, preservando a identidade e o rascunho entre abas.
+  No desktop web, os campos de Configurações têm altura mínima de 40 px nesses
+  três perfis. O texto dentro dos campos pessoais segue o tamanho de 14 px
+  de Nome completo.
+  A galeria web redimensiona a foto de perfil antes do envio. O seletor mostra
+  o limite de 2 MB se a foto ainda exceder o tamanho aceito pelo Storage.
   Campos pessoais vazios não impedem salvar; valores preenchidos são validados.
   Nome vazio preserva a identidade existente. Data profissional opcional exige
   a migration `20261009230000_optional_professional_profile_birth_date.sql`
@@ -157,3 +193,19 @@ comportamento. Medir performance antes/depois quando esse for o objetivo.
 - OTP de celular usa seis casas no padrão de verify-email; completar ou colar
   seis dígitos dispara uma tentativa, sem repetição por renderização. Resposta
   ambígua do servidor mantém a mensagem inválido ou expirado.
+
+## Continuidade local do inventário · 13/11/2026
+
+ClassContextHeader e PersonProfilePage aceitam headerAction opcional; ausência da prop preserva a estrutura anterior. Consumidores específicos usam o Assistente no cabeçalho e a mesma regra de rota no Provider, sem alterar os demais hosts.
+[Escopo, evidências e limites](../../ui/REVISAO_INVENTARIO_RESTANTE_2026-11-13.md).
+
+Em 14/11/2026, `SettingsRow.checked` passa a ser opt-in: switch/checked nativo e
+botão alternável/aria-pressed na web, preservando teclado e aparência. Sem a prop,
+navegação continua botão; sem onPress, informação continua View. `ConfirmCloseOverlay`
+nomeia suas ações como botões, mantendo descarte e continuação separados.
+[Revisão das jornadas atuais](../../ui/REVISAO_TELAS_ATUAIS_2026-11-14.md).
+
+No Perfil, leitura pendente de status do contato de segurança não bloqueia sair.
+`useSecurityContactVerification.busy` continua abrangendo leitura e ação nos
+controles; `mutating` identifica somente ação da conta atual para a navegação.
+Rascunhos exigem confirmação; gravações de contato/senha seguem protegidas.

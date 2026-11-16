@@ -1,4 +1,4 @@
-import { isCopilotPublicRoute } from "./route-visibility";
+import { isCopilotPublicRoute, usesCalendarAssistantButton, usesLibraryAssistantButton, usesConsultationAssistantButton, usesPeriodizationAssistantButton, usesManagementAssistantButton, usesRegulationsAssistantButton, usesFinanceAssistantButton, usesProfileAssistantButton, usesEvidenceAssistantButton, usesClassLogAssistantButton } from "./route-visibility";
 import { CopilotLoadingModal } from "./components/CopilotLoadingModal";
 import { UnifiedAssistantProvider, UnifiedAssistantLayout } from "../assistant/UnifiedAssistantProvider";
 import { usePathname, useRouter } from "expo-router";
@@ -877,6 +877,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     normalizedPath !== "/" &&
     normalizedPath !== "/index" &&
     !isAssistantRoutePath(normalizedPath) &&
+    !usesCalendarAssistantButton(normalizedPath, viewportWidth) &&
+    !usesLibraryAssistantButton(normalizedPath, viewportWidth) &&
+    !usesConsultationAssistantButton(normalizedPath, viewportWidth) &&
+    !usesPeriodizationAssistantButton(normalizedPath, viewportWidth) &&
+    !usesManagementAssistantButton(normalizedPath, viewportWidth) &&
+    !usesFinanceAssistantButton(normalizedPath, viewportWidth) &&
+    !usesProfileAssistantButton(normalizedPath, viewportWidth) &&
+    !usesEvidenceAssistantButton(normalizedPath, viewportWidth) &&
+    !usesClassLogAssistantButton(normalizedPath, viewportWidth) &&
+    !usesRegulationsAssistantButton(normalizedPath, viewportWidth) &&
     normalizedPath !== "/prof/home" &&
     normalizedPath !== "/student/home" &&
     normalizedPath !== "/coord/dashboard" &&
@@ -1149,6 +1159,10 @@ export function useCopilot() {
     operationalContext,
     appSnapshot: operationalContext.snapshot,
   };
+}
+
+export function useOptionalCopilotOpen() {
+  return useContext(CopilotActionsContext)?.open;
 }
 
 export function useOptionalCopilot() {

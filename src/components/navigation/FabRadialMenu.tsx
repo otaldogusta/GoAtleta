@@ -22,7 +22,6 @@ type FabRadialMenuProps = {
   actions: RadialAction[];
   anchorBottom: number;
   onActionPress: (action: RadialAction) => void;
-  onClose?: () => void;
 };
 
 type RadialActionButtonProps = {
@@ -84,6 +83,7 @@ function RadialActionButton({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={action.label}
+        {...(Platform.OS === "web" ? { dataSet: { goatletaQuickAction: "true" } } : {})}
         onPress={() => onPress(action)}
         suppressWebHoverFeedback={compact}
         disableWebPressScale={compact}
@@ -119,6 +119,10 @@ function RadialActionButton({
         <GoAtletaIcon name={action.icon} size={compact ? compactUiMetrics.iconSize : 20} color={colors.textPrimary ?? colors.text} />
       </Pressable>
       <View
+        aria-hidden
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        pointerEvents="none"
         style={{
           marginTop: compact ? compactUiMetrics.smallGap : 6,
           paddingHorizontal: 8,
@@ -173,6 +177,10 @@ export function FabRadialMenu({
   return (
     <View
       pointerEvents={visible ? "box-none" : "none"}
+      aria-hidden={!visible}
+      accessibilityElementsHidden={!visible}
+      importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
+      {...(Platform.OS === "web" ? { inert: !visible } : {})}
       style={{
         position: "absolute",
         left: 0,

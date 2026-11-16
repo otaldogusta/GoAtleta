@@ -10,6 +10,8 @@ jest.mock("../../../ui/Pressable", () => ({ Pressable: jest.requireActual("react
 test("selects a month, clamps the preserved day and closes", () => {
   const onChange = jest.fn(), onClose = jest.fn();
   const view = render(React.createElement(CalendarMonthPicker, { visible: true, value: "2026-01-31", onChange, onClose }));
+  expect(view.getByLabelText("Selecionar mês janeiro de 2026").props["aria-pressed"]).toBe(true);
+  expect(view.getByLabelText("Selecionar mês fevereiro de 2026").props["aria-pressed"]).toBe(false);
   fireEvent.press(view.getByLabelText("Selecionar mês fevereiro de 2026"));
   expect(onChange).toHaveBeenCalledWith("2026-02-28");
   expect(onClose).toHaveBeenCalledTimes(1);
@@ -22,8 +24,11 @@ test("year navigation and cancellation do not commit a date", () => {
   expect(view.getByLabelText("Selecionar mês setembro de 2027")).toBeTruthy();
   fireEvent.press(view.getByLabelText("Ano anterior"));
   fireEvent.press(view.getByLabelText("Escolher ano"));
+  expect(view.getByLabelText("Escolher mês").props.accessibilityState.expanded).toBe(true);
+  expect(view.getByLabelText("Selecionar ano 2026").props["aria-pressed"]).toBe(true);
   fireEvent.press(view.getByLabelText("Próximos anos"));
   fireEvent.press(view.getByLabelText("Selecionar ano 2028"));
+  expect(view.getByLabelText("Escolher ano").props.accessibilityState.expanded).toBe(false);
   expect(view.getByLabelText("Selecionar mês setembro de 2028")).toBeTruthy();
   fireEvent.press(view.getByLabelText("Cancelar seleção de mês"));
   expect(onChange).not.toHaveBeenCalled();

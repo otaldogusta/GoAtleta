@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -133,7 +133,7 @@ const createReceivablesStyles = (colors: ThemeColors) =>
       fontWeight: "900",
     },
     rowAction: {
-      minHeight: 34,
+      minHeight: 44,
       borderRadius: radius.full,
       backgroundColor: colors.primaryBg,
       paddingHorizontal: 12,
@@ -734,6 +734,8 @@ function ReceivableRow({
   onRecord: (invoice: OrganizationInvoice) => void;
   styles: ReceivablesStyles;
 }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 600;
   const outstandingCents = getInvoiceOutstandingCents(
     invoice.amountCents,
     invoice.paidCents
@@ -759,13 +761,14 @@ function ReceivableRow({
           </Text>
         ) : null}
       </View>
-      <View style={styles.rowSummary}>
-        <Text style={styles.rowBalance}>
+      <View style={[styles.rowSummary, compact ? { width: "100%", minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 } : null]}>
+        <Text style={[styles.rowBalance, compact ? { flexGrow: 1 } : null]}>
           Saldo {formatMoneyFromCents(outstandingCents)}
         </Text>
         <PaymentStatusBadge status={invoice.status} />
         {canRecord ? (
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={`Registrar pagamento de ${invoice.studentName}`}
             onPress={() => onRecord(invoice)}
             style={styles.rowAction}

@@ -379,6 +379,7 @@ export default function ClassStudentsScreen() {
   const [duplicateReviewsLoaded, setDuplicateReviewsLoaded] = useState(false);
   const [duplicateReviewTarget, setDuplicateReviewTarget] =
     useState<DuplicateReviewTarget | null>(null);
+  const duplicateEditorHandoff = useRef(false);
   const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
   const [showPositionPicker, setShowPositionPicker] = useState(false);
@@ -1275,6 +1276,7 @@ export default function ClassStudentsScreen() {
   const reviewDuplicateStudent = () => {
     const target = duplicateReviewTarget;
     if (!target) return;
+    duplicateEditorHandoff.current = true;
     setDuplicateReviewTarget(null);
     openEdit(target.student);
   };
@@ -2108,10 +2110,11 @@ export default function ClassStudentsScreen() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== "web" || !isSelectionMode) return;
+    if (Platform.OS !== "web" || !isSelectionMode || showMoveClassModal) return;
 
     const handleEscapeSelection = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.defaultPrevented || event.key !== "Escape") return;
+      if ((event.target as HTMLElement | null)?.closest?.('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
       event.preventDefault();
       exitSelectionMode();
       (document.activeElement as HTMLElement | null)?.blur();
@@ -2119,7 +2122,7 @@ export default function ClassStudentsScreen() {
 
     document.addEventListener("keydown", handleEscapeSelection);
     return () => document.removeEventListener("keydown", handleEscapeSelection);
-  }, [exitSelectionMode, isSelectionMode]);
+  }, [exitSelectionMode, isSelectionMode, showMoveClassModal]);
 
   const selectAllStudents = useCallback(() => {
     if (!filtered.length) return;
@@ -3168,11 +3171,12 @@ export default function ClassStudentsScreen() {
                               color={colors.warningText}
                             />
                             <Text
-                              numberOfLines={1}
+                              numberOfLines={windowWidth < 900 ? 2 : 1}
                               style={{
                                 color: colors.warningText,
                                 fontSize: 11,
                                 fontWeight: "700",
+                                flexShrink: 1,
                               }}
                             >
                               Cadastro incompleto ·{" "}
@@ -3333,6 +3337,7 @@ export default function ClassStudentsScreen() {
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               onPress={openMoveClassModal}
+              accessibilityRole="button"
               style={{ width: 38, height: 38, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: colors.card }}
               accessibilityLabel="Mover alunos"
             >
@@ -3368,13 +3373,14 @@ export default function ClassStudentsScreen() {
 
       <ModalSheet
         visible={studentsFilterModalOpen}
+        dialogLabel="Filtrar alunos"
         onClose={() => setStudentsFilterModalOpen(false)}
         position="center"
         cardStyle={{ width: "100%", maxWidth: 480, padding: 0, borderRadius: 20, overflow: "hidden" }}
       >
         <View style={{ minHeight: 58, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>Filtrar alunos</Text>
-          <Pressable accessibilityLabel="Fechar filtros" onPress={() => setStudentsFilterModalOpen(false)} style={(state) => ({ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: state.hovered ? colors.secondaryBg : "transparent" })}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Fechar filtros" onPress={() => setStudentsFilterModalOpen(false)} style={(state) => ({ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: state.hovered ? colors.secondaryBg : "transparent" })}>
             <GoAtletaIcon name="close" size={18} color={colors.muted} />
           </Pressable>
         </View>
@@ -3403,10 +3409,11 @@ export default function ClassStudentsScreen() {
           })}
         </View>
         <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
-          <Pressable onPress={() => setDraftMembershipFilters(["active", "inactive"])} suppressWebHoverFeedback style={{ minHeight: 42, paddingHorizontal: 4, justifyContent: "center" }}>
+          <Pressable accessibilityRole="button" onPress={() => setDraftMembershipFilters(["active", "inactive"])} suppressWebHoverFeedback style={{ minHeight: 42, paddingHorizontal: 4, justifyContent: "center" }}>
             <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>Marcar todos</Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
             onPress={() => {
               setMembershipFilters([...draftMembershipFilters]);
               setStudentsFilterModalOpen(false);
@@ -4788,6 +4795,16 @@ export default function ClassStudentsScreen() {
       <ModalSheet
         visible={Boolean(duplicateReviewTarget)}
         onClose={() => setDuplicateReviewTarget(null)}
+        dialogLabel="Revisar nome repetido"
+        onExited={() => {
+          const shouldFocus = duplicateEditorHandoff.current;
+          duplicateEditorHandoff.current = false;
+          if (!shouldFocus || !editingStudent || Platform.OS !== "web" || typeof document === "undefined") return;
+          const button = document.getElementById("class-student-edit-close");
+          if (button?.isConnected && !button.closest('[inert], [aria-hidden="true"]')) {
+            button.focus({ preventScroll: true });
+          }
+        }}
         position="center"
         cardStyle={duplicateReviewModalCardStyle}
       >
@@ -4827,6 +4844,9 @@ export default function ClassStudentsScreen() {
                 Editar aluno
               </Text>
               <Pressable
+                nativeID="class-student-edit-close"
+                accessibilityRole="button"
+                accessibilityLabel="Fechar edição do aluno"
                 onPress={requestCloseEditModal}
                 style={{
                   width: 32,
@@ -6378,6 +6398,7 @@ export default function ClassStudentsScreen() {
 
       <ModalSheet
         visible={showMoveClassModal}
+        dialogLabel="Mover alunos"
         onClose={closeMoveClassModal}
         position="center"
         overlayZIndex={18800}
@@ -6486,6 +6507,7 @@ export default function ClassStudentsScreen() {
           >
             <Pressable
               onPress={closeMoveClassModal}
+              accessibilityRole="button"
               style={{
                 paddingHorizontal: 14,
                 paddingVertical: 10,
@@ -6501,6 +6523,7 @@ export default function ClassStudentsScreen() {
             </Pressable>
             <Pressable
               onPress={() => void handleConfirmMoveSelectedStudents()}
+              accessibilityRole="button"
               disabled={!selectedMoveClassId || !selectedStudents.length}
               style={{
                 paddingHorizontal: 14,

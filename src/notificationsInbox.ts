@@ -98,12 +98,14 @@ export const getNotificationsPage = async ({
   offset = 0,
   archiveScope = "active",
   organizationId,
+  throwOnError = false,
 }: {
   inboxScope: NotificationInboxScope;
   limit?: number;
   offset?: number;
   archiveScope?: NotificationArchiveScope;
   organizationId?: string | null;
+  throwOnError?: boolean;
 }): Promise<NotificationsPage> => {
   const pageSize = Math.max(1, Math.min(Math.floor(limit), 50));
   try {
@@ -121,7 +123,8 @@ export const getNotificationsPage = async ({
       hasMore,
       nextOffset: offset + pageRows.length,
     };
-  } catch {
+  } catch (error) {
+    if (throwOnError) throw error;
     return { items: [], hasMore: false, nextOffset: offset };
   }
 };
