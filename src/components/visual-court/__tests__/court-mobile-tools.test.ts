@@ -8,6 +8,7 @@ import { resolveCourtLayers } from "../../../core/court-layers";
 import type { CourtEditorCanvasProps } from "../CourtEditorCanvas";
 import type { CourtPerspectiveCanvasProps } from "../CourtPerspectiveCanvas.types";
 import { newCourtBoard, type CourtDrawing } from "../../../core/visual-court-editor";
+import { ensureCourtDefenseStep } from "../../../core/court-defense-preset";
 import { configureCourtSimulation } from "../../../core/court-simulation";
 import { buildSimulatedReceptionRotationPreset, configureCourtRotationSequenceMode } from "../../../core/court-simulation-sequence";
 import type { useCourtEditor } from "../useCourtEditor";
@@ -85,12 +86,13 @@ describe("court mobile tool flow", () => {
       activeDocumentId: null, loading: false, saving: false, opening: false, departing: false, dirty: false,
       error: "", notice: "", draftError: "", autosaveStatus: "idle", autosaveError: "", canUndo: false, canRedo: false,
       setNotice: jest.fn(), setError: jest.fn(), retryAutosave: jest.fn(),
-      commit: jest.fn((update: Parameters<Editor["commit"]>[0]) => {
+      selectStep: jest.fn((stepIndex: number) => { editor = { ...editor, stepIndex }; render(); }),
+      commit: jest.fn((update: Parameters<Editor["commit"]>[0], stepIndex?: number) => {
         const next = update(editor.payload);
-        if (next === editor.payload) return;
-        history.push(editor.payload); editor = { ...editor, payload: next }; render();
+        if (next === editor.payload && stepIndex === undefined) return;
+        history.push(editor.payload); editor = { ...editor, payload: next, stepIndex: stepIndex ?? editor.stepIndex }; render();
       }),
-      undo: jest.fn(() => { const previous = history.pop(); if (previous) { editor = { ...editor, payload: previous }; render(); } }), ...state,
+      undo: jest.fn(() => { const previous = history.pop(); if (previous) { editor = { ...editor, payload: previous, stepIndex: Math.min(editor.stepIndex, previous.timeline.steps.length - 1) }; render(); } }), ...state,
     } as unknown as Editor;
     await act(async () => { tree = TestRenderer.create(React.createElement(CourtWorkspaceView, { classId: "test-class", onBack: jest.fn(), editor, ...extra })); });
   };
@@ -102,6 +104,71 @@ describe("court mobile tool flow", () => {
     else Reflect.deleteProperty(globalThis, "document");
     jest.restoreAllMocks();
     if (platform) Object.defineProperty(Platform, "OS", platform);
+  });
+
+  it("changes an authored player's action without changing role, color or selection", async () => {
+    await mount(); press("Adicionar jogador");
+    act(() => canvas().onAddPlayer({ x: .3, y: .4 }));
+    const id = canvas().selected[0], original = editor.payload.actors.find(actor => actor.id === id)!;
+    openProperties();
+    act(() => paletteButton("Ação: Atacar").props.onPress());
+    expect(editor.payload.timeline.steps[0].actorActions?.[id]).toBe("attack");
+    expect(editor.payload.actors.find(actor => actor.id === id)).toEqual(original);
+    expect(canvas().selected).toEqual([id]);
+    act(() => paletteButton("Ação: Automática").props.onPress());
+    expect(editor.payload.timeline.steps[0].actorActions?.[id]).toBeUndefined();
+  });
+
+  it("appends defense once, returns to the untouched authored board and undoes atomically", async () => {
+    await mount();
+    const original = editor.payload, mode = () => tree.root.findByType("Modes" as never).props;
+    act(() => mode().onChange("defense"));
+    expect(editor.stepIndex).toBe(1);
+    expect(editor.payload.timeline.steps[1].simulation?.mode).toBe("defense");
+    const defense = editor.payload.timeline.steps[1];
+    act(() => mode().onChange("receive"));
+    expect(editor.stepIndex).toBe(0);
+    expect(editor.payload.timeline.steps[0].actorPositions).toEqual(original.timeline.steps[0].actorPositions);
+    expect(editor.payload.timeline.steps[0].simulation).toBeUndefined();
+    act(() => mode().onChange("defense"));
+    expect(editor.payload.timeline.steps).toHaveLength(2);
+    expect(editor.payload.timeline.steps[1]).toBe(defense);
+    expect(editor.commit).toHaveBeenCalledTimes(1);
+    act(() => editor.undo());
+    expect(editor.payload).toBe(original);
+    expect(editor.stepIndex).toBe(0);
+  });
+
+  it("opens hydrated defense at contact and preserves voluntary seeking and playback", async () => {
+    await mount();
+    const next = ensureCourtDefenseStep(editor.payload);
+    editor = { ...editor, payload: next.payload, stepIndex: next.stepIndex, activeDocumentId: "saved-defense" };
+    act(() => render());
+    expect(canvas().progress).toBe(1); expect(canvas().disabled).toBe(false);
+    act(() => tree.root.findByType("Transport" as never).props.onSeek(.5));
+    expect(canvas().progress).toBe(.5); expect(canvas().disabled).toBe(true);
+    editor = { ...editor, activeDocumentId: "autosave-assigned-id" }; act(() => render());
+    expect(canvas().progress).toBe(.5);
+    act(() => tree.root.findByType("Transport" as never).props.onPlay());
+    expect(tree.root.findByType("Transport" as never).props.playing).toBe(true);
+    expect(canvas().progress).toBe(.5);
+    editor = { ...editor, activeDocumentId: "autosave-persisted-id" }; act(() => render());
+    expect(tree.root.findByType("Transport" as never).props.playing).toBe(true);
+    expect(canvas().progress).toBe(.5);
+  });
+
+  it("only opens an existing defense in read-only mode without authoring", async () => {
+    await mount(390, {}, { readOnly: true });
+    const modes = () => tree.root.findByType("Modes" as never).props;
+    expect(modes().defenseAvailable).toBe(false);
+    act(() => modes().onChange("defense"));
+    expect(editor.commit).not.toHaveBeenCalled();
+    const next = ensureCourtDefenseStep(editor.payload);
+    editor = { ...editor, payload: next.payload }; act(() => render({ readOnly: true }));
+    expect(modes().defenseAvailable).toBe(true);
+    act(() => modes().onChange("defense"));
+    expect(editor.stepIndex).toBe(next.stepIndex);
+    expect(editor.commit).not.toHaveBeenCalled();
   });
 
   it("keeps the inserted player selected when tapping Select again", async () => {

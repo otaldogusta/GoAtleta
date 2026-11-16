@@ -8,7 +8,7 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { courtEditingDock, courtPlaybackLayout } from "./court-overlay-layout";
 
-type SimulationMode = "receive" | "attack";
+type SimulationMode = CourtSimulation["mode"];
 type CameraView = "front" | "side" | "orbit";
 const ROTATIONS = ["P1", "P6", "P5", "P4", "P3", "P2"] as const;
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2].map(value => ({ value, label: `${String(value).replace(".", ",")}×` }));
@@ -105,16 +105,15 @@ function IconButton({ label, icon, onPress, primary = false, disabled = false, c
   </Pressable>;
 }
 
-export function CourtSimulationModes({ mode, onChange, disabled = false, top = 86, uiScale = 1 }: {
-  mode: SimulationMode; onChange: (mode: SimulationMode) => void; disabled?: boolean; top?: number; uiScale?: number;
+export function CourtSimulationModes({ mode, onChange, disabled = false, defenseAvailable = true, top = 86, uiScale = 1 }: {
+  mode: SimulationMode; onChange: (mode: SimulationMode) => void; disabled?: boolean; defenseAvailable?: boolean; top?: number; uiScale?: number;
 }) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const touch = Platform.OS !== "web" || width <= 700;
   const compactWeb = Platform.OS === "web" && width <= 700;
   return <View accessibilityLabel="Modo de visualização" style={[styles.modes, compactWeb ? { padding: 3 } : null, { top, transform: [{ scale: uiScale }], transformOrigin: "top center", borderColor: colors.border, backgroundColor: colors.surface }]}>
-    {([["receive", "Recepção"], ["attack", "Ataque"]] as const).map(([value, label]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={value} accessibilityRole="tab" accessibilityLabel={label} aria-selected={mode === value} accessibilityState={{ selected: mode === value, disabled }} disabled={disabled} onPress={() => onChange(value)} style={({ hovered, pressed }) => [styles.mode, compactWeb ? { minWidth: 80, minHeight: 28, paddingHorizontal: 16 } : null, value === "receive" ? { minWidth: compactWeb ? 96 : 108 } : null, { backgroundColor: mode === value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}><Text style={{ color: mode === value ? colors.primaryText : colors.text, fontSize: compactWeb ? 12 : 13, fontWeight: touch && mode === value ? "600" : "400" }}>{label}</Text></Pressable>)}
-    <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="tab" accessibilityLabel="Defesa. Em breve" aria-selected={false} accessibilityState={{ disabled: true, selected: false }} disabled style={[styles.mode, compactWeb ? { minWidth: 80, minHeight: 28, paddingHorizontal: 16 } : null, { opacity: 0.38 }]}><Text style={{ color: colors.muted, fontSize: compactWeb ? 12 : 13 }}>Defesa</Text></Pressable>
+    {([["receive", "Recepção"], ["attack", "Ataque"], ["defense", "Defesa"]] as const).map(([value, label]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={value} accessibilityRole="tab" accessibilityLabel={label} aria-selected={mode === value} accessibilityState={{ selected: mode === value, disabled: disabled || value === "defense" && !defenseAvailable }} disabled={disabled || value === "defense" && !defenseAvailable} onPress={() => { if (!disabled && (value !== "defense" || defenseAvailable)) onChange(value); }} style={({ hovered, pressed }) => [styles.mode, compactWeb ? { minWidth: 80, minHeight: 28, paddingHorizontal: 16 } : null, value === "receive" ? { minWidth: compactWeb ? 96 : 108 } : null, { backgroundColor: mode === value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || value === "defense" && !defenseAvailable ? 0.55 : 1 }]}><Text style={{ color: mode === value ? colors.primaryText : colors.text, fontSize: compactWeb ? 12 : 13, fontWeight: touch && mode === value ? "600" : "400" }}>{label}</Text></Pressable>)}
   </View>;
 }
 
@@ -241,6 +240,9 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
           {showRotation ? rotationControl : null}
           <Row label="SAQUE"><Segments compact={compactWeb} label="Saque" value={config?.serve ?? "Float"} options={[{ value: "Float", label: "Flutuante" }, { value: "Topspin", label: "Com rotação" }]} onChange={serve => onChange({ serve })} disabled={disabled} /></Row>
           <Row label="ALVO"><Segments compact={compactWeb} label="Alvo do saque" value={config?.seam ?? "Left"} options={[{ value: "Left", label: "Esquerda" }, { value: "Right", label: "Direita" }]} onChange={seam => onChange({ seam })} disabled={disabled} /></Row>
+        </> : mode === "defense" ? <>
+          <Row label="ATAQUE"><Text style={{ color: colors.text, fontSize: compactWeb ? 11 : 12 }}>Entrada de rede · 4</Text></Row>
+          <Text style={{ color: colors.muted, fontSize: compactWeb ? 11 : 12 }}>Organização da defesa até o contato.</Text>
         </> : <>
           <Row label="FORMATO"><Segments compact={compactWeb} label="Formato" value={config?.format ?? "Indoor"} options={[{ value: "Indoor", label: "Quadra" }, { value: "9-man", label: "9 jogadores", disabled: true, accessibilityLabel: "9 jogadores. Em breve" }]} onChange={format => onChange({ format })} disabled={disabled} /></Row>
           <Row label="JOGADA"><View style={[styles.segments, { borderColor: colors.border, backgroundColor: colors.inputBg }]}><IconButton label="Jogada anterior" icon="chevronBack" onPress={() => choosePreset(-1)} disabled={disabled} /><Text numberOfLines={1} style={{ flex: 1, minWidth: 0, textAlign: "center", color: colors.text, fontSize: compactWeb ? 10 : 12 }}>{PRESET_LABELS[preset] ?? preset}</Text><IconButton label="Próxima jogada" icon="chevronForward" onPress={() => choosePreset(1)} disabled={disabled} /></View></Row>
@@ -252,7 +254,7 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
           </> : null}
         </>}
         <Row label="VISÃO"><Segments compact={compactWeb} label="Visão" value={cameraView} options={[{ value: "front", label: "Frente" }, { value: "side", label: "Lateral" }, { value: "orbit", label: "Livre" }]} onChange={onCameraView} /></Row>
-        {onLabelsVisible ? <Row label={mode === "receive" ? "POSIÇÕES" : "TRAJETÓRIAS"}><Segments compact={compactWeb} label={mode === "receive" ? "Posições" : "Trajetórias"} value={labelsVisible ? "show" : "hide"} options={[{ value: "show", label: "Mostrar" }, { value: "hide", label: "Ocultar" }]} onChange={value => onLabelsVisible(value === "show")} /></Row> : null}
+        {onLabelsVisible ? <Row label={mode === "defense" ? "RÓTULOS" : mode === "receive" ? "POSIÇÕES" : "TRAJETÓRIAS"}><Segments compact={compactWeb} label={mode === "defense" ? "Rótulos" : mode === "receive" ? "Posições" : "Trajetórias"} value={labelsVisible ? "show" : "hide"} options={[{ value: "show", label: "Mostrar" }, { value: "hide", label: "Ocultar" }]} onChange={value => onLabelsVisible(value === "show")} /></Row> : null}
         <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, marginTop: 2, flexDirection: "row", gap: 6 }}>
           {([["Restaurar", onRestore], ["Exportar", onShare]] as const).map(([label, onPress]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={label} accessibilityRole="button" accessibilityLabel={label === "Restaurar" ? "Restaurar simulação" : "Exportar jogada"} disabled={disabled || (label === "Exportar" && exportDisabled)} onPress={() => { if (!disabled && !(label === "Exportar" && exportDisabled)) onPress(); }} style={({ hovered, pressed }) => [styles.panelAction, { borderColor: colors.border, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || (label === "Exportar" && exportDisabled) ? 0.55 : 1 }]}><Text numberOfLines={1} style={{ color: colors.text, fontSize: compactWeb ? 10 : touch ? 11 : 12 }}>{label}</Text></Pressable>)}
         </View>

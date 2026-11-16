@@ -1,4 +1,5 @@
 import { NativeModulesProxy } from "expo-modules-core";
+import { Platform } from "react-native";
 
 export const PROFILE_PHOTO_SIZE = 512;
 const PROFILE_PHOTO_COMPRESS = 0.78;
@@ -46,6 +47,41 @@ const fallbackOriginalPhoto = (uri: string): NormalizedProfilePhoto => ({
   normalized: false,
 });
 
+const normalizeWebProfilePhoto = async (uri: string): Promise<NormalizedProfilePhoto> => {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const source = new window.Image();
+    source.crossOrigin = "anonymous";
+    source.onload = () => resolve(source);
+    source.onerror = () => reject(new Error("Failed to decode profile photo"));
+    source.src = uri;
+  });
+  const { naturalWidth, naturalHeight } = image;
+  if (!naturalWidth || !naturalHeight) throw new Error("Invalid profile photo dimensions");
+
+  const scale = Math.min(1, PROFILE_PHOTO_SIZE / Math.max(naturalWidth, naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Failed to create profile photo canvas");
+
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const photo = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", PROFILE_PHOTO_COMPRESS);
+  });
+  if (!photo?.size || photo.type !== "image/jpeg") throw new Error("Failed to encode profile photo");
+
+  return {
+    uri: URL.createObjectURL(photo),
+    contentType: photo.type,
+    normalized: true,
+  };
+};
+
 const hasNativeImageManipulator = () => {
   try {
     const proxy = NativeModulesProxy as Record<string, unknown> | null | undefined;
@@ -63,6 +99,17 @@ export async function normalizeProfilePhotoForUpload(uri: string): Promise<Norma
   const normalizedUri = (uri ?? "").trim();
   if (!normalizedUri) {
     throw new Error("Missing profile photo uri");
+  }
+
+  if (Platform.OS === "web") {
+    try {
+      return await normalizeWebProfilePhoto(normalizedUri);
+    } catch (error) {
+      if (__DEV__) {
+        console.warn("[profile-photo] web normalization failed, using original image", toErrorDetail(error));
+      }
+      return fallbackOriginalPhoto(normalizedUri);
+    }
   }
 
   let manipulateAsync: ((...args: any[]) => Promise<{ uri: string }>) | null = null;

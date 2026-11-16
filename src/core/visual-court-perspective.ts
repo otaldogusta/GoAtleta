@@ -1,7 +1,9 @@
 import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep } from "./visual-court";
-import { actorPoint, courtSelectionElevation, drawingAtProgress, frameDrawings, pointAlong, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
+import { actorPoint, courtSelectionElevation, courtTrajectoryHeightTargets, drawingAtProgress, frameDrawings, pointAlong, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
+import { courtTrajectoryHeightAt, courtTrajectoryHeights, parseCourtTrajectoryHeights, type CourtTrajectoryHandleKind, type CourtTrajectoryHeights } from "./court-arrow-trajectory";
 import { sampleCourtSimulation } from "./court-simulation";
 import { buildCourtPerspectiveSimulation, type CourtPerspectiveSimulation } from "./court-perspective-guides";
+import { courtActorActionPose } from "./court-actor-actions";
 
 export type CourtWorldPoint = { x: number; y: number; z: number };
 export type CourtPerspectivePoseRole = "setter" | "passer" | "attacker" | "server" | "blocker";
@@ -38,6 +40,9 @@ export type CourtPerspectiveDrawing = {
   points: CourtWorldPoint[];
   curveMode?: CourtDrawing["curveMode"];
   startBallId?: string;
+  trajectoryHeights?: CourtTrajectoryHeights;
+  /** The renderer locates these on its actual stroke, including legacy landscape curves. */
+  trajectoryHandles?: { kind: CourtTrajectoryHandleKind; value: number; editable: boolean; min: number; max: number }[];
   elevation?: number;
   color: string;
   text?: string;
@@ -92,11 +97,13 @@ function poseRole(actor: CourtVisualActor, step: CourtVisualStep, team?: "A" | "
 
 function perspectiveDrawing(drawing: CourtDrawing, showMovement: boolean, elevation?: number): CourtPerspectiveDrawing {
   const height = (drawing.kind === "ball" ? 0.12 : 0.025) + (elevation ?? 0);
+  const trajectoryHeights = ["arrow", "curve"].includes(drawing.kind) && drawing.points.length >= 2 ? parseCourtTrajectoryHeights(drawing.trajectoryHeights) : undefined;
   return {
     id: drawing.id, kind: drawing.kind,
     points: drawing.points.map(point => courtPointToWorld(point, height)),
     ...(drawing.kind === "curve" && drawing.curveMode === "through-point" && drawing.points.length === 3 ? { curveMode: "through-point" as const } : {}),
     ...(["arrow", "curve"].includes(drawing.kind) && drawing.startBallId ? { startBallId: drawing.startBallId } : {}),
+    ...(trajectoryHeights ? { trajectoryHeights } : {}),
     ...(elevation !== undefined ? { elevation } : {}),
     color: drawing.color, size: drawing.size, rotation: drawing.rotation,
     locked: Boolean(drawing.locked),
@@ -129,6 +136,7 @@ export function buildCourtPerspectiveFrame(
   if (!step) return frame;
   const showMovement = !hide.includes("movements");
   const simulation = sampleCourtSimulation(payload, index, fraction);
+  const authoredFinal = simulation?.mode === "defense" && fraction === 1;
   const sampled = new Map(simulation?.actors.map(actor => [actor.id, actor]));
   if (simulation) frame.simulation = buildCourtPerspectiveSimulation(payload, index, simulation, showMovement);
   if (!hide.includes("actors")) frame.actors = payload.actors
@@ -139,7 +147,7 @@ export function buildCourtPerspectiveFrame(
       const path = (step.trajectories ?? step.transitions)?.find(item => item.actorId === actor.id)?.points ?? [];
       const position = path.length ? pointAlong(path, fraction) : actorPoint(payload, index, actor.id);
       const meta = payload.editor?.actorMeta[actor.id];
-      const elevation = sampled.has(actor.id) ? undefined : courtSelectionElevation(payload, index, actor.id);
+      const elevation = sampled.has(actor.id) && !authoredFinal ? undefined : courtSelectionElevation(payload, index, actor.id);
       const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || !/^\d+$/.test(String(actor.label || actor.number || "")));
       const result: CourtPerspectiveActor = {
         id: actor.id, label: showLabel ? actor.label || String(actor.number ?? "") : "",
@@ -151,11 +159,16 @@ export function buildCourtPerspectiveFrame(
         path: showMovement ? path.map(point => courtPointToWorld(point, elevation ?? 0)) : [],
       };
       const state = sampled.get(actor.id);
+      const action = step.actorActions?.[actor.id];
+      if (!state && action) {
+        const { role, ...pose } = courtActorActionPose(action);
+        Object.assign(result, pose, { poseRole: role });
+      }
       if (state) {
         const [x, y, z] = state.position;
         const dx = state.facing[0] - x, dz = state.facing[1] - z, length = Math.hypot(dx, dz);
         Object.assign(result, {
-          simulated: true,
+          simulated: !authoredFinal,
           position: { x, y, z }, facing: length > .000001 ? [dx / length, dz / length] : [0, z >= 0 ? -1 : 1],
           poseRole: state.role, pose: state.pose, jump: state.jump, side: state.side,
           mirror: state.mirror ?? (state.role === "server"), previousPose: state.previousPose,
@@ -176,11 +189,11 @@ export function buildCourtPerspectiveFrame(
       ? { ...drawing, points: [{ x: simulation.ball[0] / 9 + .5, y: simulation.ball[2] / 18 + .5 }] }
       : drawingAtProgress(drawing, fraction));
     const projected = resolveCourtDrawingAnchors(drawings).map(drawing => {
-      const elevation = ["ball", "cone", "target", "ladder"].includes(drawing.kind) && drawing.id !== simulation?.ballId ? courtSelectionElevation(payload, index, drawing.id) : undefined;
+      const elevation = ["ball", "cone", "target", "ladder"].includes(drawing.kind) && (drawing.id !== simulation?.ballId || authoredFinal) ? courtSelectionElevation(payload, index, drawing.id) : undefined;
       const result = perspectiveDrawing(drawing, showMovement, elevation);
       if (simulation && drawing.id === simulation.ballId) {
         result.points = [{ x: simulation.ball[0], y: simulation.ball[1], z: simulation.ball[2] }];
-        result.simulated = true;
+        result.simulated = !authoredFinal;
         delete result.motion;
       }
       return result;
@@ -189,14 +202,17 @@ export function buildCourtPerspectiveFrame(
     const hidden = new Set(drawings.filter(drawing => drawing.hidden).map(drawing => drawing.id));
     frame.drawings = projected.filter(drawing => !hidden.has(drawing.id)).map(drawing => {
       const ball = drawing.startBallId ? balls.get(drawing.startBallId) : undefined;
-      if (!ball || !["arrow", "curve"].includes(drawing.kind) || drawing.points.length < 2) return drawing;
+      if (!["arrow", "curve"].includes(drawing.kind) || drawing.points.length < 2) return drawing;
       const floor = drawing.points[drawing.points.length - 1].y;
+      const heights = courtTrajectoryHeights(drawing.trajectoryHeights, ball?.y);
+      const trajectoryHandles = courtTrajectoryHeightTargets(payload, index, drawing.id, fraction).map(handle => ({ ...handle, value: heights[handle.kind] }));
+      if (!ball && !drawing.trajectoryHeights) return { ...drawing, trajectoryHandles };
       const distances = drawing.points.map((point, i) => i ? Math.hypot(point.x - drawing.points[i - 1].x, point.z - drawing.points[i - 1].z) : 0);
       const total = distances.reduce((sum, length) => sum + length, 0); let travelled = 0;
-      return { ...drawing, points: drawing.points.map((point, i) => {
+      return { ...drawing, trajectoryHandles, ...(drawing.trajectoryHeights ? { trajectoryHeights: heights } : {}), points: drawing.points.map((point, i) => {
         travelled += distances[i];
         const fraction = drawing.kind === "curve" && drawing.curveMode === "through-point" && drawing.points.length === 3 ? i / 2 : total ? travelled / total : i / (drawing.points.length - 1);
-        const y = i === 0 ? ball.y : i === drawing.points.length - 1 ? floor : fraction === .5 ? (ball.y + floor) / 2 : ball.y + (floor - ball.y) * fraction;
+        const y = drawing.trajectoryHeights ? courtTrajectoryHeightAt(heights, fraction) : i === 0 ? ball!.y : i === drawing.points.length - 1 ? floor : fraction === .5 ? (ball!.y + floor) / 2 : ball!.y + (floor - ball!.y) * fraction;
         return { ...point, y };
       }) };
     });

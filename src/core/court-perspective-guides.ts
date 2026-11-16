@@ -8,7 +8,7 @@ export type CourtPerspectiveGuidePath = { id: string; points: Point[]; dashed?: 
 export type CourtPerspectiveGuideMarker = { id: string; kind: "dot" | "ring" | "cross"; point: Point; color: string; contactTime?: number };
 export type CourtPerspectiveSimulation = {
   guideKey: string;
-  mode: "receive" | "attack";
+  mode: "receive" | "attack" | "defense";
   elapsedSeconds: number;
   duration: number;
   ballId: string;
@@ -50,7 +50,7 @@ function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample)
     const landing = target ? { x: target[0], z: target[1] } : timing.config.landingOverride ?? { x: timing.config.seam === "Left" ? -1.45 : 1.4, z: 6.65 };
     handles.push({ kind: "serve", point: { x: landing.x, y: .03, z: landing.z } });
     marker("serve-target", "cross", { x: landing.x, y: .025, z: landing.z }, "#c48d8f");
-  } else {
+  } else if (timing.mode === "attack") {
     const setContact = timing.setContact ?? 0, attackContact = timing.attackContact ?? 1;
     const set = path("set", sample(setContact, attackContact));
     marker("set-apex", "dot", apex(set));

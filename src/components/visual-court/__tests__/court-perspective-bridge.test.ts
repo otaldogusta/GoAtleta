@@ -1,5 +1,6 @@
 import type { CourtVisualPayload } from "../../../core/visual-court";
 import { newCourtBoard } from "../../../core/visual-court-editor";
+import { ensureCourtDefenseStep } from "../../../core/court-defense-preset";
 import { configureCourtSimulation } from "../../../core/court-simulation";
 import { parseCourtPerspectiveCommand, type CourtPerspectiveCommandContext } from "../court-perspective-bridge";
 
@@ -30,6 +31,49 @@ const envelope = (command: Record<string, unknown>) => ({ channel: "goatleta-cou
 function parse(command: Record<string, unknown>, context: Partial<CourtPerspectiveCommandContext> = {}) {
   return parseCourtPerspectiveCommand(envelope(command), { token: "frame-token", revision: 4, payload: fixture(), stepIndex: 0, tool: "select", ...context });
 }
+
+describe("trajectory height command boundary", () => {
+  const source = () => {
+    const payload = fixture();
+    payload.editor!.drawings.first.push({ id: "arrow", kind: "arrow", startBallId: "ball", points: [{ x: .3, y: .6 }, { x: .7, y: .2 }], color: "#ffffff", size: 32, rotation: 0 });
+    return payload;
+  };
+  it.each(["start", "middle", "end"])("accepts only the selected visible arrow and bounded %s grip", handle => {
+    const payload = source(), command = { type: "trajectory-height", id: "arrow", handle, value: 3 };
+    expect(parse(command, { payload, selected: ["arrow"] })).toEqual(command);
+    for (const context of [{ selected: [] }, { selected: ["ball"] }, { selected: ["arrow", "ball"] }, { tool: "animate" as const }, { disabled: true }, { revision: 5 }]) {
+      expect(parse(command, { payload, selected: ["arrow"], ...context })).toBeNull();
+    }
+    for (const invalid of [{ value: NaN }, { value: -1 }, { value: 8.13 }, { value: "3" }, { handle: "unknown" }, { extra: true }, { id: "note" }]) {
+      expect(parse({ ...command, ...invalid }, { payload, selected: ["arrow"] })).toBeNull();
+    }
+  });
+  it("protects linked balls independently of the selected arrow", () => {
+    const command = { type: "trajectory-height", id: "arrow", handle: "start", value: 3 };
+    for (const fields of [{ locked: true }, { hidden: true }]) {
+      const payload = source(); Object.assign(payload.editor!.drawings.first[0], fields);
+      expect(parse(command, { payload, selected: ["arrow"] })).toBeNull();
+      expect(parse({ ...command, handle: "middle" }, { payload, selected: ["arrow"] })).not.toBeNull();
+    }
+    expect(parse({ ...command, value: 0 }, { payload: source(), selected: ["arrow"] })).toBeNull();
+    const hidden = source(); hidden.editor!.hiddenLayers = ["drawings"];
+    expect(parse(command, { payload: hidden, selected: ["arrow"] })).toBeNull();
+  });
+  it.each(["start", "middle", "end"])("validates the complete XYZ point for %s with the same authoring guards", handle => {
+    const payload = source(), point = { x: 1, y: 3, z: -2 }, command = { type: "trajectory-point", id: "arrow", handle, point };
+    expect(parse(command, { payload, selected: ["arrow"] })).toEqual(command);
+    for (const invalid of [{ ...point, x: 6.31 }, { ...point, x: -6.31 }, { ...point, z: 11.71 }, { ...point, y: 8.13 }, { ...point, y: -1 }, { ...point, x: NaN }, { ...point, y: "3" }, { x: 1, y: 2 }, { ...point, extra: 1 }, null]) {
+      expect(parse({ ...command, point: invalid }, { payload, selected: ["arrow"] })).toBeNull();
+    }
+    for (const context of [{ selected: [] }, { selected: ["ball"] }, { selected: ["arrow", "ball"] }, { tool: "animate" as const }, { disabled: true }, { revision: 5 }]) expect(parse(command, { payload, selected: ["arrow"], ...context })).toBeNull();
+    expect(parse({ ...command, extra: true }, { payload, selected: ["arrow"] })).toBeNull();
+    for (const fields of [{ hidden: true }, { locked: true }]) {
+      const protectedBall = source(); Object.assign(protectedBall.editor!.drawings.first[0], fields);
+      expect(parse({ ...command, handle: "start" }, { payload: protectedBall, selected: ["arrow"] })).toBeNull();
+    }
+    expect(parse({ ...command, handle: "start", point: { ...point, y: .11 } }, { payload, selected: ["arrow"] })).toBeNull();
+  });
+});
 
 describe("court perspective command boundary", () => {
   it("selects visible canonical actor/material IDs and clears selection", () => {
@@ -281,4 +325,13 @@ it('allows only the serve handle through an explicitly enabled disabled viewer',
   expect(parse({ type: 'select', ids: ['setter'] }, context)).toBeNull();
   expect(parse({ type: 'shortcut', key: 'delete' }, context)).toBeNull();
   expect(parse({ ...command, revision: -1 }, context)).toBeNull();
+});
+
+
+describe("defense simulation command boundary", () => {
+  it.each(["serve", "set", "pass", "attack", "hit", "target"])("rejects unrelated %s engine handles in defense", kind => {
+    const { payload, stepIndex } = ensureCourtDefenseStep(fixture());
+    const command = { type: "simulation-handle", kind, point: { x: 0, y: 2, z: 1 }, ...(["set", "pass", "attack"].includes(kind) ? { value: 2 } : {}) };
+    expect(parse(command, { payload, stepIndex, progress: 1 })).toBeNull();
+  });
 });

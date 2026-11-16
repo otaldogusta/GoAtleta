@@ -23,20 +23,34 @@ describe("shared court simulation controls", () => {
   const platformDescriptor = Object.getOwnPropertyDescriptor(Platform, "OS");
   afterEach(() => { if (tree) act(() => tree!.unmount()); tree = undefined; jest.restoreAllMocks(); if (platformDescriptor) Object.defineProperty(Platform, "OS", platformDescriptor); });
   const press = (label: string) => act(() => tree!.root.findByProps({ accessibilityLabel: label }).props.onPress());
-  const panel = async (value: CourtSimulation | null = config(), mode: "receive" | "attack" = "attack") => {
+  const panel = async (value: CourtSimulation | null = config(), mode: CourtSimulation["mode"] = "attack") => {
     const onChange = jest.fn();
     const props = { config: value, mode, onChange, onRestore: jest.fn(), onShare: jest.fn(), cameraView: "front" as const, onCameraView: jest.fn(), labelsVisible: true, onLabelsVisible: jest.fn() };
     await act(async () => { tree = TestRenderer.create(React.createElement(CourtSimulationSettings, props)); });
     return { props, onChange };
   };
 
-  it("changes available modes and keeps defense unavailable", () => {
+  it("enables defense and respects the read-only availability guard", () => {
     const onChange = jest.fn();
     act(() => { tree = TestRenderer.create(React.createElement(CourtSimulationModes, { mode: "receive", onChange })); });
     press("Ataque");
     expect(onChange).toHaveBeenCalledWith("attack");
-    expect(tree!.root.findByProps({ accessibilityLabel: "Defesa. Em breve" }).props.disabled).toBe(true);
+    press("Defesa");
+    expect(onChange).toHaveBeenLastCalledWith("defense");
+    act(() => tree!.update(React.createElement(CourtSimulationModes, { mode: "receive", onChange, defenseAvailable: false })));
+    expect(tree!.root.findByProps({ accessibilityLabel: "Defesa" }).props.disabled).toBe(true);
+    onChange.mockClear(); press("Defesa"); expect(onChange).not.toHaveBeenCalled();
     expect(tree!.root.findByProps({ accessibilityLabel: "Recepção" }).props.accessibilityState.selected).toBe(true);
+  });
+
+  it("shows only the authored defense scenario and shared camera controls", async () => {
+    const { props } = await panel({ ...config(), mode: "defense" }, "defense");
+    for (const label of ["Saque: Flutuante", "Rodízio P1", "Curva do ataque", "Bloqueadores: 3", "Próxima jogada"]) {
+      expect(tree!.root.findAllByProps({ accessibilityLabel: label })).toHaveLength(0);
+    }
+    expect(tree!.root.findByProps({ accessibilityLabel: "Visão: Frente" })).toBeTruthy();
+    press("Rótulos: Ocultar"); expect(props.onLabelsVisible).toHaveBeenCalledWith(false);
+    expect(tree!.root.findByProps({ accessibilityLabel: "Restaurar simulação" })).toBeTruthy();
   });
 
   it("sends canonical rotation indexes behind the Brazilian setter labels", async () => {

@@ -1,5 +1,6 @@
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
-import { editableCourtElevationSelection, frameDrawings, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
+import { courtTrajectoryHeightTargets, editableCourtElevationSelection, frameDrawings, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
+import { COURT_TRAJECTORY_HANDLES, type CourtTrajectoryHandleKind } from "../../core/court-arrow-trajectory";
 import type { CourtTool } from "./CourtEditorCanvas";
 import { getCourtSimulation } from "../../core/court-simulation";
 import type { CourtWorldPoint } from "../../core/visual-court-perspective";
@@ -17,6 +18,8 @@ export type CourtPerspectiveCommand =
   | { type: "add-player"; point: CourtPoint }
   | { type: "edit-text"; id: string }
   | { type: "elevation"; id: string; value: number }
+  | { type: "trajectory-height"; id: string; handle: CourtTrajectoryHandleKind; value: number }
+  | { type: "trajectory-point"; id: string; handle: CourtTrajectoryHandleKind; point: CourtWorldPoint }
   | ({ type: "simulation-handle" } & CourtPerspectiveHandleEdit)
   | { type: "shortcut"; key: CourtPerspectiveShortcut; shift?: boolean };
 
@@ -25,6 +28,7 @@ export type CourtPerspectiveCommandContext = {
   revision: number;
   payload: CourtVisualPayload;
   stepIndex: number;
+  progress?: number;
   disabled?: boolean;
   allowServeHandle?: boolean;
   tool?: CourtTool;
@@ -92,6 +96,8 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
     || value.revision !== context.revision || !Number.isInteger(context.stepIndex) || context.stepIndex < 0) return null;
   const step = context.payload.timeline.steps[context.stepIndex];
   if (!step) return null;
+  if (step.simulation?.mode === "defense" && context.progress !== 1
+    && ["move", "draw", "add-player", "elevation", "trajectory-height", "trajectory-point", "edit-text"].includes(String(value.type))) return null;
   if (context.disabled && !(context.allowServeHandle && value.type === "simulation-handle" && value.kind === "serve") && !(value.type === "shortcut" && ["escape", "play"].includes(String(value.key)))) return null;
   const fields = (extras: string[]) => onlyFields(value, [...ENVELOPE_FIELDS, ...extras]);
   const hidden = context.payload.editor?.hiddenLayers ?? [];
@@ -108,6 +114,26 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
     ? !!context.payload.editor?.actorMeta[id]?.locked
     : !!currentDrawings.find(item => item.id === id)?.locked;
 
+  if (value.type === "trajectory-height") {
+    if (!fields(["id", "handle", "value"]) || context.tool !== "select" || typeof value.id !== "string"
+      || !COURT_TRAJECTORY_HANDLES.includes(value.handle as CourtTrajectoryHandleKind)
+      || context.selected?.length !== 1 || context.selected[0] !== value.id) return null;
+    const target = courtTrajectoryHeightTargets(context.payload, context.stepIndex, value.id, context.progress).find(item => item.kind === value.handle);
+    if (!target?.editable || !finite(value.value, target.min, target.max)) return null;
+    return { type: "trajectory-height", id: value.id, handle: target.kind, value: value.value };
+  }
+
+  if (value.type === "trajectory-point") {
+    if (!fields(["id", "handle", "point"]) || context.tool !== "select" || typeof value.id !== "string"
+      || !COURT_TRAJECTORY_HANDLES.includes(value.handle as CourtTrajectoryHandleKind)
+      || context.selected?.length !== 1 || context.selected[0] !== value.id) return null;
+    const target = courtTrajectoryHeightTargets(context.payload, context.stepIndex, value.id, context.progress).find(item => item.kind === value.handle);
+    const at = value.point;
+    if (!target?.editable || !record(at) || !onlyFields(at, ["x", "y", "z"])
+      || !finite(at.x, -6.3, 6.3) || !finite(at.z, -11.7, 11.7) || !finite(at.y, target.min, target.max)) return null;
+    return { type: "trajectory-point", id: value.id, handle: target.kind, point: { x: at.x, y: at.y, z: at.z } };
+  }
+
   if (value.type === "elevation") {
     if (!fields(["id", "value"]) || context.tool !== "select" || typeof value.id !== "string" || !finite(value.value, 0, 8)
       || context.selected?.length !== 1 || context.selected[0] !== value.id
@@ -120,7 +146,7 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
     const simulation = getCourtSimulation(context.payload, context.stepIndex);
     if (!simulation || !["set", "pass", "attack", "hit", "target", "serve"].includes(String(value.kind))) return null;
     const kind = value.kind as CourtPerspectiveHandleKind;
-    if ((simulation.mode === "receive") !== (kind === "serve")) return null;
+    if (kind === "serve" ? simulation.mode !== "receive" : simulation.mode !== "attack") return null;
     if (kind === "pass" && !simulation.layers.pass || (kind === "target" || kind === "attack") && !simulation.layers.attack) return null;
     const at = value.point;
     if (!record(at) || !onlyFields(at, ["x", "y", "z"]) || !finite(at.x, -9, 9) || !finite(at.y, 0, 9) || !finite(at.z, -12, 12)) return null;

@@ -1,0 +1,217 @@
+{
+  "actors": [
+    {
+      "id": "height-player",
+      "label": "A",
+      "role": "outside",
+      "color": "#19c87b",
+      "representation": "person",
+      "initialPosition": {
+        "x": 0.25,
+        "y": 0.65
+      }
+    },
+    {
+      "id": "circle-player",
+      "label": "B",
+      "role": "outside",
+      "color": "#3b82f6",
+      "representation": "circle",
+      "initialPosition": {
+        "x": 0.52,
+        "y": 0.2
+      }
+    },
+    {
+      "id": "board_mwe81mmb_i7sa8kdc",
+      "role": "athlete",
+      "representation": "person",
+      "label": "",
+      "color": "#19c87b",
+      "initialPosition": {
+        "x": 0.6627463033138352,
+        "y": 0.5502437501398643
+      }
+    },
+    {
+      "id": "board_mwe820yh_46d2dj66",
+      "role": "athlete",
+      "representation": "person",
+      "label": "",
+      "color": "#19c87b",
+      "initialPosition": {
+        "x": 0.747331478024773,
+        "y": 0.5467672618423973
+      }
+    },
+    {
+      "id": "board_mwe82nib_o7hqgvly",
+      "label": "A",
+      "role": "outside",
+      "color": "#19c87b",
+      "representation": "person",
+      "initialPosition": {
+        "x": 0.32541886012373233,
+        "y": 0.8185368505855657
+      }
+    },
+    {
+      "id": "board_mwe82zw1_2hmbi70q",
+      "label": "A",
+      "role": "outside",
+      "color": "#19c87b",
+      "representation": "person",
+      "initialPosition": {
+        "x": 0.5138340655518202,
+        "y": 0.8527562221947568
+      }
+    },
+    {
+      "id": "board_mwe838z8_9ng7sqxw",
+      "label": "A",
+      "role": "outside",
+      "color": "#19c87b",
+      "representation": "person",
+      "initialPosition": {
+        "x": 0.5155272803600773,
+        "y": 0.847747126780004
+      }
+    }
+  ],
+  "actorPositions": {
+    "height-player": {
+      "x": 0.45021318980065,
+      "y": 0.6428772267877533
+    },
+    "circle-player": {
+      "x": 0.9627325216959379,
+      "y": 0.435773218862502
+    },
+    "board_mwe81mmb_i7sa8kdc": {
+      "x": 0.9030737799733927,
+      "y": 0.5513193038601435
+    },
+    "board_mwe820yh_46d2dj66": {
+      "x": 0.7690148496426252,
+      "y": 0.5507544323011282
+    },
+    "board_mwe82nib_o7hqgvly": {
+      "x": 0.07353581311638646,
+      "y": 0.7039602404746408
+    },
+    "board_mwe82zw1_2hmbi70q": {
+      "x": 0.9733832125476085,
+      "y": 0.8260512342917896
+    },
+    "board_mwe838z8_9ng7sqxw": {
+      "x": 0.2947221656019014,
+      "y": 0.8408940324700445
+    }
+  },
+  "actorElevations": {
+    "circle-player": 1.006326834602263
+  },
+  "drawings": [
+    {
+      "id": "anchor-arrow-a",
+      "kind": "curve",
+      "points": [
+        {
+          "x": 0.9583664605978616,
+          "y": 0.4653086325634806
+        },
+        {
+          "x": 0.5295220044112865,
+          "y": 0.5682361647926809
+        },
+        {
+          "x": 0.15584921060519963,
+          "y": 0.7055910795585123
+        }
+      ],
+      "startBallId": "anchor-ball",
+      "color": "#19c87b",
+      "size": 32,
+      "rotation": 0,
+      "dashed": true,
+      "curveMode": "through-point",
+      "trajectoryHeights": {
+        "start": 3.1517103037717202,
+        "middle": 2.397408025257005,
+        "end": 0
+      }
+    },
+    {
+      "id": "anchor-arrow-b",
+      "kind": "curve",
+      "points": [
+        {
+          "x": 0.9583664605978616,
+          "y": 0.4653086325634806
+        },
+        {
+          "x": 0.9573625864835735,
+          "y": 0.7025114404340502
+        },
+        {
+          "x": 0.9642285770014172,
+          "y": 0.9190353397630051
+        }
+      ],
+      "startBallId": "anchor-ball",
+      "color": "#ffdc53",
+      "size": 32,
+      "rotation": 0,
+      "dashed": true,
+      "curveMode": "through-point",
+      "trajectoryHeights": {
+        "start": 3.1517103037717202,
+        "middle": 2.177477463795312,
+        "end": 0.0947764277706944
+      }
+    },
+    {
+      "id": "anchor-curve",
+      "kind": "curve",
+      "points": [
+        {
+          "x": 0.9583664605978616,
+          "y": 0.4653086325634806
+        },
+        {
+          "x": 0.6837211316088625,
+          "y": 0.5790819502391473
+        },
+        {
+          "x": 0.2492572839714975,
+          "y": 0.8521711198452275
+        }
+      ],
+      "curveMode": "through-point",
+      "startBallId": "anchor-ball",
+      "color": "#fb7185",
+      "size": 32,
+      "rotation": 0,
+      "dashed": false,
+      "trajectoryHeights": {
+        "start": 3.1517103037717202,
+        "middle": 3.7487523157602327,
+        "end": 0.7947476843520818
+      }
+    },
+    {
+      "id": "anchor-ball",
+      "kind": "ball",
+      "points": [
+        {
+          "x": 0.9583664605978616,
+          "y": 0.4653086325634806
+        }
+      ],
+      "color": "#ffdc53",
+      "size": 32,
+      "rotation": 0,
+      "elevation": 3.03171030377172
+    }
+  ]
+}

@@ -47,6 +47,7 @@ import {
   saveMyProfessionalProfile,
 } from "../src/api/professional-profile";
 import {
+    PROFILE_PHOTO_SIZE_ERROR,
     removeMyProfilePhotoObject,
     uploadMyProfilePhoto,
 } from "../src/api/profile-photo-storage";
@@ -617,6 +618,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   const [loadingPhoto, setLoadingPhoto] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [photoPickerError, setPhotoPickerError] = useState<string | null>(null);
   const [showNameEditor, setShowNameEditor] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -1983,12 +1985,14 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   };
 
   const pickPhoto = async (source: "camera" | "library") => {
+    setPhotoPickerError(null);
     if (source === "camera") {
       setShowPhotoSheet(false);
       setShowCameraCapture(true);
       return;
     }
 
+    let closePhotoOptions = true;
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
@@ -2010,10 +2014,17 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         await persistPickedPhoto(asset.uri, asset.mimeType);
       }
     } catch (error) {
-      console.error("Failed to pick profile photo", error);
-      Alert.alert("Erro", "Não foi possível selecionar a foto.");
+      const tooLarge = error instanceof Error && error.message === PROFILE_PHOTO_SIZE_ERROR;
+      const message = tooLarge ? PROFILE_PHOTO_SIZE_ERROR : "Não foi possível selecionar a foto.";
+      if (!tooLarge) console.warn("Failed to pick profile photo", error);
+      if (Platform.OS === "web") {
+        setPhotoPickerError(message);
+        closePhotoOptions = false;
+      } else {
+        Alert.alert("Erro", message);
+      }
     } finally {
-      setShowPhotoSheet(false);
+      if (closePhotoOptions) setShowPhotoSheet(false);
     }
   };
 
@@ -5049,6 +5060,11 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
           <Text style={{ color: colors.text, fontWeight: "700" }}>Foto do perfil</Text>
           <View style={{ width: 36, height: 36 }} />
         </View>
+        {photoPickerError ? (
+          <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: metrics.bodyFontSize }}>
+            {photoPickerError}
+          </Text>
+        ) : null}
         <View style={{ gap: 12 }}>
           {([
             { label: "Câmera", icon: "camera", value: "camera" },

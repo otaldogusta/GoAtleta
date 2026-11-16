@@ -17,6 +17,10 @@ mensal também mostram o indicador no contêiner arredondado, com espaço entre
 a linha e o texto.
 O editor de plano aplica a regra dentro do documento embutido.
 
+Na galeria web de foto de perfil, quando a imagem pode ser decodificada, a
+normalização mantém a proporção, limita o lado maior a 512 px e grava JPEG. O
+limite da foto enviada ao Storage é 2 MiB. O bucket aceita JPEG, PNG e WebP.
+
 `ModalSheet` coordena Tab/Escape pela camada superior e captura no card os eventos
 interrompidos por TextInput web. Calendário e confirmação usam diálogo semântico;
 seletores portados mantêm controle próprio. [Validação local de 13/11](../../ui/REVISAO_INVENTARIO_CONTINUIDADE_2026-11-13.md).

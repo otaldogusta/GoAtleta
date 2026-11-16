@@ -65,6 +65,22 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   realça discretamente jogadores, materiais e desenhos; ocultos ficam fora,
   bloqueados continuam selecionáveis e gestos suspendem o destaque.
 
+- Materiais sólidos 3D recebem iluminação; piso e traços mantêm
+  sua paleta. Sombras suaves compartilhadas acompanham altura e rotação no
+  piso, fora do picking/hover, sem passes extras. Renderização ociosa por
+  invalidação preservada. [Contrato, medidas e limites móveis](../../ui/QUADRA_MATERIAIS_3D_2026-11-12.md).
+
+- Todos os jogadores 3D compartilham corpo articulado local, com ações e
+  transições do sampler existente, facing independente da câmera e seleção
+  pelos meshes. Alvo transitório de contato aproxima as mãos da bola dentro
+  do alcance, sem alterar trajetória ou posição autoral.
+  [Contrato e validação](../../ui/QUADRA_CORPOS_3D_2026-11-12.md).
+
+- Gestos 3D distinguem mover objeto, girar o fundo e aproximar/deslocar com dois
+  dedos. Arraste conserva o ponto de pega elevado e a prévia até confirmação
+  local. Enquadramento usa geometria, projeção e espaço dos controles; resize
+  preserva intenção de zoom. [Contrato e validação](../../ui/QUADRA_CAMERA_GESTOS_3D_2026-11-12.md).
+
 - No 2D, hover usa o mesmo resolvedor do clique e a ordem das camadas, incluindo
   a prioridade da bola sob uma seta vinculada. O realce de jogadores, materiais
   e desenhos é efêmero: não muda seleção, histórico, cores salvas ou exportações.
@@ -90,6 +106,15 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   O 2D conserva X/Z; simulação mantém seu próprio Y. Alça vertical separada do
   corpo e comando validado geram uma edição por gesto. Inícios ligados seguem
   a bola também em altura. [Contrato e limites locais](../../ui/QUADRA_ALTURA_3D_2026-11-12.md).
+
+- Setas/curvas autorais 3D têm seleção no traço e alças de início/meio/fim:
+  lateral move X/Z conforme a câmera e vertical ajusta Y em uma edição.
+  `trajectoryHeights` opcional conserva a forma legada; início ligado move
+  a bola com suas guardas. Desvincular materializa a altura atual.
+  Reutiliza a interação das alças de Ataque, sem criar simulação paralela.
+  Contato geométrico do traço com malha/fitas gera aviso efêmero no 3D,
+  acompanhando a prévia e a câmera, sem alterar documento ou física.
+  [Contrato e validação](../../ui/QUADRA_TRAJETORIA_AUTORAL_3D_2026-11-12.md).
 
 - Área permite desenho livre ou vértices por cliques/toques em 2D. O rascunho
   por pontos fecha com três ou mais vértices válidos em uma edição; voltar e
@@ -513,8 +538,10 @@ permanece acessível durante o fade; desktop conserva a alça lateral.
 `court-overlay-layout.ts` reserva apenas a timeline atual: zoom em uma linha,
 alça a 8 px do dock e separação vertical adicional só onde faltaria largura.
 Cabeçalho, ferramentas, menus e ajustes usam a variante compacta existente.
-O renderer aplica a proporção exata entre perfis de câmera ao cruzar 600 px,
-preservando órbita e zoom, sem acumular distância a cada redimensionamento.
+Desde o refino de 12/11, o renderer calcula o enquadramento por geometria,
+projeção e espaço dos controles, substituindo a troca de perfis em 600 px.
+Resize preserva órbita, alvo e razão de zoom mesmo nos limites de distância.
+[Contrato de câmera e gestos](../../ui/QUADRA_CAMERA_GESTOS_3D_2026-11-12.md).
 `CourtWorkspacePanel` reúne Ajustes, Etapas e Biblioteca em abas no mesmo painel.
 Camadas integra as categorias dos ajustes; `CourtStepGallery` apresenta as etapas
 em duas colunas, preservando seleção, reordenação e comandos. A barra de reprodução

@@ -1,4 +1,5 @@
-import { getProfilePhotoStorageErrorMessage } from "../profile-photo-storage";
+import { normalizeProfilePhotoForUpload } from "../../utils/profile-photo";
+import { getProfilePhotoStorageErrorMessage, uploadMyProfilePhoto } from "../profile-photo-storage";
 
 jest.mock("../../auth/session", () => ({
   getValidAccessToken: jest.fn(),
@@ -34,4 +35,26 @@ describe("profile photo storage errors", () => {
       "Não foi possível remover a foto. Tente novamente."
     );
   });
+});
+
+it("rejects a photo that is still above the bucket limit before contacting Storage", async () => {
+  const originalFetch = global.fetch;
+  const fetchMock = jest.fn().mockResolvedValue({
+    ok: true,
+    blob: async () => ({ size: 2 * 1024 * 1024 + 1 }),
+  });
+  global.fetch = fetchMock;
+  jest.mocked(normalizeProfilePhotoForUpload).mockResolvedValueOnce({
+    uri: "file:///selected-image.jpg",
+    contentType: null,
+    normalized: false,
+  });
+
+  try {
+    await expect(uploadMyProfilePhoto({ userId: "my-user", uri: "file:///selected-image.jpg" }))
+      .rejects.toThrow("A foto excede o limite de 2 MB. Escolha uma imagem menor.");
+    expect(fetchMock.mock.calls).toEqual([["file:///selected-image.jpg"]]);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

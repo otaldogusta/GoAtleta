@@ -2,6 +2,7 @@ import { normalizeAttackSettings } from "./court-simulation/attack-settings.js";
 import { normalizeReceiveTarget } from "./court-simulation/reception-target.js";
 
 export type CourtSimulationPoint = [number, number, number];
+export type CourtSimulationDefenseSettings = { startPositions: Record<string, { x: number; y: number }> };
 export type CourtSimulationAttackSettings = {
   targetOverride: [number, number] | null;
   hitOverride: [number, number] | null;
@@ -15,7 +16,7 @@ export type CourtSimulationAttackSettings = {
 };
 export type CourtSimulation = {
   version: 1;
-  mode: "receive" | "attack";
+  mode: "receive" | "attack" | "defense";
   system: "5-1" | "6-2";
   rotation: number;
   serve: "Float" | "Topspin";
@@ -26,6 +27,7 @@ export type CourtSimulation = {
   blockers: 1 | 2 | 3;
   landingOverride: { x: number; z: number } | null;
   attackSettings: CourtSimulationAttackSettings;
+  defenseSettings?: CourtSimulationDefenseSettings;
   actorIds: string[];
   /** Own six-player identity order survives mode-specific visibility filters. */
   teamActorIds?: string[];
@@ -132,7 +134,7 @@ const object = (value: unknown): value is Record<string, unknown> => Boolean(val
 
 /** The document stores only bounded configuration and canonical references. */
 export function normalizeCourtSimulation(value: unknown, actorIds?: readonly string[], drawingIds?: readonly string[]): CourtSimulation | null {
-  if (!object(value) || value.version !== 1 || !["receive", "attack"].includes(String(value.mode))) return null;
+  if (!object(value) || value.version !== 1 || !["receive", "attack", "defense"].includes(String(value.mode))) return null;
   if (!Array.isArray(value.actorIds) || value.actorIds.length !== 7 || value.actorIds.some(id => typeof id !== "string" || !id || id.length > 120)
     || new Set(value.actorIds).size !== 7 || typeof value.ballId !== "string" || !value.ballId || value.ballId.length > 120) return null;
   const references = value.actorIds as string[];
@@ -141,6 +143,15 @@ export function normalizeCourtSimulation(value: unknown, actorIds?: readonly str
     || value.teamActorIds.some(id => typeof id !== "string" || !id || id.length > 120)
     || new Set(value.teamActorIds).size !== 6 || actorIds && value.teamActorIds.some(id => !actorIds.includes(id)))) return null;
   if (drawingIds && !drawingIds.includes(value.ballId)) return null;
+  let defenseSettings: CourtSimulationDefenseSettings | undefined;
+  if (value.mode === "defense") {
+    if (!object(value.defenseSettings) || !object(value.defenseSettings.startPositions)) return null;
+    const starts = value.defenseSettings.startPositions;
+    const valid = (p: unknown): p is { x: number; y: number } => object(p) && typeof p.x === "number" && Number.isFinite(p.x) && p.x >= -.2 && p.x <= 1.2
+      && typeof p.y === "number" && Number.isFinite(p.y) && p.y >= -.15 && p.y <= 1.15;
+    if (references.some(id => !Object.prototype.hasOwnProperty.call(starts, id) || !valid(starts[id]))) return null;
+    defenseSettings = { startPositions: Object.fromEntries(references.map(id => { const p = starts[id] as { x: number; y: number }; return [id, { x: p.x, y: p.y }]; })) };
+  }
   const layers = object(value.layers) ? value.layers : {};
   const rotation = typeof value.rotation === "number" && Number.isFinite(value.rotation) ? Math.max(0, Math.min(5, Math.floor(value.rotation))) : 0;
   return {
@@ -154,6 +165,7 @@ export function normalizeCourtSimulation(value: unknown, actorIds?: readonly str
     blockers: Math.max(1, Math.min(3, Math.floor(Number(value.blockers) || 1))) as 1 | 2 | 3,
     landingOverride: normalizeReceiveTarget(value.landingOverride) as CourtSimulation["landingOverride"],
     attackSettings: normalizeAttackSettings(value.attackSettings) as CourtSimulationAttackSettings,
+    ...(defenseSettings ? { defenseSettings } : {}),
     actorIds: [...references], ...(Array.isArray(value.teamActorIds) ? { teamActorIds: [...value.teamActorIds] as string[] } : {}), ballId: value.ballId,
   };
 }

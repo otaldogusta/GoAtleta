@@ -3,6 +3,8 @@ import { normalizeProfilePhotoForUpload } from "../utils/profile-photo";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
 const PROFILE_PHOTO_BUCKET = "profile-photos";
+const PROFILE_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+export const PROFILE_PHOTO_SIZE_ERROR = "A foto excede o limite de 2 MB. Escolha uma imagem menor.";
 
 const encodeObjectPath = (path: string) =>
   path
@@ -25,6 +27,7 @@ export const getProfilePhotoStorageErrorMessage = (
   action: "save" | "remove" = "save"
 ) => {
   if (status === 401) return "Sua sessão expirou. Entre novamente.";
+  if (status === 413 && action === "save") return PROFILE_PHOTO_SIZE_ERROR;
   if (status === 403) {
     return action === "remove"
       ? "Você não tem permissão para remover esta foto."
@@ -65,7 +68,12 @@ export const uploadMyProfilePhoto = async (params: {
   const path = storageObjectPathForUser(normalizedUserId);
   const objectPath = encodeObjectPath(path);
   const normalizedPhoto = await normalizeProfilePhotoForUpload(params.uri);
-  const body = await blobFromUri(normalizedPhoto.uri);
+  const body = await blobFromUri(normalizedPhoto.uri).finally(() => {
+    if (normalizedPhoto.normalized && normalizedPhoto.uri.startsWith("blob:")) {
+      URL.revokeObjectURL?.(normalizedPhoto.uri);
+    }
+  });
+  if (body.size > PROFILE_PHOTO_MAX_BYTES) throw new Error(PROFILE_PHOTO_SIZE_ERROR);
   const finalContentType =
     normalizedPhoto.contentType ?? params.contentType ?? "image/jpeg";
   const headers = await getAuthHeaders(finalContentType);

@@ -35,9 +35,11 @@ atualiza o início usando a bola; curvas `through-point` ajustam o meio por
 um quarto do deslocamento inicial, preservando o controle da curva dentro dos
 limites autorais; o ponto intermediário continua limitado como nas alças. A amostra
 visual resolve a ligação após movimento/simulação, inclusive na projeção 3D.
-No 3D, o início usa a altura real da bola; a ponta continua no piso. O contrato
-vertical e a validação posterior estão em
-[Altura autoral](QUADRA_ALTURA_3D_2026-11-12.md).
+No 3D, o início usa a altura real da bola; sem perfil autoral, a ponta continua
+no piso. O contrato vertical está em [Altura autoral](QUADRA_ALTURA_3D_2026-11-12.md).
+O refino de [trajetória autoral](QUADRA_TRAJETORIA_AUTORAL_3D_2026-11-12.md)
+permite editar meio/fim em altura, reutiliza as alças de Ataque e conserva a
+forma tridimensional ao desfazer a ligação.
 
 Sem nova tabela, migration, rota ou gravação paralela. O campo acompanha o
 documento e seus comandos existentes de histórico e salvamento.

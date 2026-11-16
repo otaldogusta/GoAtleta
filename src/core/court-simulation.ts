@@ -2,6 +2,7 @@ import type { CourtPoint, CourtVisualActor, CourtVisualPayload } from "./visual-
 import { attackFormation, attackPreset, sampleAttack } from "./court-simulation/attack-motion.js";
 import { receptionFormation } from "./court-simulation/formations.js";
 import { sampleReception } from "./court-simulation/reception-motion.js";
+import { sampleDefenseOrganization } from "./court-defense-motion";
 import { normalizeCourtSimulation, type CourtSimulation, type CourtSimulationActor, type CourtSimulationPatch, type CourtSimulationPoint, type CourtSimulationSample } from "./court-simulation-model";
 
 const makeId = () => `simulation_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -10,7 +11,7 @@ const court = (point: CourtSimulationPoint): CourtPoint => ({ x: point[0] / 9 + 
 const roles: CourtVisualActor["role"][] = ["setter", "opposite", "middle", "outside", "libero", "outside"];
 const labels = ["Lv", "Op", "C", "P", "Lb", "P"];
 function visibleSlots(config: CourtSimulation) {
-  return config.actorIds.map((_, slot) => slot).filter(slot => config.mode === "receive" || slot === 0 || slot === 3 && config.layers.attack || slot === 4 && config.layers.pass || [1, 2, 5].slice(0, config.blockers).includes(slot) && config.layers.block);
+  return config.actorIds.map((_, slot) => slot).filter(slot => config.mode !== "attack" || slot === 0 || slot === 3 && config.layers.attack || slot === 4 && config.layers.pass || [1, 2, 5].slice(0, config.blockers).includes(slot) && config.layers.block);
 }
 
 export function getCourtSimulation(payload: CourtVisualPayload, index: number): CourtSimulation | null {
@@ -27,6 +28,16 @@ export function sampleCourtSimulation(payload: CourtVisualPayload, index: number
   if (!config) return null;
   const step = payload.timeline.steps[index], fraction = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
   const bases = config.actorIds.map(id => world(step.actorPositions[id] ?? payload.actors.find(actor => actor.id === id)!.initialPosition));
+  if (config.mode === "defense") {
+    const elevation = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 8 ? value : 0;
+    const starts = config.actorIds.map(id => world(config.defenseSettings!.startPositions[id]));
+    const destinations = bases.map((p, slot) => [p[0], elevation(step.actorElevations?.[config.actorIds[slot]]), p[2]] as CourtSimulationPoint);
+    const drawing = payload.editor!.drawings[step.id].find(item => item.id === config.ballId)!;
+    const ball = world(drawing.points[0]); ball[1] = .12 + elevation(drawing.elevation);
+    const raw = sampleDefenseOrganization(fraction, starts, destinations, config.actorIds.map(id => step.actorActions?.[id]), ball, step.durationMs / 1000);
+    return { ...raw, config, bases, progress: fraction, mode: "defense", ballId: config.ballId, visibleIds: [...config.actorIds],
+      elapsedSeconds: fraction * raw.duration, actors: raw.actors.map((actor, slot) => ({ ...actor, id: config.actorIds[slot], slot, visible: true })) };
+  }
   const raw = (config.mode === "receive"
     ? sampleReception(fraction, { system: config.system, rotation: config.rotation, bases, landing: [config.landingOverride?.x ?? (config.seam === "Left" ? -1.45 : 1.4), config.landingOverride?.z ?? 6.65], serve: config.serve })
     : sampleAttack(fraction, { bases, preset: config.preset, blockers: config.blockers, layers: config.layers, ...config.attackSettings })) as unknown as Omit<CourtSimulationSample, "config" | "bases" | "actors" | "ballId" | "visibleIds" | "mode" | "elapsedSeconds" | "progress"> & { actors: Omit<CourtSimulationActor, "id" | "slot" | "visible">[] };
@@ -43,6 +54,8 @@ export function configureCourtSimulation(payload: CourtVisualPayload, index: num
   const source = payload.timeline.steps[index];
   if (!source || !payload.editor) return payload;
   const previous = getCourtSimulation(payload, index);
+  // Defense is an authored dedicated stage, never a generic formation reset.
+  if (patch.mode === "defense" || previous?.mode === "defense") return payload;
   const mode = patch.mode ?? previous?.mode ?? "receive";
   const actors = [...payload.actors], actorMeta = { ...payload.editor.actorMeta }, positions = { ...source.actorPositions };
   const initiallyVisible = source.visibleActorIds ?? actors.map(actor => actor.id);
@@ -122,7 +135,7 @@ export function configureCourtSimulation(payload: CourtVisualPayload, index: num
 
 export function resetCourtSimulation(payload: CourtVisualPayload, index: number): CourtVisualPayload {
   const config = getCourtSimulation(payload, index);
-  if (!config) return payload;
+  if (!config || config.mode === "defense") return payload;
   return configureCourtSimulation(payload, index, { landingOverride: null,
     attackSettings: { hitOverride: null, targetOverride: null, setHeight: null, attackArc: null, passHeight: 2.1, blockAngle: 0, blockAngles: {}, manualBlockers: [] },
   }, { resetFormation: true });
@@ -131,7 +144,7 @@ export function resetCourtSimulation(payload: CourtVisualPayload, index: number)
 export type CourtSimulationHandleEdit = { kind: "hit" | "target" | "serve" | "pass" | "set" | "attack"; point?: CourtPoint; value?: number };
 export function updateCourtSimulationHandle(payload: CourtVisualPayload, index: number, edit: CourtSimulationHandleEdit): CourtVisualPayload {
   const config = getCourtSimulation(payload, index);
-  if (!config) return payload;
+  if (!config || config.mode === "defense") return payload;
   const point = edit.point && Number.isFinite(edit.point.x) && Number.isFinite(edit.point.y) ? world(edit.point) : null;
   if (edit.kind === "serve") return point ? configureCourtSimulation(payload, index, { landingOverride: { x: point[0], z: point[2] } }) : payload;
   if (edit.kind === "target") return point ? configureCourtSimulation(payload, index, { attackSettings: { targetOverride: [point[0], point[2]] } }) : payload;

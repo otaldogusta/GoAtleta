@@ -21,9 +21,11 @@ movimento pelo piso. Implementação local, sem publicação.
 - Jogadores e bola controlados pela simulação mantêm a altura do motor; a alça
   autoral não disputa esse movimento. O valor autoral armazenado é preservado.
 - Setas ligadas à bola acompanham o início em X/Y/Z durante a prévia e após
-  confirmar; as pontas permanecem fixas. A média vertical dos extremos determina
-  o ponto intermediário das curvas ajustáveis. Mover uma seta isolada solta o
-  vínculo e a devolve ao piso, inclusive na prévia.
+  confirmar; as pontas permanecem fixas. Sem perfil autoral, a média vertical
+  dos extremos determina o ponto intermediário das curvas ajustáveis.
+  O refino de [trajetória autoral](QUADRA_TRAJETORIA_AUTORAL_3D_2026-11-12.md)
+  acrescenta início/meio/fim em altura e materializa o Y ao soltar o vínculo,
+  substituindo o comportamento anterior que devolvia a seta isolada ao piso.
 - A sombra do jogador permanece no piso. Seleção, rótulos e picking acompanham
   o objeto elevado. O 2D conserva sua posição e ordem de camadas.
 - A alça respeita cabeçalho, rodapé e ferramentas; se o objeto sai da tela,

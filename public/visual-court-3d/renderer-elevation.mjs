@@ -1,4 +1,5 @@
 import {clamp,isWorldPoint} from './renderer-geometry.mjs';
+import {resolvedTrajectoryHeights,trajectoryProfilePoints} from './renderer-trajectory.mjs';
 
 const materialKinds=new Set(['ball','cone','target','ladder']);
 export function authorMovementPlaneY(frame,id){
@@ -59,13 +60,14 @@ export function previewCourtObjects(frame,move,height){
  const balls=new Map(drawings.filter(d=>d.kind==='ball'&&d.points[0]).map(d=>[d.id,d.points[0]]));
  return {...frame,actors,drawings:drawings.map(drawing=>{
   if(!drawing.startBallId||!['arrow','curve'].includes(drawing.kind)||drawing.points.length<2)return drawing;
-  // The host detaches an arrow moved without its ball and projects it onto the floor.
-  if(moved.has(drawing.id)&&!moved.has(drawing.startBallId)){const {startBallId:_startBallId,...detached}=drawing;return {...detached,points:drawing.points.map(point=>({...point,y:.025}))};}
+  // Detach at the visible height, including legacy linked slopes; never drop it to the floor.
+  if(moved.has(drawing.id)&&!moved.has(drawing.startBallId)){const {startBallId:_startBallId,...detached}=drawing,profile=resolvedTrajectoryHeights(drawing);return {...detached,trajectoryHeights:profile,points:trajectoryProfilePoints(drawing.points,drawing.kind,profile)};}
   const ball=balls.get(drawing.startBallId),start=drawing.points[0];if(!ball)return drawing;
   const delta={x:ball.x-start.x,y:ball.y-start.y,z:ball.z-start.z};if(!delta.x&&!delta.y&&!delta.z)return drawing;
   const points=[...drawing.points];points[0]={...ball};
   const through=drawing.kind==='curve'&&drawing.curveMode==='through-point'&&points.length===3;
   if(through){const middle=points[1];points[1]={...middle,x:clamp(middle.x+delta.x/4,-6.3,6.3),z:clamp(middle.z+delta.z/4,-11.7,11.7)};}
+  if(drawing.trajectoryHeights){const profile={...drawing.trajectoryHeights,start:ball.y};return {...drawing,trajectoryHeights:profile,points:trajectoryProfilePoints(points,drawing.kind,profile)};}
   const distances=points.map((point,index)=>index?Math.hypot(point.x-points[index-1].x,point.z-points[index-1].z):0),total=distances.reduce((sum,length)=>sum+length,0);let travelled=0;
   return {...drawing,points:points.map((point,index)=>{travelled+=distances[index];if(index===0||index===points.length-1)return point;const t=through?index/2:total?travelled/total:index/(points.length-1);return {...point,y:ball.y+(points.at(-1).y-ball.y)*t};})};
  })};

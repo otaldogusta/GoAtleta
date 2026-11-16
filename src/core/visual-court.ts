@@ -1,5 +1,7 @@
 import canonical5x1Reception from "./presets/5x1-reception.goatleta.json";
 import { normalizeCourtSimulation } from "./court-simulation-model";
+import { normalizeCourtActorActions, type CourtActorAction } from "./court-actor-actions";
+export type { CourtActorAction } from "./court-actor-actions";
 
 export type CourtVisualSourceKind = "rotation" | "lesson" | "scouting" | "free";
 
@@ -120,6 +122,7 @@ export type CourtVisualStep = {
   actorPositions: Record<string, CourtPoint>;
   /** Authored vertical offset in metres; absent/zero keeps the floor position. */
   actorElevations?: Record<string, number>;
+  actorActions?: Record<string, CourtActorAction>;
   baselineActorPositions?: Record<string, CourtPoint>;
   legalPositions?: Record<string, CourtPoint>;
   tacticalPositions?: Record<string, CourtPoint>;
@@ -262,6 +265,10 @@ export const normalizeExtendedCourtPoint = (point: CourtPoint): CourtPoint => ({
   y: Number(clampCourtExtendedUnit(point.y).toFixed(4)),
 });
 
+const normalizeDefensePoint = (point: CourtPoint): CourtPoint => ({
+  x: clampCourtExtendedUnit(point.x), y: clampCourtExtendedUnit(point.y),
+});
+
 const normalizeCourtVisualActorLabel = (actor: CourtVisualActor) => {
   if (actor.id === "p1") return "P¹";
   if (actor.id === "p2") return "P²";
@@ -294,20 +301,21 @@ export const normalizeCourtPayload = (
   timeline: {
     steps: payload.timeline.steps.map((step) => ({
       ...step,
+      ...(step.actorActions ? { actorActions: normalizeCourtActorActions(step.actorActions, payload.actors.map(actor => actor.id)) } : {}),
       ...(step.simulation ? { simulation: normalizeCourtSimulation(step.simulation,
         payload.actors.map(actor => actor.id),
         (payload.editor?.drawings[step.id] ?? []).filter(drawing => drawing.kind === "ball").map(drawing => drawing.id)) ?? undefined } : {}),
       actorPositions: Object.fromEntries(
         Object.entries(step.actorPositions).map(([actorId, point]) => [
           actorId,
-          normalizeExtendedCourtPoint(point),
+          step.simulation?.mode === "defense" ? normalizeDefensePoint(point) : normalizeExtendedCourtPoint(point),
         ])
       ),
       baselineActorPositions: step.baselineActorPositions
         ? Object.fromEntries(
             Object.entries(step.baselineActorPositions).map(([actorId, point]) => [
               actorId,
-              normalizeExtendedCourtPoint(point),
+              step.simulation?.mode === "defense" ? normalizeDefensePoint(point) : normalizeExtendedCourtPoint(point),
             ])
           )
         : undefined,

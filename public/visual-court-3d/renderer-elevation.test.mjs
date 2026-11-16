@@ -119,7 +119,8 @@ test('a selected arrow moves freely on its own and moves once when selected toge
  for(const id of ['arrow','curve']){
   const move={delta:{x:.1,y:.1},ids:[id]},original=frame.drawings.find(item=>item.id===id),alone=previewCourtObjects(frame,move,null).drawings.find(item=>item.id===id);
   assert.equal(alone.startBallId,undefined);
-  alone.points.forEach((point,index)=>{close(point.x,original.points[index].x+.9);close(point.z,original.points[index].z+1.8);assert.equal(point.y,.025);});
+  alone.points.forEach((point,index)=>{close(point.x,original.points[index].x+.9);close(point.z,original.points[index].z+1.8);close(point.y,original.points[index].y);});
+  assert.deepEqual(alone.trajectoryHeights,{start:original.points[0].y,middle:(original.points[0].y+original.points.at(-1).y)/2,end:original.points.at(-1).y});
   const together=previewCourtObjects(frame,{...move,ids:[id,'ball']},null),linked=together.drawings.find(item=>item.id===id);
   assert.equal(linked.startBallId,'ball');assert.deepEqual(linked.points[0],together.drawings[0].points[0]);
   linked.points.forEach((point,index)=>{close(point.x,alone.points[index].x);close(point.z,alone.points[index].z);close(point.y,original.points[index].y);});
