@@ -65,7 +65,7 @@ export type PersonProfilePageProps = {
   onNameChange?: (name: string) => void;
   role: string;
   roleControl?: ReactNode;
-  organizationName: string;
+  organizationName?: string;
   workspaceControl?: ReactNode;
   email?: string | null;
   photoUri?: string | null;
@@ -120,6 +120,7 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
   const cardPadding = dense && compact ? 10 : 12;
   const sectionGap = dense ? metrics.gap : 12;
   const avatarSize = compact ? 56 : 64;
+  const avatarBorderWidth = props.ownProfile && props.photoUri ? 0 : 5;
   // Colors and court artwork from the approved profile mockup.
   const coverColor = mode === "light" ? "#DCE5EF" : "#223450";
   const avatarColor = "#B8C9DA";
@@ -184,9 +185,9 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
           </View>
           <View style={{ paddingHorizontal: dense ? cardPadding : compact ? 12 : 16, paddingBottom: dense ? metrics.gap : 12, gap: 0 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "nowrap" }}>
-              <Pressable accessibilityRole={props.onEditPhoto ? "button" : undefined} accessibilityLabel={props.onEditPhoto ? "Editar foto do perfil" : `Avatar de ${props.name}`} onPress={props.onEditPhoto} disabled={!props.onEditPhoto} testID={`${props.testID ?? "staff-profile"}-avatar`} suppressWebHoverFeedback disableWebPressScale style={{ flexShrink: 0, width: avatarSize, height: avatarSize, marginTop: -24, borderRadius: avatarSize / 2, borderWidth: 5, borderColor: colors.card, backgroundColor: avatarColor, alignItems: "center", justifyContent: "center", overflow: "visible" }}>
-                {props.photoUri ? <ProfileAvatarPhoto uri={props.photoUri} size={avatarSize - 10} /> : <Text style={{ color: "#1C3045", fontSize: compact ? 18 : 20, fontWeight: "700" }}>{initials}</Text>}
-                {props.onEditPhoto ? <View style={{ position: "absolute", bottom: -3, right: -3, width: 28, height: 28, borderWidth: 3, borderColor: colors.card, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", borderRadius: 14 }}><GoAtletaIcon name="camera" size={12} color={colors.primaryText} /></View> : null}
+              <Pressable accessibilityRole={props.onEditPhoto ? "button" : undefined} accessibilityLabel={props.onEditPhoto ? (props.ownProfile && props.photoUri ? "Ver foto do perfil" : "Editar foto do perfil") : `Avatar de ${props.name}`} onPress={props.onEditPhoto} disabled={!props.onEditPhoto} testID={`${props.testID ?? "staff-profile"}-avatar`} suppressWebHoverFeedback disableWebPressScale style={{ flexShrink: 0, width: avatarSize, height: avatarSize, marginTop: -24, borderRadius: avatarSize / 2, borderWidth: avatarBorderWidth, borderColor: colors.card, backgroundColor: avatarBorderWidth ? avatarColor : "transparent", alignItems: "center", justifyContent: "center", overflow: "visible" }}>
+                {props.photoUri ? <ProfileAvatarPhoto uri={props.photoUri} size={avatarSize - 2 * avatarBorderWidth} /> : <Text style={{ color: "#1C3045", fontSize: compact ? 18 : 20, fontWeight: "700" }}>{initials}</Text>}
+                {props.onEditPhoto && !(props.ownProfile && props.photoUri) ? <View style={{ position: "absolute", bottom: -3, right: -3, width: 28, height: 28, borderWidth: 3, borderColor: colors.card, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center", borderRadius: 14 }}><GoAtletaIcon name="camera" size={12} color={colors.primaryText} /></View> : null}
                 {props.presence ? <View accessibilityRole="image" accessibilityLabel={presenceLabel} {...(Platform.OS === "web" ? { title: presenceLabel } : {})} testID="profile-presence" style={{ position: "absolute", right: props.onEditPhoto ? undefined : -1, left: props.onEditPhoto ? -1 : undefined, bottom: -1, width: 20, height: 20, borderRadius: 10, borderWidth: 4, borderColor: colors.card, backgroundColor: props.presence === "online" ? colors.successText : colors.muted }}>
                   {props.presence === "unknown" ? <View style={{ position: "absolute", inset: 2, borderRadius: 6, backgroundColor: colors.card }} /> : null}
                 </View> : null}
@@ -197,7 +198,9 @@ export function PersonProfilePage(props: PersonProfilePageProps) {
               </View>
             </View>
             <View style={{ flexDirection: "row", gap: dense ? metrics.gap : 10, alignItems: "center", flexWrap: "wrap", marginTop: dense ? metrics.gap : 12 }}><>{props.ownProfile && props.onNameChange ? <EditableProfileName name={props.name} onChange={props.onNameChange} color={colors.text} fontSize={compact ? metrics.titleFontSize : 18} /> : <Text style={{ color: colors.text, fontSize: compact ? metrics.titleFontSize : 18, fontWeight: "700" }}>{props.name}</Text>}</>{props.ownProfile && props.roleControl ? props.roleControl : <Text style={{ color: colors.muted, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, fontSize: metrics.metadataFontSize }}>{props.role}</Text>}</View>
-            {props.ownProfile && props.workspaceControl ? props.workspaceControl : <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize, marginTop: 4 }}>{props.organizationName}</Text>}
+            {props.ownProfile && props.workspaceControl ? props.workspaceControl : props.organizationName ? (
+              <Text style={{ color: colors.muted, fontSize: metrics.bodyFontSize, marginTop: 4 }}>{props.organizationName}</Text>
+            ) : null}
             {props.locationLabel || (props.joinedAt && Number.isFinite(Date.parse(props.joinedAt))) ? <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: dense ? metrics.gap : 18, rowGap: dense ? metrics.smallGap : 8, marginTop: dense ? metrics.gap : 12 }}>
               {props.locationLabel ? <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><GoAtletaIcon name="location" size={13} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize }}>{props.locationLabel}</Text></View> : null}
               {props.joinedAt && Number.isFinite(Date.parse(props.joinedAt)) ? <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><GoAtletaIcon name="calendar" size={13} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: metrics.metadataFontSize }}>{props.joinedLabel ?? "Na equipe desde"} {new Date(props.joinedAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</Text></View> : null}

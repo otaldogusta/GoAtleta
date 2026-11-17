@@ -10,6 +10,8 @@ type NormalizedProfilePhoto = {
   normalized: boolean;
 };
 
+export type ProfilePhotoCrop = { originX: number; originY: number; width: number; height: number; rotation: number };
+
 const isNativeModuleUnavailableError = (message: string) => {
   const lower = message.toLowerCase();
   return (
@@ -47,7 +49,7 @@ const fallbackOriginalPhoto = (uri: string): NormalizedProfilePhoto => ({
   normalized: false,
 });
 
-const normalizeWebProfilePhoto = async (uri: string): Promise<NormalizedProfilePhoto> => {
+const normalizeWebProfilePhoto = async (uri: string, crop?: ProfilePhotoCrop): Promise<NormalizedProfilePhoto> => {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const source = new window.Image();
     source.crossOrigin = "anonymous";
@@ -58,17 +60,25 @@ const normalizeWebProfilePhoto = async (uri: string): Promise<NormalizedProfileP
   const { naturalWidth, naturalHeight } = image;
   if (!naturalWidth || !naturalHeight) throw new Error("Invalid profile photo dimensions");
 
-  const scale = Math.min(1, PROFILE_PHOTO_SIZE / Math.max(naturalWidth, naturalHeight));
+  const { originX, originY, width, height } = crop ?? { originX: 0, originY: 0, width: naturalWidth, height: naturalHeight };
+  const scale = Math.min(1, PROFILE_PHOTO_SIZE / Math.max(width, height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(naturalHeight * scale));
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Failed to create profile photo canvas");
 
   context.fillStyle = "#fff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingQuality = "high";
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  if (crop?.rotation) {
+    const sideways = crop.rotation % 180 !== 0;
+    context.scale(canvas.width / width, canvas.height / height);
+    context.translate((sideways ? naturalHeight : naturalWidth) / 2 - originX, (sideways ? naturalWidth : naturalHeight) / 2 - originY);
+    context.rotate(crop.rotation * Math.PI / 180);
+    context.drawImage(image, -naturalWidth / 2, -naturalHeight / 2);
+  } else if (crop) context.drawImage(image, originX, originY, width, height, 0, 0, canvas.width, canvas.height);
+  else context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
   const photo = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, "image/jpeg", PROFILE_PHOTO_COMPRESS);
@@ -81,6 +91,27 @@ const normalizeWebProfilePhoto = async (uri: string): Promise<NormalizedProfileP
     normalized: true,
   };
 };
+
+export async function cropProfilePhoto(uri: string, crop: ProfilePhotoCrop): Promise<string> {
+  if (Platform.OS === "web") {
+    return (await normalizeWebProfilePhoto(uri, crop)).uri;
+  }
+  const { ImageManipulator, SaveFormat } = await import("expo-image-manipulator");
+  const { rotation, ...rectangle } = crop;
+  const context = ImageManipulator.manipulate(uri);
+  try {
+    if (rotation) context.rotate(rotation);
+    context.crop(rectangle);
+    const image = await context.renderAsync();
+    try {
+      return (await image.saveAsync({ format: SaveFormat.JPEG, compress: PROFILE_PHOTO_COMPRESS })).uri;
+    } finally {
+      image.release();
+    }
+  } finally {
+    context.release();
+  }
+}
 
 const hasNativeImageManipulator = () => {
   try {

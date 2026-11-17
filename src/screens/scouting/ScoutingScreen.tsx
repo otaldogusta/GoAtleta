@@ -136,7 +136,16 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
     <ScreenPageHeader title="Scouting" eyebrow={cls?.name} onBack={back} right={<Button label={Platform.OS === 'web' ? 'Estúdio' : '+ Nova análise'} disabled={loading || (!ready && !rows.length)} onPress={() => Platform.OS === 'web' ? openAnalysis(active?.session.id ?? visible[0]?.session.id ?? rows[0]?.session.id,'video') : setCreating(true)} />} />
     <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 }}>
       <ResponsivePage gap={layout.density.pageGap}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><ScoutingTabs segmented value={mode} onChange={v => setMode(v as "treino" | "jogo")} items={[{ value: "treino", label: "Treinos" }, { value: "jogo", label: "Jogos" }]} /><Copy muted>{cls?.name}</Copy></View>
+      <View style={{ gap: 4 }}>
+        {cls?.name ? <Copy muted>{cls.name}</Copy> : null}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", columnGap: 16, rowGap: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <ScoutingTabs value={tab} onChange={v => setTab(v as "overview" | "history")} items={[{ value: "overview", label: "Visão geral", id: "scouting-overview-tab" }, { value: "history", label: `Histórico${visible.length ? ` · ${visible.length}` : ""}`, id: "scouting-history-tab" }]} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 4 }}>
+            <ScoutingTabs segmented value={mode} onChange={v => setMode(v as "treino" | "jogo")} items={[{ value: "treino", label: "Treinos" }, { value: "jogo", label: "Jogos" }]} />
+            <ScoutingSelect label="Período" calendar value={year === "all" ? "all" : month === "all" ? year : `${year}-${month}`} options={periodOptions} onChange={v => { const [y, m] = v.split("-"); setYear(y); setMonth(m ?? "all"); }} />
+          </View>
+        </View>
+      </View>
       <ErrorNotice text={error} />
       {error ? <Link label="Recarregar análises" onPress={() => reloadRows()} /> : null}
       {rosterError ? <>
@@ -145,15 +154,9 @@ function ScopedScouting({ org, userId, classId, initialSessionId }: { org: strin
       </> : null}
       {!loading && !ready && !error ? <Copy muted>A nova coleta aguarda atualização do banco. Você pode consultar as análises existentes.</Copy> : null}
       {loading ? <ActivityIndicator color={colors.text} /> : null}
-      <View style={{ gap: 16 }}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-          <ScoutingTabs value={tab} onChange={v => setTab(v as "overview" | "history")} items={[{ value: "overview", label: "Visão geral", id: "scouting-overview-tab" }, { value: "history", label: `Histórico${visible.length ? ` · ${visible.length}` : ""}`, id: "scouting-history-tab" }]} />
-          <ScoutingSelect label="Período" calendar value={year === "all" ? "all" : month === "all" ? year : `${year}-${month}`} options={periodOptions} onChange={v => { const [y, m] = v.split("-"); setYear(y); setMonth(m ?? "all"); }} />
-        </View>
-        {tab === 'history' ? <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Copy muted>Contexto observado</Copy><ScoutingSelect label="Contexto observado" outlined value={format} onChange={setFormat} options={["all", "2x2", "3x3", "4x4", "6x6", "outro", "unknown"].map(f => ({ value: f, label: f === "all" ? "Todos os contextos" : f === "unknown" ? "Não informado" : f === "outro" ? "Outro" : f.replace("x", " × ") }))} /></View>
-        </View> : null}
-      </View>
+      {tab === 'history' ? <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+        <Copy muted>Contexto observado</Copy><ScoutingSelect label="Contexto observado" outlined value={format} onChange={setFormat} options={["all", "2x2", "3x3", "4x4", "6x6", "outro", "unknown"].map(f => ({ value: f, label: f === "all" ? "Todos os contextos" : f === "unknown" ? "Não informado" : f === "outro" ? "Outro" : f.replace("x", " × ") }))} />
+      </View> : null}
       {tab === "overview" ? <ScoutingPerformanceOverview rows={completed} ready={ready} onReview={id=>openAnalysis(id)} /> : <View style={{ gap: 4 }}>
         <Input nativeID={historySearchId} label="Buscar análise" value={query} onChangeText={setQuery} placeholder="Título ou adversário" />
         {!historyRows.length && !loading && !error ? <ListEmptyState

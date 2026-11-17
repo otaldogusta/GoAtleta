@@ -41,10 +41,8 @@ import { useRole } from "../src/auth/role";
 import { getStudentAccessPendingCopy } from "../src/auth/student-access-reconciliation";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { compactUiMetrics, radius, spacing } from "../src/theme/tokens";
-import { AnchoredDropdown } from "../src/ui/AnchoredDropdown";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
-import { APP_PRODUCT_LABELS } from "../src/config/brand";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Button } from "../src/ui/Button";
 import { usePendingAccessRequest } from "../src/screens/auth/usePendingAccessRequest";
@@ -317,9 +315,6 @@ export default function PendingScreen() {
     null,
   );
   const [requestMode, setRequestMode] = useState<"family" | "staff">("family");
-  const [requestedProduct, setRequestedProduct] = useState<
-    "goatleta" | "goatleta_pro"
-  >("goatleta");
   const [requestedStudentName, setRequestedStudentName] = useState("");
   const [requestedRelationshipLabel, setRequestedRelationshipLabel] =
     useState("");
@@ -364,14 +359,9 @@ export default function PendingScreen() {
   const [selectedOrganization, setSelectedOrganization] =
     useState<AccessRequestOrganization | null>(null);
   const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
+  const organizationOverlayZIndex = Platform.OS === "web" && organizationPickerOpen ? 10 : undefined;
   const [organizationCatalogLoading, setOrganizationCatalogLoading] =
     useState(false);
-  const [organizationTriggerLayout, setOrganizationTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const {
     request: accessRequest,
     error: accessRequestError,
@@ -382,7 +372,6 @@ export default function PendingScreen() {
   const [accessRequestBusy, setAccessRequestBusy] = useState(false);
   const requestLock = useRef(false);
   const autoClaimedRef = useRef(false);
-  const organizationTriggerRef = useRef<View>(null);
   const [textAnim] = useState(() => new Animated.Value(0));
   const [inviteEntryAnim] = useState(() => new Animated.Value(0));
   const [inviteShakeAnim] = useState(() => new Animated.Value(0));
@@ -456,7 +445,6 @@ export default function PendingScreen() {
     try {
       await requestAccessReview({
         organizationId: selectedOrganization.id,
-        requestedProduct,
       });
       await loadAccessRequest();
     } catch (error) {
@@ -1042,6 +1030,7 @@ export default function PendingScreen() {
                 style={{
                   width: compactContentWidth,
                   alignSelf: "center",
+                  zIndex: organizationOverlayZIndex,
                   borderRadius: radius.container,
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -1159,114 +1148,64 @@ export default function PendingScreen() {
                     </Pressable>
                   </View>
                 ) : (
-                  <View style={{ gap: spacing.sm }}>
-                    <View style={{ flexDirection: "row", gap: spacing.xs }}>
+                  <View style={{ gap: spacing.sm, zIndex: organizationOverlayZIndex }}>
+                    <View style={{ flexDirection: "row", gap: spacing.xs, padding: spacing.xs, borderRadius: radius.internal, backgroundColor: colors.secondaryBg }}>
                       {(
                         [
-                          ["family", "Atleta ou responsável"],
-                          ["staff", "Equipe da instituição"],
+                          ["athlete", "Sou atleta"],
+                          ["guardian", "Sou responsável"],
+                          ["staff", "Equipe"],
                         ] as const
-                      ).map(([value, label]) => (
-                        <Pressable
-                          key={value}
-                          accessibilityRole="button"
-                          accessibilityState={{
-                            selected: requestMode === value,
-                          }}
-                          onPress={() => {
-                            setRequestMode(value);
-                            setMessage("");
-                          }}
-                          style={{
-                            flex: 1,
-                            minHeight: 42,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor:
-                              requestMode === value
-                                ? colors.primaryBg
-                                : colors.border,
-                            backgroundColor:
-                              requestMode === value
-                                ? colors.successBg
-                                : colors.secondaryBg,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            paddingHorizontal: spacing.xs,
-                          }}
-                        >
-                          <Text
+                      ).map(([value, label]) => {
+                        const selected = requestMode === "staff" ? value === "staff" : value === requestIntent;
+                        return (
+                          <Pressable
+                            key={value}
+                            accessibilityRole="button"
+                            accessibilityLabel={value === "staff" ? "Equipe da instituição" : label}
+                            accessibilityState={{ selected, disabled: accessRequestBusy }}
+                            disabled={accessRequestBusy}
+                            onPress={() => {
+                              setRequestMode(value === "staff" ? "staff" : "family");
+                              if (value !== "staff") setRequestIntent(value);
+                              setMessage("");
+                            }}
                             style={{
-                              color: colors.text,
-                              fontSize: 12,
-                              fontWeight: "800",
-                              textAlign: "center",
+                              flex: 1,
+                              minHeight: 44,
+                              borderRadius: 8,
+                              backgroundColor: selected ? colors.successBg : "transparent",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              paddingHorizontal: spacing.xs,
                             }}
                           >
-                            {label}
-                          </Text>
-                        </Pressable>
-                      ))}
+                            <Text
+                              style={{
+                                color: selected ? colors.successText : colors.text,
+                                fontSize: 12,
+                                fontWeight: "800",
+                                textAlign: "center",
+                              }}
+                            >
+                              {label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
                     </View>
                     {requestMode === "family" ? (
                       <FamilyAccessIntentFields
                         kind={requestIntent}
                         studentName={requestedStudentName}
                         relationshipLabel={requestedRelationshipLabel}
-                        onKind={setRequestIntent}
                         onStudentName={setRequestedStudentName}
                         onRelationshipLabel={setRequestedRelationshipLabel}
                         disabled={accessRequestBusy}
                       />
-                    ) : (
-                      <View style={{ gap: spacing.xs }}>
-                        <Text style={{ color: colors.muted, fontSize: compactUiMetrics.bodyFontSize }}>
-                          Plano de interesse
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: spacing.xs }}>
-                          {(["goatleta", "goatleta_pro"] as const).map(
-                            (product) => (
-                              <Pressable
-                                key={product}
-                                accessibilityRole="button"
-                                accessibilityState={{
-                                  selected: requestedProduct === product,
-                                }}
-                                onPress={() => setRequestedProduct(product)}
-                                style={{
-                                  flex: 1,
-                                  minHeight: 42,
-                                  borderRadius: radius.internal,
-                                  borderWidth: 1,
-                                  borderColor:
-                                    requestedProduct === product
-                                      ? colors.primaryBg
-                                      : colors.border,
-                                  backgroundColor:
-                                    requestedProduct === product
-                                      ? colors.successBg
-                                      : colors.secondaryBg,
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    color: colors.text,
-                                    fontSize: 12,
-                                    fontWeight: "800",
-                                  }}
-                                >
-                                  {APP_PRODUCT_LABELS[product]}
-                                </Text>
-                              </Pressable>
-                            ),
-                          )}
-                        </View>
-                      </View>
-                    )}
-                    <View ref={organizationTriggerRef} collapsable={false}>
-                      <View
+                    ) : null}
+                    <View style={{ position: "relative", zIndex: organizationOverlayZIndex }}>
+                    <View
                         style={{
                           minHeight: 50,
                           borderRadius: 12,
@@ -1293,16 +1232,9 @@ export default function PendingScreen() {
                           value={organizationQuery}
                           onFocus={() => {
                             setOrganizationPickerOpen(true);
-                            organizationTriggerRef.current?.measureInWindow(
-                              (x, y, width, height) => {
-                                setOrganizationTriggerLayout({
-                                  x,
-                                  y,
-                                  width,
-                                  height,
-                                });
-                              },
-                            );
+                          }}
+                          onKeyPress={({ nativeEvent }) => {
+                            if (nativeEvent.key === "Escape") setOrganizationPickerOpen(false);
                           }}
                           onChangeText={(value) => {
                             setOrganizationQuery(value);
@@ -1323,27 +1255,31 @@ export default function PendingScreen() {
                               : null,
                           ]}
                         />
-                        <GoAtletaIcon
-                          name={
-                            organizationPickerOpen ? "chevronUp" : "chevronDown"
-                          }
-                          size={17}
-                          color={colors.muted}
-                        />
-                      </View>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={organizationPickerOpen ? "Fechar lista de instituições" : "Abrir lista de instituições"}
+                          accessibilityState={{ expanded: organizationPickerOpen }}
+                          onPress={() => setOrganizationPickerOpen(!organizationPickerOpen)}
+                          style={{ minWidth: 44, minHeight: 44, marginRight: -10, alignItems: "center", justifyContent: "center" }}
+                        >
+                          <GoAtletaIcon name={organizationPickerOpen ? "chevronUp" : "chevronDown"} size={17} color={colors.muted} />
+                        </Pressable>
                     </View>
-                    <AnchoredDropdown
-                      visible={organizationPickerOpen}
-                      layout={organizationTriggerLayout}
-                      container={null}
-                      animationStyle={{ opacity: 1 }}
-                      zIndex={6200}
-                      maxHeight={260}
+                    {organizationPickerOpen ? <ScrollView
+                      accessibilityLabel="Resultados da busca de instituições"
                       nestedScrollEnabled
-                      density="menu"
-                      fitContent
-                      interactiveRefs={[organizationTriggerRef]}
-                      onRequestClose={() => setOrganizationPickerOpen(false)}
+                      keyboardShouldPersistTaps="handled"
+                      style={{
+                        ...(Platform.OS === "web" ? { position: "absolute", top: "100%", left: 0, right: 0 } : {}),
+                        marginTop: spacing.xs,
+                        flexGrow: 0,
+                        maxHeight: 224,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.inputBg,
+                      }}
+                      contentContainerStyle={{ padding: spacing.xs }}
                     >
                       {organizationCatalogLoading ? (
                         <Text
@@ -1382,7 +1318,7 @@ export default function PendingScreen() {
                                   setOrganizationPickerOpen(false);
                                 }}
                                 style={{
-                                  minHeight: 54,
+                                  minHeight: 44,
                                   borderRadius: radius.internal,
                                   paddingHorizontal: 12,
                                   flexDirection: "row",
@@ -1415,7 +1351,8 @@ export default function PendingScreen() {
                             );
                           })
                         : null}
-                    </AnchoredDropdown>
+                    </ScrollView> : null}
+                    </View>
                     {selectedOrganization ? (
                       <Button
                         label={

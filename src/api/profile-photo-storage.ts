@@ -83,9 +83,12 @@ const writePhoto = (path: string, headers: Record<string, string>, body: Blob) =
 
 const deletePhoto = async (path: string, headers: Record<string, string>) => {
   const response = await fetch(storageObjectUrl(path), { method: "DELETE", headers });
-  if (!response.ok && response.status !== 404) {
-    throw new Error(getProfilePhotoStorageErrorMessage(response.status, "remove"));
+  if (response.ok || response.status === 404) return;
+  if (response.status === 400) {
+    const error = await response.json?.().catch(() => null);
+    if (error?.message === "Object not found") return;
   }
+  throw new Error(getProfilePhotoStorageErrorMessage(response.status, "remove"));
 };
 
 const isSmallerJxl = async (variant: Blob, jpeg: Blob) => {

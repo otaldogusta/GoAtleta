@@ -13,6 +13,10 @@ recuperação, `/pending`, provedores globais, permissões ou navegação por pa
 A busca no Painel da Plataforma reutiliza os nomes de instituições já carregadas
 pela tela autorizada e oferece o atalho para Acessos.
 
+Em `/pending`, a solicitação profissional pede a instituição. O formulário
+não apresenta escolha de plano. Na web, os resultados se sobrepõem ao
+formulário logo abaixo do campo de busca.
+
 | Arquivo principal | Responsabilidade atual |
 | --- | --- |
 | [app/_layout.tsx](../../../app/_layout.tsx) | Bootstrap, composição dos provedores, interceptação de links e bloqueios de rota. |

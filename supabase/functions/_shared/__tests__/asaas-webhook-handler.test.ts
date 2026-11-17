@@ -33,7 +33,11 @@ describe("Asaas webhook delivery", () => {
     const handler = createAsaasWebhookHandler(deps);
     const deliveries = await Promise.all([handler(request()), handler(request())]);
     expect(deliveries.map((response) => response.status)).toEqual([200, 200]);
-    expect(await deliveries[1].json()).toEqual({ received: true, duplicate: true });
+    const receipts = await Promise.all(deliveries.map((response) => response.json()));
+    expect(receipts).toEqual(expect.arrayContaining([
+      { received: true },
+      { received: true, duplicate: true },
+    ]));
     for (const [command] of deps.processEvent.mock.calls) {
       expect(command).toMatchObject({
         p_org_id: scope.organizationId,

@@ -28,6 +28,9 @@ e Pagamentos dependem das capacidades do vínculo selecionado.
 
 ## Contratos a preservar
 
+- Tocar no avatar próprio abre câmera e galeria quando ainda não há foto. Com foto,
+  abre a visualização. O lápis dá acesso às mesmas opções com recorte ajustável
+  antes de salvar. A lixeira pede confirmação para remover.
 - Na edição institucional, os campos de saúde são comparados com a ficha carregada.
   Alterar o nome não reenvia campos de saúde que ficaram iguais.
 - Em Gestão, o diálogo Convidar pessoa usa o gerenciamento de foco do ModalSheet.

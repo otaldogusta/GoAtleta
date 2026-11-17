@@ -142,6 +142,15 @@ describe("optional JPEG XL profile photos", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3, object, expect.objectContaining({ method: "DELETE" }));
   });
 
+  it("continues removing the JPEG when Storage reports an absent optional variant as 400", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ message: "Object not found" }) })
+      .mockResolvedValueOnce({ ok: true });
+
+    await removeMyProfilePhotoObject(input.userId);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(2, object, expect.objectContaining({ method: "DELETE" }));
+  });
+
   it("queues removal until an in-flight variant write settles", async () => {
     let finishVariant: ((value: { ok: boolean }) => void) | undefined;
     let startVariant: (() => void) | undefined;

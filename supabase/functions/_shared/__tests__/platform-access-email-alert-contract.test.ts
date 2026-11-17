@@ -9,6 +9,10 @@ const pendingScreenSource = readFileSync(
   resolve(__dirname, "../../../../app/pending.tsx"),
   "utf8",
 );
+const accessRequestSource = readFileSync(
+  resolve(__dirname, "../../../../src/api/access-request.ts"),
+  "utf8",
+);
 
 describe("platform access email alert contract", () => {
   test("alerts the platform mailbox only for a newly inserted request", () => {
@@ -33,13 +37,13 @@ describe("platform access email alert contract", () => {
     );
   });
 
-  test("offers a professional request with an explicit product on the pending screen", () => {
+  test("uses the default product compatibility value for the professional request", () => {
     expect(pendingScreenSource).toContain(
       'const [requestMode, setRequestMode] = useState<"family" | "staff">',
     );
     expect(pendingScreenSource).toContain("await requestAccessReview({");
-    expect(pendingScreenSource).toContain("requestedProduct,");
-    expect(pendingScreenSource).toContain("APP_PRODUCT_LABELS[product]");
+    expect(pendingScreenSource).not.toContain("Plano de interesse");
+    expect(accessRequestSource).toContain('requestedProduct: input.requestedProduct ?? "goatleta"');
     expect(pendingScreenSource).toContain("Solicitar acesso profissional");
   });
 });

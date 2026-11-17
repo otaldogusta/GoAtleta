@@ -8,7 +8,7 @@ import { radius, spacing } from "../../theme/tokens";
 
 export function FamilyAccessIntentFields({ kind, studentName, relationshipLabel, onKind, onStudentName, onRelationshipLabel, disabled = false }: {
   kind: FamilyAccessIntent | null; studentName: string; relationshipLabel: string;
-  onKind: (value: FamilyAccessIntent) => void; onStudentName: (value: string) => void;
+  onKind?: (value: FamilyAccessIntent) => void; onStudentName: (value: string) => void;
   onRelationshipLabel: (value: string) => void; disabled?: boolean;
 }) {
   const { colors } = useAppTheme();
@@ -20,10 +20,10 @@ export function FamilyAccessIntentFields({ kind, studentName, relationshipLabel,
     </View>
   </View>;
   return <View style={{ gap: spacing.sm }}>
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+    {onKind ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
       <Button label="Sou atleta" variant={kind === "athlete" ? "primary" : "outline"} disabled={disabled} onPress={() => onKind("athlete")} />
       <Button label="Sou responsável" variant={kind === "guardian" ? "primary" : "outline"} disabled={disabled} onPress={() => onKind("guardian")} />
-    </View>
+    </View> : null}
     {kind ? field(kind === "athlete" ? "Seu nome no cadastro de atleta" : "Nome do atleta", studentName, onStudentName, 160) : null}
     <AnimatedFieldDetails open={kind === "guardian"}>{field("Parentesco", relationshipLabel, onRelationshipLabel, 80)}</AnimatedFieldDetails>
   </View>;

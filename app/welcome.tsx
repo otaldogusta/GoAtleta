@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   Animated,
 
@@ -131,6 +131,15 @@ export default function WelcomeScreen() {
     }, 350);
   };
 
+  const handleCarouselKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    const next = activeIndex + (event.key === "ArrowRight" ? 1 : -1);
+    if (next >= 0 && next < CAROUSEL_SLIDES.length) scrollToSlide(next);
+  };
+  const carouselKeyboard = Platform.OS === "web" ? { onKeyDown: handleCarouselKeyDown } : {};
+
   const primaryBtnBg = mode === "dark" ? "#3DDC84" : "#27B86A";
   const primaryBtnText = brandPalette.navyDeep;
   const secondaryBtnBg = mode === "dark" ? "#121c30" : colors.secondaryBg;
@@ -140,10 +149,6 @@ export default function WelcomeScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1 }}>
         <Animated.View
-          onLayout={(e) => {
-            const w = e.nativeEvent.layout.width - 48;
-            if (w > 0) setContainerWidth(w);
-          }}
           style={{
             flex: 1,
             justifyContent: "space-between",
@@ -218,6 +223,12 @@ export default function WelcomeScreen() {
 
           {/* Swipable Carousel Hero Container */}
           <View
+            {...carouselKeyboard}
+            {...(Platform.OS === "web" ? {
+              tabIndex: 0,
+              role: "group" as const,
+              "aria-label": "Carrossel de modalidades",
+            } : {})}
             style={{
               width: "100%",
               height: 230,
@@ -245,6 +256,10 @@ export default function WelcomeScreen() {
               snapToInterval={containerWidth}
               decelerationRate="fast"
               showsHorizontalScrollIndicator={false}
+              onLayout={(event) => {
+                const width = event.nativeEvent.layout.width;
+                if (width > 0) setContainerWidth(width);
+              }}
               onScroll={handleScroll}
               scrollEventThrottle={16}
               nestedScrollEnabled
@@ -328,6 +343,7 @@ export default function WelcomeScreen() {
 
             {/* 4 Interactive Indicator Dots */}
             <View
+              {...carouselKeyboard}
               style={{
                 flexDirection: "row",
                 alignItems: "center",

@@ -42,6 +42,8 @@ import { resolveProfileInstitution } from "../src/screens/student/profile-instit
 
 import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
+import { ProfilePhotoCropEditor } from "../src/screens/profiles/ProfilePhotoCropEditor";
+import { cropProfilePhoto, type ProfilePhotoCrop } from "../src/utils/profile-photo";
 import {
   getMyProfessionalProfile,
   saveMyProfessionalProfile,
@@ -618,7 +620,11 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   const [loadingPhoto, setLoadingPhoto] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [showPhotoSources, setShowPhotoSources] = useState(false);
   const [photoPickerError, setPhotoPickerError] = useState<string | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<{ uri: string } | null>(null);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const savingPhotoRef = useRef(false);
   const [showNameEditor, setShowNameEditor] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -781,10 +787,8 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
   const googleMenuTriggerRef = useRef<View | null>(null);
   const mobileCountryTriggerRef = useRef<View | null>(null);
   const mobileGuardianCountryTriggerRef = useRef<View | null>(null);
-  const photoSheetStyle = useModalCardStyle({
-    maxHeight: "70%",
-    radius: 22,
-  });
+  const photoPreviewStyle = useModalCardStyle({ maxHeight: "92%", maxWidth: 400, radius: 22 });
+  const photoActionStyle = { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.secondaryBg, alignItems: "center", justifyContent: "center" } as const;
   const accountEditorStyle = useModalCardStyle({
     maxHeight: "92%",
     maxWidth: 520,
@@ -1945,6 +1949,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       } catch (error) {
         setPhotoUri(previousPhotoUri);
         console.error("Failed to update student photo", error);
+        if (uri) throw error;
         Alert.alert("Erro", "Não foi possível salvar a foto.");
       }
       return;
@@ -1958,6 +1963,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     } catch (error) {
       setPhotoUri(previousPhotoUri);
       console.error("Failed to persist profile photo", error);
+      if (uri) throw error;
       Alert.alert("Erro", "Não foi possível salvar a foto.");
     }
   };
@@ -1984,15 +1990,52 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
     await savePhoto(uploadedUri);
   };
 
+  const previewPhoto = (photo: { uri: string }) => {
+    setPhotoPickerError(null);
+    setPendingPhoto(photo);
+    setShowPhotoSheet(true);
+  };
+
+  const closePhotoSheet = () => {
+    if (savingPhotoRef.current) return;
+    setPendingPhoto(null);
+    setShowPhotoSources(false);
+    setPhotoPickerError(null);
+    setShowPhotoSheet(false);
+  };
+
+  const confirmPhoto = async (crop: ProfilePhotoCrop) => {
+    if (!pendingPhoto || savingPhotoRef.current) return;
+    savingPhotoRef.current = true;
+    setSavingPhoto(true);
+    setPhotoPickerError(null);
+    let croppedUri: string | undefined;
+    try {
+      croppedUri = await cropProfilePhoto(pendingPhoto.uri, crop);
+      await persistPickedPhoto(croppedUri, "image/jpeg");
+      setPendingPhoto(null);
+      setShowPhotoSources(false);
+      setShowPhotoSheet(false);
+    } catch (error) {
+      setPhotoPickerError(error instanceof Error && error.message === PROFILE_PHOTO_SIZE_ERROR
+        ? PROFILE_PHOTO_SIZE_ERROR
+        : "Não foi possível salvar a foto. Tente novamente.");
+    } finally {
+      if (Platform.OS === "web" && croppedUri?.startsWith("blob:")) URL.revokeObjectURL(croppedUri);
+      savingPhotoRef.current = false;
+      setSavingPhoto(false);
+    }
+  };
+
   const pickPhoto = async (source: "camera" | "library") => {
     setPhotoPickerError(null);
     if (source === "camera") {
+      setShowPhotoSources(false);
       setShowPhotoSheet(false);
       setShowCameraCapture(true);
       return;
     }
 
-    let closePhotoOptions = true;
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
@@ -2005,13 +2048,12 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: student?.id ? 0.85 : 0.6,
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         base64: false,
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
-        await persistPickedPhoto(asset.uri, asset.mimeType);
+        previewPhoto(asset);
       }
     } catch (error) {
       const tooLarge = error instanceof Error && error.message === PROFILE_PHOTO_SIZE_ERROR;
@@ -2019,14 +2061,12 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       if (!tooLarge) console.warn("Failed to pick profile photo", error);
       if (Platform.OS === "web") {
         setPhotoPickerError(message);
-        closePhotoOptions = false;
       } else {
         Alert.alert("Erro", message);
       }
-    } finally {
-      if (closePhotoOptions) setShowPhotoSheet(false);
     }
   };
+  const currentProfilePhoto = staffProfile ? photoUri : studentPhotoUri || photoUri;
 
   const mobilePhoneE164 = getPhoneVerificationTarget(mobileCountryCode, mobilePhoneDraft);
   const mobileGuardianPhoneE164 = mobileGuardianPhoneDraft.replace(/\D/g, "")
@@ -4328,7 +4368,7 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         onNameChange={setMobileNameDraft}
         role="Atleta"
         roleControl={roleControl}
-        organizationName={profileInstitution?.name ?? "Go Atleta"}
+        organizationName={profileInstitution?.name}
         workspaceControl={workspaceControl}
         photoUri={studentPhotoUri || photoUri}
         joinedAt={student?.createdAt}
@@ -5037,41 +5077,76 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
       </ModalSheet>
       <ModalSheet
         visible={showPhotoSheet}
-        onClose={() => setShowPhotoSheet(false)}
-        cardStyle={photoSheetStyle}
+        onClose={closePhotoSheet}
+        dialogLabel="Foto do perfil"
+        cardStyle={photoPreviewStyle}
         position="center"
       >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Fechar opções de foto"
-            onPress={() => setShowPhotoSheet(false)}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: radius.full,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            accessibilityLabel="Fechar foto do perfil"
+            disabled={savingPhoto}
+            onPress={closePhotoSheet}
+            style={photoActionStyle}
           >
             <GoAtletaIcon name="close" size={18} color={colors.text} />
           </Pressable>
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Foto do perfil</Text>
-          <View style={{ width: 36, height: 36 }} />
+          <Text style={{ flex: 1, color: colors.text, fontWeight: "700" }}>{pendingPhoto ? "Ajustar foto" : "Foto do perfil"}</Text>
+          {!pendingPhoto && currentProfilePhoto ? <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar foto"
+              accessibilityState={{ expanded: showPhotoSources }}
+              onPress={() => {
+                setPhotoPickerError(null);
+                setShowPhotoSources(!showPhotoSources);
+              }}
+              style={photoActionStyle}
+            >
+              <GoAtletaIcon name="pencil" size={18} color={colors.text} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Remover foto"
+              onPress={() => confirm({
+                title: "Remover foto",
+                message: "Tem certeza que deseja remover sua foto de perfil?",
+                confirmLabel: "Remover",
+                cancelLabel: "Cancelar",
+                tone: "danger",
+                onConfirm: async () => {
+                  await savePhoto(null);
+                  closePhotoSheet();
+                },
+              })}
+              style={photoActionStyle}
+            >
+              <GoAtletaIcon name="trash" size={18} color={colors.dangerText} />
+            </Pressable>
+          </> : null}
         </View>
         {photoPickerError ? (
           <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: metrics.bodyFontSize }}>
             {photoPickerError}
           </Text>
         ) : null}
-        <View style={{ gap: 12 }}>
+        {pendingPhoto ? (
+          <ProfilePhotoCropEditor
+            key={pendingPhoto.uri}
+            uri={pendingPhoto.uri}
+            saving={savingPhoto}
+            onCancel={closePhotoSheet}
+            onSave={(crop) => void confirmPhoto(crop)}
+          />
+        ) : (showPhotoSources || !currentProfilePhoto) ? <View style={{ gap: 12 }}>
           {([
             { label: "Câmera", icon: "camera", value: "camera" },
             { label: "Galeria", icon: "gallery", value: "library" },
           ] as const).map((item) => (
             <Pressable
               key={item.label}
+              accessibilityRole="button"
               onPress={() => pickPhoto(item.value)}
               style={{
                 flexDirection: "row",
@@ -5100,49 +5175,21 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
               <Text style={{ color: colors.text, fontWeight: "600" }}>{item.label}</Text>
             </Pressable>
           ))}
-          {photoUri ? (
-            <Pressable
-              onPress={() => {
-                confirm({
-                  title: "Remover foto",
-                  message: "Tem certeza que deseja remover sua foto de perfil?",
-                  confirmLabel: "Remover",
-                  cancelLabel: "Cancelar",
-                  tone: "danger",
-                  onConfirm: async () => {
-                    await savePhoto(null);
-                    setShowPhotoSheet(false);
-                  },
-                });
-              }}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                paddingVertical: 12,
-                paddingHorizontal: 12,
-                borderRadius: 14,
-                backgroundColor: colors.dangerSolidBg,
-              }}
-            >
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: "rgba(255,255,255,0.18)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <GoAtletaIcon name="trash" size={18} color={colors.dangerSolidText} />
-              </View>
-              <Text style={{ color: colors.dangerSolidText, fontWeight: "600" }}>
-                Remover foto
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
+        </View> : (
+          <Image
+            source={{ uri: currentProfilePhoto }}
+            contentFit="contain"
+            accessible
+            accessibilityLabel="Foto atual do perfil"
+            testID="current-profile-photo"
+            style={{
+              width: "100%",
+              height: Math.min(360, Math.max(120, viewportHeight * 0.65)),
+              borderRadius: radius.internal,
+              backgroundColor: colors.secondaryBg,
+            }}
+          />
+        )}
       </ModalSheet>
       <WebCameraCaptureModal
         visible={showCameraCapture}
@@ -5151,7 +5198,10 @@ export default function ProfileScreen({ settingsPage = false }: { settingsPage?:
         title="Foto do perfil"
         subtitle="Posicione-se no centro da imagem."
         onClose={() => setShowCameraCapture(false)}
-        onCapture={({ uri, mimeType }) => persistPickedPhoto(uri, mimeType)}
+        onCapture={(photo) => {
+          setShowCameraCapture(false);
+          previewPhoto(photo);
+        }}
       />
     </SafeAreaView>
   );

@@ -6,6 +6,7 @@ const mockResend = jest.fn();
 const mockSearchOrganizations = jest.fn();
 const mockListRequests = jest.fn();
 const mockRequestAthlete = jest.fn();
+const mockRequestStaff = jest.fn();
 let mockReturnTo: string | undefined;
 const mockClaimTrainerInvite = jest.fn();
 const mockResumeStaffSignup = jest.fn();
@@ -46,12 +47,10 @@ jest.mock("../../api/organization-access-requests", () => ({
   searchAccessRequestOrganizations: (...args: unknown[]) => mockSearchOrganizations(...args),
 }));
 jest.mock("../../api/family-access-request", () => ({ familyAccessErrorMessage: () => "Não foi possível concluir.", requestFamilyAccess: (...args: unknown[]) => mockRequestAthlete(...args) }));
+jest.mock("../../api/access-request", () => ({ requestAccessReview: (...args: unknown[]) => mockRequestStaff(...args) }));
 jest.mock("../../observability/perf", () => ({ markRender: jest.fn(), measureAsync: (_name: string, work: () => unknown) => work() }));
 jest.mock("../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { background: "#101827", text: "#ffffff", muted: "#8899bb", border: "#334155", primaryBg: "#2dd482", primaryText: "#101827", card: "#1e293b" } }) }));
 jest.mock("../../ui/icon-registry", () => ({ GoAtletaIcon: () => null, PixLogoIcon: () => null }));
-jest.mock("../../ui/AnchoredDropdown", () => ({
-  AnchoredDropdown: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => visible ? children : null,
-}));
 
 const PendingScreen = jest.requireActual("../../../app/pending").default;
 const mountPending = async () => {
@@ -150,6 +149,18 @@ it("submits an athlete link from profile without choosing a staff plan", async (
   fireEvent.press(screen.getByLabelText("Selecionar Rede Esportes Pinhais"));
   await act(async () => { fireEvent.press(screen.getByText("Solicitar vínculo")); });
   expect(mockRequestAthlete).toHaveBeenCalledWith({ organizationId: "org-1", kind: "athlete", studentName: "Ana Teste", relationshipLabel: "" });
+});
+
+it("requests staff access directly for the selected institution", async () => {
+  mockRequestStaff.mockResolvedValue({ accepted: true, status: "pending" });
+  await mountPending();
+  fireEvent.press(screen.getByLabelText("Equipe da instituição"));
+  expect(screen.queryByText("Plano de interesse")).toBeNull();
+  fireEvent(screen.getByLabelText("Buscar instituição"), "focus");
+  await waitFor(() => expect(screen.getByLabelText("Selecionar Rede Esportes Pinhais")).toBeTruthy());
+  fireEvent.press(screen.getByLabelText("Selecionar Rede Esportes Pinhais"));
+  await act(async () => { fireEvent.press(screen.getByText("Solicitar acesso profissional")); });
+  expect(mockRequestStaff).toHaveBeenCalledWith({ organizationId: "org-1" });
 });
 
 it("offers explicit correction for a legacy staff request from the athlete profile", async () => {
