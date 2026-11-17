@@ -50,6 +50,7 @@ type SyncRequest = {
   academicScope?: DriveAcademicScope;
   classId?: string;
   classBindingConfirmed?: boolean;
+  fileIds?: string[];
   maxFiles?: number;
   cursor?: number;
   batchSize?: number;
@@ -70,6 +71,7 @@ type DriveFile = {
   webViewLink?: string;
   description?: string;
   resourceKey?: string;
+  parents?: string[];
   capabilities?: {
     canDownload?: boolean;
   };
@@ -105,6 +107,7 @@ const DRIVE_FETCH_TIMEOUT_MS = 15_000;
 const DOCUMENT_EXTRACTION_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_FILES = 60;
 const MAX_FILES = 120;
+const MAX_SELECTED_FILES = 24;
 const MAX_CHUNKS_PER_FILE = 28;
 const MAX_DRIVE_LIST_PAGES = 10;
 const MAX_FOLDER_DEPTH = 12;
@@ -119,6 +122,22 @@ const createAdminClient = () => {
 };
 
 const textValue = (value: unknown) => String(value ?? "").trim();
+
+const normalizeSelectedFileIds = (value: unknown) => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("selected_file_ids_invalid");
+  const ids = [
+    ...new Set(
+      value
+        .map((item) => textValue(item))
+        .filter((item) => /^[A-Za-z0-9_-]{10,200}$/.test(item)),
+    ),
+  ];
+  if (ids.length !== value.length || ids.length > MAX_SELECTED_FILES) {
+    throw new Error("selected_file_ids_invalid");
+  }
+  return ids;
+};
 
 const clampMaxFiles = (value: unknown) => {
   const parsed = Number(value);
@@ -242,7 +261,7 @@ const listDriveChildren = async (
     const params = new URLSearchParams({
       q: `'${escapeDriveQueryValue(parentId)}' in parents and trashed = false`,
       fields:
-        "nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,size,md5Checksum,version,webViewLink,description,resourceKey,capabilities(canDownload))",
+        "nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,size,md5Checksum,version,webViewLink,description,resourceKey,parents,capabilities(canDownload))",
       pageSize: "1000",
       orderBy: "folder,name",
       supportsAllDrives: "true",
@@ -264,6 +283,85 @@ const listDriveChildren = async (
   } while (pageToken && pageCount < MAX_DRIVE_LIST_PAGES);
 
   return files;
+};
+
+const getDriveFile = async (
+  fileId: string,
+  credential: GoogleDriveCredential,
+): Promise<DriveFile> => {
+  const params = new URLSearchParams({
+    fields:
+      "id,name,mimeType,modifiedTime,createdTime,size,md5Checksum,version,webViewLink,description,resourceKey,parents,capabilities(canDownload)",
+    supportsAllDrives: "true",
+  });
+  const response = await fetchDriveResponse(
+    driveApiUrl(`files/${encodeURIComponent(fileId)}`, credential, params),
+    credential,
+    [{ fileId }],
+  );
+  return (await response.json()) as DriveFile;
+};
+
+const resolveSelectedDriveItems = async (
+  rootFolder: DriveFile,
+  fileIds: string[],
+  credential: GoogleDriveCredential,
+) => {
+  const folderCache = new Map<string, DriveFile>([[rootFolder.id, rootFolder]]);
+  const getCachedDriveFile = async (fileId: string) => {
+    const cached = folderCache.get(fileId);
+    if (cached) return cached;
+    const item = await getDriveFile(fileId, credential);
+    folderCache.set(fileId, item);
+    return item;
+  };
+  const items: DriveItem[] = [];
+
+  for (const fileId of fileIds) {
+    const file = await getCachedDriveFile(fileId);
+    if (file.mimeType === GOOGLE_FOLDER_MIME) {
+      throw new Error("selected_file_not_supported");
+    }
+    const queue = (file.parents ?? []).map((parentId) => ({
+      parentId,
+      pathFromFile: [] as string[],
+      depth: 0,
+    }));
+    const visited = new Set<string>();
+    let resolvedPath: string[] | null = null;
+
+    while (queue.length) {
+      const current = queue.shift()!;
+      if (
+        visited.has(current.parentId) ||
+        current.depth > MAX_FOLDER_DEPTH
+      ) {
+        continue;
+      }
+      visited.add(current.parentId);
+      if (current.parentId === rootFolder.id) {
+        resolvedPath = [
+          rootFolder.name,
+          ...current.pathFromFile.slice().reverse(),
+        ];
+        break;
+      }
+      const parent = await getCachedDriveFile(current.parentId);
+      if (parent.mimeType !== GOOGLE_FOLDER_MIME) continue;
+      for (const parentId of parent.parents ?? []) {
+        queue.push({
+          parentId,
+          pathFromFile: [...current.pathFromFile, parent.name],
+          depth: current.depth + 1,
+        });
+      }
+    }
+
+    if (!resolvedPath) throw new Error("selected_file_outside_root");
+    items.push({ ...file, path: resolvedPath });
+  }
+
+  return items;
 };
 
 const walkDriveFolder = async (
@@ -953,18 +1051,53 @@ Deno.serve(
       }
 
       const maxFiles = clampMaxFiles(body?.maxFiles);
+      let selectedFileIds: string[];
+      try {
+        selectedFileIds = normalizeSelectedFileIds(body?.fileIds);
+      } catch {
+        return createError(
+          400,
+          "BAD_REQUEST",
+          `fileIds deve conter no máximo ${MAX_SELECTED_FILES} IDs válidos e únicos.`,
+        );
+      }
       const dryRun = body?.dryRun === true;
       let driveItems: DriveItem[];
       try {
-        driveItems = await walkDriveFolder(
+        const rootFolder = await getDriveFolder(
           folderId,
           driveCredential,
-          maxFiles,
           allowedSource.resourceKey,
         );
+        driveItems = selectedFileIds.length
+          ? await resolveSelectedDriveItems(
+              rootFolder,
+              selectedFileIds,
+              driveCredential,
+            )
+          : await walkDriveFolder(
+              folderId,
+              driveCredential,
+              maxFiles,
+              allowedSource.resourceKey,
+            );
       } catch (error) {
         const reason =
           error instanceof Error ? error.message : "google_drive_unavailable";
+        if (reason === "selected_file_outside_root") {
+          return createError(
+            403,
+            "SELECTED_FILE_OUTSIDE_ROOT",
+            "Um arquivo selecionado não pertence à pasta autorizada.",
+          );
+        }
+        if (reason === "selected_file_not_supported") {
+          return createError(
+            400,
+            "SELECTED_FILE_NOT_SUPPORTED",
+            "A seleção deve conter somente arquivos.",
+          );
+        }
         return createError(
           502,
           /google_drive_(401|403|404)/.test(reason)
