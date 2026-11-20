@@ -169,6 +169,24 @@ describe("buildInitialMonthPlans", () => {
   });
 });
 
+describe("short cycle calendar", () => {
+  it("skips the Monday before the first Tuesday and preserves the first December class", () => {
+    const group = { ...classGroup, daysOfWeek: [1, 3], cycleStartDate: "2026-12-01", cycleLengthWeeks: 4 };
+    const plan = { ...buildWeeklyPlan(), startDate: group.cycleStartDate, weekNumber: 1, daysOfWeek: "[1,3]" };
+
+    const calendar = buildPlanSessionCalendar({ plan, classGroup: group });
+
+    expect(calendar.sessions.map((session) => [session.date, session.sessionIndexInWeek])).toEqual([
+      ["2026-12-02", 1],
+    ]);
+    expect(buildPlanSessionCalendar({ plan, classGroup: group, monthKey: "2026-11" }).allSessions).toEqual([]);
+    expect(buildPlanSessionCalendar({
+      plan,
+      classGroup: { ...group, cycleLengthWeeks: 52 },
+    }).allSessions.map((session) => session.date)).toEqual(["2026-11-30", "2026-12-02"]);
+  });
+});
+
 describe("regenerateMonthPlans safety", () => {
   beforeEach(() => {
     jest.clearAllMocks();

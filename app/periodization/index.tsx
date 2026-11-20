@@ -33,6 +33,8 @@ import {
   ageBands,
   annualCycleOptions,
   cycleOptions,
+  isSupportedPlanningCycleLength,
+  SHORT_PLANNING_CYCLE_WEEKS,
   getDemandIndexForModel,
   getLoadLabelForModel,
   getSportLabel,
@@ -1085,6 +1087,7 @@ export default function PeriodizationScreen() {
                 currentClass.organizationId,
                 cycleYear,
                 currentClass.cycleStartDate || null,
+                currentClass.cycleLengthWeeks,
               )
             ).cycles
           : await getPlanningCycles(
@@ -1851,11 +1854,7 @@ export default function PeriodizationScreen() {
       const cycleValue =
         selectedClass.cycleLengthWeeks as (typeof cycleOptions)[number];
 
-      if (
-        annualCycleOptions.includes(
-          cycleValue as (typeof annualCycleOptions)[number],
-        )
-      ) {
+      if (isSupportedPlanningCycleLength(cycleValue)) {
         Promise.resolve().then(() => {
           setCycleLength(cycleValue);
         });
@@ -3391,15 +3390,18 @@ export default function PeriodizationScreen() {
       });
   }, [activeCycle, handleGenerateMode, recentSessionSummaries, selectedClass]);
 
-  const pendingSetupApplicationRef = useRef<PlanningCycle | null>(null);
+  const pendingSetupApplicationRef = useRef<{ cycle: PlanningCycle; fillOnly: boolean } | null>(null);
   useEffect(() => {
-    const cycle = pendingSetupApplicationRef.current;
-    if (!cycle || activeCycle?.id !== cycle.id) return;
+    const pending = pendingSetupApplicationRef.current;
+    if (!pending || activeCycle?.id !== pending.cycle.id) return;
     pendingSetupApplicationRef.current = null;
-    void handleGenerateMode("auto", cycle, {
-      futureOnly: true,
-      forceAutomaticUpdate: true,
-    }).then(() => {
+    const generation = pending.fillOnly
+      ? handleGenerateMode("fill", pending.cycle)
+      : handleGenerateMode("auto", pending.cycle, {
+          futureOnly: true,
+          forceAutomaticUpdate: true,
+        });
+    void generation.then(() => {
       setPlanningWorkspaceRefreshSignal((current) => current + 1);
     }).catch((error) => {
       setPeriodizationSetupError(
@@ -3482,12 +3484,8 @@ export default function PeriodizationScreen() {
         setPeriodizationSetupError("Informe a data de início do ciclo.");
         return false;
       }
-      if (
-        !annualCycleOptions.includes(
-          cycleLengthWeeks as (typeof annualCycleOptions)[number],
-        )
-      ) {
-        setPeriodizationSetupError("Selecione uma duração anual válida.");
+      if (!isSupportedPlanningCycleLength(cycleLengthWeeks)) {
+        setPeriodizationSetupError("Selecione uma duração válida para o ciclo.");
         return false;
       }
       if (
@@ -3518,6 +3516,24 @@ export default function PeriodizationScreen() {
 
       const cycleYear =
         Number(cycleStartDate.slice(0, 4)) || new Date().getFullYear();
+      const existingTargetCycle = planningCycles.find(
+        (cycle) => cycle.status === "active" && cycle.year === cycleYear,
+      );
+      const convertingToShortCycle = cycleLengthWeeks === SHORT_PLANNING_CYCLE_WEEKS &&
+        selectedClass.cycleLengthWeeks !== SHORT_PLANNING_CYCLE_WEEKS;
+      const configuredShortCycle = selectedClass.cycleLengthWeeks === SHORT_PLANNING_CYCLE_WEEKS &&
+        isClassPeriodizationConfigured(selectedClass) && planningCycles.some((cycle) => cycle.status === "active");
+      if (configuredShortCycle && (
+        cycleLengthWeeks !== SHORT_PLANNING_CYCLE_WEEKS || cycleStartDate !== selectedClass.cycleStartDate
+      )) {
+        setPeriodizationSetupError("Mantenha a data inicial e a duração para preservar as semanas do ciclo ativo.");
+        return false;
+      }
+      const preserveCycleMessage = "Mantenha a duração atual para preservar as semanas do ciclo ativo.";
+      if (convertingToShortCycle && existingTargetCycle && isClassPeriodizationConfigured(selectedClass)) {
+        setPeriodizationSetupError(preserveCycleMessage);
+        return false;
+      }
       const archivedTargetCycle = planningCycles.find(
         (cycle) => cycle.year === cycleYear && cycle.status === "archived",
       );
@@ -3531,6 +3547,16 @@ export default function PeriodizationScreen() {
       setPeriodizationSetupError("");
       setIsSavingPeriodizationSetup(true);
       try {
+        if (convertingToShortCycle && existingTargetCycle) {
+          const savedWeeks = await getClassPlansByClass(selectedClass.id, {
+            cycleId: existingTargetCycle.id,
+            cycleYear,
+          });
+          if (savedWeeks.length) {
+            setPeriodizationSetupError(preserveCycleMessage);
+            return false;
+          }
+        }
         await updateClass(selectedClass.id, {
           name: selectedClass.name,
           unit: selectedClass.unit,
@@ -3552,6 +3578,7 @@ export default function PeriodizationScreen() {
           selectedClass.organizationId,
           cycleYear,
           cycleStartDate,
+          cycleLengthWeeks,
         );
         const serializedPolicy =
           serializePeriodizationPolicy(periodizationPolicy);
@@ -3572,7 +3599,10 @@ export default function PeriodizationScreen() {
           updatedCycle,
           ...current.filter((cycle) => cycle.id !== updatedCycle.id),
         ]);
-        pendingSetupApplicationRef.current = updatedCycle;
+        pendingSetupApplicationRef.current = {
+          cycle: updatedCycle,
+          fillOnly: cycleLengthWeeks === SHORT_PLANNING_CYCLE_WEEKS,
+        };
         setPlanningWorkspaceRefreshSignal((current) => current + 1);
         setPeriodizationGoal(goal);
         setPeriodizationMvLevel(mvLevel);

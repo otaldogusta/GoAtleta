@@ -12,6 +12,11 @@ export const shortCycleOptions = [2, 3, 4, 5, 6, 8, 10, 12, 18] as const;
 
 export const annualCycleOptions = [36, 40, 44, 48, 52] as const;
 
+export const SHORT_PLANNING_CYCLE_WEEKS = 4;
+
+export const isSupportedPlanningCycleLength = (weeks: number) =>
+  weeks === SHORT_PLANNING_CYCLE_WEEKS || annualCycleOptions.some((option) => option === weeks);
+
 export const cycleOptions = [2, 3, 4, 5, 6, 8, 10, 12, 18, 36, 40, 44, 48, 52] as const;
 
 export const isAnnualCycle = (weeks: number) => weeks >= 36;

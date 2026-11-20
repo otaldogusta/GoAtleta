@@ -224,6 +224,25 @@ describe("planning cycles workspace scope", () => {
     expect(mockSupabasePost).toHaveBeenCalled();
   });
 
+  test("keeps a four-week December cycle bounded when the class is reopened", async () => {
+    mockSupabaseGet.mockResolvedValueOnce([{
+      ...remoteCycle,
+      title: "Ciclo de 4 semanas · Dez 2026",
+      start_date: "2026-12-01",
+      end_date: "2026-12-28",
+    }]);
+
+    await expect(
+      ensureActiveCycleForYear("class_1", "org_1", 2026, "2026-12-01", 4),
+    ).resolves.toMatchObject({
+      id: "cycle_1",
+      startDate: "2026-12-01",
+      endDate: "2026-12-28",
+    });
+    expect(mockSupabasePost).not.toHaveBeenCalled();
+    expect(mockSupabasePatch).not.toHaveBeenCalled();
+  });
+
   test("normalizes the active cycle window through the remote upsert", async () => {
     mockSupabaseGet.mockResolvedValueOnce([
       { ...remoteCycle, title: "2026", start_date: "2026-01-01" },

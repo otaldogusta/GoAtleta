@@ -1,5 +1,6 @@
 import { PlanningAssistantHost, usePlanningAssistant } from "./PlanningAssistant";
 import { ProfilePlanReview } from "./components/ProfilePlanReview";
+import { WeeklyFocusEditor } from "./components/WeeklyFocusEditor";
 import { useActionSignal } from "../../hooks/use-action-signal";
 import { Suspense, lazy, memo, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, useWindowDimensions, View } from "react-native";
@@ -683,7 +684,7 @@ const LessonRow = memo(function LessonRow({ colors, event, history, selected, du
   );
 });
 
-const WeekGroups = memo(function WeekGroups({ colors, events, historyByDate, historical, selectedEventId, durationMinutes, mobile, referenceTodayIso, onSelect, onOpenPlan, renderSelectedDetail }: {
+const WeekGroups = memo(function WeekGroups({ colors, events, historyByDate, historical, selectedEventId, durationMinutes, mobile, referenceTodayIso, editableWeekNumbers, onEditFocus, onSelect, onOpenPlan, renderSelectedDetail }: {
   colors: ThemeColors;
   events: ProfessorAgendaEvent[];
   historyByDate: Map<string, RecentSessionSummary>;
@@ -692,6 +693,8 @@ const WeekGroups = memo(function WeekGroups({ colors, events, historyByDate, his
   durationMinutes: number;
   mobile: boolean;
   referenceTodayIso?: string;
+  editableWeekNumbers: ReadonlySet<number>;
+  onEditFocus: (weekNumber: number) => void;
   onSelect: (event: ProfessorAgendaEvent) => void;
   onOpenPlan: (event: ProfessorAgendaEvent) => void;
   renderSelectedDetail?: (event: ProfessorAgendaEvent) => ReactNode;
@@ -727,6 +730,16 @@ const WeekGroups = memo(function WeekGroups({ colors, events, historyByDate, his
             <View style={{ width: mobile ? "100%" : 96, padding: 9, gap: 2, backgroundColor: mobile ? colors.secondaryBg : "transparent" }}>
               <Text style={{ color: isWeekPast ? colors.muted : colors.text, fontSize: 11, fontWeight: "900" }}>Semana {weekNumber}</Text>
               <Text style={{ color: colors.muted, fontSize: 9 }}>{dateRangeLabel(weekEvents)}</Text>
+              {editableWeekNumbers.has(weekNumber) ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Editar foco da semana ${weekNumber}`}
+                  onPress={() => onEditFocus(weekNumber)}
+                  style={{ minHeight: compactUiMetrics.touchTarget, justifyContent: "center", alignSelf: "flex-start" }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>Editar foco</Text>
+                </Pressable>
+              ) : null}
             </View>
             <View style={{ flex: 1, borderLeftWidth: mobile ? 0 : 1, borderLeftColor: colors.border }}>
               {weekEvents.map((event, eventIndex) => (
@@ -984,10 +997,25 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, ope
   }, [selectedEvent]);
   const [showLesson, setShowLesson] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [weekFocusSelection, setWeekFocusSelection] = useState<{ scope: string; weekNumber: number } | null>(null);
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const monthly = useMonthlyPlans(classId, selectedMonthKey);
   const monthCycle = isMonthWithinPlanningCycle(monthly.activeCycle, selectedMonthKey) ? monthly.activeCycle : null;
+  const focusScope = !monthly.error && monthCycle?.status === "active" && monthly.selectedClass?.id === classId &&
+    monthCycle.classId === classId && monthCycle.organizationId === monthly.selectedClass?.organizationId
+    ? `${monthCycle.organizationId}:${classId}:${monthCycle.id}:${selectedMonthKey}` : null;
+  const editableWeekPlans = useMemo(() => new Map(
+    focusScope ? monthly.weeklyItems
+      .filter(({ plan }) => plan.classId === classId && plan.cycleId === monthCycle?.id)
+      .map(({ plan }) => [plan.weekNumber, plan] as const) : [],
+  ), [classId, focusScope, monthCycle?.id, monthly.weeklyItems]);
+  const editableWeekNumbers = useMemo(() => new Set(editableWeekPlans.keys()), [editableWeekPlans]);
+  const focusPlan = weekFocusSelection && weekFocusSelection.scope === focusScope
+    ? editableWeekPlans.get(weekFocusSelection.weekNumber) : undefined;
+  const editFocus = useCallback((weekNumber: number) => {
+    if (focusScope && editableWeekPlans.has(weekNumber)) setWeekFocusSelection({ scope: focusScope, weekNumber });
+  }, [editableWeekPlans, focusScope]);
   const yearFocus = useRef<{ direction: "previous" | "next"; month: string; trigger: Element | null } | null>(null);
   const returnDirection = useRef<"previous" | "next" | null>(null);
   const loadingWorkspace = monthly.isInitialLoading || (monthly.isLoading && !monthCycle);
@@ -1328,6 +1356,8 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, ope
         durationMinutes={durationMinutes}
         mobile={isStackedMobile}
         referenceTodayIso={contextualTodayIso}
+        editableWeekNumbers={editableWeekNumbers}
+        onEditFocus={editFocus}
         onSelect={selectEvent}
         onOpenPlan={(event: ProfessorAgendaEvent) => void openEventPlan(event)}
         renderSelectedDetail={!split ? () => detail : undefined}
@@ -1345,6 +1375,16 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, ope
       style={{ paddingHorizontal: Math.max(16, layout.gutter) }}
     >
       <View ref={containerRef} onLayout={onLayout} style={{ gap: 0, borderTopWidth: layout.usesWorkspaceShell ? 1 : 0, borderTopColor: colors.border }}>
+        {focusPlan && monthCycle ? (
+          <WeeklyFocusEditor
+            key={`${focusScope}:${focusPlan.weekNumber}`}
+            colors={colors}
+            plan={focusPlan}
+            cycle={monthCycle}
+            onClose={() => setWeekFocusSelection(null)}
+            onSaved={() => { setWeekFocusSelection(null); void reloadMonthly(); }}
+          />
+        ) : null}
         {monthly.selectedClass?.pedagogicalProfile && !monthly.isHistoricalCycle ? <ProfilePlanReview key={monthly.selectedClass.id} classGroup={monthly.selectedClass} events={monthly.agendaEvents} students={monthly.students ?? []} calendarExceptions={monthly.calendarExceptions} sessionLogs={monthly.recentSessionLogs} onApplied={() => void reloadMonthly()} /> : null}
         {!dense ? (
           <View style={{ paddingTop: 4, gap: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>

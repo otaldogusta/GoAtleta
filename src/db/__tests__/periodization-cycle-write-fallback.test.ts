@@ -77,6 +77,20 @@ describe("class plan write compatibility fallback", () => {
     expect(supabasePost).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the scoped weekly write when optional targets and snapshots are absent", async () => {
+    jest.mocked(supabasePost)
+      .mockRejectedValueOnce(new Error("PGRST204: jump_target not in schema cache"))
+      .mockRejectedValueOnce(new Error("PGRST204: blueprint_id not in schema cache"))
+      .mockResolvedValueOnce(undefined);
+
+    await saveClassPlans([plan], { organizationId: "org-1" });
+
+    const [retry] = jest.mocked(supabasePost).mock.calls[2][1] as Record<string, unknown>[];
+    expect(retry).toMatchObject({ classid: "class-1", cycle_id: "cycle-1", organization_id: "org-1" });
+    expect(retry).not.toHaveProperty("jump_target");
+    expect(retry).not.toHaveProperty("blueprint_id");
+  });
+
   it("preserves cycle_id when updating a plan on the compatibility path", async () => {
     jest.mocked(supabasePatch)
       .mockRejectedValueOnce(

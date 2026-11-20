@@ -78,6 +78,34 @@ const stripUnsupportedClassPlanSnapshotColumns = (payload: Record<string, unknow
   return legacyPayload;
 };
 
+async function writeWithClassPlanCompatibility(
+  write: (strip: (row: Record<string, unknown>) => Record<string, unknown>) => Promise<unknown>,
+) {
+  let stripSnapshots = false;
+  let stripTargets = false;
+  for (;;) {
+    try {
+      await write((row) => {
+        const compatible = stripSnapshots ? stripUnsupportedClassPlanSnapshotColumns(row) : row;
+        if (!stripTargets) return compatible;
+        const { jump_target: _jump, rpe_target: _rpe, ...rest } = compatible;
+        return rest;
+      });
+      return;
+    } catch (failure) {
+      const message = String(failure).toLowerCase();
+      if (!message.includes("pgrst204") && !message.includes("schema cache")) throw failure;
+      if (!stripTargets && /jump_target|rpe_target/.test(message)) {
+        stripTargets = true;
+      } else if (!stripSnapshots && isClassPlanSnapshotColumnError(failure)) {
+        stripSnapshots = true;
+      } else {
+        throw failure;
+      }
+    }
+  }
+}
+
 const isLegacyUniqueWeekConstraintError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
@@ -88,15 +116,7 @@ const isLegacyUniqueWeekConstraintError = (error: unknown) => {
 };
 
 const postClassPlansPayload = async (payload: Record<string, unknown>[]) => {
-  try {
-    await supabasePost("/class_plans", payload);
-  } catch (error) {
-    if (!isClassPlanSnapshotColumnError(error)) throw error;
-    await supabasePost(
-      "/class_plans",
-      payload.map(stripUnsupportedClassPlanSnapshotColumns)
-    );
-  }
+  await writeWithClassPlanCompatibility((strip) => supabasePost("/class_plans", payload.map(strip)));
 };
 
 const getExistingClassPlanByLegacyWeek = async (params: {
@@ -340,11 +360,36 @@ export async function updateClassPlan(
     created_at: plan.createdAt,
     updated_at: plan.updatedAt ?? plan.createdAt,
   };
-  try {
-    await supabasePatch(path, payload);
-  } catch (error) {
-    if (!isClassPlanSnapshotColumnError(error)) throw error;
-    await supabasePatch(path, stripUnsupportedClassPlanSnapshotColumns(payload));
+  await writeWithClassPlanCompatibility((strip) => supabasePatch(path, strip(payload)));
+}
+
+export async function updateClassPlanFocus(scope: {
+  organizationId: string;
+  classId: string;
+  cycleId: string;
+  planId: string;
+  updatedAt: string;
+}, focus: string): Promise<void> {
+  const organizationId = await getScopedOrganizationId(scope.organizationId, "updateClassPlanFocus");
+  if (!organizationId || !scope.classId || !scope.cycleId || !scope.updatedAt || !focus.trim()) {
+    throw new Error("Reabra a semana antes de salvar o foco.");
+  }
+  const query = new URLSearchParams({
+    id: `eq.${scope.planId}`,
+    classid: `eq.${scope.classId}`,
+    cycle_id: `eq.${scope.cycleId}`,
+    organization_id: `eq.${organizationId}`,
+    updated_at: `eq.${scope.updatedAt}`,
+    select: "id",
+  });
+  const rows = await supabasePatch<{ id: string }[]>(`/class_plans?${query}`, {
+    theme: focus.trim(),
+    technical_focus: focus.trim(),
+    source: "MANUAL",
+    updated_at: new Date().toISOString(),
+  }, { Prefer: "return=representation" });
+  if (rows.length !== 1 || rows[0].id !== scope.planId) {
+    throw new Error("A semana mudou. Feche e reabra a edição.");
   }
 }
 

@@ -1,6 +1,6 @@
 import type { ClassGroup } from "./models";
 
-import { annualCycleOptions } from "./periodization-basics";
+import { isSupportedPlanningCycleLength } from "./periodization-basics";
 export type PeriodizationLoadCurveModel = "ondulatorio" | "linear" | "blocos";
 
 export const PERIODIZATION_GAME_LEVELS = [
@@ -66,11 +66,7 @@ export const isClassPeriodizationConfigured = (
     String(classGroup.goal ?? "").trim() &&
     PERIODIZATION_DEVELOPMENT_LEVELS.has(String(classGroup.mvLevel ?? "")) &&
     /^\d{4}-\d{2}-\d{2}$/.test(String(classGroup.cycleStartDate ?? "")) &&
-    annualCycleOptions.includes(
-      Number(
-        classGroup.cycleLengthWeeks,
-      ) as (typeof annualCycleOptions)[number],
-    ),
+    isSupportedPlanningCycleLength(Number(classGroup.cycleLengthWeeks)),
   );
 
 const clampInteger = (

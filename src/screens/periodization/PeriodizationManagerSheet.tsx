@@ -5,6 +5,7 @@ import { OperationalText as Text } from "../../ui/OperationalText";
 
 import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
 import { useClassDiagnostic } from "../../assistant/hooks/useClassDiagnostic";
+import { SHORT_PLANNING_CYCLE_WEEKS } from "../../core/periodization-basics";
 import { profileDiagnosticValues } from "../../core/profile-planning";
 import {
   PERIODIZATION_GAME_LEVELS,
@@ -216,6 +217,7 @@ const LEVEL_OPTIONS = [
 ] as const;
 
 const CYCLE_OPTIONS = [
+  { value: SHORT_PLANNING_CYCLE_WEEKS, label: "Curto", detail: "4 semanas" },
   { value: 13, label: "Trimestral", detail: "3 meses" },
   { value: 26, label: "Semestral", detail: "6 meses" },
   { value: 39, label: "Nove meses", detail: "9 meses" },
@@ -1219,7 +1221,7 @@ export function PeriodizationManagerSheet({
             </Text>
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>
-                Curva anual ({draft.cycleLengthWeeks} semanas)
+                Curva do ciclo ({draft.cycleLengthWeeks} semanas)
               </Text>
               <Text style={{ color: colors.muted, fontSize: 10 }}>
                 {LOAD_MODEL_OPTIONS.find((option) => option.value === draft.loadModel)?.label}

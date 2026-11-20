@@ -6,6 +6,8 @@ import {
   serializePeriodizationPolicy,
 } from "../periodization-policy";
 
+import { resolvePlanningCycleWindow } from "../planning-cycle-window";
+
 describe("periodization policy", () => {
   it("only marks the class ready after the pedagogical cycle is configured", () => {
     const configured = {
@@ -25,6 +27,22 @@ describe("periodization policy", () => {
     expect(
       isClassPeriodizationConfigured({ ...configured, cycleLengthWeeks: 12 }),
     ).toBe(false);
+  });
+
+  it("accepts a configured four-week cycle and uses its bounded civil dates", () => {
+    const classGroup = {
+      goal: "Saque, passe e ataque",
+      mvLevel: "MV1",
+      cycleStartDate: "2026-12-01",
+      cycleLengthWeeks: 4,
+    };
+    expect(isClassPeriodizationConfigured(classGroup)).toBe(true);
+    expect(resolvePlanningCycleWindow(classGroup.cycleStartDate, 2026, 4)).toMatchObject({
+      year: 2026,
+      startDate: "2026-12-01",
+      endDate: "2026-12-28",
+      isPartialYear: true,
+    });
   });
 
   it("normalizes and round-trips the manager parameters", () => {

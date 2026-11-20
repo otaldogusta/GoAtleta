@@ -1,3 +1,5 @@
+import { SHORT_PLANNING_CYCLE_WEEKS } from "./periodization-basics";
+
 export type PlanningCycleWindow = {
   startDate: string;
   endDate: string;
@@ -38,7 +40,8 @@ const monthLabelPtBr = (isoDate: string) => {
 
 export const resolvePlanningCycleWindow = (
   classStartDate: string | null | undefined,
-  selectedYear: number
+  selectedYear: number,
+  cycleLengthWeeks?: number,
 ): PlanningCycleWindow => {
   const currentYear = new Date().getFullYear();
   const year = Number.isFinite(selectedYear) && selectedYear > 1970
@@ -50,6 +53,19 @@ export const resolvePlanningCycleWindow = (
 
   const classStart = parseDateInput(classStartDate);
   const classStartYear = classStart?.getFullYear() ?? null;
+
+  if (cycleLengthWeeks === SHORT_PLANNING_CYCLE_WEEKS && classStart && classStartYear === year) {
+    const shortCycleStart = formatIsoDate(classStart);
+    const lastDay = new Date(classStart.getTime());
+    lastDay.setDate(lastDay.getDate() + SHORT_PLANNING_CYCLE_WEEKS * 7 - 1);
+    return {
+      startDate: shortCycleStart,
+      endDate: formatIsoDate(lastDay),
+      year,
+      label: `Ciclo de 4 semanas · ${monthLabelPtBr(shortCycleStart)} ${year}`,
+      isPartialYear: true,
+    };
+  }
 
   let startDate = yearStart;
 

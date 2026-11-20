@@ -39,6 +39,10 @@ as telas apresentam revisão, edição e confirmação do professor.
 
 - Toda escrita semanal requer `cycleId`; ausência é erro acionável. Compatibilidade
   com backend antigo não autoriza remover o vínculo dos novos planos.
+- A edição de foco atua na semana do ciclo ativo exibida na visão mensal. A semana
+  pode atravessar a virada do mês. Alterar seu foco preserva o ciclo e os planos
+  de aula já gravados. O botão de atualização do mês continua sendo uma ação de
+  recálculo distinta.
 - `getOrCreateInitialActivePlanningCycle` não recria um ciclo do ano que o professor
   arquivou. Arquivamento filtra organização; ativação de outro ciclo é deliberada.
 - Existir registro técnico de ciclo não significa periodização configurada:
@@ -48,7 +52,8 @@ as telas apresentam revisão, edição e confirmação do professor.
 - Política tem `schemaVersion: 1`, limites normalizados e diagnóstico compatível.
   Formato de jogo e altura da rede não equivalem a domínio técnico ou intensidade.
 - A janela usa datas locais de calendário. No ano atual a regra prefere janeiro
-  a dezembro; em outro ano pode respeitar início parcial da turma.
+  a dezembro; em outro ano pode respeitar início parcial da turma. A configuração
+  de quatro semanas usa a data inicial escolhida e termina 27 dias depois.
 - Contexto identifica turma, data, faixa etária e fundamento; o parser distingue
   `current`, `legacy` e `invalid`. Preservar snapshots e avisos de compatibilidade.
 - Apoio documental inclui origem, revisão/hash, escopo e evidência; contrato

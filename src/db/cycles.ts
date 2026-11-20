@@ -183,6 +183,7 @@ export async function getOrCreateInitialActivePlanningCycle(
   organizationId: string,
   year: number,
   classStartDate?: string | null,
+  cycleLengthWeeks?: number,
 ): Promise<{ cycles: PlanningCycle[]; activeCycle: PlanningCycle | null }> {
   const cycles = await getPlanningCycles(classId, organizationId);
   const activeCycle = cycles.find((cycle) => cycle.status === "active") ?? null;
@@ -199,6 +200,7 @@ export async function getOrCreateInitialActivePlanningCycle(
     organizationId,
     year,
     classStartDate,
+    cycleLengthWeeks,
   );
   const refreshedCycles = await getPlanningCycles(classId, organizationId);
 
@@ -270,9 +272,10 @@ export async function ensureActiveCycleForYear(
   organizationId: string,
   year: number,
   classStartDate?: string | null,
+  cycleLengthWeeks?: number,
 ): Promise<PlanningCycle> {
   const now = new Date().toISOString();
-  const window = resolvePlanningCycleWindow(classStartDate, year);
+  const window = resolvePlanningCycleWindow(classStartDate, year, cycleLengthWeeks);
   const cycles = await getPlanningCycles(classId, organizationId);
   const existing = cycles.find(
     (cycle) => cycle.year === year && cycle.status === "active",

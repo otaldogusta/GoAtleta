@@ -1,4 +1,5 @@
 import type { ClassCalendarException, ClassGroup, ClassPlan } from "../../../core/models";
+import { SHORT_PLANNING_CYCLE_WEEKS } from "../../../core/periodization-basics";
 import { buildSessionCalendar, type PlannedSession } from "../../../core/session-calendar-engine";
 
 type MonthWindow = {
@@ -80,6 +81,22 @@ const resolveTrainingWeekEndDate = (plan: Pick<ClassPlan, "daysOfWeek" | "startD
   return toIsoDate(new Date(start.getTime() + 6 * DAY_MS));
 };
 
+function resolveShortCycleBounds(plan: ClassPlan, classGroup: ClassGroup): MonthWindow | null {
+  if (classGroup.cycleLengthWeeks !== SHORT_PLANNING_CYCLE_WEEKS ||
+      plan.weekNumber < 1 || plan.weekNumber > SHORT_PLANNING_CYCLE_WEEKS) {
+    return null;
+  }
+  const cycleStart = parseIsoDate(classGroup.cycleStartDate);
+  if (!cycleStart) return null;
+  const weekStart = new Date(cycleStart);
+  weekStart.setDate(weekStart.getDate() + (plan.weekNumber - 1) * 7);
+  if (plan.startDate !== toIsoDate(weekStart)) return null;
+
+  const cycleEnd = new Date(cycleStart);
+  cycleEnd.setDate(cycleEnd.getDate() + SHORT_PLANNING_CYCLE_WEEKS * 7 - 1);
+  return { startDate: toIsoDate(cycleStart), endDate: toIsoDate(cycleEnd) };
+}
+
 export const buildPlanSessionCalendar = (params: {
   plan: ClassPlan;
   classGroup: ClassGroup;
@@ -88,14 +105,17 @@ export const buildPlanSessionCalendar = (params: {
 }) => {
   const { plan, classGroup, exceptions, monthKey } = params;
   const monthWindow = monthKey ? resolveMonthWindow(monthKey) : null;
+  const shortCycle = resolveShortCycleBounds(plan, classGroup);
+  const weekStart = resolveTrainingWeekStartDate(plan, classGroup);
+  const weekEnd = resolveTrainingWeekEndDate(plan, classGroup);
   const calendar = buildSessionCalendar({
     classGroup: {
       ...classGroup,
       daysOfWeek: parsePlanDaysOfWeek(plan, classGroup),
       daysPerWeek: plan.weeklySessions || classGroup.daysPerWeek,
     },
-    startDate: resolveTrainingWeekStartDate(plan, classGroup),
-    endDate: resolveTrainingWeekEndDate(plan, classGroup),
+    startDate: shortCycle && weekStart < shortCycle.startDate ? shortCycle.startDate : weekStart,
+    endDate: shortCycle && weekEnd > shortCycle.endDate ? shortCycle.endDate : weekEnd,
     exceptions,
   });
 

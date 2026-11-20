@@ -331,6 +331,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
           cls.organizationId,
           initialCycleYear,
           classStartDate,
+          cls.cycleLengthWeeks,
         ),
       );
       const selectedCycle = resolvePlanningCycleForMonth(
