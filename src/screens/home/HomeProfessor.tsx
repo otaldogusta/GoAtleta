@@ -2997,10 +2997,10 @@ export function HomeProfessorScreen({
         </Modal>
       ) : null}
 
-      {!activityReviewVisible && holidayCalendar.visible && (classesByWeekday[new Date(holidayCalendar.date + "T12:00:00").getDay()] ?? []).length > 0 ? (
+      {!activityReviewVisible && holidayCalendar.visible ? (
         <HolidayRecommendation key={`${activeOrganization?.id}:${holidayCalendar.date}`} holiday={holidayCalendar.holiday!} date={holidayCalendar.date}
           pausedIds={holidayCalendar.pauses.filter(pause => pause.date === holidayCalendar.date).map(pause => pause.class_id)}
-          classes={classesByWeekday[new Date(holidayCalendar.date + "T12:00:00").getDay()] ?? []}
+          classes={classes}
           saving={holidayCalendar.saving} error={holidayCalendar.error} onSave={holidayCalendar.save} bottomOffset={floatingNoticeBottom} />
       ) : null}
 

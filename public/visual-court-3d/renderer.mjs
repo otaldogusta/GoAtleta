@@ -11,7 +11,7 @@ import {elevationTarget,elevationValue,elevationKeyValue,shouldCancelElevationDr
 import {targetPickSurface,pickCourtObject,pickCourtHit,pickCourtTouchHit,courtHoverState,createCourtHoverPainter} from './renderer-interaction.mjs';
 import {courtSolidMaterial,createContactShadow,updateContactShadow} from './renderer-appearance.mjs';
 import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs';
-import {trajectoryStroke,createTrajectorySelection,trajectoryHandleTarget,trajectoryHandlePoint,trajectoryControlLayout,trajectoryHeightValue,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,shouldCancelTrajectoryDrag,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs?v=lateral-trajectory-20261112';
+import {trajectoryStroke,trajectoryTipDirection,createTrajectorySelection,trajectoryHandleTarget,trajectoryHandlePoint,trajectoryControlLayout,trajectoryHeightValue,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,shouldCancelTrajectoryDrag,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs?v=defense-attack-trace-20261120';
 import {renderedNetContact,showsNetWarning,netWarningLayout} from './renderer-net-warning.mjs?v=net-warning-above-20261112';
 
 // This surface renders the parent editor's frame. It has no document, timeline,
@@ -131,9 +131,10 @@ function buildDrawing(drawing){
  const color=colorOf(drawing.color,'#ffffff'),first=points[0],size=clamp(Number(drawing.size)||28,12,80)/100;
  if(['arrow','curve','pen','area'].includes(drawing.kind)){
   const stroke=['arrow','curve'].includes(drawing.kind)?trajectoryStroke(drawing,Boolean(packet?.landscape)):points;
+  if(!stroke.length)return group;
   line(drawing.kind==='area'?[...stroke,stroke[0]]:stroke,color,Boolean(drawing.dashed),group);
   if(drawing.kind==='area'&&points.length>2){const shape=new THREE.Shape(points.map(p=>new THREE.Vector2(p.x,-p.z))),fill=mesh(new THREE.ShapeGeometry(shape),material(color,{transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}),group);fill.rotation.x=-Math.PI/2;fill.position.y=first.y-.005;}
-  if(['arrow','curve'].includes(drawing.kind)&&stroke.length>1){const end=vector(stroke.at(-1)),direction=end.clone().sub(vector(stroke.at(-2)));if(direction.lengthSq()>.0001){const cone=mesh(new THREE.ConeGeometry(.09,.28,12),material(color),group);cone.position.copy(end);cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());}}
+  if(['arrow','curve'].includes(drawing.kind)&&stroke.length>1){const direction=trajectoryTipDirection(stroke,drawing.traceProgress!==undefined);if(direction){const cone=mesh(new THREE.ConeGeometry(.09,.28,12),material(color),group);cone.position.copy(vector(stroke.at(-1)));cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction);}}
  }else if(drawing.kind==='ball')mesh(new THREE.SphereGeometry(.12,24,16),courtSolidMaterial('#ffffff','ball',ballTexture),group).position.copy(vector(first));
  else if(drawing.kind==='cone'){const cone=mesh(new THREE.ConeGeometry(size*.45,size,16),courtSolidMaterial(color),group);cone.position.set(first.x,first.y+size*.5,first.z);mesh(new THREE.BoxGeometry(size*1.15,.045,size*1.15),courtSolidMaterial(color),group).position.set(first.x,first.y+.022,first.z);}
  else if(drawing.kind==='target'){for(const radius of [size,size*.5]){const ring=mesh(new THREE.TorusGeometry(radius,.018,8,40),courtSolidMaterial(color),group);ring.rotation.x=-Math.PI/2;ring.position.copy(vector(first));}const pick=targetPickSurface(size,drawing.id);pick.position.copy(vector(first));group.add(pick);}
@@ -148,7 +149,9 @@ function updateDrawings(drawings){
   const key=JSON.stringify([local,Boolean(packet.landscape)]);let object=drawingMap.get(drawing.id);
   if(!object||object.key!==key){
    if(object)dispose(object.group);const group=buildDrawing(local);scene.add(group);const trajectory=['arrow','curve'].includes(drawing.kind),selection=trajectory?createTrajectorySelection(local,Boolean(packet.landscape)):new THREE.Group();selection.userData.interactionIgnore=true;group.add(selection);const points=local.points;
-   if(points.length&&!trajectory){const padding=Math.max(.18,(drawing.size||28)/100),xs=points.map(p=>p.x),zs=points.map(p=>p.z),x1=Math.min(...xs)-padding,x2=Math.max(...xs)+padding,z1=Math.min(...zs)-padding,z2=Math.max(...zs)+padding;line([[x1,.035,z1],[x2,.035,z1],[x2,.035,z2],[x1,.035,z2],[x1,.035,z1]],'#e3efff',true,selection,.8);}
+   if(drawing.kind==='area'&&points.length>2){
+    const contour=line([...points,points[0]],'#e3efff',Boolean(drawing.dashed),selection,.8);contour.renderOrder=1;contour.material.depthWrite=false;
+   }else if(points.length&&!trajectory&&drawing.kind!=='area'){const padding=Math.max(.18,(drawing.size||28)/100),xs=points.map(p=>p.x),zs=points.map(p=>p.z),x1=Math.min(...xs)-padding,x2=Math.max(...xs)+padding,z1=Math.min(...zs)-padding,z2=Math.max(...zs)+padding;line([[x1,.035,z1],[x2,.035,z1],[x2,.035,z2],[x1,.035,z2],[x1,.035,z1]],'#e3efff',true,selection,.8);}
    const shadow=materialPoint?createContactShadow(drawing.kind,clamp(Number(drawing.size)||28,12,80)/100):null;if(shadow)group.add(shadow);
    object={group,key,selection,shadow};drawingMap.set(drawing.id,object);
   }
@@ -267,15 +270,106 @@ function updateElevationHandle(displayFrame){
  if(layout.tether){const line=layout.tether;elevationTether.style.left=`${line.x}px`;elevationTether.style.top=`${line.y}px`;elevationTether.style.width=`${line.length}px`;elevationTether.style.transform=`rotate(${line.angle}deg)`;}
  elevationButton.setAttribute('aria-label',text);elevationButton.firstElementChild.textContent=text;
 }
+const areaButtons=new Map();
+function selectedArea(frame,packet){
+ if(!packet?.areaHandles||packet.active===false||packet.disabled||packet.tool!=='select'||frame?.selected.length!==1||frame.hide.includes('drawings'))return null;
+ const drawing=frame.drawings.find(item=>item.id===frame.selected[0]);
+ return drawing?.kind==='area'&&!drawing.locked&&!drawing.hidden&&!drawing.motion?.length&&drawing.points.length>=3?drawing:null;
+}
+function areaVertexPosition(point,dx,dz){
+ const at=limitPoint(worldToCourt({x:point.x+dx,z:point.z+dz}));
+ return {...courtToWorld(at),y:point.y};
+}
+function areaVertexCommand(target,destination){
+ if(!isWorldPoint(destination)||Math.hypot(destination.x-target.point.x,destination.z-target.point.z)<1e-8)return null;
+ return {id:target.id,vertex:target.vertex,point:limitPoint(worldToCourt(destination))};
+}
+function shouldCancelAuthorGrip(drag,next){
+ if(drag?.kind!=='area')return shouldCancelTrajectoryDrag(drag,next);
+ const area=selectedArea(next.frame,next),point=area?.points[drag.vertex];
+ return !point||area.id!==drag.id||drag.token!==next.token||drag.revision!==next.revision||drag.stepId!==next.frame.stepId
+  ||point.x!==drag.point.x||point.y!==drag.point.y||point.z!==drag.point.z
+  ||drag.cameraView!==next.cameraView||drag.cameraReset!==next.cameraReset||drag.zoom!==next.zoom;
+}
+function makeAreaHandle(vertex){
+ const button=guideHandleButton(`area-vertex-${vertex}`,`Ajustar vértice ${vertex+1} da área`,'');
+ button.title='Arraste no plano da quadra ou use as setas. Shift: 0,5 m.';
+ const tether=document.createElement('div');tether.className='elevation-tether';tether.setAttribute('aria-hidden','true');tether.hidden=true;handleLayer.append(tether);
+ button.addEventListener('pointerdown',event=>{
+  const area=selectedArea(frame,packet),point=area?.points[vertex];
+  if(!point||!active||event.button!==0||event.isPrimary===false||trajectoryDrag||pendingMovePreview||pendingElevationPreview||pendingTrajectoryPreview)return;
+  event.preventDefault();event.stopPropagation();cancelGesture(true);
+  const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(0,1,0),vector(point));cast(event);const start=trajectoryPlanePoint(ray.ray,plane);if(!start)return;
+  trajectoryDrag={kind:'area',id:area.id,vertex,point,stepId:frame.stepId,token,revision,cameraView:packet.cameraView,cameraReset:packet.cameraReset,zoom:packet.zoom,pointerId:event.pointerId,pointerType:event.pointerType,plane,start,pixel:{x:event.clientX,y:event.clientY},moved:false};
+  button.setPointerCapture(event.pointerId);button.focus();invalidate();
+ });
+ button.addEventListener('pointermove',event=>{if(updateTrajectoryPoint(event)){event.preventDefault();event.stopPropagation();invalidate();}});
+ button.addEventListener('pointerup',event=>finishTrajectory(event));
+ button.addEventListener('pointercancel',event=>finishTrajectory(event,true));
+ button.addEventListener('lostpointercapture',event=>finishTrajectory(event,true));
+ button.addEventListener('blur',()=>{if(trajectoryDrag?.kind==='area'&&trajectoryDrag.vertex===vertex)cancelGesture();});
+ button.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancelGesture();return;}
+  if(event.ctrlKey||event.metaKey||event.altKey||!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key))return;
+  const area=selectedArea(frame,packet),point=area?.points[vertex];if(!point||!active)return;
+  event.preventDefault();event.stopPropagation();if(trajectoryDrag||pendingMovePreview||pendingElevationPreview||pendingTrajectoryPreview)return;
+  const cameraDirection=camera.getWorldDirection(new THREE.Vector3()),step=event.shiftKey?.5:.1;
+  const right=trajectoryLateralDelta(cameraDirection,step);if(!right)return;
+  const [dx,dz]=event.key==='ArrowLeft'?[-right.x,-right.z]:event.key==='ArrowRight'?[right.x,right.z]:event.key==='ArrowUp'?[right.z,-right.x]:[-right.z,right.x];
+  const command=areaVertexCommand({id:area.id,vertex,point},areaVertexPosition(point,dx,dz));
+  if(command)emit('area-vertex',command);
+ });
+ handleLayer.append(button);return {button,tether};
+}
+function sparseAreaHandles(projected){
+ const visible=[],cells=new Map(),gap=44,actions=packet.selectionActionsBounds;
+ for(const handle of projected){
+  const {x,y,vertex}=handle,dragging=trajectoryDrag?.kind==='area'&&trajectoryDrag.vertex===vertex;
+  if(!dragging&&(x<88||x>innerWidth-28||y<(packet.selectionTopInset||0)+22||y>innerHeight-(packet.selectionBottomInset||0)-22
+    ||actions&&x>actions.x-22&&x<actions.x+actions.width+22&&y>actions.y-22&&y<actions.y+actions.height+22))continue;
+  const col=Math.floor(x/gap),row=Math.floor(y/gap);
+  let close=false;
+  for(let dx=-1;dx<=1&&!close;dx++)for(let dy=-1;dy<=1&&!close;dy++){
+   const other=cells.get(`${col+dx},${row+dy}`);
+   close=Boolean(other&&Math.hypot(x-other.x,y-other.y)<gap);
+  }
+  if(close&&!dragging)continue;
+  cells.set(`${col},${row}`,handle);visible.push(handle);
+ }
+ return visible;
+}
+function updateAreaHandles(displayFrame){
+ const area=selectedArea(frame,packet),drawing=area&&displayFrame.drawings.find(item=>item.id===area.id);
+ const projected=[];
+ drawing?.points.forEach((point,vertex)=>{
+  const screen=project(vector(point));
+  if(screen.visible||trajectoryDrag?.kind==='area'&&trajectoryDrag.vertex===vertex)projected.push({...screen,vertex});
+ });
+ const layouts=(drawing?.points.length||0)>12?sparseAreaHandles(projected):trajectoryControlLayout(projected,innerWidth,innerHeight,packet.selectionTopInset,packet.selectionBottomInset,packet.selectionActionsBounds);
+ const visible=new Set(layouts.map(item=>item.vertex));
+ for(const [vertex,{button,tether}] of areaButtons)if(!visible.has(vertex)){button.remove();tether.remove();areaButtons.delete(vertex);}
+ for(const position of layouts){
+  const {vertex}=position;
+  if(!areaButtons.has(vertex))areaButtons.set(vertex,makeAreaHandle(vertex));
+  const {button,tether}=areaButtons.get(vertex);
+  button.style.left=`${position.x}px`;button.style.top=`${position.y}px`;tether.hidden=!position.tether;
+  if(position.tether){const at=position.tether;tether.style.left=`${at.x}px`;tether.style.top=`${at.y}px`;tether.style.width=`${at.length}px`;tether.style.transform=`rotate(${at.angle}deg)`;}
+ }
+}
 function trajectoryDisplayFrame(base){
  const drag=trajectoryDrag||pendingTrajectoryPreview;if(!drag)return base;
+ if(drag.kind==='area')return drag.destination?{...base,drawings:base.drawings.map(drawing=>drawing.id===drag.id
+  ?{...drawing,points:drawing.points.map((point,index)=>index===drag.vertex?drag.destination:point)}:drawing)}:base;
  if(drag.kind==='start'&&drag.startBallId){const move=drag.destination?{ids:[drag.startBallId],delta:{x:(drag.destination.x-drag.point.x)/9,y:(drag.destination.z-drag.point.z)/18}}:null;return previewCourtObjects(base,move,{id:drag.startBallId,value:Math.max(0,drag.value-.12)});}
  return previewTrajectoryPoint(base,drag,Boolean(packet.landscape));
 }
 function updateTrajectoryPoint(event){
- const drag=trajectoryDrag;if(!drag||drag.pointerId!==event.pointerId||shouldCancelTrajectoryDrag(drag,{...packet,frame}))return false;
+ const drag=trajectoryDrag;if(!drag||drag.pointerId!==event.pointerId||shouldCancelAuthorGrip(drag,{...packet,frame}))return false;
  if(!drag.moved&&Math.hypot(event.clientX-drag.pixel.x,event.clientY-drag.pixel.y)<pointerDragThreshold(drag.pointerType))return false;
  cast(event);const at=trajectoryPlanePoint(ray.ray,drag.plane);if(!at)return false;
+ if(drag.kind==='area'){
+  drag.destination=areaVertexPosition(drag.point,at.x-drag.start.x,at.z-drag.start.z);drag.moved=true;return true;
+ }
  // Remove perspective drift from vertical-only motion, including displaced grips.
  cast({clientX:drag.pixel.x,clientY:event.clientY});const upright=trajectoryPlanePoint(ray.ray,drag.plane);if(!upright)return false;
  const destination=trajectoryPointValue({...drag,value:drag.initial},{x:at.x-upright.x,y:at.y-drag.start.y,z:at.z-upright.z});if(!destination)return false;
@@ -283,7 +377,9 @@ function updateTrajectoryPoint(event){
 }
 function finishTrajectory(event,cancelled=false){
  const drag=trajectoryDrag;if(!drag||event.pointerId!==drag.pointerId)return;if(!cancelled)updateTrajectoryPoint(event);trajectoryDrag=null;
- const command=trajectoryPointDragCommand(drag,{...packet,frame},cancelled);if(command){holdTrajectoryPreview(drag);emit('trajectory-point',command,drag.revision);}invalidate();
+ const next={...packet,frame},area=drag.kind==='area';
+ const command=area?(!cancelled&&drag.moved&&!shouldCancelAuthorGrip(drag,next)?areaVertexCommand(drag,drag.destination):null):trajectoryPointDragCommand(drag,next,cancelled);
+ if(command){holdTrajectoryPreview(drag);emit(area?'area-vertex':'trajectory-point',command,drag.revision);}invalidate();
 }
 function makeTrajectoryHandle(kind){
  const names={start:'início',middle:'meio',end:'final'},button=guideHandleButton(`trajectory-${kind}`,`Ajustar ${names[kind]} da trajetória`,kind==='middle'?'trajectory apex':'trajectory');
@@ -395,8 +491,8 @@ function render(now){pending=0;if(!frame||!active||!renderer||document.hidden||l
  if(renderer.getPixelRatio()!==renderPixelRatio(devicePixelRatio))resize();pickTargets.length=0;const actorIds=new Set(frame.actors.map(a=>a.id));for(const [id,object] of actorMap)if(!actorIds.has(id)){object.label.remove();dispose(object.group);actorMap.delete(id);}
  const displayFrame=trajectoryDisplayFrame(previewCourtObjects(frame,preview,elevationDrag||pendingElevationPreview));
  const contactBall=displayFrame.simulation?(displayFrame.drawings.find(drawing=>drawing.id===displayFrame.simulation.ballId)?.points[0]||displayFrame.simulation.ball):undefined;
- for(const actor of displayFrame.actors){const object=actorMap.get(actor.id)||makeActor(actor);applyActor(actor,object,contactBall);if(object.group.visible)pickTargets.push(object.rig.group);const point=object.group.position.clone();point.y+=object.height+.18;const screen=project(point);object.label.hidden=!actor.label||!object.group.visible||!screen.visible;object.label.style.left=`${screen.x}px`;object.label.style.top=`${screen.y}px`;}
- updateDrawings(displayFrame.drawings);updatePaths();updateSimulation();updateElevationHandle(displayFrame);updateTrajectoryHandles(displayFrame);grid.visible=Boolean(packet.grid)&&frame.court&&!packet.plain;court.visible=courtGroup.visible=Boolean(frame.court)&&!packet.plain;net.visible=Boolean(frame.net)&&!packet.plain;for(const object of drawingMap.values())if(object.group.visible)pickTargets.push(object.group);
+ for(const actor of displayFrame.actors){const object=actorMap.get(actor.id)||makeActor(actor);applyActor(actor,object,contactBall);if(object.group.visible&&!actor.illustration)pickTargets.push(object.rig.group);const point=object.group.position.clone();point.y+=object.height+.18;const screen=project(point);object.label.hidden=!actor.label||!object.group.visible||!screen.visible;object.label.style.left=`${screen.x}px`;object.label.style.top=`${screen.y}px`;}
+ updateDrawings(displayFrame.drawings);updatePaths();updateSimulation();updateElevationHandle(displayFrame);updateTrajectoryHandles(displayFrame);updateAreaHandles(displayFrame);grid.visible=Boolean(packet.grid)&&frame.court&&!packet.plain;court.visible=courtGroup.visible=Boolean(frame.court)&&!packet.plain;net.visible=Boolean(frame.net)&&!packet.plain;for(const object of drawingMap.values())if(object.group.visible)pickTargets.push(object.group);
  updateNetWarnings(displayFrame);
  if(hoveredId)hoverPainter.paint(actorMap.get(hoveredId)?.group||drawingMap.get(hoveredId)?.group);
  renderer.render(scene,camera);selectionAnchor(displayFrame);canvas.dataset.stepId=frame.stepId;canvas.dataset.progress=String(frame.progress);canvas.dataset.actorPositions=JSON.stringify(frame.actors.map(a=>({id:a.id,position:a.position})));canvas.dataset.renderedPositions=JSON.stringify([...actorMap.entries()].map(([id,a])=>({id,position:{x:a.group.position.x,y:a.group.position.y,z:a.group.position.z}})));canvas.dataset.selected=JSON.stringify(frame.selected);canvas.dataset.revision=String(revision);
@@ -513,13 +609,13 @@ window.addEventListener('message',event=>{
  const next=data.frame;if(!next||!Array.isArray(next.actors)||!Array.isArray(next.drawings)||!Array.isArray(next.selected)||!Array.isArray(next.hide)||typeof next.stepId!=='string'||!next.actors.every(actor=>typeof actor.id==='string'&&isWorldPoint(actor.position))||!next.drawings.every(drawing=>typeof drawing.id==='string'&&Array.isArray(drawing.points)&&drawing.points.every(isWorldPoint)))return;
  if(shouldReleaseMovePreview(pendingMovePreview,data))clearPendingMovePreview();
  if(shouldCancelElevationDrag(pendingElevationPreview,data))clearPendingElevationPreview();
- if(shouldCancelTrajectoryDrag(pendingTrajectoryPreview,data))clearPendingTrajectoryPreview();
+ if(shouldCancelAuthorGrip(pendingTrajectoryPreview,data))clearPendingTrajectoryPreview();
  if(token!==data.token||revision!==data.revision||frame&&frame.stepId!==next.stepId)resizeZoomIntent=null;
  clearHover();
  const layoutChanged=packet&&(packet.selectionTopInset!==data.selectionTopInset||packet.selectionBottomInset!==data.selectionBottomInset);
  if(frame&&next.stepId!==frame.stepId||packet&&packet.tool!==data.tool)stopCameraMotion();
  const changedTouch=touchCamera&&(touchCamera.revision!==data.revision||touchCamera.token!==data.token||touchCamera.stepId!==next.stepId||touchCamera.tool!==data.tool||touchCamera.cameraView!==data.cameraView||touchCamera.cameraReset!==data.cameraReset||touchCamera.zoom!==data.zoom||data.active===false);
- if(shouldCancelFrameGesture(gesture,data)||shouldCancelElevationDrag(elevationDrag,data)||shouldCancelTrajectoryDrag(trajectoryDrag,data)||changedTouch||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
+ if(shouldCancelFrameGesture(gesture,data)||shouldCancelElevationDrag(elevationDrag,data)||shouldCancelAuthorGrip(trajectoryDrag,data)||changedTouch||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
  if(!active){cancelGesture();clearNetWarnings();if(pending){cancelAnimationFrame(pending);pending=0;}return;}
  if(layoutChanged)resize();
  const zoom=clamp(Number(data.zoom)||1,.3,4);if(zoom!==lastZoom){stopCameraMotion();resizeZoomIntent=null;const limits=cameraDistanceLimits();distance=clamp(distance*lastZoom/zoom,limits.min,limits.max);lastZoom=zoom;updateCamera();}

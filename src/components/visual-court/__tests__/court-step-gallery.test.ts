@@ -103,6 +103,10 @@ describe("court step inspector gallery", () => {
     act(() => tree.root.findByProps({ testID: "court-step-drag-0" }).props.onLayout({ nativeEvent: { layout: { y: 0, height: 100 } } }));
     act(() => tree.update(React.createElement(CourtStepGallery, { ...value, stepIndex: 0 })));
     expect(mockScrollTo).toHaveBeenLastCalledWith({ y: 0, animated: true });
+    mockScrollTo.mockClear();
+    press("Etapa 4: Etapa autoral 4. Arraste para reordenar.");
+    act(() => tree.update(React.createElement(CourtStepGallery, { ...value, stepIndex: 3 })));
+    expect(mockScrollTo).not.toHaveBeenCalled();
   });
 
   it("keeps the court-step drag protocol and rejects foreign, out-of-range and disabled drops", () => {

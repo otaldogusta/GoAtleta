@@ -20,6 +20,7 @@ export type CourtPerspectiveCommand =
   | { type: "elevation"; id: string; value: number }
   | { type: "trajectory-height"; id: string; handle: CourtTrajectoryHandleKind; value: number }
   | { type: "trajectory-point"; id: string; handle: CourtTrajectoryHandleKind; point: CourtWorldPoint }
+  | { type: "area-vertex"; id: string; vertex: number; point: CourtPoint }
   | ({ type: "simulation-handle" } & CourtPerspectiveHandleEdit)
   | { type: "shortcut"; key: CourtPerspectiveShortcut; shift?: boolean };
 
@@ -97,7 +98,7 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
   const step = context.payload.timeline.steps[context.stepIndex];
   if (!step) return null;
   if (step.simulation?.mode === "defense" && context.progress !== 1
-    && ["move", "draw", "add-player", "elevation", "trajectory-height", "trajectory-point", "edit-text"].includes(String(value.type))) return null;
+    && ["move", "draw", "add-player", "elevation", "trajectory-height", "trajectory-point", "area-vertex", "edit-text"].includes(String(value.type))) return null;
   if (context.disabled && !(context.allowServeHandle && value.type === "simulation-handle" && value.kind === "serve") && !(value.type === "shortcut" && ["escape", "play"].includes(String(value.key)))) return null;
   const fields = (extras: string[]) => onlyFields(value, [...ENVELOPE_FIELDS, ...extras]);
   const hidden = context.payload.editor?.hiddenLayers ?? [];
@@ -132,6 +133,16 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
     if (!target?.editable || !record(at) || !onlyFields(at, ["x", "y", "z"])
       || !finite(at.x, -6.3, 6.3) || !finite(at.z, -11.7, 11.7) || !finite(at.y, target.min, target.max)) return null;
     return { type: "trajectory-point", id: value.id, handle: target.kind, point: { x: at.x, y: at.y, z: at.z } };
+  }
+
+  if (value.type === "area-vertex") {
+    if (!fields(["id", "vertex", "point"]) || context.tool !== "select" || typeof value.id !== "string"
+      || context.selected?.length !== 1 || context.selected[0] !== value.id
+      || typeof value.vertex !== "number" || !Number.isInteger(value.vertex)) return null;
+    const area = currentDrawings.find(item => item.id === value.id);
+    const destination = point(value.point);
+    if (area?.kind !== "area" || area.locked || area.motion?.length || area.points.length < 3 || !area.points[value.vertex] || !destination) return null;
+    return { type: "area-vertex", id: value.id, vertex: value.vertex, point: limitPoint(destination) };
   }
 
   if (value.type === "elevation") {

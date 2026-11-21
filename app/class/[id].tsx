@@ -2733,7 +2733,8 @@ export default function ClassDetails() {
               isSaving={embeddedAttendance.isSaving}
               loadFailed={embeddedAttendance.loadFailed}
               error={embeddedAttendance.error}
-              draftStatus={embeddedAttendance.hasChanges && embeddedAttendance.isDraftDurable ? "Rascunho salvo neste dispositivo" : undefined}
+              draftStatus="Rascunho salvo neste dispositivo"
+              draftStatusVisible={embeddedAttendance.hasChanges && embeddedAttendance.isDraftDurable}
               onRetry={embeddedAttendance.loadFailed ? () => void embeddedAttendance.reload() : undefined}
               onDiscardDraft={embeddedAttendance.draftConflict ? discardAttendanceChanges : undefined}
               onPrevious={() => handleShiftLessonDate(-1)}

@@ -43,6 +43,22 @@ describe("shared court simulation controls", () => {
     expect(tree!.root.findByProps({ accessibilityLabel: "Recepção" }).props.accessibilityState.selected).toBe(true);
   });
 
+  it("keeps only the mode tabs above the defense court", () => {
+    act(() => { tree = TestRenderer.create(React.createElement(CourtSimulationModes, { mode: "defense", onChange: jest.fn() })); });
+    expect(tree!.root.findByProps({ accessibilityLabel: "Defesa" }).props.accessibilityState.selected).toBe(true);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Cenário da defesa" })).toHaveLength(0);
+  });
+
+  it("switches Entrada, Meio and Saída from the ATAQUE row in defense settings", async () => {
+    const { props } = await panel({ ...config(), mode: "defense", preset: "1" }, "defense");
+    const onDefensePresetChange = jest.fn();
+    act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, onDefensePresetChange, unavailableDefensePresets: ["5"] })));
+    expect(tree!.root.findByProps({ accessibilityLabel: "Ataque da defesa: Meio" }).props.accessibilityState.checked).toBe(true);
+    press("Ataque da defesa: Entrada");
+    press("Ataque da defesa: Saída");
+    expect(onDefensePresetChange.mock.calls).toEqual([["4"]]);
+  });
+
   it("shows only the authored defense scenario and shared camera controls", async () => {
     const { props } = await panel({ ...config(), mode: "defense" }, "defense");
     for (const label of ["Saque: Flutuante", "Rodízio P1", "Curva do ataque", "Bloqueadores: 3", "Próxima jogada"]) {
@@ -51,6 +67,21 @@ describe("shared court simulation controls", () => {
     expect(tree!.root.findByProps({ accessibilityLabel: "Visão: Frente" })).toBeTruthy();
     press("Rótulos: Ocultar"); expect(props.onLabelsVisible).toHaveBeenCalledWith(false);
     expect(tree!.root.findByProps({ accessibilityLabel: "Restaurar simulação" })).toBeTruthy();
+  });
+
+  it("offers the defense coverage choices in settings and respects a missing read-only stage", async () => {
+    const defense: CourtSimulation = { ...config(), mode: "defense", defenseSettings: { startPositions: {}, coverage: "front" } };
+    const { props } = await panel(defense, "defense");
+    const onDefenseCoverageChange = jest.fn();
+    act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, onDefenseCoverageChange })));
+    const front = "Sistema de defesa: Cobertura frontal", zone1 = "Sistema de defesa: Cobertura da posição 1";
+    expect(tree!.root.findByProps({ accessibilityLabel: front }).props.accessibilityState.checked).toBe(true);
+    press(zone1);
+    expect(onDefenseCoverageChange).toHaveBeenCalledWith("zone1");
+    onDefenseCoverageChange.mockClear();
+    act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, onDefenseCoverageChange, unavailableDefenseCoverage: ["zone1"] })));
+    press(zone1);
+    expect(onDefenseCoverageChange).not.toHaveBeenCalled();
   });
 
   it("sends canonical rotation indexes behind the Brazilian setter labels", async () => {

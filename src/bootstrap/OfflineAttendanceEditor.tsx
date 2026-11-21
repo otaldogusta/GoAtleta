@@ -40,7 +40,8 @@ function LocalAttendance({ classId, snapshot, expiresAt }: { classId: string; sn
           dense={false}
           dateLabel={dateLabel}
           localDraftOnly
-          draftStatus={attendance.hasChanges && attendance.isDraftDurable ? "Rascunho salvo neste dispositivo. Sincroniza ao reconectar." : undefined}
+          draftStatus="Rascunho salvo neste dispositivo. Sincroniza ao reconectar."
+          draftStatusVisible={attendance.hasChanges && attendance.isDraftDurable}
           onPrevious={unavailable}
           onNext={unavailable}
           onOpenCalendar={unavailable}

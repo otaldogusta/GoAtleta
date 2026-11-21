@@ -33,7 +33,7 @@ const BLUE = "#72b6ef", RED = "#e89095";
 function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample): Guides {
   const paths: CourtPerspectiveGuidePath[] = [], markers: CourtPerspectiveGuideMarker[] = [], handles: CourtPerspectiveHandle[] = [];
   const sample = (start: number, end: number, count = 100) => Array.from({ length: count + 1 }, (_, i) => {
-    const frame = sampleCourtSimulation(payload, index, start + (end - start) * i / count);
+    const frame = sampleCourtSimulation(payload, index, i === count ? end : start + (end - start) * i / count);
     return point(frame?.ball ?? timing.ball);
   });
   const path = (id: string, points: Point[], dashed = false, opacity = .85, color = BLUE, arrow?: number) => {
@@ -50,6 +50,12 @@ function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample)
     const landing = target ? { x: target[0], z: target[1] } : timing.config.landingOverride ?? { x: timing.config.seam === "Left" ? -1.45 : 1.4, z: 6.65 };
     handles.push({ kind: "serve", point: { x: landing.x, y: .03, z: landing.z } });
     marker("serve-target", "cross", { x: landing.x, y: .025, z: landing.z }, "#c48d8f");
+  } else if (timing.mode === "defense") {
+    const setContact = timing.setContact ?? 0, attackContact = timing.attackContact ?? 1;
+    path("defense-pass", sample(timing.passContact ?? 0, setContact, 24), true, .65);
+    const set = path("defense-set", sample(setContact, attackContact, 32));
+    marker("defense-set-origin", "ring", set[0], "#bed8f1");
+    marker("defense-hit", "ring", set[set.length - 1], "#bed8f1");
   } else if (timing.mode === "attack") {
     const setContact = timing.setContact ?? 0, attackContact = timing.attackContact ?? 1;
     const set = path("set", sample(setContact, attackContact));
@@ -96,7 +102,7 @@ function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample)
   const contacts = flight?.collisions.map(contact => contact.type === "block" ? `Mão ${(contact.wallIndex ?? 0) + 1}` : labels[contact.type]) ?? [];
   const chain = contacts.slice(0, 4).join(" → ") + (contacts.length > 4 ? ` +${contacts.length - 4}` : "");
   return {
-    guideKey: JSON.stringify(["serve-flight-v4", timing.config, timing.bases]), paths, markers, handles,
+    guideKey: JSON.stringify(["serve-flight-v4", timing.config, timing.bases, timing.defenseContact]), paths, markers, handles,
     walls: timing.config.layers.block ? (timing.walls ?? []).map(wall => ({ center: point(wall.center), width: wall.width, height: wall.height, angle: wall.angle })) : [],
     outcome: timing.mode === "attack" && timing.config.layers.attack ? `${chain || "Ataque livre"} · ${flight?.landed ? flight.out ? "fora" : "dentro" : "limite de contatos"}` : "",
     blocked: Boolean(flight?.collisions.some(contact => contact.type !== "floor")),

@@ -1,4 +1,4 @@
-import type { CourtPoint, CourtVisualActor, CourtVisualPayload } from "./visual-court";
+import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep } from "./visual-court";
 import { attackFormation, attackPreset, sampleAttack } from "./court-simulation/attack-motion.js";
 import { receptionFormation } from "./court-simulation/formations.js";
 import { sampleReception } from "./court-simulation/reception-motion.js";
@@ -34,8 +34,8 @@ export function sampleCourtSimulation(payload: CourtVisualPayload, index: number
     const destinations = bases.map((p, slot) => [p[0], elevation(step.actorElevations?.[config.actorIds[slot]]), p[2]] as CourtSimulationPoint);
     const drawing = payload.editor!.drawings[step.id].find(item => item.id === config.ballId)!;
     const ball = world(drawing.points[0]); ball[1] = .12 + elevation(drawing.elevation);
-    const raw = sampleDefenseOrganization(fraction, starts, destinations, config.actorIds.map(id => step.actorActions?.[id]), ball, step.durationMs / 1000);
-    return { ...raw, config, bases, progress: fraction, mode: "defense", ballId: config.ballId, visibleIds: [...config.actorIds],
+    const { support, ...raw } = sampleDefenseOrganization(fraction, starts, destinations, config.actorIds.map(id => step.actorActions?.[id]), ball, step.durationMs / 1000, config.preset === "5");
+    return { ...raw, config, bases, progress: fraction, mode: "defense", ballId: config.ballId, visibleIds: [...config.actorIds], defenseContact: ball, defenseSupport: support,
       elapsedSeconds: fraction * raw.duration, actors: raw.actors.map((actor, slot) => ({ ...actor, id: config.actorIds[slot], slot, visible: true })) };
   }
   const raw = (config.mode === "receive"
@@ -122,7 +122,8 @@ export function configureCourtSimulation(payload: CourtVisualPayload, index: num
   const inactiveOwn = mode === "attack" ? [ownIds[1], ownIds[2], ownIds[5]] : [];
   const visibleActorIds = [...new Set([...initiallyVisible.filter(id => (!actorMeta[id]?.simulationSupport || required.has(id)) && !inactiveOwn.includes(id)),
     ...(mode === "receive" ? ownIds : []), ...visibleSlots(config).map(slot => actorIds[slot])])];
-  const step = { ...source, simulation: config, actorPositions: positions,
+  const phase = mode === "attack" ? "attack_shape" : source.phase === "receive_release" ? "receive_release" : "receive_legal";
+  const step: CourtVisualStep = { ...source, phase, simulation: config, actorPositions: positions,
     ...(explicitFormation ? { baselineActorPositions: { ...positions }, trajectories: source.trajectories?.filter(path => !required.has(path.actorId)), transitions: source.transitions?.filter(path => !required.has(path.actorId)) } : {}), visibleActorIds };
   let next: CourtVisualPayload = { ...payload, actors, editor: { ...payload.editor, actorMeta, drawings: { ...payload.editor.drawings, [source.id]: drawings } }, timeline: { steps: payload.timeline.steps.map((item, i) => i === index ? step : item) } };
   const frame = sampleCourtSimulation(next, index, 0);

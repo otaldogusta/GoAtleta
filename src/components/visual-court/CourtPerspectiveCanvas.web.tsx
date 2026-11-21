@@ -48,6 +48,7 @@ export function CourtPerspectiveCanvas(props: CourtPerspectiveCanvasProps) {
       simulationHandles: Boolean(props.onSimulationHandle), allowServeHandle: Boolean(props.allowServeHandle),
       elevationHandles: Boolean(props.onElevation) && !props.readOnly,
       trajectoryHandles: Boolean(props.onTrajectoryHeight) && !props.readOnly,
+      areaHandles: Boolean(props.onAreaVertex) && !props.readOnly,
       selectionTopInset: props.selectionTopInset, selectionBottomInset: props.selectionBottomInset,
       selectionActionsBounds,
     };
@@ -79,6 +80,7 @@ export function CourtPerspectiveCanvas(props: CourtPerspectiveCanvasProps) {
       else if (command.type === "elevation") p.onElevation?.(command.id, command.value);
       else if (command.type === "trajectory-height") p.onTrajectoryHeight?.(command.id, command.handle, command.value);
       else if (command.type === "trajectory-point") p.onTrajectoryPoint?.(command.id, command.handle, command.point);
+      else if (command.type === "area-vertex") p.onAreaVertex?.(command.id, command.vertex, command.point);
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
@@ -87,9 +89,9 @@ export function CourtPerspectiveCanvas(props: CourtPerspectiveCanvasProps) {
     if (!ready) return;
     const request = requestAnimationFrame(sendFrame);
     return () => cancelAnimationFrame(request);
-  }, [ready, sendFrame, frame, props.active, props.tool, props.motionMode, props.grid, props.disabled, props.multiple, props.color, props.dashed, props.zoom, props.cameraView, props.cameraReset, props.half, props.plain, props.landscape, props.onSimulationHandle, props.onElevation, props.onTrajectoryHeight, props.onTrajectoryPoint, props.selectionTopInset, props.selectionBottomInset, selectionActionsBounds]);
+  }, [ready, sendFrame, frame, props.active, props.tool, props.motionMode, props.grid, props.disabled, props.multiple, props.color, props.dashed, props.zoom, props.cameraView, props.cameraReset, props.half, props.plain, props.landscape, props.onSimulationHandle, props.onElevation, props.onTrajectoryHeight, props.onTrajectoryPoint, props.onAreaVertex, props.selectionTopInset, props.selectionBottomInset, selectionActionsBounds]);
   return <View style={{ flex: 1, backgroundColor: "#09090f" }} onLayout={event => setBounds(event.nativeEvent.layout)}>
-    <iframe ref={iframe} title="Quadra 3D da mesma jogada" src="/visual-court-3d/index.html?v=lateral-trajectory-20261112" referrerPolicy="no-referrer" onLoad={sendFrame} style={{ display: "block", border: 0, width: "100%", height: "100%", position: "absolute", inset: 0 }} />
+    <iframe ref={iframe} title="Quadra 3D da mesma jogada" src="/visual-court-3d/index.html?v=defense-attack-trace-20261120" referrerPolicy="no-referrer" onLoad={sendFrame} style={{ display: "block", border: 0, width: "100%", height: "100%", position: "absolute", inset: 0 }} />
     {!ready && !failed && props.active ? <View pointerEvents="none" style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", gap: 10 }}><ActivityIndicator color={colors.primaryBg} /><Text style={{ color: "#e7edf8" }}>Abrindo vista 3D…</Text></View> : null}
     {failed ? <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", padding: 28 }}><Text accessibilityRole="alert" style={{ color: "#e7edf8", textAlign: "center" }}>Não foi possível abrir a vista 3D neste navegador. Sua jogada continua disponível em Quadra 2D.</Text></View> : null}
     {showSelectionActions ? <View onLayout={event => {

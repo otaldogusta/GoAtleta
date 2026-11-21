@@ -9,7 +9,7 @@ import { ModalSheet } from "../../ui/ModalSheet";
 import { useAppTheme } from "../../ui/app-theme";
 import { compactUiMetrics as metrics, radius, shadow, spacing } from "../../theme/tokens";
 
-export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], saving, error, onSave, bottomOffset = spacing.lg }: {
+export function HolidayRecommendation({ holiday, date, classes: organizationClasses, pausedIds = [], saving, error, onSave, bottomOffset = spacing.lg }: {
   holiday: string; date: string; classes: ClassGroup[]; pausedIds?: string[];
   saving: boolean; error: string; onSave: (ids: string[]) => Promise<void>; bottomOffset?: number;
 }) {
@@ -18,10 +18,14 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
   const compact = width < 480;
   const [dismissed, setDismissed] = useState(false);
   const [selection, setSelection] = useState<string[] | null>(null);
-  const dateLabel = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long" }).format(new Date(date + "T12:00:00"));
-  const suspendedCount = classes.filter(c => selection?.includes(c.id) || pausedIds.includes(c.id)).length;
+  const holidayDate = new Date(date + "T00:00:00Z");
+  const weekday = holidayDate.getUTCDay();
+  const classes = organizationClasses.filter(c => c.daysOfWeek?.includes(weekday));
+  const dateLabel = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", timeZone: "UTC" }).format(holidayDate);
+  const suspendedClasses = classes.filter(c => selection?.includes(c.id) || pausedIds.includes(c.id));
+  const suspendedCount = suspendedClasses.length;
   const closePanel = () => { if (!saving) setSelection(null); };
-  if (dismissed) return null;
+  if (dismissed || !classes.length) return null;
   return <>
     {selection === null ? <View style={[styles.floating, { bottom: bottomOffset, backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.heading}>
@@ -36,7 +40,7 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
       </View>
       <View style={styles.footer}>
         <Text style={[styles.question, { color: colors.text }]}>Como ficam as aulas de hoje?</Text>
-        <Button label="Revisar aulas" onPress={() => setSelection([...pausedIds])} />
+        <Button label="Revisar aulas" onPress={() => setSelection([])} />
       </View>
     </View> : null}
     <ModalSheet visible={selection !== null} onClose={closePanel} backdropOpacity={0.35} position="center" overlayZIndex={30000}
@@ -45,7 +49,7 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
         <GoAtletaIcon name="assistant" size={28} color={colors.successText} />
         <View style={styles.copy}>
           <Text accessibilityRole="header" style={[styles.panelTitle, { color: colors.text }]}>Revisar aulas</Text>
-          <Text style={[styles.caption, { color: colors.muted }]}>Hoje, {dateLabel} · {holiday}</Text>
+          <Text style={[styles.caption, { color: colors.muted }]}>{dateLabel} · {holiday}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Fechar revisão de aulas" disabled={saving} onPress={closePanel} style={styles.close}>
           <GoAtletaIcon name="close" size={20} color={colors.muted} />
@@ -53,7 +57,7 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
       </View>
       <View style={styles.toolbar}>
         <Pressable accessibilityRole="button" disabled={saving} suppressWebHoverFeedback onPress={() => setSelection(classes.map(c => c.id))} style={styles.bulk}>
-          <Text style={[styles.caption, { color: colors.muted }]}>Marcar todas sem aula</Text>
+          <Text style={[styles.caption, { color: colors.muted }]}>Marcar todas sem aula neste dia</Text>
         </Pressable>
       </View>
       <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
@@ -77,11 +81,11 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
           </View>;
         })}
       </ScrollView>
-      <Text style={[styles.caption, { color: colors.muted }]}>As alterações só serão salvas ao confirmar.</Text>
+      <Text style={[styles.caption, { color: colors.muted }]}>A confirmação vale só para as aulas de {dateLabel}.</Text>
       {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
       <View style={[styles.footer, styles.panelFooter, { borderColor: colors.border }]}>
         <Text style={[styles.caption, { color: colors.muted }]}>{classes.length - suspendedCount} com aula · {suspendedCount} sem aula</Text>
-        <Button label="Confirmar" loading={saving} loadingLabel="Salvando..." disabled={saving || !classes.length} onPress={() => void onSave(selection ?? [])} />
+        <Button label="Confirmar" loading={saving} loadingLabel="Salvando..." disabled={saving} onPress={() => void onSave(suspendedClasses.map(c => c.id))} />
       </View>
     </ModalSheet>
   </>;

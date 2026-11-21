@@ -2,7 +2,11 @@ import { normalizeAttackSettings } from "./court-simulation/attack-settings.js";
 import { normalizeReceiveTarget } from "./court-simulation/reception-target.js";
 
 export type CourtSimulationPoint = [number, number, number];
-export type CourtSimulationDefenseSettings = { startPositions: Record<string, { x: number; y: number }> };
+export type CourtDefenseCoverage = "front" | "zone1";
+export type CourtSimulationDefenseSettings = {
+  startPositions: Record<string, { x: number; y: number }>;
+  coverage?: CourtDefenseCoverage;
+};
 export type CourtSimulationAttackSettings = {
   targetOverride: [number, number] | null;
   hitOverride: [number, number] | null;
@@ -127,6 +131,8 @@ export type CourtSimulationSample = {
   serveGuide?: CourtSimulationPoint[];
   serveTarget?: [number, number];
   ballSpin?: number;
+  defenseContact?: CourtSimulationPoint;
+  defenseSupport?: Omit<CourtSimulationActor, "id" | "slot" | "visible">[];
 };
 
 const presets = ["4", "go", "31", "1", "2", "5", "red", "pipe", "bic"];
@@ -151,6 +157,8 @@ export function normalizeCourtSimulation(value: unknown, actorIds?: readonly str
       && typeof p.y === "number" && Number.isFinite(p.y) && p.y >= -.15 && p.y <= 1.15;
     if (references.some(id => !Object.prototype.hasOwnProperty.call(starts, id) || !valid(starts[id]))) return null;
     defenseSettings = { startPositions: Object.fromEntries(references.map(id => { const p = starts[id] as { x: number; y: number }; return [id, { x: p.x, y: p.y }]; })) };
+    const coverage = value.defenseSettings.coverage;
+    if (coverage === "front" || coverage === "zone1") defenseSettings.coverage = coverage;
   }
   const layers = object(value.layers) ? value.layers : {};
   const rotation = typeof value.rotation === "number" && Number.isFinite(value.rotation) ? Math.max(0, Math.min(5, Math.floor(value.rotation))) : 0;

@@ -90,6 +90,7 @@ type ClassAttendanceWorkspacePanelProps = {
   floatingSave?: boolean;
   localDraftOnly?: boolean;
   draftStatus?: string;
+  draftStatusVisible?: boolean;
   onBindStudentNfc?: (student: EmbeddedAttendanceStudent) => void;
   nfcBindingStudentId?: string | null;
 };
@@ -137,7 +138,7 @@ function StudentAvatar({ student, colors, dense = false, onOpenPhoto }: { studen
   );
 }
 
-export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasPersistedAttendance = false, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onDiscardDraft, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, floatingSave = true, localDraftOnly = false, draftStatus, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
+export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasPersistedAttendance = false, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onDiscardDraft, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, floatingSave = true, localDraftOnly = false, draftStatus, draftStatusVisible = true, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
   const { confirm } = useConfirmDialog();
   const { containerRef, onLayout, width } = useContainerResponsiveLayout("content");
   const [selectedStudent, setSelectedStudent] = useState<EmbeddedAttendanceStudent | null>(null);
@@ -293,7 +294,15 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
             </Pressable> : null}
           </View> : null}
         </View>
-        {draftStatus ? <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>{draftStatus}</Text> : null}
+        {draftStatus ? (
+          <Text
+            accessibilityLiveRegion={draftStatusVisible ? "polite" : "none"}
+            aria-hidden={!draftStatusVisible}
+            style={{ color: colors.muted, opacity: draftStatusVisible ? 1 : 0 }}
+          >
+            {draftStatus}
+          </Text>
+        ) : null}
       </View>
 
         <View style={loadFailed && !isLoading ? styles.loadFailureState : null}>

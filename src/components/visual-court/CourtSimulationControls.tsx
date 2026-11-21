@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import type { CourtSimulation } from "../../core/court-simulation-model";
-import { radius, spacing } from "../../theme/tokens";
+import type { CourtDefenseCoverage, CourtSimulation } from "../../core/court-simulation-model";
+import { COURT_DEFENSE_ATTACKS, courtDefensePreset, type CourtDefensePreset } from "../../core/court-defense-preset";
+import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
@@ -17,15 +18,17 @@ const PRESET_LABELS: Record<string, string> = { go: "Ponta rápida", red: "Saíd
 const BLOCKER_IDS = [1, 2, 5];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
 
-function Segments<T extends string | number>({ label, options, value, onChange, disabled = false, nativeID, compact = false }: {
-  label: string; options: readonly { value: T; label: string; disabled?: boolean; accessibilityLabel?: string }[]; value: T;
-  onChange: (value: T) => void; disabled?: boolean; nativeID?: string; compact?: boolean;
+function Segments<T extends string | number>({ label, options, value, onChange, disabled = false, nativeID, compact = false, fullTouchTarget = false }: {
+  label: string; options: readonly { value: T; label: string; disabled?: boolean; accessibilityLabel?: string }[]; value: T | undefined;
+  onChange: (value: T) => void; disabled?: boolean; nativeID?: string; compact?: boolean; fullTouchTarget?: boolean;
 }) {
   const { colors } = useAppTheme();
   const touch = Platform.OS !== "web";
+  const sizing = fullTouchTarget ? { minHeight: compactUiMetrics.touchTarget } : compact ? { minHeight: 22 } : touch ? { minHeight: 36 } : null;
+  const fontSize = compact ? fullTouchTarget ? 11 : 10 : 12;
   return <View nativeID={nativeID} accessibilityRole="radiogroup" accessibilityLabel={label} style={[styles.segments, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
-    {options.map(option => <Pressable suppressWebHoverFeedback disableWebPressScale key={option.value} accessibilityRole="radio" accessibilityLabel={option.accessibilityLabel ?? `${label}: ${option.label}`} accessibilityState={{ checked: value === option.value, disabled: disabled || option.disabled }} aria-checked={value === option.value} disabled={disabled || option.disabled} onPress={() => { if (!disabled && !option.disabled) onChange(option.value); }} style={({ hovered, pressed }) => [styles.segment, compact ? { minHeight: 22 } : touch ? { minHeight: 36 } : null, { backgroundColor: value === option.value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || option.disabled ? 0.38 : 1 }]}>
-      <Text numberOfLines={1} style={{ color: value === option.value ? colors.primaryText : colors.muted, fontSize: compact ? 10 : 12, fontWeight: touch && value === option.value ? "600" : "400" }}>{option.label}</Text>
+    {options.map(option => <Pressable suppressWebHoverFeedback disableWebPressScale key={option.value} accessibilityRole="radio" accessibilityLabel={option.accessibilityLabel ?? `${label}: ${option.label}`} accessibilityState={{ checked: value === option.value, disabled: disabled || option.disabled }} aria-checked={value === option.value} disabled={disabled || option.disabled} onPress={() => { if (!disabled && !option.disabled) onChange(option.value); }} style={({ hovered, pressed }) => [styles.segment, sizing, { backgroundColor: value === option.value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || option.disabled ? 0.38 : 1 }]}>
+      <Text numberOfLines={1} style={{ color: value === option.value ? colors.primaryText : colors.muted, fontSize, fontWeight: touch && value === option.value ? "600" : "400" }}>{option.label}</Text>
     </Pressable>)}
   </View>;
 }
@@ -204,7 +207,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   return <View style={[styles.row, compactWeb ? { gap: 8, minHeight: 28 } : !touch ? { gap: 16 } : null]}><Text style={{ ...(compactWeb ? { width: 72 } : { flex: touch ? 0.39 : 1 }), color: colors.muted, fontSize: compactWeb ? 9 : touch ? 10 : 11, letterSpacing: compactWeb ? 0.3 : touch ? 0.5 : 0.6 }}>{label}</Text><View style={compactWeb ? { flex: 1, minWidth: 0 } : touch ? { flex: 0.61, minWidth: 0 } : { width: "60%", minWidth: 0 }}>{children}</View></View>;
 }
 
-export function CourtSimulationSettings({ config, mode, onChange, onRestore, onShare, cameraView, onCameraView, labelsVisible = true, onLabelsVisible, disabled = false, exportDisabled = false, attackArcValue = .03, showRotation = mode === "receive" }: {
+export function CourtSimulationSettings({ config, mode, onChange, onRestore, onShare, cameraView, onCameraView, labelsVisible = true, onLabelsVisible, disabled = false, exportDisabled = false, attackArcValue = .03, showRotation = mode === "receive", unavailableDefenseCoverage, onDefenseCoverageChange, unavailableDefensePresets, onDefensePresetChange }: {
   config: CourtSimulation | null; mode: SimulationMode; onChange: (patch: Partial<CourtSimulation>) => void;
   onRestore: () => void; onShare: () => void;
   cameraView: CameraView; onCameraView: (view: CameraView) => void; labelsVisible?: boolean; onLabelsVisible?: (value: boolean) => void;
@@ -212,6 +215,10 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
   exportDisabled?: boolean;
   attackArcValue?: number;
   showRotation?: boolean;
+  unavailableDefenseCoverage?: CourtDefenseCoverage[];
+  onDefenseCoverageChange?: (coverage: CourtDefenseCoverage) => void;
+  unavailableDefensePresets?: readonly CourtDefensePreset[];
+  onDefensePresetChange?: (preset: CourtDefensePreset) => void;
 }) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -241,7 +248,12 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
           <Row label="SAQUE"><Segments compact={compactWeb} label="Saque" value={config?.serve ?? "Float"} options={[{ value: "Float", label: "Flutuante" }, { value: "Topspin", label: "Com rotação" }]} onChange={serve => onChange({ serve })} disabled={disabled} /></Row>
           <Row label="ALVO"><Segments compact={compactWeb} label="Alvo do saque" value={config?.seam ?? "Left"} options={[{ value: "Left", label: "Esquerda" }, { value: "Right", label: "Direita" }]} onChange={seam => onChange({ seam })} disabled={disabled} /></Row>
         </> : mode === "defense" ? <>
-          <Row label="ATAQUE"><Text style={{ color: colors.text, fontSize: compactWeb ? 11 : 12 }}>Entrada de rede · 4</Text></Row>
+          {onDefensePresetChange ? <Row label="ATAQUE"><Segments<CourtDefensePreset> label="Ataque da defesa" value={courtDefensePreset(config?.preset)} onChange={onDefensePresetChange} disabled={disabled} compact={compactWeb} fullTouchTarget={compactWeb || Platform.OS !== "web"}
+            options={COURT_DEFENSE_ATTACKS.map(option => ({ ...option, disabled: unavailableDefensePresets?.includes(option.value) }))} /></Row> : null}
+          {onDefenseCoverageChange ? <Row label="COBERTURA"><Segments<CourtDefenseCoverage> label="Sistema de defesa" value={config?.defenseSettings?.coverage} onChange={onDefenseCoverageChange} disabled={disabled} compact={compactWeb} fullTouchTarget={mobile || touch} options={[
+            { value: "front", label: "Frontal", accessibilityLabel: "Sistema de defesa: Cobertura frontal", disabled: unavailableDefenseCoverage?.includes("front") },
+            { value: "zone1", label: "Posição 1", accessibilityLabel: "Sistema de defesa: Cobertura da posição 1", disabled: unavailableDefenseCoverage?.includes("zone1") },
+          ]} /></Row> : null}
           <Text style={{ color: colors.muted, fontSize: compactWeb ? 11 : 12 }}>Organização da defesa até o contato.</Text>
         </> : <>
           <Row label="FORMATO"><Segments compact={compactWeb} label="Formato" value={config?.format ?? "Indoor"} options={[{ value: "Indoor", label: "Quadra" }, { value: "9-man", label: "9 jogadores", disabled: true, accessibilityLabel: "9 jogadores. Em breve" }]} onChange={format => onChange({ format })} disabled={disabled} /></Row>

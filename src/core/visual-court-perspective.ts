@@ -2,7 +2,9 @@ import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep 
 import { actorPoint, courtSelectionElevation, courtTrajectoryHeightTargets, drawingAtProgress, frameDrawings, pointAlong, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
 import { courtTrajectoryHeightAt, courtTrajectoryHeights, parseCourtTrajectoryHeights, type CourtTrajectoryHandleKind, type CourtTrajectoryHeights } from "./court-arrow-trajectory";
 import { sampleCourtSimulation } from "./court-simulation";
+import { courtDrawingTraceProgress } from "./court-simulation-display";
 import { buildCourtPerspectiveSimulation, type CourtPerspectiveSimulation } from "./court-perspective-guides";
+import { projectCourtBlockShadow } from "./court-block-shadow";
 import { courtActorActionPose } from "./court-actor-actions";
 
 export type CourtWorldPoint = { x: number; y: number; z: number };
@@ -13,6 +15,7 @@ export type CourtPerspectiveActor = {
   role: CourtVisualActor["role"];
   color: string;
   locked: boolean;
+  illustration?: boolean;
   /** Authored offset; absent on objects whose height is controlled by the engine. */
   elevation?: number;
   simulated?: boolean;
@@ -40,6 +43,7 @@ export type CourtPerspectiveDrawing = {
   points: CourtWorldPoint[];
   curveMode?: CourtDrawing["curveMode"];
   startBallId?: string;
+  traceProgress?: number;
   trajectoryHeights?: CourtTrajectoryHeights;
   /** The renderer locates these on its actual stroke, including legacy landscape curves. */
   trajectoryHandles?: { kind: CourtTrajectoryHandleKind; value: number; editable: boolean; min: number; max: number }[];
@@ -138,7 +142,23 @@ export function buildCourtPerspectiveFrame(
   const simulation = sampleCourtSimulation(payload, index, fraction);
   const authoredFinal = simulation?.mode === "defense" && fraction === 1;
   const sampled = new Map(simulation?.actors.map(actor => [actor.id, actor]));
-  if (simulation) frame.simulation = buildCourtPerspectiveSimulation(payload, index, simulation, showMovement);
+  if (simulation) {
+    frame.simulation = buildCourtPerspectiveSimulation(payload, index, simulation, showMovement);
+    if (authoredFinal && showMovement && !hide.includes("drawings") && !hide.includes("actors")) {
+      const blockers = simulation.actors.filter(actor => !payload.editor?.actorMeta[actor.id]?.hidden);
+      const projection = projectCourtBlockShadow(simulation.ball, blockers);
+      const matchingShadow = frameDrawings(payload, index).find(drawing =>
+        !drawing.hidden && drawing.kind === "area" && drawing.points.length === projection.points.length &&
+        drawing.points.every((point, i) => Math.hypot(point.x - projection.points[i].x, point.y - projection.points[i].y) < 1e-7));
+      if (matchingShadow) {
+        const color = matchingShadow.color;
+        frame.simulation.paths = [...frame.simulation.paths, ...projection.rays.map((points, i) => ({
+          id: `defense-shadow-ray-${i}`, points, dashed: true, opacity: .68, color,
+        }))];
+        frame.simulation.guideKey = JSON.stringify([frame.simulation.guideKey, projection.rays, color]);
+      }
+    }
+  }
   if (!hide.includes("actors")) frame.actors = payload.actors
     .filter(actor => !payload.editor?.actorMeta[actor.id]?.hidden)
     .filter(actor => !step.visibleActorIds || step.visibleActorIds.includes(actor.id))
@@ -180,17 +200,35 @@ export function buildCourtPerspectiveFrame(
       }
       return result;
     });
+  if (!hide.includes("actors") && simulation?.defenseSupport) {
+    simulation.defenseSupport.forEach(state => {
+      const [x, y, z] = state.position;
+      const dx = state.facing[0] - x, dz = state.facing[1] - z, length = Math.hypot(dx, dz);
+      const setter = state.role === "setter";
+      let id = `defense-illustration-${state.role}`;
+      while (payload.actors.some(actor => actor.id === id)) id += "-";
+      frame.actors.push({
+        id, label: hide.includes("labels") ? "" : setter ? "L3" : "P6",
+        role: setter ? "setter" : "libero", color: "#4389ff", locked: true, illustration: true, simulated: true,
+        position: { x, y, z }, facing: length > .000001 ? [dx / length, dz / length] : [0, z >= 0 ? -1 : 1],
+        poseRole: state.role, pose: state.pose, jump: state.jump, side: state.side,
+        previousPose: state.previousPose, poseBlend: state.poseBlend, poseScale: setter ? .86 : .96, path: [],
+      });
+    });
+  }
   if (!hide.includes("drawings")) {
     const legacy: CourtDrawing[] = [
       ...(step.arrows ?? []).map(arrow => ({ id: arrow.id, kind: "arrow" as const, points: [arrow.from, arrow.to], color: arrow.color ?? "#fff", size: 28, rotation: 0 })),
       ...payload.markers.filter(marker => !step.markerIds || step.markerIds.includes(marker.id)).map(marker => ({ id: marker.id, kind: marker.type, points: [marker.position], color: marker.color ?? "#ffdc53", size: 28, rotation: 0 })),
     ];
-    const drawings = [...legacy, ...frameDrawings(payload, index)].map(drawing => simulation && drawing.id === simulation.ballId
-      ? { ...drawing, points: [{ x: simulation.ball[0] / 9 + .5, y: simulation.ball[2] / 18 + .5 }] }
+    const drawings = [...legacy, ...frameDrawings(payload, index)].filter(drawing => courtDrawingTraceProgress(drawing, simulation) >= 0).map(drawing => simulation && drawing.id === simulation.ballId
+      ? { ...drawing, points: [{ x: (simulation.defenseContact ?? simulation.ball)[0] / 9 + .5, y: (simulation.defenseContact ?? simulation.ball)[2] / 18 + .5 }] }
       : drawingAtProgress(drawing, fraction));
     const projected = resolveCourtDrawingAnchors(drawings).map(drawing => {
       const elevation = ["ball", "cone", "target", "ladder"].includes(drawing.kind) && (drawing.id !== simulation?.ballId || authoredFinal) ? courtSelectionElevation(payload, index, drawing.id) : undefined;
       const result = perspectiveDrawing(drawing, showMovement, elevation);
+      const traceProgress = courtDrawingTraceProgress(drawing, simulation);
+      if (traceProgress < 1) result.traceProgress = traceProgress;
       if (simulation && drawing.id === simulation.ballId) {
         result.points = [{ x: simulation.ball[0], y: simulation.ball[1], z: simulation.ball[2] }];
         result.simulated = !authoredFinal;
@@ -199,6 +237,10 @@ export function buildCourtPerspectiveFrame(
       return result;
     });
     const balls = new Map(projected.filter(drawing => drawing.kind === "ball" && drawing.points[0]).map(drawing => [drawing.id, drawing.points[0]]));
+    if (simulation?.defenseContact) {
+      const [x, y, z] = simulation.defenseContact;
+      balls.set(simulation.ballId, { x, y, z });
+    }
     const hidden = new Set(drawings.filter(drawing => drawing.hidden).map(drawing => drawing.id));
     frame.drawings = projected.filter(drawing => !hidden.has(drawing.id)).map(drawing => {
       const ball = drawing.startBallId ? balls.get(drawing.startBallId) : undefined;
@@ -217,7 +259,7 @@ export function buildCourtPerspectiveFrame(
       }) };
     });
   }
-  const visible = new Set([...frame.actors, ...frame.drawings].map(item => item.id));
+  const visible = new Set([...frame.actors.filter(actor => !actor.illustration), ...frame.drawings].map(item => item.id));
   frame.selected = selected.filter(id => visible.has(id));
   return frame;
 }

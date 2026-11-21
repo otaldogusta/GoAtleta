@@ -1,10 +1,12 @@
-import { ensureCourtDefenseStep } from "../court-defense-preset";
+import { ensureCourtDefenseStep, getCourtDefenseSideStepIndex, getCourtDefenseStepIndex } from "../court-defense-preset";
+import { defensePlaybackClock } from "../court-defense-motion";
 import { normalizeCourtSimulation } from "../court-simulation-model";
 import { configureCourtSimulation, getCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../court-simulation";
 import { buildCourtPerspectiveFrame } from "../visual-court-perspective";
 import { displayCourtDrawings, simulationFloorPoint } from "../court-simulation-display";
 import { resolveCourtLayers } from "../court-layers";
-import { copyStepSelection, courtTrajectoryHeightTargets, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, setCourtActorAction, setCourtSelectionElevation, setCourtTrajectoryPoint } from "../visual-court-editor";
+import { changeDrawings, copyStepSelection, courtTrajectoryHeightTargets, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, setCourtActorAction, setCourtAreaVertex, setCourtSelectionElevation, setCourtTrajectoryPoint } from "../visual-court-editor";
+import { DEFENSE_BLOCK_SHADOW_ID, projectCourtBlockShadow } from "../court-block-shadow";
 import { parseCourtVisualPayload, serializeCourtVisualPayload, type CourtActorAction } from "../visual-court";
 
 const setup = () => ensureCourtDefenseStep(newCourtBoard());
@@ -12,7 +14,7 @@ const expected = {
   "height-player": { x: .45021318980065, y: .6428772267877533 },
   "circle-player": { x: .9627325216959379, y: .435773218862502 },
   "board_mwe81mmb_i7sa8kdc": { x: .9030737799733927, y: .5513193038601435 },
-  "board_mwe820yh_46d2dj66": { x: .7690148496426252, y: .5507544323011282 },
+  "board_mwe820yh_46d2dj66": { x: .8090148496426253, y: .5507544323011282 },
   "board_mwe82nib_o7hqgvly": { x: .07353581311638646, y: .7039602404746408 },
   "board_mwe82zw1_2hmbi70q": { x: .9733832125476085, y: .8260512342917896 },
   "board_mwe838z8_9ng7sqxw": { x: .2947221656019014, y: .8408940324700445 },
@@ -47,14 +49,226 @@ describe("authored zone-four defense", () => {
     expect(end.actors.find(actor => actor.id === "circle-player")!.pose).toBe("contact");
     expect(end.actors.filter(actor => actor.role === "blocker").map(actor => actor.extension)).toEqual([1, 1]);
     expect(end.flight).toBeUndefined(); expect(end.walls).toBeUndefined();
-    expect(start.ball).toEqual(end.ball);
+    expect(end.ball).toEqual(end.defenseContact);
+    expect(start.ball).not.toEqual(end.ball);
     const frame = buildCourtPerspectiveFrame(payload, stepIndex, 1);
-    expect(frame.simulation!.paths).toEqual([]); expect(frame.simulation!.handles).toEqual([]); expect(frame.simulation!.outcome).toBe("");
+    expect(frame.simulation!.paths.map(path => path.id)).toEqual(["defense-pass", "defense-set"]);
+    expect(frame.simulation!.handles).toEqual([]); expect(frame.simulation!.outcome).toBe("");
     expect(frame.drawings.filter(drawing => drawing.kind === "ball")).toHaveLength(1);
     const arrows = frame.drawings.filter(drawing => drawing.startBallId);
     expect(arrows).toHaveLength(3);
     expect(arrows.every(drawing => drawing.startBallId === "anchor-ball")).toBe(true);
     expect(displayCourtDrawings(payload, stepIndex, 1).find(drawing => drawing.id === end.ballId)!.points).toEqual([simulationFloorPoint(end.ball)]);
+  });
+
+  it("keeps the authored tactical contour editable and mirrors the exit as a separate defense stage", () => {
+    const { payload, stepIndex } = setup(), exit = ensureCourtDefenseStep(payload, "5");
+    const shadowFor = (board: typeof payload, index: number) => frameDrawings(board, index).find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)!;
+    const entryShadow = shadowFor(exit.payload, stepIndex);
+    const exitShadow = shadowFor(exit.payload, exit.stepIndex);
+    expect(entryShadow.points).toEqual([
+      { x: .7987396920842208, y: .5000048825183138 }, { x: .9097133427853547, y: .5008270813153849 },
+      { x: .8946150592922364, y: 1.0028210524962413 }, { x: .17977923074105917, y: .9986404479665256 },
+      { x: .4928243471889229, y: .7470001680538499 },
+    ]);
+    expect(exitShadow.points).toEqual(entryShadow.points.map(({ x, y }) => ({ x: 1 - x, y })));
+    expect(getCourtDefenseStepIndex(exit.payload, "4")).toBe(stepIndex);
+    expect(getCourtDefenseStepIndex(exit.payload, "5")).toBe(exit.stepIndex);
+    expect(ensureCourtDefenseStep(exit.payload, "5").payload).toBe(exit.payload);
+    expect(exit.payload.timeline.steps[stepIndex]).toEqual(payload.timeline.steps[stepIndex]);
+    for (const progress of [0, .38, .58, .94, 1]) {
+      const entryFrame = sampleCourtSimulation(exit.payload, stepIndex, progress)!;
+      const exitFrame = sampleCourtSimulation(exit.payload, exit.stepIndex, progress)!;
+      expect(exitFrame.ball[0]).toBeCloseTo(-entryFrame.ball[0]);
+      expect(exitFrame.ball.slice(1)).toEqual(entryFrame.ball.slice(1));
+      exitFrame.actors.forEach((actor, i) => {
+        const expectedActor = entryFrame.actors[i];
+        expect(actor.position[0]).toBeCloseTo(-expectedActor.position[0]);
+        expect(actor.position.slice(1)).toEqual(expectedActor.position.slice(1));
+        expect(actor.jump).toBe(expectedActor.jump);
+        expect(actor.facing[0]).toBeCloseTo(-expectedActor.facing[0]);
+      });
+      expect(exitFrame.actors[6].mirror).toBe(!entryFrame.actors[6].mirror);
+    }
+    const edited = setCourtAreaVertex(exit.payload, exit.stepIndex, exitShadow.id, 0, { x: .28, y: .55 }, 1);
+    expect(shadowFor(edited, stepIndex)).toEqual(entryShadow);
+    const roundTrip = parseEditorImport(JSON.stringify({ format: "goatleta-court", version: 1, payload: edited }));
+    expect(getCourtDefenseStepIndex(roundTrip, "5")).toBe(exit.stepIndex);
+    expect(shadowFor(roundTrip, exit.stepIndex).points[0]).toEqual({ x: .28, y: .55 });
+    expect(shadowFor(roundTrip, stepIndex).points).toEqual(entryShadow.points);
+  });
+
+  it.each([["4", 4], ["1", 4], ["5", 0]] as const)("creates independent frontal and position-one coverage for attack %s", (preset, zoneOneSlot) => {
+    const legacy = ensureCourtDefenseStep(newCourtBoard(), preset);
+    const front = ensureCourtDefenseStep(legacy.payload, preset, "front");
+    const zone1 = ensureCourtDefenseStep(front.payload, preset, "zone1");
+    expect(zone1.payload.timeline.steps[legacy.stepIndex]).toEqual(legacy.payload.timeline.steps[legacy.stepIndex]);
+    const base = sampleCourtSimulation(zone1.payload, legacy.stepIndex, 1)!;
+    for (const [coverage, index, slot] of [["front", front.stepIndex, 3], ["zone1", zone1.stepIndex, zoneOneSlot]] as const) {
+      expect(getCourtDefenseStepIndex(zone1.payload, preset, coverage)).toBe(index);
+      expect(ensureCourtDefenseStep(zone1.payload, preset, coverage).payload).toBe(zone1.payload);
+      const start = sampleCourtSimulation(zone1.payload, index, 0)!;
+      const set = sampleCourtSimulation(zone1.payload, index, start.setContact!)!;
+      const end = sampleCourtSimulation(zone1.payload, index, 1)!;
+      expect(set.actors[slot].position).toEqual(start.actors[slot].position);
+      expect(end.actors[slot].position).toEqual(base.actors[0].position);
+      expect(end.actors[0].position).toEqual(base.actors[slot].position);
+      expect(end.ball).toEqual(base.ball);
+      expect(frameDrawings(zone1.payload, index)).toEqual(frameDrawings(legacy.payload, legacy.stepIndex));
+    }
+    const updated = setCourtAreaVertex(zone1.payload, zone1.stepIndex, DEFENSE_BLOCK_SHADOW_ID, 0, { x: .55, y: .55 }, 1);
+    const restored = parseEditorImport(JSON.stringify({ format: "goatleta-court", version: 1, payload: updated }));
+    expect(getCourtDefenseStepIndex(restored, preset, "front")).toBe(front.stepIndex);
+    expect(getCourtDefenseStepIndex(restored, preset, "zone1")).toBe(zone1.stepIndex);
+    expect(frameDrawings(restored, front.stepIndex).find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)?.points)
+      .toEqual(frameDrawings(legacy.payload, legacy.stepIndex).find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)?.points);
+    expect(frameDrawings(restored, zone1.stepIndex).find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)?.points[0]).toEqual({ x: .55, y: .55 });
+  });
+
+  it("opens another authored coverage on the requested side when the preferred one is missing", () => {
+    const entry = ensureCourtDefenseStep(newCourtBoard(), "4", "front");
+    const exit = ensureCourtDefenseStep(entry.payload, "5", "zone1");
+    expect(getCourtDefenseStepIndex(exit.payload, "5", "front")).toBe(-1);
+    expect(getCourtDefenseSideStepIndex(exit.payload, "5", "front")).toBe(exit.stepIndex);
+    expect(getCourtDefenseSideStepIndex(exit.payload, "4", "front")).toBe(entry.stepIndex);
+    expect(getCourtDefenseSideStepIndex(entry.payload, "5", "front")).toBe(-1);
+  });
+
+  it("builds a middle attack with central contact, independent blocking and alternatives to both sides", () => {
+    const entry = ensureCourtDefenseStep(newCourtBoard(), "4", "front");
+    const middle = ensureCourtDefenseStep(entry.payload, "1", "front");
+    const exit = ensureCourtDefenseStep(middle.payload, "5", "front");
+    expect(exit.payload.timeline.steps[entry.stepIndex]).toEqual(entry.payload.timeline.steps[entry.stepIndex]);
+    const start = sampleCourtSimulation(exit.payload, middle.stepIndex, 0)!;
+    const contact = sampleCourtSimulation(exit.payload, middle.stepIndex, start.attackContact!)!;
+    expect(contact.config.preset).toBe("1");
+    expect(Math.abs(contact.ball[0])).toBeLessThan(1);
+    const setter = contact.defenseSupport!.find(actor => actor.role === "setter")!;
+    expect(Math.abs(contact.actors[6].position[0] - setter.position[0])).toBeGreaterThan(.7);
+    const blockers = contact.actors.filter(actor => actor.role === "blocker");
+    expect(blockers).toHaveLength(2);
+    expect(Math.abs(blockers[0].position[0] + blockers[1].position[0])).toBeLessThan(1);
+    const frame = buildCourtPerspectiveFrame(exit.payload, middle.stepIndex, 1);
+    const ends = frame.drawings.filter(drawing => drawing.startBallId).map(drawing => drawing.points.at(-1)!.x);
+    expect(ends.some(x => x < -2)).toBe(true);
+    expect(ends.some(x => x > 2)).toBe(true);
+    expect(frame.drawings.find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)!.points.some(pt => pt.x < 0)).toBe(true);
+    expect(getCourtDefenseSideStepIndex(exit.payload, "1", "zone1")).toBe(middle.stepIndex);
+  });
+
+  it("keeps 3D descent guides for old areas that match the projection from the outer hands", () => {
+    const { payload, stepIndex } = setup();
+    const sample = sampleCourtSimulation(payload, stepIndex, 1)!;
+    const [right, left] = sample.actors.filter(actor => actor.role === "blocker");
+    const { points, rays } = projectCourtBlockShadow(sample.ball, sample.actors);
+    const shadow = frameDrawings(payload, stepIndex).find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)!;
+    const projected = changeDrawings(payload, stepIndex, frameDrawings(payload, stepIndex).map(drawing => drawing === shadow ? { ...drawing, points } : drawing));
+    expect(points.length).toBeGreaterThanOrEqual(3);
+    expect(points.every(point => point.x >= 0 && point.x <= 1 && point.y >= .5 && point.y <= 1)).toBe(true);
+    expect(rays[0][0].x).toBeCloseTo(left.position[0] - .95 * .245);
+    expect(rays[1][0].x).toBeCloseTo(right.position[0] + .95 * .245);
+    for (const [hand, end] of rays) {
+      expect(hand.y).toBeCloseTo(2.807);
+      expect(end.y).toBeLessThan(hand.y);
+      expect(end.z).toBeGreaterThan(hand.z);
+      const ratio = (end.z - hand.z) / (hand.z - sample.ball[2]);
+      expect(end.x - hand.x).toBeCloseTo(ratio * (hand.x - sample.ball[0]));
+      expect(end.y - hand.y).toBeCloseTo(ratio * (hand.y - sample.ball[1]));
+    }
+    const guideIds = (board: typeof payload, progress: number) =>
+      buildCourtPerspectiveFrame(board, stepIndex, progress).simulation?.paths.map(path => path.id);
+    expect(guideIds(projected, .5)).not.toContain("defense-shadow-ray-0");
+    expect(guideIds(projected, 1)).toContain("defense-shadow-ray-0");
+
+    const edited = setCourtAreaVertex(projected, stepIndex, shadow.id, 0, { x: .65, y: .58 }, 1);
+    expect(frameDrawings(edited, stepIndex).find(drawing => drawing.id === shadow.id)?.points[0]).toEqual({ x: .65, y: .58 });
+    expect(guideIds(edited, 1)).not.toContain("defense-shadow-ray-0");
+    expect(ensureCourtDefenseStep(edited).payload).toBe(edited);
+  });
+
+  it("passes from six to the setter at three and starts the defensive shift on set release in both projections", () => {
+    const { payload, stepIndex } = setup();
+    const snapshot = JSON.stringify(payload);
+    const start = sampleCourtSimulation(payload, stepIndex, 0)!;
+    const beforeSet = sampleCourtSimulation(payload, stepIndex, start.setContact! - .001)!;
+    const atSet = sampleCourtSimulation(payload, stepIndex, start.setContact!)!;
+    const afterSet = sampleCourtSimulation(payload, stepIndex, .58)!;
+    const [passer, setter] = start.defenseSupport!;
+    expect(simulationFloorPoint(passer.position).x).toBe(.5);
+    expect(simulationFloorPoint(passer.position).y).toBeCloseTo(.15);
+    expect(simulationFloorPoint(setter.position)).toEqual({ x: .5, y: .5 - 1.05 / 18 });
+    expect(start.ball[0]).toBe(passer.position[0]);
+    expect(Math.abs(start.ball[2] - passer.position[2])).toBeLessThan(1);
+    expect(Math.abs(atSet.ball[2] - setter.position[2])).toBeLessThan(.05);
+    expect(atSet.defenseSupport![1].pose).toBe("contact");
+    expect(beforeSet.actors[6].position).not.toEqual(start.actors[6].position);
+    start.actors.slice(0, 6).forEach((actor, index) => {
+      expect(beforeSet.actors[index].position).toEqual(actor.position);
+      expect(atSet.actors[index].position).toEqual(actor.position);
+      expect(afterSet.actors[index].position).not.toEqual(actor.position);
+    });
+    const opening = buildCourtPerspectiveFrame(payload, stepIndex, 0, ["defense-illustration-setter"]);
+    const ending = buildCourtPerspectiveFrame(payload, stepIndex, 1);
+    expect(opening.actors.filter(actor => actor.illustration).map(actor => actor.label)).toEqual(["P6", "L3"]);
+    expect(opening.selected).toEqual([]);
+    expect(opening.simulation!.paths).toEqual(ending.simulation!.paths.filter(path => !path.id.startsWith("defense-shadow-ray-")));
+    expect(opening.simulation!.paths[0].points.at(-1)).toEqual(opening.simulation!.paths[1].points[0]);
+    expect(opening.simulation!.paths[1].points.at(-1)).toEqual(ending.simulation!.ball);
+    const facingAt = (progress: number) => sampleCourtSimulation(payload, stepIndex, progress)!.actors[6].facing;
+    expect(facingAt(.93)).toEqual(facingAt(.94));
+    for (const progress of [0, start.setContact!, .58, start.attackContact! - .001, start.attackContact!, 1]) {
+      const frame = buildCourtPerspectiveFrame(payload, stepIndex, progress);
+      const drawings = displayCourtDrawings(payload, stepIndex, progress);
+      const { x, y, z } = frame.simulation!.ball;
+      expect(drawings.find(drawing => drawing.id === start.ballId)!.points[0]).toEqual(simulationFloorPoint([x, y, z]));
+      const expected = progress < start.attackContact! ? [] : ending.drawings.filter(drawing => drawing.startBallId);
+      expect(frame.drawings.filter(drawing => drawing.startBallId)).toEqual(expected.map(drawing => ({
+        ...drawing, trajectoryHandles: expect.any(Array), ...(progress === start.attackContact ? { traceProgress: 0 } : {}),
+      })));
+      const alternatives = drawings.filter(drawing => drawing.startBallId);
+      expect(alternatives.map(drawing => drawing.id)).toEqual(expected.map(drawing => drawing.id));
+      alternatives.forEach(drawing => expect(drawing.points[0]).toEqual(simulationFloorPoint(start.defenseContact!)));
+    }
+    expect(JSON.stringify(payload)).toBe(snapshot);
+  });
+
+  it.each(["4", "5"] as const)("reveals the same transient trajectory progress in 2D and 3D for defense preset %s", preset => {
+    const { payload, stepIndex } = ensureCourtDefenseStep(newCourtBoard(), preset);
+    const sample = sampleCourtSimulation(payload, stepIndex, 0)!;
+    const contact = sample.attackContact!;
+    const flat = (t: number) => displayCourtDrawings(payload, stepIndex, t).filter(drawing => drawing.startBallId === sample.ballId);
+    const perspective = (t: number) => buildCourtPerspectiveFrame(payload, stepIndex, t).drawings.filter(drawing => drawing.startBallId === sample.ballId);
+    const final = perspective(1);
+    expect(final).toHaveLength(3);
+    for (const start of [flat, perspective]) {
+      expect(start(contact - .001)).toHaveLength(0);
+      expect(start(contact).map(drawing => drawing.traceProgress)).toEqual([0, 0, 0]);
+      for (const fraction of [.25, .5, .75, .25]) {
+        const drawings = start(contact + (1 - contact) * fraction);
+        expect(drawings.map(drawing => drawing.id)).toEqual(final.map(drawing => drawing.id));
+        drawings.forEach(drawing => expect(drawing.traceProgress).toBeCloseTo(fraction, 12));
+      }
+      expect(start(1).every(drawing => drawing.traceProgress === undefined)).toBe(true);
+    }
+    expect(perspective(contact + (1 - contact) / 2).map(drawing => drawing.points)).toEqual(final.map(drawing => drawing.points));
+    expect(final.every(drawing => drawing.trajectoryHandles?.length === 3)).toBe(true);
+  });
+
+  it("keeps the contact clock and resumes the extended reveal at the selected speed", () => {
+    const { payload, stepIndex } = setup();
+    const contact = sampleCourtSimulation(payload, stepIndex, 0)!.attackContact!;
+    for (const speed of [.5, 1, 2]) {
+      const duration = 2600 / speed;
+      const clock = defensePlaybackClock(duration, speed);
+      expect(clock.elapsedAt(.38)).toBeCloseTo(.38 * duration);
+      expect(clock.elapsedAt(contact)).toBeCloseTo(contact * duration);
+      expect(clock.elapsedAt(1) - clock.elapsedAt(contact)).toBeCloseTo(400 / speed);
+      expect(clock.progressAt(clock.elapsedAt(.97))).toBeCloseTo(.97);
+      expect(clock.progressAt(clock.elapsedAt(.97) + 100 / speed)).toBeCloseTo(.985);
+      expect(clock.progressAt(clock.elapsedAt(1) + 100)).toBe(1);
+    }
+    const long = defensePlaybackClock(10000, 1);
+    expect(long.elapsedAt(1)).toBeCloseTo(10000);
   });
 
   it("prepares both blockers on the floor and synchronizes their jump and hands with attack contact", () => {
@@ -162,7 +376,7 @@ describe("authored zone-four defense", () => {
     expect(ids[0]).toBe("defense-height-player-2");
     expect(next.editor!.actorMeta["height-player"]).toEqual({ team: "A", hidden: true, locked: true });
     expect(next.editor!.actorMeta[ids[0]]).toMatchObject({ team: "A", hidden: false, locked: false });
-    expect(buildCourtPerspectiveFrame(next, stepIndex, 1).actors).toHaveLength(7);
+    expect(buildCourtPerspectiveFrame(next, stepIndex, 1).actors.filter(actor => !actor.illustration)).toHaveLength(7);
   });
 
   it("repairs the imported default-A opponent only in the appended Defense stage", () => {
@@ -193,7 +407,7 @@ describe("authored zone-four defense", () => {
     const { payload, stepIndex } = setup();
     const initial = buildCourtPerspectiveFrame(payload, stepIndex, 0), final = buildCourtPerspectiveFrame(payload, stepIndex, 1);
     expect(initial.actors.every(actor => actor.simulated)).toBe(true);
-    expect(final.actors.every(actor => actor.simulated === false && actor.elevation !== undefined)).toBe(true);
+    expect(final.actors.filter(actor => !actor.illustration).every(actor => actor.simulated === false && actor.elevation !== undefined)).toBe(true);
     expect(final.drawings.find(drawing => drawing.id === "anchor-ball")!.simulated).toBe(false);
     expect(courtTrajectoryHeightTargets(payload, stepIndex, "anchor-arrow-a", 0)[0].editable).toBe(false);
     expect(courtTrajectoryHeightTargets(payload, stepIndex, "anchor-arrow-a", 1)[0].editable).toBe(true);

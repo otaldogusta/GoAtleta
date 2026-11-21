@@ -7,7 +7,9 @@ import { SupabaseRequestTimeoutError } from "../../../db/client";
 
 const mockSave = jest.fn();
 const mockClass = jest.fn();
+let mockOrganization = { activeOrganizationId: "org_class_1", isLoading: false };
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { id: "user_1" } } }) }));
+jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => mockOrganization }));
 jest.mock("../../../observability/perf", () => ({ measureAsync: (_name: string, run: () => unknown) => run() }));
 jest.mock("../../../db/seed", () => ({
   buildTechnicalVisualId: ({ organizationId, classId, title }: { organizationId: string; classId: string; title: string }) => `tv_${organizationId}_${classId}_${title}`,
@@ -22,7 +24,8 @@ describe("court automatic saving", () => {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   let editor: ReturnType<typeof useCourtEditor>;
   const key = "goatleta:court-draft:v2:user_1:org_class_1:class_1";
-  function Harness({ classId = "class_1", paused = false }: { classId?: string; paused?: boolean }) {
+  function Harness({ classId = "class_1", paused = false, organizationLoading = false }: { classId?: string; paused?: boolean; organizationLoading?: boolean }) {
+    mockOrganization = { activeOrganizationId: `org_${classId}`, isLoading: organizationLoading };
     editor = useCourtEditor(classId, { autosavePaused: paused }); return null;
   }
   const mount = async (props = {}) => { await act(async () => { tree = TestRenderer.create(React.createElement(Harness, props)); }); };
@@ -34,6 +37,23 @@ describe("court automatic saving", () => {
     mockSave.mockImplementation(async input => ({ ...input, id: input.id ?? "saved_1", createdAt: "", updatedAt: "" }));
   });
   afterEach(() => { if (tree) act(() => tree!.unmount()); tree = undefined; jest.useRealTimers(); });
+
+  it("waits for the workspace before loading the class with explicit scope", async () => {
+    await mount({ organizationLoading: true });
+    expect(editor.loading).toBe(true);
+    expect(mockClass).not.toHaveBeenCalled();
+    await act(async () => tree!.update(React.createElement(Harness)));
+    expect(mockClass).toHaveBeenCalledWith("class_1", { organizationId: "org_class_1" });
+    expect(editor.cls?.id).toBe("class_1");
+  });
+
+  it("keeps a class from another workspace unavailable", async () => {
+    mockClass.mockResolvedValue({ id: "class_1", organizationId: "another_org" });
+    await mount();
+    expect(editor.cls).toBeNull();
+    expect(editor.error).toBe("Turma indisponível no workspace atual.");
+    expect(mockSave).not.toHaveBeenCalled();
+  });
 
   it("never creates a document for bootstrap, step selection, or a no-op edit", async () => {
     await mount(); await advance(5000);
@@ -216,23 +236,41 @@ describe("court automatic saving", () => {
     await act(async () => finish[1]());
     expect(editor.activeDocumentId).toBe(mockSave.mock.calls[1][0].id); expect(editor.autosaveStatus).toBe("saved");
   });
-  it("writes the latest edit after a delayed saved-draft cleanup instead of erasing it", async () => {
-    const remove = AsyncStorage.removeItem as jest.Mock;
-    const originalRemove = remove.getMockImplementation();
+  it("reopens the last saved document and its selected rotation", async () => {
+    await mount();
+    rename("Última jogada");
+    act(() => editor.selectStep(3));
+    await advance(800);
+    const documentId = editor.activeDocumentId;
+    expect(JSON.parse((await AsyncStorage.getItem(key))!)).toMatchObject({ documentId, stepIndex: 3, unsaved: false });
+    act(() => tree!.unmount());
+    await mount();
+    expect(editor.activeDocumentId).toBe(documentId);
+    expect(editor.stepIndex).toBe(3);
+    expect(editor.payload.editor?.title).toBe("Última jogada");
+    expect(editor.dirty).toBe(false);
+  });
+
+  it("writes the latest edit after a delayed saved checkpoint", async () => {
+    const write = AsyncStorage.setItem as jest.Mock;
+    const originalWrite = write.getMockImplementation();
     let finish!: () => void;
-    remove.mockImplementationOnce((draftKey: string) => new Promise<void>(resolve => { finish = () => { void originalRemove!(draftKey).then(resolve); }; }));
     try {
-      await mount(); rename("Salva"); await advance(300); await advance(500);
+      await mount(); rename("Salva"); await advance(300);
+      write.mockImplementationOnce((draftKey: string, value: string) => new Promise<void>(resolve => {
+        finish = () => { void originalWrite!(draftKey, value).then(resolve); };
+      }));
+      await advance(500);
       expect(mockSave).toHaveBeenCalledTimes(1); expect(editor.saving).toBe(true);
       rename("Mais recente"); await advance(300);
-      // Cleanup owns the queue, so the next draft is not allowed to overtake it.
+      // The next draft waits for the saved checkpoint.
       expect(JSON.parse((await AsyncStorage.getItem(key))!).payload.editor.title).toBe("Salva");
       await act(async () => finish());
       const stored = JSON.parse((await AsyncStorage.getItem(key))!);
       expect(stored).toMatchObject({ documentId: editor.activeDocumentId, unsaved: true });
       expect(stored.payload.editor.title).toBe("Mais recente");
       expect(editor.dirty).toBe(true);
-    } finally { remove.mockImplementation(originalRemove); }
+    } finally { write.mockImplementation(originalWrite); }
   });
   it.each(["timeout", "network"])("automatically retries one transient %s once after a short backoff", async kind => {
     const failure = kind === "timeout" ? new SupabaseRequestTimeoutError() : new TypeError("Failed to fetch");

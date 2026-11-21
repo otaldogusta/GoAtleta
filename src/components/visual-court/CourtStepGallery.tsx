@@ -70,6 +70,7 @@ export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, 
   const scroll = useRef<ScrollView>(null), viewport = useRef(0), offset = useRef(0);
   const layouts = useRef(new Map<string, { y: number; height: number }>());
   const selectedId = steps[current]?.id, pendingReveal = useRef<string | undefined>(selectedId);
+  const chosenCard = useRef<string | undefined>(undefined);
   const gap = compactWeb ? 6 : spacing.xs, cardWidth: ViewStyle["width"] = gridWidth > 0 ? Math.max(0, (gridWidth - gap) / 2) : "48%";
   const revealSelection = useCallback((animated: boolean) => {
     const id = pendingReveal.current, bounds = id ? layouts.current.get(id) : undefined;
@@ -79,7 +80,12 @@ export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, 
     if (Math.abs(target - offset.current) > .5) { offset.current = Math.max(0, target); scroll.current?.scrollTo({ y: offset.current, animated }); }
     pendingReveal.current = undefined;
   }, []);
-  useLayoutEffect(() => { pendingReveal.current = selectedId; revealSelection(true); }, [selectedId, revealSelection]);
+  useLayoutEffect(() => {
+    const chosenInGallery = chosenCard.current === selectedId;
+    chosenCard.current = undefined;
+    pendingReveal.current = chosenInGallery ? undefined : selectedId;
+    revealSelection(true);
+  }, [selectedId, revealSelection]);
   const choose = (index: number) => { if (!disabled && index >= 0 && index < steps.length) onSelect(index); };
   const updateDrag = useCallback((from: number | null | undefined, to?: number | null) => { if (from !== undefined) setDragged(from); if (to !== undefined) setDragOver(to); }, []);
   const move = useCallback((from: number, to: number) => {
@@ -97,7 +103,10 @@ export function CourtStepGallery({ payload, stepIndex, onSelect, onAdd, onMove, 
     <ScrollView ref={scroll} accessibilityLabel="Etapas da jogada" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator style={styles.scroll} contentContainerStyle={{ paddingBottom: gap }} scrollEventThrottle={16} onLayout={event => { viewport.current = event.nativeEvent.layout.height; revealSelection(false); }} onScroll={event => { offset.current = event.nativeEvent.contentOffset.y; }} onContentSizeChange={() => revealSelection(false)}>
       <View style={[styles.grid, { gap }]} onLayout={event => { const width = event.nativeEvent.layout.width; setGridWidth(previous => Math.abs(previous - width) > .5 ? width : previous); }}>
         {steps.map((step, index) => <DraggableStepFrame key={step.id} index={index} active={dragged === index} over={dragOver === index} disabled={disabled || readOnly} width={cardWidth} onDragState={updateDrag} onMove={move} onLayout={event => { const { y, height } = event.nativeEvent.layout; layouts.current.set(step.id, { y, height }); revealSelection(false); }}>
-          <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={`Etapa ${index + 1}: ${step.label}.${readOnly ? "" : " Arraste para reordenar."}`} accessibilityState={{ selected: index === current }} disabled={disabled} onPress={() => choose(index)} style={({ hovered, pressed }) => [styles.card, { borderColor: index === current ? colors.primaryBg : colors.border, backgroundColor: index === current ? colors.secondaryBg : hovered || pressed ? colors.inputBg : "transparent", opacity: disabled ? .55 : 1 }]}>
+          <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={`Etapa ${index + 1}: ${step.label}.${readOnly ? "" : " Arraste para reordenar."}`} accessibilityState={{ selected: index === current }} disabled={disabled} onPress={() => {
+            if (!disabled && index !== current) chosenCard.current = step.id;
+            choose(index);
+          }} style={({ hovered, pressed }) => [styles.card, { borderColor: index === current ? colors.primaryBg : colors.border, backgroundColor: index === current ? colors.secondaryBg : hovered || pressed ? colors.inputBg : "transparent", opacity: disabled ? .55 : 1 }]}>
             <Preview payload={payload} index={index} />
             <View style={[styles.caption, compactWeb ? { padding: 6 } : null]}><Text numberOfLines={2} style={[styles.label, compactWeb ? { minHeight: 26, fontSize: 10, lineHeight: 13 } : null, { color: colors.text }]}>{`${index + 1}. ${step.label}`}</Text><Text style={{ color: colors.muted, fontSize: compactWeb ? 9 : 11 }}>{`${(Math.max(0, step.durationMs) / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s`}</Text></View>
           </Pressable>

@@ -42,7 +42,14 @@ function sampleCore(t,{layers={},bases=attackFormation(),preset='4',blockers=1,x
  // Preserve the physical jump duration when the pass lead-in is disabled.
  const jumpStart=contact-.053*clockScale,jumpPeak=contact-.012*clockScale,jumpEnd=contact+.11*clockScale;
  a.jump=t<jumpPeak?.9*Math.sin(Math.PI/2*phase(t,jumpStart,jumpPeak)):.9*Math.cos(Math.PI/2*phase(t,jumpPeak,jumpEnd));
- Object.assign(a,poseState(t,[[0,'ready'],[lead+(1-lead)*.18,'approach'],[jumpStart-.025*clockScale,'plant'],[jumpStart,'draw'],[contact-.015*clockScale,'contact'],[contact+.022*clockScale,'follow'],[jumpEnd,'land'],[jumpEnd+.055*clockScale,'ready']],.009*clockScale));
+ const approachStart=lead+(1-lead)*.18,plantStart=jumpStart-.025*clockScale,poseTransition=.009*clockScale;
+ Object.assign(a,poseState(t,[[0,'ready'],[approachStart,'approach'],[plantStart,'plant'],[jumpStart,'draw'],[contact-.015*clockScale,'contact'],[contact+.022*clockScale,'follow'],[jumpEnd,'land'],[jumpEnd+.055*clockScale,'ready']],poseTransition));
+ if(a.pose==='approach'&&t>=approachStart+poseTransition){
+  // Both poses have the same silhouette key. Only the articulated 3D rig
+  // interprets the blend as progress through the alternating footfalls.
+  a.previousPose='approach';
+  a.poseBlend=phase(t,approachStart+poseTransition,plantStart);
+ }
  if(t<jumpStart){a.facing=[x,z];if(t<lead+(1-lead)*.12)a.facing=[0,-9];}
  const count=Math.max(1,Math.min(3,blockers)),blockIds=[1,2,5];
  // Moving the attack contact edits the hitter and ball; the chosen preset

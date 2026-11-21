@@ -35,6 +35,7 @@ import { borders } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { authLayout } from "../src/ui/auth-layout";
 import { Button } from "../src/ui/Button";
+import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
@@ -49,7 +50,7 @@ export default function LoginScreen() {
 
   const solidInputBg = colors.inputBg;
   const loginInputBg = mode === "dark" ? "#121c30" : solidInputBg;
-  const { signIn, resetPassword, signInWithOAuth } = useAuth();
+  const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
   const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
   const {
@@ -72,6 +73,8 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showKeyboardFocus, setShowKeyboardFocus] = useState(false);
   const [busy, setBusy] = useState(false);
+  const hasLoginCredentials = Boolean(email.trim() && password.trim());
+  const submitLoginFromEmail = Platform.OS === "web" && hasLoginCredentials;
   const routeMessage = pendingHint === "1"
     ? "Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente."
     : fromSignup === "1" ? "Este email já está cadastrado. Entrar com os dados preenchidos." : "";
@@ -112,7 +115,7 @@ export default function LoginScreen() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
       const advancesToPassword =
-        event.key === "Enter" && !event.shiftKey && !showReset &&
+        event.key === "Enter" && !event.shiftKey && !showReset && !submitLoginFromEmail &&
         event.target instanceof HTMLElement && event.target.id === "login-email";
       if (event.key === "Tab" || advancesToPassword) {
         setShowKeyboardFocus(true);
@@ -125,7 +128,7 @@ export default function LoginScreen() {
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [showReset]);
+  }, [showReset, submitLoginFromEmail]);
 
   useEffect(() => {
     if (resetCountdown <= 0) return;
@@ -412,6 +415,10 @@ export default function LoginScreen() {
     }
   };
 
+  if (Platform.OS === "web" && session) {
+    return <FullscreenLoadingState label="Entrando..." />;
+  }
+
   return (
     <View
       id={showKeyboardFocus ? "login-keyboard-focus" : undefined}
@@ -643,6 +650,10 @@ export default function LoginScreen() {
                         void handleReset();
                         return;
                       }
+                      if (submitLoginFromEmail) {
+                        void handleLogin();
+                        return;
+                      }
                       passwordInputRef.current?.focus();
                     }}
                     placeholderTextColor={colors.placeholder}
@@ -650,7 +661,7 @@ export default function LoginScreen() {
                     autoComplete="email"
                     autoCapitalize="none"
                     autoCorrect={false}
-                    returnKeyType={showReset ? "send" : "next"}
+                    returnKeyType={showReset ? "send" : submitLoginFromEmail ? "go" : "next"}
                     underlineColorAndroid="transparent"
                     selectionColor={colors.primaryBg}
                     style={{
@@ -793,7 +804,7 @@ export default function LoginScreen() {
                   label="Entrar"
                   loadingLabel="Entrando..."
                   onPress={handleLogin}
-                  disabled={busy || !email.trim() || !password.trim()}
+                  disabled={busy || !hasLoginCredentials}
                   loading={busy}
                 />
 

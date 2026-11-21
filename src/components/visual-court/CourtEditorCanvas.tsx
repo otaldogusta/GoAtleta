@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PanResponder, Platform, Text, TextInput, View } from "react-native";
 import { CourtEditorScene, displayActors, fromScenePoint, sceneBounds, scenePoint } from "./CourtEditorScene";
-import { changeDrawings, duplicateSelection, editableCourtSelection, editorId, frameDrawings, moveSelection, snapCourtPoint, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
+import { changeDrawings, duplicateSelection, editableCourtSelection, editorId, frameDrawings, hasCourtArea as validArea, moveSelection, snapCourtPoint, limitPoint, type CourtDrawing, type DrawingKind } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
 import { CourtSelectionActions } from "./CourtSelectionActions";
 import { COURT_TEXT_FONT, hitCourtText, measureCourtText } from "./court-text-layout";
@@ -154,9 +154,6 @@ export function CourtEditorCanvas(props: Props) {
     setAreaHover(undefined);
     if (gesture.current?.area || live.current.tool === "area") { gesture.current = null; setDraft(undefined); }
   };
-  const validArea = (points: CourtPoint[]) => points.length >= 3 && Math.abs(points.reduce((sum, point, index) => {
-    const next = points[(index + 1) % points.length]; return sum + point.x * next.y - next.x * point.y;
-  }, 0)) > 1e-6;
   const finishArea = () => {
     const p = live.current, current = areaRef.current;
     if (!current || p.disabled || p.readOnly || p.tool !== "area" || p.areaMode !== "points" || current.payload !== p.payload || current.stepId !== p.payload.timeline.steps[p.stepIndex]?.id || !validArea(current.points)) return;

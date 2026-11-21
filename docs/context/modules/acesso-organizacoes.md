@@ -32,6 +32,17 @@ formulário logo abaixo do campo de busca.
 
 ## Contratos a preservar
 
+- A preferência local de workspace é salva por conta e sobrevive ao logout.
+  A restauração usa somente instituições retornadas por `get_my_organizations`
+  para a sessão atual e recorre à primeira da lista se a preferência estiver
+  ausente ou indisponível. A chave de escopo das consultas acompanha a escolha
+  validada e é limpa ao sair ou mudar de conta.
+
+- No login web, Enter no campo de e-mail aciona Entrar quando ambos os campos
+  estão preenchidos. Com a senha vazia, move o foco para Senha.
+  Com sessão ativa, o login exibe carregamento enquanto aguarda o redirecionamento.
+  [Padrões de formulários](../../ui/FORM_SETTINGS_PATTERNS.md).
+
 - O redirecionamento do índice web usa o caminho reativo do Expo Router.
   Após aceitar convite de equipe, a troca de rota deve chegar à página inicial
   do papel ativado mesmo quando o histórico do navegador ainda está mudando.

@@ -42,6 +42,14 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 ## Contratos a preservar
 
+- A Quadra Visual aguarda a sessão e o workspace ativo antes de consultar a
+  turma. A busca usa o escopo explícito e mantém visível a mensagem quando
+  a turma está indisponível naquele workspace.
+- A reabertura local recupera a jogada e a etapa por usuário, instituição e
+  turma. Após salvar, o registro local mantém a etapa e usa a versão remota
+  quando disponível. Ao converter a simulação em movimento manual, a etapa
+  conserva o modo de recepção ou ataque.
+
 - O editor web móvel em retrato reúne Ajustes, Etapas, Biblioteca e Ferramentas
   numa ficha aberta pelo **+** da barra de reprodução. A orientação do editor
   acompanha o viewport de layout e não muda com o teclado virtual.
@@ -75,6 +83,11 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   pelos meshes. Alvo transitório de contato aproxima as mãos da bola dentro
   do alcance, sem alterar trajetória ou posição autoral.
   [Contrato e validação](../../ui/QUADRA_CORPOS_3D_2026-11-12.md).
+
+- No ataque 3D, as passadas alternam apoio e balanço durante a aproximação.
+  O sampler mantém a pose de aproximação e fornece seu progresso ao rig; a
+  representação 2D usa a mesma pose de antes. Manchete, levantamento, cortada
+  e bloqueio refinam as poses sobre o mesmo relógio e geometria de contato.
 
 - Gestos 3D distinguem mover objeto, girar o fundo e aproximar/deslocar com dois
   dedos. Arraste conserva o ponto de pega elevado e a prévia até confirmação
@@ -122,6 +135,8 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   celular; selecionar na quadra fecha Ferramentas e libera ações contextuais.
   Mantém `kind: "area"` e descarta rascunhos
   ao trocar contexto. [Contrato e validação local](../../ui/QUADRA_AREA_POR_PONTOS_2026-11-11.md).
+  No 3D, a seleção segue o perímetro da área. Selecionar uma única área
+  editável permite ajustar os vértices no plano da quadra.
 
 - Rodízio no transporte e em Ajustes requer simulação real (recepção individual
   ou sequência canônica). Quadra livre não exibe P1 por padrão.
@@ -162,16 +177,30 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 - Na recepção, o levantador inicia a saída na soltura do lançamento do
   sacador (evento `tossStart`), preservando bases, destino e corredor da P1.
 
-- Defesa contra a entrada 4 acrescenta uma etapa idempotente com os destinos
-  autorais preservados e anima a organização até o contato pelo sampler comum.
+- Defesa oferece entrada 4, meio e saída de rede (posição 2), em etapas independentes
+  acrescentadas sob demanda. O sampler comum anima a organização até o contato.
+  O cenário de ataque é escolhido apenas em Ajustes da jogada.
+  Em Ajustes da jogada, cada cenário pode ter uma etapa de cobertura frontal (jogador da frente
+  fora do bloqueio) e outra de cobertura pela posição 1. O defensor curto
+  e o jogador que recompõe o espaço trocam de destino. Etapas anteriores
+  sem sistema explícito permanecem autorais.
+  No início da reprodução, o passe da posição 6 chega ao levantador na 3.
+  O levantamento para a entrada 4 dispara o ajuste do bloqueio e da defesa.
+  Passador e levantador são participantes da reprodução em 2D/3D.
   Bloqueadores saltam com o contato do atacante, com mãos acima da rede; salto
   derivado separado da elevação autoral e seleção acompanhando o corpo elevado.
   Corpo inteiro 3D mantém juntas independentes da câmera; mãos voltadas à rede
   na Defesa e seleção pelos meshes reais, sem preencher o vão entre os braços.
   Abre no quadro final editável; Play, scrub e câmera continuam disponíveis.
+  A sombra inicial usa os cinco vértices ajustados na entrada e os espelha
+  junto com a formação e as trajetórias na saída. Cada área mantém seus
+  vértices editáveis no quadro final.
   `actorActions` define a ação por etapa, separada da função esportiva, com
   importação/cópias e guardas de leitura/bloqueio preservadas. As três trajetórias
-  são alternativas autorais, sem resultado físico novo.
+  são alternativas autorais e se desenham progressivamente da bola até
+  as pontas em 2D/3D, a partir do contato da cortada. Ao voltar o controle
+  de reprodução, os traços recuam. As áreas e trajetórias integrais
+  permanecem editáveis no quadro final.
   [Contrato, preset e validação local](../../ui/QUADRA_DEFESA_ENTRADA4_2026-11-12.md).
 
 - `court-simulation/serve-flight.js` fornece a trajetória de saque da mão até

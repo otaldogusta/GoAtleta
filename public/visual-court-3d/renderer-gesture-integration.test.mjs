@@ -20,7 +20,7 @@ const handlers=source.slice(start,end);
 const heightStart=source.indexOf('function updateElevationPoint('),heightEnd=source.indexOf('function updateElevationHandle(');
 assert.ok(heightStart>=0&&heightEnd>heightStart,'Update the height-handler boundary if it moves');
 const heightHandlers=source.slice(heightStart,heightEnd);
-const trajectoryStart=source.indexOf('function trajectoryDisplayFrame('),trajectoryEnd=source.indexOf('function updateTrajectoryHandles(');
+const trajectoryStart=source.indexOf('const areaButtons='),trajectoryEnd=source.indexOf('function updateTrajectoryHandles(');
 assert.ok(trajectoryStart>=0&&trajectoryEnd>trajectoryStart,'Update the trajectory-handler boundary if it moves');
 const trajectoryHandlers=source.slice(trajectoryStart,trajectoryEnd);
 const drawingsStart=source.indexOf('function updateDrawings('),drawingsEnd=source.indexOf('let pathGroup=');
@@ -100,9 +100,32 @@ function fixture({tool='select',disabled=false,objectId='ball'}={}){
  const display=()=>vm.runInContext(displayExpression,context);
  const refreshWarnings=()=>{const displayed=display();context.updateDrawings(displayed.drawings);context.updateNetWarnings(displayed);return context.netWarnings.get('arrow');};
  const flushTimers=()=>{for(const [id,timer] of [...timers]){timers.delete(id);timer.callback();}};
- return {state:context,commands,canvas,document,window,dispatch,sendFrame,display,refreshWarnings,timers,flushTimers,createHeightHandle:()=>context.makeElevationHandle(),createTrajectoryHandle:kind=>context.makeTrajectoryHandle(kind),authorCommands:()=>commands.filter(c=>['move','draw','add-player','elevation','simulation-handle','trajectory-height','trajectory-point'].includes(c.type))};
+ return {state:context,commands,canvas,document,window,dispatch,sendFrame,display,refreshWarnings,timers,flushTimers,createHeightHandle:()=>context.makeElevationHandle(),createTrajectoryHandle:kind=>context.makeTrajectoryHandle(kind),authorCommands:()=>commands.filter(c=>['move','draw','add-player','elevation','simulation-handle','trajectory-height','trajectory-point','area-vertex'].includes(c.type))};
 }
 const near=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-10,`${actual} != ${expected}`);
+
+test('an area grip previews one vertex at floor height and commits exactly once',()=>{
+ const f=fixture();
+ const original=[{x:0,y:.03,z:0},{x:2,y:.03,z:0},{x:1,y:.03,z:2}];
+ const area={id:'area',kind:'area',points:original};
+ f.state.camera.position.set(0,20,0);f.state.camera.up.set(0,0,-1);f.state.camera.lookAt(0,0,0);f.state.camera.updateMatrixWorld();
+ f.state.frame={...f.state.frame,selected:['area'],drawings:[area]};f.state.packet.areaHandles=true;
+ const target=f.state.makeAreaHandle(0).button;
+ f.dispatch('pointerdown',1,100,200,{target});
+ f.dispatch('pointermove',1,130,240,{target});
+ const displayed=f.display().drawings[0].points;
+ assert.notDeepEqual(displayed[0],original[0]);assert.equal(displayed[0].y,original[0].y);
+ assert.deepEqual(displayed.slice(1),original.slice(1));assert.equal(f.authorCommands().length,0);
+ f.dispatch('pointerup',1,130,240,{target});
+ f.dispatch('lostpointercapture',1,130,240,{target});
+ assert.equal(f.authorCommands().length,1);
+ const command=f.authorCommands()[0];
+ assert.equal(command.type,'area-vertex');assert.equal(command.id,'area');assert.equal(command.vertex,0);
+ near(command.point.x,geometry.worldToCourt(displayed[0]).x);near(command.point.y,geometry.worldToCourt(displayed[0]).y);
+ assert.ok(f.state.pendingTrajectoryPreview);
+ f.sendFrame({revision:8});
+ assert.equal(f.state.pendingTrajectoryPreview,null);
+});
 
 test('actual single-touch handlers preview and commit one object movement',()=>{
  const f=fixture();f.dispatch('pointerdown');f.dispatch('pointermove',1,130,240);

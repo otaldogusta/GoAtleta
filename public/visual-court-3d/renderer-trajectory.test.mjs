@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from './three.module.min.js';
 import {curvePoints} from './renderer-geometry.mjs';
-import {trajectoryStroke,trajectoryHandlePoint,trajectoryControlLayout,createTrajectorySelection,trajectoryHandleTarget,trajectoryDragCommand,shouldCancelTrajectoryDrag,previewTrajectoryProfile,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs';
+import {trajectoryStroke,trajectoryTipDirection,trajectoryHandlePoint,trajectoryControlLayout,createTrajectorySelection,trajectoryHandleTarget,trajectoryDragCommand,shouldCancelTrajectoryDrag,previewTrajectoryProfile,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs';
 import {previewCourtObjects} from './renderer-elevation.mjs';
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
 const drawing=()=>({id:'arrow',kind:'arrow',points:[{x:-2,y:.025,z:3},{x:3,y:.025,z:-4}],trajectoryHandles:['start','middle','end'].map(kind=>({kind,value:.025,min:0,max:8.12,editable:true}))});
@@ -23,6 +23,18 @@ test('explicit height passes through start, middle and end without changing the 
   assert.deepEqual(shown.map(({x,z})=>({x,z})),base.map(({x,z})=>({x,z})));
   assert.deepEqual(trajectoryHandlePoint(curve,'middle',landscape),shown[16]);
  }
+});
+test('trajectory reveal preserves the authored origin, curve and height while advancing the tip',()=>{
+ const item={...drawing(),kind:'curve',curveMode:'through-point',points:[{x:-3,y:2.8,z:0},{x:-1,y:2,z:2},{x:4,y:.025,z:5}],trajectoryHeights:{start:2.8,middle:2,end:.025}};
+ const full=trajectoryStroke(item),traced=progress=>trajectoryStroke({...item,traceProgress:progress});
+ assert.deepEqual(traced(0),[]);
+ assert.deepEqual(traced(.25),full.slice(0,9));
+ assert.deepEqual(traced(.5),full.slice(0,17));
+ const justAfterKnot=traced(.2500001);
+ assert.deepEqual(justAfterKnot.slice(0,-1),full.slice(0,9));
+ assert.equal(trajectoryTipDirection(justAfterKnot),null);
+ assert.ok(trajectoryTipDirection(justAfterKnot,true));
+ assert.deepEqual(traced(1),full);
 });
 test('polyline middle follows half the XZ length and keeps every authored corner',()=>{
  const item={...drawing(),points:[{x:0,y:1,z:0},{x:1,y:1,z:0},{x:1,y:1,z:9}],trajectoryHeights:{start:1,middle:3,end:1}},stroke=trajectoryStroke(item),middle=trajectoryHandlePoint(item,'middle');

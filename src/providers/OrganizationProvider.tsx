@@ -15,7 +15,7 @@ import { useAuth } from "../auth/auth";
 import { hasVerifiedEmailAccess } from "../auth/email-verification-state";
 import { assertSessionIdentity, forceRefreshAccessToken, getSessionIdentity, isSessionIdentityCurrent } from "../auth/session";
 import { smartSync } from "../core/smart-sync";
-import { clearLocalReadCaches } from "../db/client";
+import { ACTIVE_ORG_STORAGE_KEY, clearLocalReadCaches } from "../db/client";
 import {
     getDevProfilePreview,
     setDevProfilePreview as persistDevProfilePreview,
@@ -32,7 +32,7 @@ import {
   type Organization,
 } from "./organization-context";
 
-const ACTIVE_ORG_KEY = "active-org-id";
+const activeOrgKey = (userId: string) => `active-org-id:${userId}`;
 
 const isMissingOrganizationsRpc = (status: number, reason: string) =>
   status === 404 || /not\s*found/i.test(reason);
@@ -294,6 +294,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       if (!isSessionIdentityCurrent(identity)) return;
       setOrganizations([]);
       setActiveOrgId(null);
+      if (hadPreviousUser || !accessToken) {
+        await AsyncStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+        if (!isSessionIdentityCurrent(identity)) return;
+      }
     }
     if (!accessToken) {
       fetchControllerRef.current?.abort();
@@ -302,7 +306,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       lastFetchErrorAtRef.current = 0;
       setOrganizations([]);
       setActiveOrgId(null);
-      await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
       clearAiCache();
       hasLoadedOrganizationsRef.current = false;
       setIsLoading(false);
@@ -352,10 +355,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
       if (!res.ok) {
         const details = await res.text();
+        assertSessionIdentity(identity);
         const reason = details?.trim() || `status ${res.status}`;
         if (isMissingOrganizationsRpc(res.status, reason)) {
+          await AsyncStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+          assertSessionIdentity(identity);
           setOrganizations([]);
-          await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
           setActiveOrgId(null);
           hasLoadedOrganizationsRef.current = true;
           lastFetchErrorAtRef.current = 0;
@@ -369,19 +374,15 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setOrganizations(data);
 
       if (data.length === 0) {
-        await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
+        await AsyncStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+        assertSessionIdentity(identity);
         setActiveOrgId(null);
-      } else if (data.length === 1) {
-        const orgId = data[0].id;
-        await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
-        assertSessionIdentity(identity);
-        setActiveOrgId(orgId);
       } else {
-        const saved = await AsyncStorage.getItem(ACTIVE_ORG_KEY);
+        const preferenceKey = activeOrgKey(identity.userId);
+        const saved = await AsyncStorage.getItem(preferenceKey);
         assertSessionIdentity(identity);
-        const validSaved = saved && data.some((o) => o.id === saved);
-        const selected = validSaved ? saved : data[0].id;
-        await AsyncStorage.setItem(ACTIVE_ORG_KEY, selected);
+        const selected = data.find((organization) => organization.id === saved)?.id ?? data[0].id;
+        await AsyncStorage.setItem(ACTIVE_ORG_STORAGE_KEY, selected);
         assertSessionIdentity(identity);
         setActiveOrgId(selected);
       }
@@ -416,14 +417,16 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const setActiveOrganizationId = useCallback(async (orgId: string | null) => {
     if (orgId === activeOrganizationId) return;
     const identity = getSessionIdentity();
+    if (!identity.userId) return;
+    const preferenceKey = activeOrgKey(identity.userId);
     smartSync.handleOrganizationSwitch();
     clearAiCache();
     await clearLocalReadCaches();
     assertSessionIdentity(identity);
     if (orgId) {
-      await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
+      await AsyncStorage.multiSet([[preferenceKey, orgId], [ACTIVE_ORG_STORAGE_KEY, orgId]]);
     } else {
-      await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
+      await AsyncStorage.multiRemove([preferenceKey, ACTIVE_ORG_STORAGE_KEY]);
     }
     assertSessionIdentity(identity);
     setActiveOrgId(orgId);

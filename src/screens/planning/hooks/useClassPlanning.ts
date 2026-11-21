@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ClassCalendarException, ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
+import { SHORT_PLANNING_CYCLE_WEEKS } from "../../../core/periodization-basics";
 import { ensureActiveCycleForYear, getActivePlanningCycle } from "../../../db/cycles";
 import { getClassById, getClassCalendarExceptions, getClassPlansByClass } from "../../../db/seed";
 import { buildMonthPlanningSummaries } from "../application/month-planning-summary";
@@ -105,11 +106,15 @@ export function useClassPlanning(classId: string) {
       }
       const currentYear = new Date().getFullYear();
       const classStartDate = cls?.cycleStartDate || cls?.createdAt || null;
+      const cycleYearForClass = cls.cycleLengthWeeks === SHORT_PLANNING_CYCLE_WEEKS
+        ? Number(cls.cycleStartDate?.slice(0, 4)) || currentYear
+        : currentYear;
       await ensureActiveCycleForYear(
         classId,
         cls.organizationId,
-        currentYear,
-        classStartDate
+        cycleYearForClass,
+        classStartDate,
+        cls.cycleLengthWeeks,
       );
       const activeCycle = await getActivePlanningCycle(classId, cls.organizationId);
       const cycleYear = activeCycle?.year ?? null;

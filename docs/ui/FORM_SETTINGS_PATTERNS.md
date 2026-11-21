@@ -140,6 +140,10 @@ escopo solicitado, não uma preferência visual do agente.
   por teclado no container e contraste em ambos os temas.
 - No login web, o contêiner de E-mail ou Senha indica foco durante a navegação
   por teclado. Clicar ou tocar no campo mantém a borda padrão de digitação.
+  Com e-mail e senha preenchidos, Enter no e-mail aciona Entrar. Com a senha
+  vazia, Enter no e-mail move o foco para Senha. Tab percorre os controles.
+  Após a autenticação, a tela mantém o estado de carregamento até sair de
+  `/login`.
   O controle de visibilidade só existe enquanto houver texto na senha e seu
   espaço é reservado para manter a largura de digitação.
 - Máscara não é validação nem prova de identidade. Aplicar limites coerentes

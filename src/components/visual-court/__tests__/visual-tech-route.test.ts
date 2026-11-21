@@ -12,7 +12,11 @@ const mockStudents = jest.fn();
 const mockList = jest.fn();
 const mockSave = jest.fn();
 let mockUser = "user_1";
+let mockActiveOrganizationId = "org_1";
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: mockUser ? { user: { id: mockUser } } : null }) }));
+jest.mock("../../../providers/organization-context", () => ({
+  useOrganization: () => ({ activeOrganizationId: mockActiveOrganizationId, isLoading: false }),
+}));
 jest.mock("../../../observability/perf", () => ({ measureAsync: (_name: string, run: () => unknown) => run() }));
 jest.mock("../../../db/seed", () => ({
   buildTechnicalVisualId: ({ organizationId, classId, title }: { organizationId: string; classId: string; title: string }) => `tv_${organizationId}_${classId}_${title}`,
@@ -29,7 +33,11 @@ describe("visual court workspace persistence and history", () => {
   let tree: TestRenderer.ReactTestRenderer;
   let editor: ReturnType<typeof useCourtEditor>;
   const draftKey = "goatleta:court-draft:v2:user_1:org_1:class_1";
-  function Harness({ classId = "class_1" }: { classId?: string }) { editor = useCourtEditor(classId); return null; }
+  function Harness({ classId = "class_1" }: { classId?: string }) {
+    mockActiveOrganizationId = classId === "class_2" ? "org_2" : "org_1";
+    editor = useCourtEditor(classId);
+    return null;
+  }
   const mount = async () => { await act(async () => { tree = TestRenderer.create(React.createElement(Harness)); }); };
   function browserEvents() {
     const original = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -295,7 +303,7 @@ describe("visual court workspace persistence and history", () => {
     expect(editor!.canSave).toBe(true);
     await act(async () => { await editor!.save(); });
     expect(editor!.activeDocumentId).toBe("saved_1");
-    expect(await AsyncStorage.getItem(draftKey)).toBeNull();
+    expect(JSON.parse((await AsyncStorage.getItem(draftKey))!)).toMatchObject({ documentId: "saved_1", unsaved: false });
     expect(editor!.canSave).toBe(false);
   });
   it("does not switch the open document during an outstanding save and preserves row order", async () => {

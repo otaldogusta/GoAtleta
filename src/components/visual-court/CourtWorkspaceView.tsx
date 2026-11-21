@@ -21,7 +21,7 @@ import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { useDisclosureMotion } from "../../ui/useDisclosureMotion";
 import { createWebPortal } from "../../ui/web-portal";
-import { addBlankStep, alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, editableCourtSelection, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, removeStep, reorderStep, reorderStepToIndex, setCourtActorAction, setCourtSelectionElevation, setCourtTrajectoryHeight, setCourtTrajectoryPoint, type CourtDrawing, type CourtSelectionClipboard, type EditorSnapshot } from "../../core/visual-court-editor";
+import { addBlankStep, alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, editableCourtSelection, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, removeStep, reorderStep, reorderStepToIndex, setCourtActorAction, setCourtAreaVertex, setCourtSelectionElevation, setCourtTrajectoryHeight, setCourtTrajectoryPoint, type CourtDrawing, type CourtSelectionClipboard, type EditorSnapshot } from "../../core/visual-court-editor";
 import type { CourtTrajectoryHandleKind } from "../../core/court-arrow-trajectory";
 import type { CourtPoint, CourtVisualActorRole, CourtVisualPayload } from "../../core/visual-court";
 import { CourtEditorCanvas, type CourtEditorCanvasProps, type CourtTool } from "./CourtEditorCanvas";
@@ -29,10 +29,12 @@ import type { useCourtEditor } from "./useCourtEditor";
 import { CourtPerspectiveCanvas } from "./CourtPerspectiveCanvas";
 import type { CourtPerspectiveShortcut } from "./CourtPerspectiveCanvas.types";
 import { buildCourtPerspectiveFrame, worldToCourtPoint, type CourtWorldPoint } from "../../core/visual-court-perspective";
-import { configureCourtSimulation, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../../core/court-simulation";
+import { configureCourtSimulation, getCourtSimulation, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../../core/court-simulation";
 import { configureCourtRotationSequenceMode, getReceptionRotationStep, isLegacyReceptionRotationSequence, replaceReceptionRotationSequence } from "../../core/court-simulation-sequence";
-import type { CourtSimulationPatch } from "../../core/court-simulation-model";
-import { ensureCourtDefenseStep } from "../../core/court-defense-preset";
+import type { CourtDefenseCoverage, CourtSimulationPatch } from "../../core/court-simulation-model";
+import { COURT_DEFENSE_ATTACKS, courtDefensePreset, ensureCourtDefenseStep, getCourtDefenseSideStepIndex, getCourtDefenseStepIndex, type CourtDefensePreset } from "../../core/court-defense-preset";
+import { defensePlaybackClock } from "../../core/court-defense-motion";
+import { isDefenseAttackAlternative } from "../../core/court-simulation-display";
 import { CourtActorActionPicker } from "./CourtActorActionPicker";
 import { CourtSimulationModes, CourtSimulationSettings, CourtSimulationTransport } from "./CourtSimulationControls";
 import { buildCourtLibraryItems, filterCourtLibraryItems, type CourtLibraryFilter, type CourtLibraryLocation } from "./court-library";
@@ -94,13 +96,14 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const { showSaveToast } = useSaveToast();
   const { notice, error, setNotice, setError } = editor;
   useEffect(() => {
-    if (!error && !notice) return;
+    if ((!error && !notice) || (error && !editor.cls)) return;
     showSaveToast({ message: error || notice, variant: error ? "error" : "info" });
     setNotice("");
     setError("");
-  }, [error, notice, setError, setNotice, showSaveToast]);
+  }, [editor.cls, error, notice, setError, setNotice, showSaveToast]);
   const { stepIndex } = editor;
   const previousDefenseStep = useRef<string | null>(null);
+  const lastDefenseStep = useRef<string | null>(null);
   const [viewerHiddenLayers, setViewerHiddenLayers] = useState<string[] | null>(null);
   const [viewerSimulation, setViewerSimulation] = useState<{ source: CourtVisualPayload; payload: CourtVisualPayload } | null>(null);
   const simulationPayload = readOnly && viewerSimulation?.source === editor.payload ? viewerSimulation.payload : editor.payload;
@@ -242,11 +245,13 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const surface = mode === "dark" ? "rgba(10,25,43,0.94)" : "rgba(247,251,255,0.96)";
   const ink = colors.text;
   const step = payload.timeline.steps[stepIndex];
-  const simulation = step.simulation;
+  const simulation = useMemo(() => getCourtSimulation(payload, stepIndex), [payload, stepIndex]);
   const rotationSequence = useMemo(() => Boolean(simulation) && getReceptionRotationStep(payload, stepIndex, simulation!.rotation) >= 0, [payload, stepIndex, simulation]);
   const showRotationControls = Boolean(simulation && simulation.mode !== "defense" && (simulation.mode === "receive" || rotationSequence));
   const attackArcValue = useMemo(() => sampleCourtSimulation(payload, stepIndex, 0)?.attackArc, [payload, stepIndex]);
   const simulationMode = simulation?.mode ?? (step.phase === "attack_shape" ? "attack" : "receive");
+  const defensePreset = courtDefensePreset(simulation?.preset);
+  const defenseCoverage = simulation?.defenseSettings?.coverage;
   const defensePlaybackTarget = simulationMode === "defense" && !editor.loading && !editor.opening ? step.id : null;
   const [previousDefensePlaybackTarget, setPreviousDefensePlaybackTarget] = useState<string | null>(null);
   if (previousDefensePlaybackTarget !== defensePlaybackTarget) {
@@ -289,13 +294,39 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     if (editor.loading || !documentId || linkedOpened.current) return;
     const found = editor.documents.find(d => d.id === documentId);
     linkedOpened.current = true;
-    if (found) void editor.open(found.payload, found.id).catch(() => editor.setError("Não foi possível abrir esta versão."));
+    if (found) {
+      if (found.id !== editor.activeDocumentId) void editor.open(found.payload, found.id).catch(() => editor.setError("Não foi possível abrir esta versão."));
+    }
     else editor.setError("Versão indisponível nesta turma ou para esta conta.");
   }, [documentId, editor]);
   const stop = useCallback(() => { setPlaying(false); }, []);
   const resetPlayback = useCallback(() => { setPlaying(false); playhead.current = 0; setProgress(0); }, []);
   const edit = (update: (p: CourtVisualPayload) => CourtVisualPayload, index?: number) => { stop(); commit(update, index); };
-  const selectStep = (i: number) => { resetPlayback(); if (payload.timeline.steps[i]?.simulation?.mode === "defense") { playhead.current = 1; setProgress(1); } setSelected([]); editor.selectStep(i); };
+  const selectStep = (i: number) => {
+    const targetStep = payload.timeline.steps[i];
+    const targetProgress = targetStep?.simulation?.mode === "defense" ? 1 : 0;
+    if (targetProgress === 1) lastDefenseStep.current = targetStep.id;
+    stop(); playhead.current = targetProgress; setProgress(targetProgress);
+    setSelected([]); editor.selectStep(i);
+  };
+  const selectDefensePreset = (preset: CourtDefensePreset, coverage?: CourtDefenseCoverage) => {
+    if (simulationMode === "defense" && preset === defensePreset && coverage === defenseCoverage) { selectStep(stepIndex); return; }
+    const existing = getCourtDefenseStepIndex(payload, preset, coverage);
+    if (existing >= 0) { selectStep(existing); return; }
+    if (readOnly) return;
+    const next = ensureCourtDefenseStep(payload, preset, coverage ?? "front");
+    stop(); setSelected([]);
+    lastDefenseStep.current = next.payload.timeline.steps[next.stepIndex].id;
+    commit(() => next.payload, next.stepIndex);
+    playhead.current = 1; setProgress(1);
+  };
+  const findDefenseSide = (preset: CourtDefensePreset) => getCourtDefenseSideStepIndex(payload, preset, defenseCoverage);
+  const unavailableDefensePresets = readOnly ? COURT_DEFENSE_ATTACKS.map(option => option.value).filter(preset => findDefenseSide(preset) < 0) : undefined;
+  const changeDefenseAttack = (preset: CourtDefensePreset) => {
+    if (!readOnly || preset === defensePreset) { selectDefensePreset(preset, defenseCoverage); return; }
+    const existing = findDefenseSide(preset);
+    if (existing >= 0) selectStep(existing);
+  };
   const simulate: typeof editor.commit = readOnly ? update => {
     setViewerSimulation(previous => ({ source: editor.payload, payload: update(previous?.source === editor.payload ? previous.payload : editor.payload) }));
   } : editor.commit;
@@ -307,16 +338,16 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     resetPlayback(); setSelected([]);
     if (patch.mode && Object.keys(patch).length === 1) {
       if (patch.mode === "defense") {
-        if (simulationMode !== "defense") previousDefenseStep.current = step.id;
-        const existing = payload.timeline.steps.findIndex(item => item.simulation?.mode === "defense");
+        if (simulationMode === "defense") { selectStep(stepIndex); return; }
+        previousDefenseStep.current = step.id;
+        const preferred = payload.timeline.steps.findIndex(item => item.id === lastDefenseStep.current && item.simulation?.mode === "defense");
+        const existing = preferred >= 0 ? preferred : payload.timeline.steps.findIndex(item => item.simulation?.mode === "defense");
         if (existing >= 0) { selectStep(existing); return; }
-        if (readOnly) return;
-        const next = ensureCourtDefenseStep(payload);
-        commit(() => next.payload, next.stepIndex);
-        playhead.current = 1; setProgress(1);
+        selectDefensePreset("4");
         return;
       }
       if (simulationMode === "defense") {
+        lastDefenseStep.current = step.id;
         const remembered = payload.timeline.steps.findIndex(item => item.id === previousDefenseStep.current && item.simulation?.mode !== "defense");
         let target = remembered >= 0 ? remembered : payload.timeline.steps.findIndex(item => item.simulation?.mode !== "defense");
         let next = payload;
@@ -415,6 +446,11 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     const next = setCourtTrajectoryPoint(payload, stepIndex, id, handle, point, landscape, progress);
     if (next !== payload) edit(() => next);
   };
+  const changeAreaVertex = (id: string, vertex: number, point: CourtPoint) => {
+    if (authoringBlocked || courtView !== "3d" || tool !== "select" || canvasSelected.length !== 1 || canvasSelected[0] !== id) return;
+    const next = setCourtAreaVertex(payload, stepIndex, id, vertex, point, progress);
+    if (next !== payload) edit(() => next);
+  };
   const draw = (d: CourtDrawing) => { edit(p => changeDrawings(p, stepIndex, [...frameDrawings(p, stepIndex), d])); setSelected([d.id]); if (touchTools || ["text", "ball", "cone", "target", "ladder", "area", "arrow", "curve"].includes(d.kind)) setTool("select"); if (["area", "arrow", "curve"].includes(d.kind) && panel === "tools") setPanel(null); };
   const editText = (id: string, value: string) => editLayer(id, p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => d.id === id ? { ...d, text: value } : d)));
   const editArrow: NonNullable<CourtEditorCanvasProps["onEditArrow"]> = (id, shape) => {
@@ -437,12 +473,16 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const changeActor = (changes: Partial<NonNullable<typeof actor>>) => { if (actor) editLayer(actor.id, p => ({ ...p, actors: p.actors.map(a => a.id === actor.id ? { ...a, ...changes } : a) })); };
   const changeObject = (changes: Partial<CourtDrawing>) => { if (object) editLayer(object.id, p => changeDrawings(p, stepIndex, frameDrawings(p, stepIndex).map(d => d.id === object.id ? { ...d, ...changes } : d))); };
   const setActorMeta = (changes: { team?: "A" | "B"; studentId?: string }) => { if (actor) editLayer(actor.id, p => ({ ...p, editor: { ...p.editor!, actorMeta: { ...p.editor!.actorMeta, [actor.id]: { ...p.editor!.actorMeta[actor.id], ...changes } } } })); };
+  const hasDefenseTrace = simulationMode === "defense" && !payload.editor?.hiddenLayers.includes("drawings")
+    && frameDrawings(payload, stepIndex).some(drawing => !drawing.hidden && isDefenseAttackAlternative(drawing, simulation));
   useEffect(() => {
     if (!playing) return;
     let active = true;
     const web = Platform.OS === "web" && typeof document !== "undefined" && typeof window !== "undefined";
     const duration = Math.max(450, step.durationMs / speed);
-    const start = Date.now() - (playhead.current >= 1 ? 0 : playhead.current) * duration;
+    const clock = hasDefenseTrace ? defensePlaybackClock(duration, speed) : null;
+    const resumeAt = playhead.current >= 1 ? 0 : playhead.current;
+    const start = Date.now() - (clock?.elapsedAt(resumeAt) ?? resumeAt * duration);
     const pause = () => {
       if (!active) return;
       active = false;
@@ -452,7 +492,8 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     const timer = setInterval(() => {
       if (!active) return;
       if (web && document.visibilityState === "hidden") { pause(); return; }
-      const fraction = Math.min(1, (Date.now() - start) / duration);
+      const elapsed = Date.now() - start;
+      const fraction = clock?.progressAt(elapsed) ?? Math.min(1, elapsed / duration);
       playhead.current = fraction;
       setProgress(fraction);
       if (fraction >= 1) {
@@ -474,7 +515,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         window.removeEventListener("pagehide", pause);
       }
     };
-  }, [playing, step.durationMs, speed]);
+  }, [playing, step.durationMs, speed, hasDefenseTrace]);
   const keyboard = useRef({ remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape });
   useEffect(() => { keyboard.current = { remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape }; });
   useEffect(() => {
@@ -781,13 +822,17 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls && !readOnly ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
       <View style={{ flex: 1 }}>
       {courtView === "2d" ? <CourtEditorCanvas {...canvasProps} /> : null}
-      {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d" && !toolsSheetOpen} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onElevation={readOnly ? undefined : changeElevation} onTrajectoryHeight={readOnly ? undefined : changeTrajectoryHeight} onTrajectoryPoint={readOnly ? undefined : changeTrajectoryPoint} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
+      {perspectiveMounted ? <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: courtView === "3d" ? "flex" : "none" }}><CourtPerspectiveCanvas {...canvasProps} active={courtView === "3d" && !toolsSheetOpen} cameraView={cameraView} cameraReset={cameraReset} onShortcut={perspectiveShortcut} onOpenProperties={() => setPanel("properties")} onElevation={readOnly ? undefined : changeElevation} onTrajectoryHeight={readOnly ? undefined : changeTrajectoryHeight} onTrajectoryPoint={readOnly ? undefined : changeTrajectoryPoint} onAreaVertex={readOnly ? undefined : changeAreaVertex} onSimulationHandle={handle => canvasProps.onSimulationHandle?.({ ...handle, point: worldToCourtPoint(handle.point) })} /></View> : null}
       </View>
 
       <View style={[styles.top, overlayScale("top center"), { top: insets.top + 18 * uiScale, borderColor: colors.border, backgroundColor: surface, maxHeight: height * 0.45 / uiScale, width: headerWidth }]}>
         <View>
           <View style={[styles.topContent, compactWeb ? { minHeight: 43, padding: 4 } : null]}>
-          {headerAction(readOnly ? "Fechar prévia" : "Voltar à turma", "chevronBack", () => editor.dirty ? setExitOpen(true) : onBack())}
+          {headerAction(readOnly ? "Fechar prévia" : "Voltar à turma", "chevronBack", () => {
+            if (readOnly) onBack();
+            else if (editor.dirty) setExitOpen(true);
+            else void editor.leaveWithDraft(onBack);
+          })}
           {courtViews}
           {headerActions}
           </View>
@@ -799,7 +844,10 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
       <CourtWorkspacePanel readOnly={readOnly} uiScale={uiScale} disabled={changingCourt} tab={workspaceTab === "tools" && !useToolsSheet ? "adjustments" : workspaceTab} onTabChange={changeWorkspaceTab} open={!suspended && workspacePanelOpen && !panel} onRequestClose={() => setWorkspacePanelOpen(false)} onToggle={() => { setPanel(null); setWorkspacePanelOpen(value => panel ? true : !value); }} top={insets.top + (compactWeb ? 124 : 144) * uiScale} bottom={compactWeb ? workspacePanelBottom : insets.bottom + (compact ? 124 : 88) * uiScale}
         dialogId={toolsSheetId} triggerRef={toolsSheetTrigger}
         tools={useToolsSheet ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 6, paddingBottom: 4 }}>{toolsContent(true)}</ScrollView> : undefined}
-        adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={showRotationControls} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides} />}
+        adjustments={<CourtSimulationSettings config={simulation ?? null} mode={simulationMode} showRotation={showRotationControls} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web") onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides}
+          onDefenseCoverageChange={coverage => selectDefensePreset(defensePreset, coverage)}
+          onDefensePresetChange={changeDefenseAttack} unavailableDefensePresets={unavailableDefensePresets}
+          unavailableDefenseCoverage={readOnly ? (["front", "zone1"] as const).filter(coverage => getCourtDefenseStepIndex(payload, defensePreset, coverage) < 0) : undefined} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
       <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && !useToolsSheet} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} editingControls={playbackTools} dockInsets={useToolsSheet ? insets : undefined} />

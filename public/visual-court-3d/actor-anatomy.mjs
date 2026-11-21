@@ -53,7 +53,7 @@ export function createActorAnatomy(parent){
  const fingerPoint=new THREE.Vector3();
  for(const geometry of [sphere,cylinder,torsoShape])geometry.computeBoundingBox();
  let shoulderY=1.43,shoulderZ=.025,height=1.8*.95;
- function updateBody(crouch,jump,yaw,scale=.95,lean=0,stride=0,stance=0){
+ function updateBody(crouch,jump,yaw,scale=.95,lean=0,stride=0,stance=0,stepLift=0){
   const bend=crouch/.26,hip=.92-crouch,hipZ=-.13*bend;
   shoulderY=1.43-crouch;shoulderZ=.025+lean;
   group.position.y=jump;group.rotation.set(0,yaw,0);group.scale.setScalar(scale);
@@ -61,13 +61,15 @@ export function createActorAnatomy(parent){
   segment(neck,0,1.44-crouch,shoulderZ,0,1.58-crouch,shoulderZ,.047);
   head.position.set(0,1.665-crouch,shoulderZ);nose.position.set(0,1.66-crouch,shoulderZ+.103);
   for(let n=0;n<limbs.length;n++){
-   const limb=limbs[n],side=limb.side,hipX=side*.095,kneeX=side*(.12+.025*bend+stance*.5),kneeY=.49-.35*crouch,kneeZ=.18*bend+side*stride*.5,ankleX=side*(.13+.035*bend+stance),ankleZ=side*stride;
+   const limb=limbs[n],side=limb.side,hipX=side*.095,kneeX=side*(.12+.025*bend+stance*.5);
+   const lift=Math.max(0,side*stepLift),kneeY=.49-.35*crouch+.6*lift;
+   const kneeZ=.18*bend+side*stride*.5,ankleX=side*(.13+.035*bend+stance),ankleY=.095+lift,ankleZ=side*stride;
    limb.shoulder.position.set(side*.18,shoulderY,shoulderZ);
-   limb.hip.position.set(hipX,hip,hipZ);limb.knee.position.set(kneeX,kneeY,kneeZ);limb.ankle.position.set(ankleX,.095,ankleZ);
+   limb.hip.position.set(hipX,hip,hipZ);limb.knee.position.set(kneeX,kneeY,kneeZ);limb.ankle.position.set(ankleX,ankleY,ankleZ);
    segment(limb.thigh,hipX,hip,hipZ,kneeX,kneeY,kneeZ,.09);
    segment(limb.shorts,hipX,hip+.03,hipZ,hipX+(kneeX-hipX)*.34,hip+(kneeY-hip)*.34,hipZ+(kneeZ-hipZ)*.34,.105);
-   segment(limb.shin,kneeX,kneeY,kneeZ,ankleX,.095,ankleZ,.067);
-   limb.foot.position.set(ankleX,.055,ankleZ+.065);
+   segment(limb.shin,kneeX,kneeY,kneeZ,ankleX,ankleY,ankleZ,.067);
+   limb.foot.position.set(ankleX,.055+lift,ankleZ+.065);
   }
  }
  function setArm(n,elbowX,elbowY,elbowZ,handX,handY,handZ,pitch=0,palmTilt=0,fan=0,handYaw=0){

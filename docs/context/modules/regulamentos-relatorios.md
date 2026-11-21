@@ -46,6 +46,10 @@ de torneio, início do professor/coordenação ou relatórios.
 
 ## Contratos a preservar
 
+- A revisão de feriado na Home da coordenação lista e confirma somente turmas
+  com aula no dia da semana da data exibida. Sem aulas previstas naquele dia,
+  a revisão fica indisponível. A pausa vale para a ocorrência daquela data.
+
 - O resumo do professor conta dias com chamada por turma; registros de presença
   contam participações individuais. Em Regulamentos, falha parcial de sincronização
   preserva a leitura do histórico. [Composição e estados](../../ui/REVISAO_OPERACIONAL_2026-11-13.md).

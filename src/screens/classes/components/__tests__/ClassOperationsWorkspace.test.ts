@@ -401,6 +401,28 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     });
   });
 
+  it("keeps the draft status in the layout while each attendance mark is stored", () => {
+    const renderPanel = (draftStatusVisible: boolean) => React.createElement(ClassAttendanceWorkspacePanel, {
+      colors, compact: true, mobile: true, dense: false, dateLabel: "27/08/2026",
+      students: [{ id: "student-1", name: "Atleta de teste", photoUrl: null }],
+      statusById: {}, detailsById: {}, markedCount: 0, hasChanges: true,
+      isLoading: false, isSaving: false, error: null,
+      onPrevious: jest.fn(), onNext: jest.fn(), onOpenCalendar: jest.fn(), onOpenReport: jest.fn(),
+      onSetStatus: jest.fn(), onSetDetails: jest.fn(), onSave: jest.fn(),
+      draftStatus: "Rascunho salvo neste dispositivo", draftStatusVisible,
+    });
+    const screen = render(renderPanel(true));
+    const getStatus = () => screen.getByText("Rascunho salvo neste dispositivo", { includeHiddenElements: true });
+    const status = getStatus();
+    const roster = screen.getByTestId("attendance-student-list");
+    screen.rerender(renderPanel(false));
+    expect(getStatus()).toBe(status);
+    expect(getStatus()).toHaveStyle({ opacity: 0 });
+    expect(screen.getByTestId("attendance-student-list")).toBe(roster);
+    screen.rerender(renderPanel(true));
+    expect(getStatus()).toHaveStyle({ opacity: 1 });
+  });
+
   it("uses the overview date navigator proportions in embedded attendance", () => {
     const screen = render(
       React.createElement(ClassAttendanceWorkspacePanel, {

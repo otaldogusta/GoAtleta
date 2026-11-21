@@ -22,18 +22,52 @@ passa aos demais jogadores, preservando documento, posições, ações e relógi
   contato e seleção ficam fora do picking. Câmera, gestos, alças de altura,
   ocultação, bloqueio e renderização por invalidação continuam no mesmo fluxo.
 
+## Refinamento das animações em 20/11/2026
+
+Aproximação, plantada, armação, contato, acompanhamento e aterrissagem
+compõem a cortada. Durante a aproximação, quando a pose atual e a anterior
+são `approach`, o blend carrega o progresso das passadas para o rig 3D.
+A projeção 2D segue usando a chave da pose. A manchete destaca a plataforma
+dos antebraços. O levantamento distingue preparação, extensão e direção
+de saída. No bloqueio, a preparação dos cotovelos e a extensão das mãos
+preservam a posição das palmas usada pela simulação.
+
+A animação usa as malhas e o relógio existentes. A passada é cinemática e
+acompanha a trajetória do jogador. O apoio pode deslizar no piso porque o
+rig não fixa o pé em coordenadas de mundo.
+
+A [prévia com dados fictícios](http://localhost:8081/quadra-mobile-qa-local.html?defense)
+usa os componentes da quadra. A comparação no
+[Inventário Visual](http://127.0.0.1:8096/inventario.html) inclui seis instantes
+no modo Ataque, a 390 × 844, em claro e escuro. Em Chromium com renderização
+por software, ambos os temas mantiveram 324 chamadas de desenho, 25.968
+triângulos e intervalo mediano de 33,3 ms entre quadros renderizados. O
+tempo mediano de CPU do renderer foi de 3,0 → 2,3 ms no escuro e
+2,5 → 2,8 ms no claro. As medidas não cobrem GPU ou toque em aparelho físico.
+
 ## Área tática da Defesa
 
-A área laranja era uma anotação manual na jogada aberta. Sua cópia foi
-preservada pela exportação antes de corrigir apenas os vértices. O novo
-envelope parte da linha dos extremos externos das palmas dos dois bloqueadores,
-segue os raios em planta a partir da bola e é recortado à metade defendida.
-ID, cor, tracejado e demais objetos/etapas são preservados.
+O padrão atual é a faixa tática ajustada pelo professor no piso. Os cinco
+vértices exportados são a referência da entrada 4. A saída de rede usa
+o mesmo desenho espelhado. Cada cenário guarda a área como um polígono
+com alças de edição no quadro final.
 
-É uma referência tática do conjunto, sem afirmar que o vão entre os jogadores
-esteja fisicamente fechado. A área continua manual: mover bola ou bloqueadores
-não recalcula seus pontos. Não foi acrescentado campo persistido ou substituído
-o preset original. Cópia e conferência ficam nos artefatos locais de QA.
+### Projeção geométrica anterior
+
+A área laranja da revisão anterior representava o envelope das palmas no contato da cortada.
+O contorno começa nas projeções em planta das palmas externas. Os raios que
+passam do contato da bola pelas palmas até o piso determinam a abertura e a
+profundidade. O polígono fica recortado à metade defendida.
+
+No quadro de contato dessa revisão, duas guias 3D mostravam os raios saindo das palmas
+até o piso ou a linha que recorta a área, o que vier primeiro.
+As guias geométricas deixavam de aparecer se o polígono divergisse da projeção.
+
+Em 20/11/2026, as guias foram conferidas na prévia local a 1034 × 857,
+em claro e escuro e com rotação da câmera. O contorno em planta da
+fixture já coincidia com a projeção. O arraste e desfazer/refazer
+foram conferidos pelas alças. Os pares estão no
+[Inventário Visual](http://127.0.0.1:8096/inventario.html).
 
 ## Validação
 

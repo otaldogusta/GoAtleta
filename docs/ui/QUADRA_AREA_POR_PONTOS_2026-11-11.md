@@ -62,3 +62,16 @@ IAB com dados fictícios confirmou conclusão por pontos, paleta e alteração d
 duplicação, exclusão da cópia, seleção com Ferramentas aberto e abertura das
 Propriedades. Imagem local `area-acoes-cor.jpg`. Não houve alteração dos dados
 reais para testar essas ações nem publicação.
+
+## Editar uma área existente no 3D
+
+Com a ferramenta Selecionar, escolha uma única área desbloqueada. O realce
+segue o perímetro do polígono e as alças mostram os vértices editáveis.
+Arraste um vértice no plano da quadra. A prévia acompanha o gesto e soltar
+confirma uma edição que pode ser desfeita. Na Defesa, use o quadro final
+para ajustar a área autoral da sombra do bloqueio.
+
+Em 20/11/2026, a prévia local com dados fictícios confirmou seleção,
+arraste de um vértice e desfazer/refazer a 1034 × 857, em claro e escuro.
+O [Inventário Visual](http://127.0.0.1:8096/inventario.html) registra os
+contornos antes/depois e o vértice já movido.

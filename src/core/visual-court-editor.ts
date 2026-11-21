@@ -254,6 +254,27 @@ export function setCourtTrajectoryPoint(p: CourtVisualPayload, index: number, id
   const heights = Object.fromEntries(targets.map(item => [item.kind, item.value])) as CourtTrajectoryHeights;
   return changeDrawings(p, index, frameDrawings(p, index).map(item => item.id === id ? heightChanged ? { ...shape, trajectoryHeights: { ...heights, [handle]: point.y } } : shape : item));
 }
+
+export function hasCourtArea(points: CourtPoint[]): boolean {
+  return points.length >= 3 && Math.abs(points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0)) > 1e-6;
+}
+
+export function setCourtAreaVertex(p: CourtVisualPayload, index: number, id: string, vertex: number, point: CourtPoint, progress = 0): CourtVisualPayload {
+  const step = p.timeline.steps[index];
+  if (!step || step.simulation?.mode === "defense" && progress !== 1 || !editableCourtSelection(p, index, [id]).length) return p;
+  const drawings = frameDrawings(p, index), area = drawings.find(drawing => drawing.id === id);
+  if (area?.kind !== "area" || area.motion?.length || area.points.length < 3 || !Number.isInteger(vertex) || !area.points[vertex]
+    || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return p;
+  const next = limitPoint(point), current = area.points[vertex];
+  if (Math.hypot(next.x - current.x, next.y - current.y) < 1e-8) return p;
+  const points = area.points.map((existing, i) => i === vertex ? next : existing);
+  if (!hasCourtArea(points) && hasCourtArea(area.points)) return p;
+  return changeDrawings(p, index, drawings.map(drawing => drawing === area ? { ...area, points } : drawing));
+}
+
 export function moveSelection(p: CourtVisualPayload, index: number, ids: string[], delta: CourtPoint, animate: boolean, path?: CourtPoint[], progress?: number): CourtVisualPayload {
   ids = editableCourtSelection(p, index, ids);
   if (!ids.length) return p;
@@ -261,7 +282,7 @@ export function moveSelection(p: CourtVisualPayload, index: number, ids: string[
   if (simulation && simulation.mode !== "defense" && ids.some(id => id === simulation.ballId && !frameDrawings(p, index).find(drawing => drawing.id === id)?.locked
     || animate && simulation.config.actorIds.includes(id) && !p.editor?.actorMeta[id]?.locked)) {
     const sampled = Object.fromEntries(simulation.actors.map(actor => [actor.id, { x: actor.position[0] / 9 + .5, y: actor.position[2] / 18 + .5 }]));
-    p = changeStep(p, index, step => ({ ...step, simulation: undefined, actorPositions: { ...step.actorPositions, ...sampled }, baselineActorPositions: { ...step.actorPositions, ...sampled }, visibleActorIds: (step.visibleActorIds ?? p.actors.map(actor => actor.id)).filter(id => !simulation.config.actorIds.includes(id) || simulation.visibleIds.includes(id)) }));
+    p = changeStep(p, index, step => ({ ...step, phase: simulation.mode === "attack" ? "attack_shape" : step.phase === "receive_release" ? "receive_release" : "receive_legal", simulation: undefined, actorPositions: { ...step.actorPositions, ...sampled }, baselineActorPositions: { ...step.actorPositions, ...sampled }, visibleActorIds: (step.visibleActorIds ?? p.actors.map(actor => actor.id)).filter(id => !simulation.config.actorIds.includes(id) || simulation.visibleIds.includes(id)) }));
     p = changeDrawings(p, index, frameDrawings(p, index).map(drawing => drawing.id === simulation.ballId ? { ...drawing, points: [{ x: simulation.ball[0] / 9 + .5, y: simulation.ball[2] / 18 + .5 }], motion: undefined } : drawing));
   }
   const movable = ids.filter(id => !p.editor?.actorMeta[id]?.locked);

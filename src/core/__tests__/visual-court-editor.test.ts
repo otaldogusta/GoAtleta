@@ -1,7 +1,18 @@
 import { buildEditable5x1ReceptionPreset, buildRotation5x1Preset, normalizeCourtPayload, parseCourtVisualPayload, serializeCourtVisualPayload } from "../visual-court";
+import { configureCourtSimulation } from "../court-simulation";
 import { addBlankStep, actorPoint, changeDrawings, continueStepFromEnd, copyStepSelection, deleteSelection, drawingAtProgress, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, reorderStepToIndex, upgradeCourtEditor } from "../visual-court-editor";
 
 describe("court editor document commands", () => {
+  it.each([["attack", "attack_shape"], ["receive", "receive_legal"]] as const)(
+    "keeps the %s phase after converting the simulated ball to manual motion",
+    (mode, phase) => {
+      const simulated = configureCourtSimulation(newCourtBoard(), 0, { mode });
+      const ballId = simulated.timeline.steps[0].simulation!.ballId;
+      const manual = moveSelection(simulated, 0, [ballId], { x: 0.02, y: 0.02 }, false);
+      expect(manual.timeline.steps[0].simulation).toBeUndefined();
+      expect(manual.timeline.steps[0].phase).toBe(phase);
+    },
+  );
   it("duplicates at the drag offset without moving the original", () => {
     const payload = newCourtBoard();
     const actor = payload.actors[0];

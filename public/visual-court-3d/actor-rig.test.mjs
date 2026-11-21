@@ -61,6 +61,30 @@ test('host poseBlend interpolates joints continuously without an independent ani
  }
 });
 
+test('approach progress alternates the lifted foot and returns to the authored plant transition',()=>{
+ const rig=fixture(),actor={poseRole:'attacker',pose:'approach',previousPose:'approach'};
+ const foot=side=>part(rig,`${side}-foot`).position;
+ rig.update({...actor,poseBlend:0});
+ const start=matrices(rig);
+ rig.update({...actor,poseBlend:.125});
+ const leftEarly=foot('left').z,rightEarly=foot('right').z;
+ rig.update({...actor,poseBlend:.375});
+ assert.ok(foot('left').z>leftEarly&&foot('right').z<rightEarly);
+ rig.update({...actor,poseBlend:.25});
+ near(foot('right').y,.055);assert.ok(foot('left').y>.19);
+ const firstStep=matrices(rig);
+ rig.update({...actor,poseBlend:.75});
+ near(foot('left').y,.055);assert.ok(foot('right').y>.19);
+ rig.update({...actor,poseBlend:.25});
+ assert.deepEqual(matrices(rig),firstStep);
+ rig.update({...actor,poseBlend:.25,mirror:true});
+ near(foot('left').y,.055);assert.ok(foot('right').y>.19);
+ rig.update({...actor,poseBlend:1});
+ assert.deepEqual(matrices(rig),start);
+ rig.update({...actor,pose:'plant',poseBlend:0});
+ assert.deepEqual(matrices(rig),start);
+});
+
 test('the parent owns authored elevation, poseScale applies once and jump remains unscaled',()=>{
  const rig=fixture();rig.parent.position.y=1.006326834602263;
  const actor={poseRole:'attacker',pose:'contact',poseScale:.9,jump:.85,position:{x:99,y:9,z:99},facing:[0,1]};

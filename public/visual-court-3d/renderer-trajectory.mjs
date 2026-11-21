@@ -35,7 +35,29 @@ function samples(drawing,landscape){
  }
  return result;
 }
-export function trajectoryStroke(drawing,landscape=false){return samples(drawing,landscape).map(item=>item.point);}
+export function trajectoryStroke(drawing,landscape=false){
+ const stroke=samples(drawing,landscape),progress=drawing.traceProgress??1;
+ if(progress<=0)return [];
+ if(progress>=1)return stroke.map(item=>item.point);
+ const next=stroke.findIndex(item=>item.u>progress);
+ if(next<=0)return stroke.map(item=>item.point);
+ const prefix=stroke.slice(0,next).map(item=>item.point),a=stroke[next-1],b=stroke[next];
+ if(a.u<progress){
+  const t=(progress-a.u)/(b.u-a.u);
+  prefix.push({x:a.point.x+(b.point.x-a.point.x)*t,y:a.point.y+(b.point.y-a.point.y)*t,z:a.point.z+(b.point.z-a.point.z)*t});
+ }
+ return prefix;
+}
+export function trajectoryTipDirection(stroke,tracing=false){
+ const end=stroke.at(-1),previous=stroke.length-2,first=tracing?0:previous;
+ if(previous<0)return null;
+ const direction=new THREE.Vector3();
+ for(let index=previous;index>=first;index--){
+  const point=stroke[index];direction.set(end.x-point.x,end.y-point.y,end.z-point.z);
+  if(direction.lengthSq()>.0001)return direction.normalize();
+ }
+ return null;
+}
 export function trajectoryHandlePoint(drawing,kind,landscape=false){
  const stroke=samples(drawing,landscape);if(!stroke.length)return null;
  const at=kind==='start'?0:kind==='end'?1:.5;
@@ -69,10 +91,10 @@ export function createTrajectorySelection(drawing,landscape=false){
  const options={color:'#dceaff',transparent:true,opacity:.65,depthWrite:false};
  const material=drawing.dashed?new THREE.LineDashedMaterial({...options,dashSize:.16,gapSize:.12}):new THREE.LineBasicMaterial(options);
  const trace=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),material);trace.renderOrder=1;if(drawing.dashed)trace.computeLineDistances();group.add(trace);
- const end=points.at(-1),direction=end.clone().sub(points.at(-2));
- if(direction.lengthSq()>.0001){
+ const end=points.at(-1),direction=trajectoryTipDirection(points,drawing.traceProgress!==undefined);
+ if(direction){
   const tip=new THREE.Mesh(new THREE.ConeGeometry(.096,.292,12),new THREE.MeshBasicMaterial({...options,side:THREE.BackSide}));
-  tip.position.copy(end);tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());group.add(tip);
+  tip.position.copy(end);tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction);group.add(tip);
  }
  return group;
 }

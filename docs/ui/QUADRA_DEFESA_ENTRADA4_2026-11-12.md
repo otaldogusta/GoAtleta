@@ -16,12 +16,56 @@ ocupam cobertura curta, diagonal curta, paralela e diagonal profunda conforme
 os destinos autorais. As bases iniciais são uma preparação didática proposta;
 não certificam rodízio, função permanente ou sistema regulamentar.
 
-As três setas representam alternativas de ataque. A animação organiza os
-jogadores até o contato em 2,6 s, sem executar três ataques nem inventar defesa
-bem-sucedida, colisão ou resultado. O atacante usa sua altura autoral uma única
-vez. Os bloqueadores reutilizam salto e extensão de mãos do relógio canônico:
-preparam no piso, flexionam e atingem 0,85 m no contato do azul (progresso 0,94),
-mantendo as duas mãos acima da fita até o quadro final.
+As três setas representam alternativas de ataque e partem do contato final.
+Durante a reprodução, as alternativas ligadas à bola crescem do contato
+da cortada até as pontas, em 2D e 3D. O traço acompanha o controle de
+reprodução nos dois sentidos. No quadro final, a geometria autoral é
+exibida integralmente com as alças de edição.
+Em Play a 1×, a janela após o contato é de pelo menos 400 ms. O relógio
+do passe e do levantamento até o contato continua igual. A duração
+autoral da etapa e as posições do controle de reprodução são preservadas.
+Os comparativos locais em claro e escuro registram o traço parcial e o
+quadro final para os dois cenários em 2D e 3D no
+[Inventário Visual](http://127.0.0.1:8096/inventario.html).
+Ao reproduzir, a bola parte da posição 6 adversária em direção ao levantador
+na 3. A saída do levantamento para a entrada 4 sinaliza o ajuste do bloqueio
+e da defesa. Os dois apoios são gerados na amostragem da simulação, enquanto
+o documento mantém os sete atletas autorais. A sequência termina no contato
+azul, com o atacante na altura autoral e as mãos do bloqueio acima da fita.
+
+A sombra laranja inicial da entrada é o desenho de cinco vértices ajustado
+pelo professor. Na saída de rede (posição 2), o cenário e a área são
+espelhados na largura da quadra. Entrada e saída são etapas independentes.
+As alças continuam disponíveis no quadro de contato para ajuste manual.
+O seletor Entrada de rede / Saída de rede abre cada cenário no seu quadro
+final e mantém as edições independentes. A prévia fictícia foi conferida
+em 2D e 3D nos tamanhos 1034 × 857 e 390 × 844, em claro e escuro. No
+desktop, os ajustes de cada lado sobreviveram à troca de cenário e à recarga.
+
+## Sistemas de cobertura
+
+Em **Defesa → Ajustes da jogada**, selecione **Entrada**, **Meio** ou
+**Saída** na linha **Ataque**. Em **Cobertura**, selecione o sistema.
+O topo da quadra reúne os modos Recepção, Ataque e Defesa.
+Escolher um cartão em Etapas conserva o ponto de rolagem da lista e abre
+o quadro final da Defesa diretamente.
+No Meio, o levantamento, o contato da cortada, o bloqueio e a sombra
+são organizados no centro da rede, com alternativas para os dois lados.
+Na cobertura frontal, o jogador da frente que está fora do bloqueio
+assume a zona curta. Na cobertura pela posição 1, o defensor do fundo
+direito avança. O outro defensor ocupa o destino deixado por quem avançou.
+O deslocamento começa na saída do levantamento.
+
+Cada combinação tem uma etapa própria, com posições, sombra e trajetórias
+editáveis no quadro final. A etapa criada em um sistema fica disponível
+na lista de etapas. Documentos anteriores preservam a etapa original e
+seus desenhos. Em leitura, é possível abrir os cenários já incluídos no
+documento.
+
+Em 20/11/2026, a [prévia local com dados fictícios](http://localhost:8081/quadra-mobile-qa-local.html?defense)
+foi conferida em 2D e 3D a 1034 × 857. Play e Reiniciar partem do passe.
+As capturas do início e do ajuste estão no
+[Inventário Visual](http://127.0.0.1:8096/inventario.html).
 
 Refinamento visual de 12/11: o rig compartilhado com Ataque mantém cotovelos e
 mãos próximos à linha dos ombros ao estender, removendo a abertura exagerada em
@@ -40,15 +84,16 @@ Altura canônica das palmas, salto, relógio e destinos permanecem preservados.
 
 ## Contrato
 
-- `ensureCourtDefenseStep` acrescenta a etapa uma vez e retorna à existente nas
-  próximas visitas. Preserva as etapas anteriores e seus atores/metadados.
+- `ensureCourtDefenseStep` acrescenta cada cenário uma vez e retorna ao existente
+  nas próximas visitas. Preserva as etapas anteriores e seus atores/metadados.
   Conflitos de equipe, ocultação ou bloqueio recebem atores exclusivos da Defesa,
   com referências remapeadas. Novos atores não passam a aparecer implicitamente
   nas etapas anteriores; seis verdes pertencem à equipe A e o azul à B.
 - `simulation.mode: "defense"` guarda bases iniciais em
   `defenseSettings.startPositions`. Destinos continuam em `actorPositions` e
-  alturas em `actorElevations`. O sampler compartilhado alimenta 2D e 3D;
-  guias físicos de levantamento/saque não são usados nesta etapa.
+  alturas em `actorElevations`. O sampler compartilhado fornece a bola e os
+  apoios da preparação às vistas 2D e 3D. Passe e levantamento são guias de
+  reprodução, e as três alternativas continuam ligadas ao ponto final.
 - A normalização mantém a precisão completa das coordenadas de Defesa.
   Importação, exportação e serialização preservam a formação e os vínculos.
 - Defesa abre no quadro de contato, inclusive após carregar um rascunho.

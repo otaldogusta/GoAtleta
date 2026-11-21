@@ -1,5 +1,5 @@
 import type { CourtVisualPayload } from "../../../core/visual-court";
-import { newCourtBoard } from "../../../core/visual-court-editor";
+import { frameDrawings, newCourtBoard, setCourtAreaVertex } from "../../../core/visual-court-editor";
 import { ensureCourtDefenseStep } from "../../../core/court-defense-preset";
 import { configureCourtSimulation } from "../../../core/court-simulation";
 import { parseCourtPerspectiveCommand, type CourtPerspectiveCommandContext } from "../court-perspective-bridge";
@@ -31,6 +31,39 @@ const envelope = (command: Record<string, unknown>) => ({ channel: "goatleta-cou
 function parse(command: Record<string, unknown>, context: Partial<CourtPerspectiveCommandContext> = {}) {
   return parseCourtPerspectiveCommand(envelope(command), { token: "frame-token", revision: 4, payload: fixture(), stepIndex: 0, tool: "select", ...context });
 }
+
+it("commits only a valid vertex on the selected editable area and preserves the other points", () => {
+  const payload = fixture();
+  const area = { id: "area", kind: "area" as const, points: [{ x: .2, y: .2 }, { x: .4, y: .3 }, { x: .1, y: .5 }], color: "#ff9900", size: 32, rotation: 0, dashed: true };
+  payload.editor!.drawings.first.push(area);
+  const context = { payload, selected: [area.id] };
+  const command = { type: "area-vertex", id: area.id, vertex: 1, point: { x: .6, y: .7 } };
+  expect(parse(command, context)).toEqual(command);
+  const next = setCourtAreaVertex(payload, 0, area.id, command.vertex, command.point);
+  expect(frameDrawings(next, 0).at(-1)).toEqual({ ...area, points: [area.points[0], command.point, area.points[2]] });
+  expect(frameDrawings(payload, 0).at(-1)).toEqual(area);
+  expect(next.timeline.steps[1]).toBe(payload.timeline.steps[1]);
+  expect(setCourtAreaVertex(payload, 0, area.id, 1, area.points[0])).toBe(payload);
+  expect(setCourtAreaVertex(payload, 0, area.id, 1, { x: .15, y: .35 })).toBe(payload);
+  for (const fields of [{ vertex: -1 }, { vertex: 3 }, { vertex: 1.5 }, { point: { x: 0, y: NaN } }, { point: { x: 0, y: 0, z: 0 } }, { revision: 3 }]) {
+    expect(parse({ ...command, ...fields }, context)).toBeNull();
+  }
+  for (const fields of [{ disabled: true }, { selected: ["other"] }, { selected: [area.id, "ball"] }, { tool: "pan" as const }, { stepIndex: 1 }]) {
+    expect(parse(command, { ...context, ...fields })).toBeNull();
+  }
+  const defense = ensureCourtDefenseStep(payload), shadow = { ...area, id: "shadow" };
+  defense.payload.editor!.drawings[defense.payload.timeline.steps[defense.stepIndex].id].push(shadow);
+  const defenseCommand = { ...command, id: shadow.id }, defenseContext = { payload: defense.payload, stepIndex: defense.stepIndex, selected: [shadow.id] };
+  expect(parse(defenseCommand, { ...defenseContext, progress: .9 })).toBeNull();
+  expect(parse(defenseCommand, { ...defenseContext, progress: 1 })).toEqual(defenseCommand);
+  expect(setCourtAreaVertex(defense.payload, defense.stepIndex, shadow.id, 1, command.point, .9)).toBe(defense.payload);
+  for (const fields of [{ locked: true }, { hidden: true }, { motion: area.points }]) {
+    const guarded = { ...area, ...fields };
+    payload.editor!.drawings.first[2] = guarded;
+    expect(parse(command, context)).toBeNull();
+    expect(setCourtAreaVertex(payload, 0, area.id, 1, command.point)).toBe(payload);
+  }
+});
 
 describe("trajectory height command boundary", () => {
   const source = () => {

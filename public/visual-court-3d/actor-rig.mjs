@@ -8,26 +8,26 @@ const relaxed=pose(.02,0,0,0,[-.25,1.15,.035,-.23,.94,.10,2.9],[.25,1.15,.035,.2
 const poses={
  setter:{
   ready:relaxed,
-  load:pose(.22,.07,0,.03,[-.28,1.30,.10,-.12,1.60,.18,.25],[.28,1.30,.10,.12,1.60,.18,.25]),
-  rise:pose(.08,.03,0,.01,[-.24,1.56,.10,-.10,1.92,.15,.2],[.24,1.56,.10,.10,1.92,.15,.2]),
+  load:pose(.24,.06,.035,.035,[-.31,1.25,.18,-.13,1.62,.29,.62],[.31,1.25,.18,.13,1.62,.29,.62]),
+  rise:pose(.09,.025,.025,.018,[-.27,1.53,.17,-.11,1.93,.23,.42],[.27,1.53,.17,.11,1.93,.23,.42]),
   contact:pose(0,0,0,0,[-.22,1.80,.11,-.085,2.165,.17,.2],[.22,1.80,.11,.085,2.165,.17,.2]),
-  follow:pose(0,.02,0,0,[-.20,1.86,.17,-.085,2.195,.27,.35],[.20,1.86,.17,.085,2.195,.27,.35]),
-  backfollow:pose(0,-.06,0,0,[-.22,1.86,-.11,-.085,2.20,-.23,-.35],[.22,1.86,-.11,.085,2.20,-.23,-.35]),
+  follow:pose(0,.06,.025,.015,[-.21,1.83,.24,-.10,2.17,.42,.85],[.21,1.83,.24,.10,2.17,.42,.85]),
+  backfollow:pose(0,-.08,.025,.015,[-.22,1.84,-.10,-.09,2.17,-.30,-.66],[.22,1.84,-.10,.09,2.17,-.30,-.66]),
  },
  passer:{
-  ready:pose(.22,.10,0,.08,[-.28,1.09,.17,-.17,.90,.32,2.4],[.28,1.09,.17,.17,.90,.32,2.4]),
-  load:pose(.34,.14,0,.10,[-.25,.99,.22,-.10,.82,.50,2.1],[.25,.99,.22,.10,.82,.50,2.1]),
-  contact:pose(.40,.18,0,.11,[-.17,.94,.32,-.055,.78,.67,1.9],[.17,.94,.32,.055,.78,.67,1.9]),
-  follow:pose(.18,.10,0,.08,[-.18,1.18,.35,-.055,1.15,.72,1.6],[.18,1.18,.35,.055,1.15,.72,1.6]),
+  ready:pose(.22,.10,.05,.10,[-.29,1.03,.22,-.19,.86,.42,2.3],[.29,1.03,.22,.19,.86,.42,2.3]),
+  load:pose(.36,.17,.07,.13,[-.23,.91,.31,-.075,.72,.61,2.03],[.23,.91,.31,.075,.72,.61,2.03]),
+  contact:pose(.38,.17,.07,.13,[-.13,.90,.41,-.055,.78,.67,1.89],[.13,.90,.41,.055,.78,.67,1.89]),
+  follow:pose(.17,.12,.07,.13,[-.135,1.08,.43,-.055,1.025,.76,1.83],[.135,1.08,.43,.055,1.025,.76,1.83]),
  },
  attacker:{
   ready:relaxed,
-  approach:pose(.10,.04,.17,.01,[-.24,1.28,.18,-.19,1.13,.32,2.5],[.27,1.14,-.12,.27,1.00,-.26,2.9]),
-  plant:pose(.28,.12,.03,.03,[-.25,1.00,-.15,-.28,.82,-.36,2.9],[.25,1.00,-.15,.28,.82,-.36,2.9]),
-  draw:pose(0,-.04,.04,0,[-.25,1.65,.15,-.22,1.92,.30,.1],[.32,1.67,-.12,.22,1.88,-.24,-.15]),
+  approach:pose(.11,.13,.31,.015,[-.23,1.15,-.11,-.21,1.01,-.29,2.9],[.25,1.23,.24,.20,1.16,.48,2.2]),
+  plant:pose(.30,.17,.135,.06,[-.23,.98,-.23,-.27,.82,-.49,2.8],[.23,.98,-.25,.27,.83,-.51,2.8]),
+  draw:pose(.015,-.07,.065,.01,[-.26,1.65,.23,-.15,2.02,.40,.21],[.38,1.66,-.17,.26,1.93,-.30,-.32]),
   contact:pose(0,.03,0,0,[-.26,1.36,.15,-.32,1.18,.35,2.6],[.20,1.89,.08,.13,2.255,.18,.05]),
-  follow:pose(.10,.14,.08,.01,[-.28,1.13,.10,-.31,.96,.22,2.8],[.14,1.35,.30,-.12,1.02,.54,2.1]),
-  land:pose(.30,.10,.07,.04,[-.27,1.01,.17,-.20,.84,.31,2.5],[.27,1.01,.17,.20,.84,.31,2.5]),
+  follow:pose(.08,.20,.08,.02,[-.31,1.19,.09,-.38,1.03,.21,2.8],[.13,1.39,.40,-.23,1.02,.57,2.6]),
+  land:pose(.33,.16,.065,.075,[-.29,.98,.19,-.33,.81,.37,2.5],[.29,.98,.19,.33,.81,.37,2.5]),
  },
  server:{
   ready:pose(0,0,.04,.01,[-.21,1.25,.26,-.08,1.62,.58,1.2],[.25,1.18,.10,.23,.97,.22,2.9]),
@@ -89,10 +89,25 @@ export function createActorRig(parent){
     &&lastContactX===contactX&&lastContactY===contactY&&lastContactZ===contactZ&&lastContactWeight===contactWeight)return;
   const target=choices[name],origin=choices[previous];
   for(let i=0;i<shape.length;i++)shape[i]=origin[i]+(target[i]-origin[i])*blend;
-  anatomy.updateBody(shape[0],jump,yaw,scale,shape[1],shape[2]*(mirror?-1:1),shape[3]);
+  const sign=mirror?-1:1;
+  const stepping=role==='attacker'&&name==='approach'&&previous===name&&blend>0&&blend<1;
+  const angle=blend*2*Math.PI;
+  const swing=stepping?Math.cos(angle):1,counterSwing=(1-swing)/2;
+  const stepLift=stepping?-.155*Math.sin(angle)*sign:0;
+  anatomy.updateBody(shape[0],jump,yaw,scale,shape[1],shape[2]*swing*sign,shape[3],stepLift);
   for(let n=0;n<2;n++){
-   const offset=4+(mirror?1-n:n)*7,sign=mirror?-1:1;
-   arm[0]=shape[offset]*sign;arm[1]=shape[offset+1];arm[2]=shape[offset+2];arm[3]=shape[offset+3]*sign;arm[4]=shape[offset+4];arm[5]=shape[offset+5];
+   const sideIndex=mirror?1-n:n,offset=4+sideIndex*7;
+   let pitch=shape[offset+6];
+   for(let axis=0;axis<arm.length;axis++)arm[axis]=shape[offset+axis];
+   if(stepping){
+    const opposite=4+(1-sideIndex)*7;
+    for(let axis=0;axis<arm.length;axis++){
+     const lateral=axis===0||axis===3?-1:1;
+     arm[axis]+=(lateral*shape[opposite+axis]-arm[axis])*counterSwing;
+    }
+    pitch+=(shape[opposite+6]-pitch)*counterSwing;
+   }
+   arm[0]*=sign;arm[3]*=sign;
    let handYaw=0;
    const paired=role==='passer'||role==='setter',targetArm=role==='server'&&(name==='ready'||name==='toss')?(mirror?1:0):(mirror?0:1);
    if(contactX!==undefined&&contactWeight>0&&(paired||n===targetArm)){
@@ -108,7 +123,7 @@ export function createActorRig(parent){
      fitElbow(arm,side*.18,shoulderY,shoulderZ,weight);handYaw=Math.atan2(vx,vz)*weight;
     }
    }
-   anatomy.setArm(n,arm[0],arm[1],arm[2],arm[3],arm[4],arm[5],shape[offset+6],0,.15,handYaw);
+   anatomy.setArm(n,arm[0],arm[1],arm[2],arm[3],arm[4],arm[5],pitch,0,.15,handYaw);
   }
   anatomy.measureHeight();
   lastRole=role;lastPose=name;lastPrevious=previous;lastBlend=blend;lastMirror=mirror;lastJump=jump;lastScale=scale;

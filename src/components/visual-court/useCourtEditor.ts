@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import { useAuth } from "../../auth/auth";
+import { useOrganization } from "../../providers/organization-context";
 import { measureAsync } from "../../observability/perf";
 import { isAuthError, isNetworkError, isPermissionError } from "../../db/client";
 import { buildTechnicalVisualId, getClassById, getStudentsByClass, listTechnicalVisualsByClass, saveTechnicalVisual } from "../../db/seed";
@@ -24,7 +25,8 @@ const canRetryAutosave = (failure: unknown) => {
 const initial = (): History => ({ present: { payload: newCourtBoard(), stepIndex: 0 }, past: [], future: [] });
 const newLocalDocumentId = () => `local_draft_${editorId()}`;
 export function useCourtEditor(classId: string, { autosavePaused = false }: { autosavePaused?: boolean } = {}) {
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
+  const { activeOrganizationId, isLoading: organizationLoading } = useOrganization();
   const userId = session?.user?.id;
   const [cls, setClass] = useState<ClassGroup | null>(null);
   const [roster, setRoster] = useState<Student[]>([]);
@@ -98,11 +100,14 @@ export function useCourtEditor(classId: string, { autosavePaused = false }: { au
     departureRef.current = false;
     let active = true;
     Promise.resolve().then(() => { if (active) { setLoading(true); setOpening(false); setSaving(false); setAutosaveStatus("idle"); setAutosaveError(""); setDeparting(false); setError(""); setClass(null); setRoster([]); setDocuments([]); } });
+    if (authLoading || organizationLoading) return () => { active = false; generation.current = run + 1; };
     if (!userId || !classId) { Promise.resolve().then(() => { if (active) { setLoading(false); setError("Entre na sua conta para abrir a turma."); } }); return () => { active = false; generation.current = run + 1; }; }
     void (async () => {
       try {
-        const classData = await measureAsync("screen.visualCourt.load.class", () => getClassById(classId));
-        if (!classData?.organizationId) throw new Error("Turma indisponível para esta conta.");
+        if (!activeOrganizationId) throw new Error("Selecione um workspace para abrir a turma.");
+        const classData = await measureAsync("screen.visualCourt.load.class", () => getClassById(classId, { organizationId: activeOrganizationId }));
+        if (!active || run !== generation.current) return;
+        if (!classData || classData.organizationId !== activeOrganizationId) throw new Error("Turma indisponível no workspace atual.");
         const [docs, students] = await measureAsync("screen.visualCourt.load.documents", () => Promise.all([listTechnicalVisualsByClass(classId, { organizationId: classData.organizationId, limit: 200 }), getStudentsByClass(classId, { organizationId: classData.organizationId })]));
         if (!active || run !== generation.current) return;
         const trashRaw = await AsyncStorage.getItem(`goatleta:court-trash:v1:${userId}:${classData.organizationId}:${classId}`);
@@ -133,9 +138,15 @@ export function useCourtEditor(classId: string, { autosavePaused = false }: { au
           if (raw) {
             const stored = JSON.parse(raw);
             if (stored.payload?.editor?.version === 1 && stored.payload.timeline?.steps?.length) {
-              snapshot = { payload: upgradeCourtEditor(stored.payload, stored.payload.editor.title || "Jogada"), stepIndex: Math.min(stored.stepIndex || 0, stored.payload.timeline.steps.length - 1) };
-              openedDocumentId = typeof stored.documentId === "string" && stored.documentId ? stored.documentId : newLocalDocumentId();
               recovered = stored.unsaved !== false;
+              openedDocumentId = typeof stored.documentId === "string" && stored.documentId ? stored.documentId : newLocalDocumentId();
+              const storedIndex = Number.isInteger(stored.stepIndex) ? Math.max(0, Math.min(stored.stepIndex, stored.payload.timeline.steps.length - 1)) : 0;
+              const savedDocument = recovered ? undefined : docs.find(document => document.id === openedDocumentId);
+              const reopenedPayload = savedDocument
+                ? upgradeCourtEditor(savedDocument.payload, savedDocument.title)
+                : upgradeCourtEditor(stored.payload, stored.payload.editor.title || "Jogada");
+              const reopenedIndex = reopenedPayload.timeline.steps.findIndex(step => step.id === stored.payload.timeline.steps[storedIndex].id);
+              snapshot = { payload: reopenedPayload, stepIndex: reopenedIndex >= 0 ? reopenedIndex : 0 };
               // Older new/imported drafts had no identity. Reserve one before
               // any retry so a reload cannot select or overwrite the template.
               if (!active || run !== generation.current) return;
@@ -156,7 +167,7 @@ export function useCourtEditor(classId: string, { autosavePaused = false }: { au
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; generation.current = run + 1; cancelAutosave(); };
-  }, [classId, userId, setHistory, setSavedSignature, cancelAutosave]);
+  }, [classId, userId, authLoading, organizationLoading, activeOrganizationId, setHistory, setSavedSignature, cancelAutosave]);
 
   useEffect(() => {
     if (!draftKey || loading || opening || departing) return;
@@ -284,18 +295,14 @@ export function useCourtEditor(classId: string, { autosavePaused = false }: { au
       if (!automatic) setNotice(saved.id.startsWith("local_") ? "Jogada salva neste dispositivo; sincronização pendente." : updateId ? "Jogada atualizada na turma." : "Jogada salva na turma.");
       if (draftKey && JSON.stringify(current.current.payload) === JSON.stringify(snapshot.payload)) {
         try {
-          // The next debounced draft must run after this cleanup, including
-          // edits made while AsyncStorage is still removing the saved snapshot.
-          const cleanup = draftWrite.current.catch(() => undefined).then(async () => {
+          // Keep the current document and stage as the local reopening point.
+          const checkpoint = draftWrite.current.catch(() => undefined).then(async () => {
             if (run !== generation.current || activeDocumentRef.current !== saved.id || JSON.stringify(current.current.payload) !== JSON.stringify(snapshot.payload)) return;
-            if (saved.id.startsWith("local_")) await AsyncStorage.setItem(draftKey, JSON.stringify({ ...snapshot, documentId: saved.id, unsaved: false }));
-            else {
-              await AsyncStorage.removeItem(draftKey);
-              if (currentDocumentId?.startsWith("local_")) await AsyncStorage.removeItem(`${draftKey}:backup:${currentDocumentId}`);
-            }
+            await AsyncStorage.setItem(draftKey, JSON.stringify({ ...current.current, documentId: saved.id, unsaved: false }));
+            if (!saved.id.startsWith("local_") && currentDocumentId?.startsWith("local_")) await AsyncStorage.removeItem(`${draftKey}:backup:${currentDocumentId}`);
           });
-          draftWrite.current = cleanup;
-          await cleanup;
+          draftWrite.current = checkpoint;
+          await checkpoint;
           if (run === generation.current) setDraftError("");
         } catch { if (run === generation.current) setDraftError("Falha no rascunho. Exporte uma cópia."); }
       }

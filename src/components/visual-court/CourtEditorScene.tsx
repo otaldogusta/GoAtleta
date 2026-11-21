@@ -4,7 +4,7 @@ import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "reac
 import { actorPoint, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
 import { sampleCourtSimulation } from "../../core/court-simulation";
-import { displayCourtDrawings, simulationFloorPoint } from "../../core/court-simulation-display";
+import { displayCourtDrawings, simulationFloorPoint, type DisplayedCourtDrawing } from "../../core/court-simulation-display";
 import { buildCourtPerspectiveSimulation } from "../../core/court-perspective-guides";
 import { resolveCourtLayers } from "../../core/court-layers";
 
@@ -31,19 +31,44 @@ export function displayActors(p: CourtVisualPayload, index: number, progress?: n
     return { ...a, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
   });
 }
-function DrawObject({ drawing: d, landscape, selected = false, hovered = false }: { drawing: CourtDrawing; landscape: boolean; selected?: boolean; hovered?: boolean }) {
+const interpolate = (a: CourtPoint, b: CourtPoint, t: number): CourtPoint => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+
+function tracePrefix(points: CourtPoint[], progress: number): CourtPoint[] {
+  const lengths = points.slice(1).map((point, index) => Math.hypot(point.x - points[index].x, point.y - points[index].y));
+  let remaining = lengths.reduce((total, length) => total + length, 0) * progress;
+  for (let index = 0; index < lengths.length; index++) {
+    const length = lengths[index];
+    if (length > remaining) return [...points.slice(0, index + 1), interpolate(points[index], points[index + 1], remaining / length)];
+    if (length === remaining && length > 0) return points.slice(0, index + 2);
+    remaining -= length;
+  }
+  return points;
+}
+
+function DrawObject({ drawing: d, landscape, selected = false, hovered = false }: { drawing: DisplayedCourtDrawing; landscape: boolean; selected?: boolean; hovered?: boolean }) {
   const color = hovered ? courtHoverColor(d.color) : d.color;
-  const points = d.points.map(p => scenePoint(p, landscape));
-  const first = points[0]; if (!first) return null;
-  const last = points[points.length - 1];
-  const control = d.kind === "curve" && points.length > 1 ? courtCurveControl(d, points) : undefined;
+  let points = d.points.map(p => scenePoint(p, landscape));
+  const first = points[0]; if (!first || d.traceProgress === 0) return null;
+  let last = points[points.length - 1];
+  let control = d.kind === "curve" && points.length > 1 ? courtCurveControl(d, points) : undefined;
+  if (d.traceProgress !== undefined && d.traceProgress < 1 && points.length > 1) {
+    if (control) {
+      const back = interpolate(control, last, d.traceProgress);
+      control = interpolate(first, control, d.traceProgress);
+      last = interpolate(control, back, d.traceProgress);
+    } else {
+      points = tracePrefix(points, d.traceProgress);
+      last = points[points.length - 1];
+    }
+  }
   const path = control
     ? `M ${first.x} ${first.y} Q ${control.x} ${control.y} ${last.x} ${last.y}`
     : points.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ");
   const size = d.size || 28;
-  const previous = d.curveMode === "through-point" && points.length === 3 && control ? control : points[Math.max(0, points.length - 2)];
+  const previous = control && (d.traceProgress !== undefined || d.curveMode === "through-point" && points.length === 3) ? control : points[Math.max(0, points.length - 2)];
   const angle = Math.atan2(last.y - previous.y, last.x - previous.x);
-  const head = `${last.x},${last.y} ${last.x - 25 * Math.cos(angle - 0.5)},${last.y - 25 * Math.sin(angle - 0.5)} ${last.x - 25 * Math.cos(angle + 0.5)},${last.y - 25 * Math.sin(angle + 0.5)}`;
+  const headSize = d.traceProgress === undefined ? 25 : Math.min(25, Math.hypot(last.x - first.x, last.y - first.y));
+  const head = `${last.x},${last.y} ${last.x - headSize * Math.cos(angle - 0.5)},${last.y - headSize * Math.sin(angle - 0.5)} ${last.x - headSize * Math.cos(angle + 0.5)},${last.y - headSize * Math.sin(angle + 0.5)}`;
   const outlinePath = path + (d.kind === "area" ? " Z" : "");
   // Keep the underlay in the object's own transform and leave the authored paint intact.
   // The dark outer edge also makes white text and white strokes visibly selectable.
@@ -137,6 +162,15 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
       {p.markers.filter(m => !step.markerIds || step.markerIds.includes(m.id)).map(m => <DrawObject key={m.id} landscape={landscape} drawing={{ id: m.id, kind: m.type, points: [m.position], color: m.color ?? "#ffdc53", size: 28, rotation: 0 }} />)}
     </> : null}
     {!hide.includes("movements") ? (step.trajectories ?? step.transitions)?.filter(t => !p.editor?.actorMeta[t.actorId]?.hidden && (previewIds?.includes(t.actorId) ? previewMotion : progress !== 0)).map(t => <DrawObject key={t.id} landscape={landscape} drawing={{ id: t.id, kind: "arrow", points: motionTrail(t.points, previewIds?.includes(t.actorId) ? 1 : progress ?? 1, 55), color: t.color ?? "#fff", dashed: true, size: 28, rotation: 0 }} />) : null}
+    {!hide.includes("actors") && simulation?.defenseSupport ? <G pointerEvents="none">
+      {simulation.defenseSupport.map(actor => {
+        const at = scenePoint(simulationFloorPoint(actor.position), landscape);
+        return <G key={actor.role}>
+          <Circle cx={at.x} cy={at.y} r={52} fill="#4389ff" stroke="#ffffff55" strokeWidth={2} />
+          {!hide.includes("labels") ? <SvgText x={at.x} y={at.y + 14} fontFamily="Arial" fontWeight="700" fontSize={37} fill="#fff" textAnchor="middle">{actor.role === "setter" ? "L3" : "P6"}</SvgText> : null}
+        </G>;
+      })}
+    </G> : null}
     {resolveCourtLayers(p, stepIndex).map(ref => {
       if (ref.kind === "drawing") {
         const d = drawings.get(ref.id);
