@@ -30,13 +30,14 @@ export function useHolidayRecommendation(organizationId: string | undefined, ena
     return () => { active = false; };
   }, [organizationId, date, enabled, holiday, key]);
   const save = async (ids: string[]) => {
-    if (!organizationId || saving) return;
+    if (!organizationId || saving) return false;
     setSaving(true); setError("");
-    try { await decideHoliday(organizationId, date, ids); await refresh(); }
+    try { await decideHoliday(organizationId, date, ids); await refresh(); return true; }
     catch {
       // Another coordinator may have decided concurrently; reload authoritative state.
       await refresh().catch(() => undefined);
       setError("Não foi possível confirmar. Tente novamente.");
+      return false;
     }
     finally { setSaving(false); }
   };

@@ -4,14 +4,16 @@ import CalendarScreen from "../../../../app/calendar";
 import type { ClassGroup } from "../../../core/models";
 import { getClasses, getTrainingPlans, getCalendarTrainingPlanApplications, getTrainingPlanSummaries, saveTrainingPlan } from "../../../db/seed";
 import { listEvents } from "../../../api/events";
+import { listHolidayMakeups } from "../../../api/holiday-makeups";
 import { listCalendarPauses } from "../../../api/holiday-decisions";
 const mockPush = jest.fn();
-jest.mock("@sentry/react-native", () => ({ captureException: jest.fn() }));
+jest.mock("@sentry/react-native", () => ({ captureException: jest.fn(), addBreadcrumb: jest.fn() }));
 jest.mock("expo-router", () => ({ useNavigationContainerRef: () => ({ current: null }), useRoute: () => ({ key: "student-agenda" }), useRouter: () => ({ push: mockPush }), usePathname: () => "/student/agenda", useLocalSearchParams: () => ({ openApply: "1", targetClassId: "linked", targetDate: "2026-10-31" }) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { id: "athlete" } } }) }));
 jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ activeOrganization: { id: "other-org" } }) }));
 jest.mock("../../../db/seed", () => ({ getCalendarTrainingPlanApplications: jest.fn(), getTrainingPlanSummaries: jest.fn(), getClasses: jest.fn(), getTrainingPlans: jest.fn(), saveTrainingPlan: jest.fn(), getLatestTrainingPlanByClass: jest.fn() }));
 jest.mock("../../../api/events", () => ({ listEvents: jest.fn() }));
+jest.mock("../../../api/holiday-makeups", () => ({ listHolidayMakeups: jest.fn() }));
 jest.mock("../../../api/holiday-decisions", () => ({ listCalendarPauses: jest.fn() }));
 jest.mock("../../../ui/ModalSheet", () => ({ ModalSheet: () => null }));
 jest.mock("../../../ui/save-toast", () => ({ useSaveToast: () => ({ showSaveToast: jest.fn() }) }));
@@ -33,6 +35,8 @@ it("renders only supplied athlete classes without staff reads or management acti
  expect(mockPush).toHaveBeenCalledWith({ pathname: "/student-plan", params: { classId: "linked", date: "2026-10-31" } });
  expect(getClasses).not.toHaveBeenCalled(); expect(getTrainingPlans).not.toHaveBeenCalled(); expect(getCalendarTrainingPlanApplications).not.toHaveBeenCalled(); expect(getTrainingPlanSummaries).not.toHaveBeenCalled();
  expect(listEvents).not.toHaveBeenCalled(); expect(listCalendarPauses).not.toHaveBeenCalled();
+ expect(listHolidayMakeups).not.toHaveBeenCalled();
+ expect(screen.queryByLabelText("Adicionar reposição")).toBeNull();
  expect(saveTrainingPlan).not.toHaveBeenCalled(); expect(screen.queryByText("Aplicar planejamento")).toBeNull();
 });
 it("clears athlete rows when the supplied scope becomes empty", async () => {

@@ -49,6 +49,9 @@ de torneio, início do professor/coordenação ou relatórios.
 - A revisão de feriado na Home da coordenação lista e confirma somente turmas
   com aula no dia da semana da data exibida. Sem aulas previstas naquele dia,
   a revisão fica indisponível. A pausa vale para a ocorrência daquela data.
+  A coordenação também pode agendar a reposição pelo aviso ou pela Agenda,
+  inclusive após o feriado. A data original e a efetiva consultam o mesmo
+  vínculo. [Reposição por turma](../../ui/AGENDA_EVENTOS_INTEGRADOS.md).
 
 - O resumo do professor conta dias com chamada por turma; registros de presença
   contam participações individuais. Em Regulamentos, falha parcial de sincronização

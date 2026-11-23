@@ -10,8 +10,12 @@ import { useCalendarWheel, useEventSheetGesture } from "../src/screens/calendar/
 import { NativeCalendarFold } from "../src/screens/calendar/NativeCalendarFold";
 import { CalendarFold } from "../src/screens/calendar/CalendarFold";
 import { selectCalendarDay } from "../src/screens/calendar/application/calendar-selection";
+import { HolidayMakeupSheet } from "../src/screens/calendar/HolidayMakeupSheet";
+import { listHolidayMakeups, type HolidayMakeup } from "../src/api/holiday-makeups";
+import { isHolidayLesson } from "../src/screens/calendar/application/holiday-makeup";
+import { CalendarEntryDetails, calendarEntryDetailsShellStyle } from "../src/screens/calendar/CalendarEntryDetails";
 import { listCalendarPauses } from "../src/api/holiday-decisions";
-import { isPaused, type CalendarPause } from "../src/core/holidays";
+import { brazilDateKey, isPaused, type CalendarPause } from "../src/core/holidays";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useLocalSearchParams, useNavigationContainerRef, usePathname, useRoute, useRouter } from "expo-router";
 import {
@@ -134,6 +138,8 @@ type AgendaClassItemModel = {
   title: string;
   unitLabel: string;
   classGender: ClassGroup["gender"];
+  makeup?: HolidayMakeup;
+  holidayPause?: boolean;
   dateIso: string;
   timeLabel: string;
   sortMinutes: number;
@@ -144,6 +150,13 @@ type AgendaClassItemModel = {
   dotColor: string;
   titleColor: string;
 };
+
+function occurrenceLabel(item: AgendaClassItemModel) {
+  const short = (date: string) => formatDate(new Date(date + "T12:00:00"));
+  if (item.holidayPause) return item.makeup ? `Sem aula · Reposição em ${short(item.makeup.date)}` : "Sem aula · Feriado · Agendar reposição";
+  if (item.makeup) return `Reposição de ${short(item.makeup.originalDate)}`;
+  return item.unitLabel;
+}
 
 type AgendaEventItemModel = {
   kind: "event";
@@ -207,23 +220,32 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const { activeOrganization } = useOrganization();
   const identity = getSessionIdentity();
   const readGeneration = getReadCacheGeneration();
-  const readScope = JSON.stringify([identity.userId, identity.generation, readGeneration, activeOrganization?.id]);
+  const readScope = JSON.stringify([identity.userId, identity.generation, readGeneration, activeOrganization?.id, activeOrganization?.role_level]);
   const isCurrentRead = useCallback(() => {
     const current = getSessionIdentity();
     return current.userId === identity.userId && current.generation === identity.generation && getReadCacheGeneration() === readGeneration;
   }, [identity.userId, identity.generation, readGeneration]);
   const [calendarPauses, setCalendarPauses] = useState<{ scope: string; rows: CalendarPause[] }>({ scope: "", rows: [] });
+  const [makeupSnapshot, setMakeupSnapshot] = useState<ScopedCalendarRead<HolidayMakeup>>({ scope: "", rows: [], error: null });
+  const [makeupDraft, setMakeupDraft] = useState<{ scope: string; classId?: string; originalDate?: string; date?: string } | null>(null);
+  const [makeupDetail, setMakeupDetail] = useState<{ scope: string; row: HolidayMakeup } | null>(null);
   const [pauseRevision, setPauseRevision] = useState(0);
   useEffect(() => {
     let alive = true;
     const organizationId = activeOrganization?.id;
     if (studentMode || !organizationId) return;
+    void listHolidayMakeups(organizationId).then(rows => {
+      if (alive && isCurrentRead()) setMakeupSnapshot({ scope: readScope, rows, error: null });
+    }).catch(() => {
+      if (alive && isCurrentRead()) setMakeupSnapshot(previous => ({ scope: readScope, rows: previous.scope === readScope ? previous.rows : [], error: "Não foi possível carregar as reposições." }));
+    });
     void listCalendarPauses(organizationId).then(rows => {
       if (alive && isCurrentRead()) setCalendarPauses({ scope: readScope, rows });
     }).catch(() => { /* Keep the last verified calendar; retry on organization change. */ });
     return () => { alive = false; };
-  }, [activeOrganization?.id, readScope, isCurrentRead, studentMode, pauseRevision]);
+  }, [activeOrganization?.id, readScope, isCurrentRead, studentMode, pauseRevision, calendarPath]);
 
+  const makeupsError = makeupSnapshot.scope === readScope ? makeupSnapshot.error : null;
   const params = useLocalSearchParams();
   const targetClassId =
     typeof params.targetClassId === "string" ? params.targetClassId : "";
@@ -361,6 +383,15 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     // Persist the clicked occurrence before the shared shell opens/remounts its class route.
     if (Platform.OS === "web") router.setParams({ targetDate: selection.date, unit: selection.filterUnit });
     navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: { pathname: "/class/[id]", params: { id: selection.classId, date: selection.date, calendarSource: selection.source, calendarDate: selection.date, calendarUnit: selection.filterUnit, ...(selection.originKey ? { calendarOriginKey: selection.originKey } : {}), ...(options?.settings === "1" ? { settings: "1", settingsSection: options.settingsSection ?? "basics" } : {}) } } });
+  };
+  const openMakeupAttendance = (row: HolidayMakeup) => {
+    if (studentMode || !isCurrentRead() || !classById[row.classId]) return;
+    const calendarDate = selectedDay?.dateIso ?? selectedDate;
+    if (Platform.OS === "web") router.setParams({ targetDate: calendarDate, unit: unitFilter });
+    navigateToDetailRoute({ router, navigationState: () => rootNavigationRef.current?.getRootState(), href: { pathname: "/class/[id]", params: {
+      id: row.classId, section: "attendance", date: row.date, calendarDate, calendarUnit: unitFilter,
+      calendarSource: calendarPath === "/prof/calendar" ? "prof" : "shared", ...(Platform.OS === "web" ? { calendarOriginKey: calendarRoute.key } : {}),
+    } } });
   };
   const duplicateEventDraft = (seed: EventDraft) => {
     const owner = classDetailsOwner.current;
@@ -579,11 +610,25 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
       const isCurrentMonth =
         date.getMonth() === visibleMonth.getMonth() &&
         date.getFullYear() === visibleMonth.getFullYear();
-      const classesForDay = (filteredClassesByDay[day] ?? []).filter(cls => !isPaused(calendarPauses.scope === readScope ? calendarPauses.rows : [], cls.id, dayKey));
+      const pauses = calendarPauses.scope === readScope ? calendarPauses.rows : [];
+      const makeups = !studentMode && makeupSnapshot.scope === readScope ? makeupSnapshot.rows : [];
+      const sources = new Map(makeups.filter(row => row.originalDate === dayKey).map(row => [row.classId, row]));
+      const destinations = new Map(makeups.filter(row => row.date === dayKey && filteredClassIds.has(row.classId)).map(row => [row.classId, row]));
+      const regular = (filteredClassesByDay[day] ?? []).filter(cls => {
+        const pause = pauses.find(row => row.class_id === cls.id && row.date === dayKey);
+        return !pause || sources.has(cls.id) || (canManageEvents && isHolidayLesson(cls, dayKey, pause));
+      });
+      // The stored link remains visible if the weekly schedule changes later.
+      const linkedIds = new Set([...sources.keys(), ...destinations.keys()]);
+      const extraClasses = [...linkedIds].filter(id => filteredClassIds.has(id) && !regular.some(cls => cls.id === id)).map(id => classById[id]);
+      const classesForDay = [...regular, ...extraClasses];
       const eventsForDay = eventsByDate[dateIso] ?? [];
 
       const classItems: AgendaClassItemModel[] = classesForDay.map((cls, index) => {
-        const parsed = parseTime(cls.startTime || "");
+        const destination = destinations.get(cls.id);
+        const makeup = destination ?? sources.get(cls.id);
+        const holidayPause = sources.has(cls.id) || (!destination && isPaused(pauses, cls.id, dayKey));
+        const parsed = parseTime(destination?.startTime || cls.startTime || "");
         const startHour = parsed ? parsed.hour : baseHour + index;
         const startMinute = parsed ? parsed.minute : 0;
         const durationMinutes = cls.durationMinutes || 60;
@@ -610,6 +655,8 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
           id: `class-${cls.id}-${dateIso}`,
           classId: cls.id,
           title: cls.name,
+          makeup,
+          holidayPause,
           unitLabel: classUnitLabel,
           classGender: cls.gender,
           dateIso,
@@ -659,9 +706,11 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
         return a.title.localeCompare(b.title);
       });
 
-      const classCount = classesForDay.length;
+      const pausedCount = classItems.filter(item => item.holidayPause).length;
+      const classCount = classesForDay.length - pausedCount;
       const eventCount = eventsForDay.length;
       const countParts = [
+        pausedCount ? "Sem aula · Feriado" : "",
         classCount === 1 ? "1 aula" : classCount > 1 ? `${classCount} aulas` : "",
         eventCount === 1 ? "1 evento" : eventCount > 1 ? `${eventCount} eventos` : "",
       ].filter(Boolean);
@@ -688,6 +737,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     eventsByDate,
     filteredClassesByDay,
     calendarPauses,
+    makeupSnapshot, studentMode, filteredClassIds, classById, canManageEvents,
     readScope,
     planLookupByClass,
     todayStart,
@@ -707,7 +757,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
   const selectedDay = selectCalendarDay(monthlyCalendarDays, selectedDate);
   const searchText = searchQuery.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
   const displayedItems = searchText ? monthlyCalendarDays.filter(day => day.isCurrentMonth).flatMap(day => day.agendaItems).filter(item =>
-    `${item.title} ${item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").includes(searchText)
+    `${item.title} ${item.kind === "class" ? occurrenceLabel(item) + " " + item.unitLabel : item.subtitle || item.typeLabel}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").includes(searchText)
   ) : selectedDay?.agendaItems ?? [];
   const agendaStyles = useMemo(() => StyleSheet.create({
     weekday: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 10, fontWeight: "600" },
@@ -738,6 +788,8 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
     composerDock: { paddingTop: 8, paddingBottom: Math.max(8, insets.bottom), paddingHorizontal: 8, backgroundColor: colors.background },
     quickAdd: { width: "100%", maxWidth: 360, alignSelf: "center", minHeight: metrics.touchTarget, paddingLeft: 12, paddingRight: 2, borderRadius: 22, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center" },
     quickTrigger: { flex: 1, minHeight: metrics.touchTarget, justifyContent: "center" },
+    agendaRow: { borderBottomWidth: 1, borderColor: colors.border },
+    quickDetailsMakeup: { minHeight: metrics.touchTarget, justifyContent: "center", paddingHorizontal: metrics.gap },
     quickDetails: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
     quickAddText: { color: colors.muted, fontSize: metrics.bodyFontSize, lineHeight: metrics.bodyLineHeight },
     title: { color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "700" },
@@ -958,6 +1010,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
 
     const quickAddBar = <View style={agendaStyles.quickAdd}>
         <Pressable suppressWebHoverFeedback disableWebPressScale disabled={quickAdd?.scope === readScope} accessibilityRole="button" accessibilityLabel="Adicionar evento rápido" onPress={() => setQuickAdd({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickTrigger}><Text style={agendaStyles.quickAddText}>Adicionar em {new Date((selectedDay?.dateIso ?? selectedDate) + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</Text></Pressable>
+        <Pressable disabled={quickAdd?.scope === readScope} accessibilityRole="button" accessibilityLabel="Adicionar reposição" onPress={() => setMakeupDraft({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickDetailsMakeup}><Text style={agendaStyles.quickAddText}>Reposição</Text></Pressable>
         <Pressable disabled={quickAdd?.scope === readScope} accessibilityRole="button" accessibilityLabel="Criar evento com detalhes" onPress={() => setEventEditor({ scope: readScope, date: selectedDay?.dateIso ?? selectedDate })} style={agendaStyles.quickDetails}><GoAtletaIcon name="add" size={20} color={colors.text} /></Pressable>
       </View>;
     const quickFooter = canManageEvents ? <View style={agendaStyles.composerDock}>
@@ -978,9 +1031,9 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
             <Pressable accessibilityRole="button" accessibilityLabel="Hoje" onPress={() => requestPendingEditsNavigation(() => { setSearchQuery(""); const now = new Date(); setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(formatIsoDate(now)); })} style={agendaStyles.toggle}><View style={{ width: 22, height: 23, borderWidth: 1.5, borderColor: colors.text, borderRadius: 4, alignItems: "center", justifyContent: "flex-end", paddingBottom: 1 }}><View style={{ position: "absolute", top: 5, width: "100%", borderTopWidth: 1.5, borderColor: colors.text }} /><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{new Date().getDate()}</Text></View></Pressable>
           </View>
 
-          {classesError || plansError || eventsError ? (
+          {classesError || plansError || eventsError || makeupsError ? (
             <Text accessibilityRole="alert" style={{ color: colors.dangerText, paddingHorizontal: 16, paddingBottom: 8 }}>
-              {[classesError, plansError, eventsError].filter(Boolean).join(" ")}
+              {[classesError, plansError, eventsError, makeupsError].filter(Boolean).join(" ")}
             </Text>
           ) : null}
 
@@ -1053,13 +1106,15 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
                 <CalendarEventSheet mobile={mobileAgenda} collapsed={calendarCollapsed} onCollapsedChange={setCalendarCollapsed} motion={calendarMotion} listRef={eventListRef} offsetRef={eventOffsetRef} footer={searchText && quickAdd?.scope !== readScope ? null : quickFooter} header={(studentMode && studentError) || (searchText && !displayedItems.length) ? null : <View style={agendaStyles.header}>
                   {searchText ? <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>{displayedItems.length} resultados neste mês</Text> : <View style={agendaStyles.headerText}><View style={agendaStyles.dayHeading}><Text accessibilityRole="header" accessibilityLabel={selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Agenda do dia"} style={agendaStyles.title}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").getDate() : ""}</Text><Text style={agendaStyles.weekdayHeading}>{selectedDay ? new Date(selectedDay.dateIso + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase() : "Agenda do dia"}</Text><Text style={agendaStyles.count}>{selectedDay?.countLabel}</Text></View></View>}
                 </View>}>
-                {displayedItems.length ? displayedItems.map(item => <View key={`${item.dateIso}-${item.id}`} style={{ borderBottomWidth: 1, borderColor: colors.border }}><Pressable accessibilityRole="button" accessibilityLabel={`${searchText ? item.dateIso + ", " : ""}${item.timeLabel}, ${item.title}`} onPress={() => {
+                {displayedItems.length ? displayedItems.map(item => <View key={`${item.dateIso}-${item.id}`} style={agendaStyles.agendaRow}><Pressable accessibilityRole="button" accessibilityLabel={`${searchText ? item.dateIso + ", " : ""}${item.timeLabel}, ${item.title}${item.kind === "class" && (item.holidayPause || item.makeup) ? ", " + occurrenceLabel(item) : ""}`} onPress={() => {
                   if (!studentMode && item.kind === "event") {
                     const event = events.find(row => row.id === item.eventId);
                     if (event) setEventEditor({ scope: readScope, date: item.dateIso, event });
                     return;
                   }
                   if (!studentMode && item.kind === "class") {
+                    if (item.makeup) { setMakeupDetail({ scope: readScope, row: item.makeup }); return; }
+                    if (item.holidayPause && canManageEvents) { setMakeupDraft({ scope: readScope, classId: item.classId, originalDate: item.dateIso }); return; }
                     setClassDetails({ scope: readScope, classId: item.classId, date: item.dateIso, timeLabel: item.timeLabel, unitLabel: item.unitLabel, accentColor: item.dotColor, filterUnit: unitFilter, source: calendarPath === "/prof/calendar" ? "prof" : "shared", ...(Platform.OS === "web" ? { originKey: calendarRoute.key } : {}) });
                     return;
                   }
@@ -1070,7 +1125,7 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
                 }} style={agendaStyles.event}>
                   <View style={agendaStyles.time}><Text style={agendaStyles.timeText}>{item.timeLabel.split(" - ")[0]}</Text>{item.timeLabel.includes(" - ") ? <Text style={agendaStyles.count}>{item.timeLabel.split(" - ")[1]}</Text> : null}</View>
                   <View style={agendaColorStyles[item.dotColor].bar} />
-                  <View style={agendaStyles.eventContent}>{searchText ? <Text style={agendaStyles.count}>{new Date(item.dateIso + "T00:00:00").toLocaleDateString("pt-BR")}</Text> : null}<Text numberOfLines={1} style={agendaStyles.eventTitle}>{item.title}</Text><Text numberOfLines={1} style={agendaStyles.count}>{item.kind === "class" ? item.unitLabel : item.subtitle || item.typeLabel}</Text></View>
+                  <View style={agendaStyles.eventContent}>{searchText ? <Text style={agendaStyles.count}>{new Date(item.dateIso + "T00:00:00").toLocaleDateString("pt-BR")}</Text> : null}<Text numberOfLines={1} style={agendaStyles.eventTitle}>{item.title}</Text><Text numberOfLines={1} style={agendaStyles.count}>{item.kind === "class" ? occurrenceLabel(item) : item.subtitle || item.typeLabel}</Text></View>
                   <GoAtletaIcon name="chevronForward" size={14} color={colors.muted} />
                 </Pressable></View>) : studentMode && studentError ? <ListEmptyState title="Não foi possível carregar seus treinos." actionLabel="Tentar novamente" onAction={onStudentRetry} /> : searchText ? <ListEmptyState title="Nenhum resultado neste mês." description="Tente outro nome ou limpe a busca." actionLabel="Limpar busca" onAction={() => { setSearchQuery(""); searchInputRef.current?.focus(); }} /> : <Text style={agendaStyles.empty}>{studentMode ? "Nenhum treino neste dia." : "Nenhuma aula ou evento neste dia."}</Text>}
 
@@ -1080,9 +1135,23 @@ export default function CalendarScreen({ studentClasses, studentLoading = false,
           </ScrollView>
       </>
         )}
+      {canManageEvents && activeOrganization?.id && makeupDraft?.scope === readScope ? <HolidayMakeupSheet key={readScope} organizationId={activeOrganization.id} classes={makeupDraft.classId ? classes : filteredClasses} initialClassId={makeupDraft.classId} date={makeupDraft.date} originalDate={makeupDraft.originalDate} onClose={() => setMakeupDraft(null)} onSaved={row => {
+        setMakeupDraft(null);
+        setPauseRevision(revision => revision + 1);
+        setSelectedDate(row.date);
+        setVisibleMonth(new Date(row.date + "T00:00:00"));
+        showSaveToast({ message: "Reposição agendada.", variant: "success" });
+      }} onOpenAttendance={row => { setMakeupDraft(null); openMakeupAttendance(row); }} /> : null}
+      {!studentMode && makeupDetail?.scope === readScope && classById[makeupDetail.row.classId] ? <ModalSheet visible position="center" onClose={() => setMakeupDetail(null)} cardStyle={[calendarEntryDetailsShellStyle, { width: "100%", maxWidth: 400, maxHeight: "90%" }]}>
+        <CalendarEntryDetails title={classById[makeupDetail.row.classId].name} startDate={makeupDetail.row.date} endDate={makeupDetail.row.date} startTime={makeupDetail.row.startTime} rows={[{ key: "origin", icon: "calendar", label: "Reposição", value: "Aula de " + new Date(makeupDetail.row.originalDate + "T12:00:00").toLocaleDateString("pt-BR") + " · Feriado" }]} onClose={() => setMakeupDetail(null)}
+          actions={makeupDetail.row.date <= brazilDateKey() ? [{ key: "attendance", icon: "checkmark", label: "Abrir chamada", onPress: () => { setMakeupDetail(null); openMakeupAttendance(makeupDetail.row); } }] : []} />
+      </ModalSheet> : null}
       <CalendarMonthPicker visible={monthPickerScope === readScope} value={selectedDay?.dateIso ?? selectedDate} onClose={() => setMonthPickerScope(null)} onChange={value => requestPendingEditsNavigation(() => { setSelectedDate(value); setVisibleMonth(new Date(value + "T00:00:00")); })} />
       {!studentMode && eventEditor?.scope === readScope ? <Suspense fallback={null}><CalendarEventEditor key={`${eventEditor.scope}-${eventEditor.instanceId ?? eventEditor.event?.id ?? eventEditor.date}`} date={eventEditor.date} event={eventEditor.event} seed={eventEditor.seed} resumeId={eventEditor.resumeId} classes={classes} onClose={() => setEventEditor(null)} onSaved={() => setEventRevision(value => value + 1)} onDuplicate={duplicateEventDraft} /></Suspense> : null}
-      {!studentMode && classDetails?.scope === readScope && classById[classDetails.classId] ? <CalendarClassDetails key={`${classDetails.scope}-${classDetails.classId}-${classDetails.date}`} classGroup={classById[classDetails.classId]} date={classDetails.date} timeLabel={classDetails.timeLabel} unitLabel={classDetails.unitLabel} unitOptions={unitOptions.filter(option => option !== "Todas")} accentColor={classDetails.accentColor} onClose={() => setClassDetails(null)} onOpenClass={options => openSelectedClass(classDetails, options)} onDuplicate={seed => { if (classDetailsOwner.current.selection === classDetails) duplicateEventDraft(seed); }} onChanged={() => changeSelectedClass(classDetails)} onUnitChanged={unit => changeSelectedClassUnit(classDetails, unit)} /> : null}
+      {!studentMode && classDetails?.scope === readScope && classById[classDetails.classId] ? <CalendarClassDetails key={`${classDetails.scope}-${classDetails.classId}-${classDetails.date}`} classGroup={classById[classDetails.classId]} date={classDetails.date} timeLabel={classDetails.timeLabel} unitLabel={classDetails.unitLabel} unitOptions={unitOptions.filter(option => option !== "Todas")} accentColor={classDetails.accentColor} onClose={() => setClassDetails(null)} onOpenClass={options => openSelectedClass(classDetails, options)} onScheduleMakeup={canManageEvents && isHolidayLesson(classById[classDetails.classId], classDetails.date) ? () => {
+        setClassDetails(null);
+        setMakeupDraft({ scope: readScope, classId: classDetails.classId, originalDate: classDetails.date });
+      } : undefined} onDuplicate={seed => { if (classDetailsOwner.current.selection === classDetails) duplicateEventDraft(seed); }} onChanged={() => changeSelectedClass(classDetails)} onUnitChanged={unit => changeSelectedClassUnit(classDetails, unit)} /> : null}
       <ModalSheet
         visible={!studentMode && showApplyPicker}
         onClose={closeApplyPicker}

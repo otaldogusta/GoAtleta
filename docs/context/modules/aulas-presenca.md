@@ -16,6 +16,10 @@ operação da aula fica oculta nas datas futuras. Ao entrar na Chamada em um
 dia sem aula, a entrada usa a última data configurada. A contagem da Visão
 geral usa o elenco elegível e os registros da Chamada para a mesma data.
 
+Uma reposição de feriado confirmada entra na navegação da turma na data
+efetiva, inclusive fora da grade semanal. A ocorrência original fica
+sem chamada. [Contrato da Agenda](../../ui/AGENDA_EVENTOS_INTEGRADOS.md).
+
 ## Onde começar
 
 | Arquivo | Responsabilidade |

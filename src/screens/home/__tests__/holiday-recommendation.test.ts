@@ -34,3 +34,17 @@ it("hides the review when there are no classes scheduled on the holiday", () => 
   }));
   expect(view.queryByText("Revisar aulas")).toBeNull();
 });
+
+it("offers scheduling only for suspended classes and allows deferring it", () => {
+  const onSchedule = jest.fn();
+  const onSave = jest.fn();
+  const view = render(React.createElement(HolidayRecommendation, {
+    ...props, classes: [friday, thursday], onSchedule, onSave,
+  }));
+  fireEvent.press(view.getByText("Revisar aulas"));
+  expect(view.queryByText("Confirmar e agendar reposição")).toBeNull();
+  fireEvent.press(view.getByLabelText("Turma de sexta: Sem aula"));
+  fireEvent.press(view.getByText("Confirmar e agendar reposição"));
+  expect(onSchedule).toHaveBeenCalledWith([friday.id]);
+  expect(onSave).not.toHaveBeenCalled();
+});

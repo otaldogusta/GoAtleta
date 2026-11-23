@@ -49,6 +49,7 @@ type ClassOperationsWorkspaceProps = {
   compact: boolean;
   scheduleLabel: string;
   lessonDateLabel: string;
+  lessonCalendarDetail?: ReactNode;
   isPastLessonDate?: boolean;
   showSelectedLesson?: boolean;
   showLessonOperations?: boolean;
@@ -374,6 +375,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   compact,
   scheduleLabel,
   lessonDateLabel,
+  lessonCalendarDetail,
   isPastLessonDate,
   showSelectedLesson = true,
   showLessonOperations = true,
@@ -562,6 +564,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         isLoading={isLoadingLessonPlan}
         calendarAccessibilityHint="Abre o calendário de aulas"
       />
+      {lessonCalendarDetail}
       <View style={[styles.planPanel, { borderColor: colors.border }]}>
         <View style={styles.planHeader}>
           <Text style={[styles.planTitle, { color: colors.text }]}>Plano da aula</Text>

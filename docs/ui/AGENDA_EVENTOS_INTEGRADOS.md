@@ -25,6 +25,31 @@ no aparelho. Capturas privadas ignoradas em .tmp/calendar-samsung/.
 
 ## Comportamento e limites
 
+### Reposição de feriado (23/11/2026)
+
+A coordenação escolhe uma turma, a aula original, a nova data e o horário.
+Pode começar pelo aviso de feriado, pelo detalhe da aula ou pela opção
+Reposição da Agenda no dia de destino. O formulário sugere o feriado
+anterior compatível com a grade da turma. A coordenação confirma a suspensão
+daquela ocorrência e pode registrar um feriado nacional retroativamente.
+Uma pausa local previamente registrada por feriado também é elegível.
+
+Os dois dias consultam o mesmo registro. A data original mostra a suspensão
+e a nova data abre a chamada da turma. Como a frequência é registrada por
+turma e dia, a reposição exige uma data livre para aquela turma. A grade
+semanal é preservada. O [registro da reposição](../../supabase/migrations/20261123200000_class_holiday_makeups.sql)
+e a [proteção contra revisão conflitante](../../supabase/migrations/20261123201000_guard_holiday_makeup_reviews.sql)
+foram aplicados ao banco local de QA.
+
+Em QA autenticado, a coordenação marcou a reposição de 20/11 para 23/11 às
+16h30, abriu o vínculo pelas duas datas e chegou à chamada de 23/11 em claro
+e escuro. A turma era fictícia e sem alunos. A leitura do professor vinculado
+foi verificada em SQL isolado. Em uso offline, uma chamada regular feita em
+feriado municipal cuja pausa o aparelho desconhece pode ser recusada na
+sincronização. [Inventário Visual](http://127.0.0.1:8096/inventario.html#atuais?area=agenda&item=reposicao-feriado).
+
+### Eventos da Agenda
+
 - Criar evento herda o dia selecionado. Consultar e editar ocorrem na Agenda.
 - Metadados persistidos: título, descrição, período, dia todo, local, categoria,
   esporte e vínculos de turmas. Reutiliza APIs e validação/versionamento de torneios.

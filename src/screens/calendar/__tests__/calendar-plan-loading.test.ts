@@ -7,6 +7,8 @@ import { getCalendarTrainingPlanApplications, getTrainingPlanById, getTrainingPl
 import { getClasses, getLatestTrainingPlanByClass, getTrainingPlans, saveTrainingPlan } from "../../../db/seed";
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { RootWebShell } from "../../../ui/RootWebShell";
+import { listHolidayMakeups, scheduleHolidayMakeup } from "../../../api/holiday-makeups";
+import * as holidays from "../../../core/holidays";
 import { listCalendarPauses } from "../../../api/holiday-decisions";
 
 let mockOrganization: { id: string; role_level?: number } = { id: "org-a" };
@@ -30,6 +32,7 @@ jest.mock("../../../providers/organization-context", () => ({ useOrganization: (
 jest.mock("../../../db/training", () => ({ getCalendarTrainingPlanApplications: jest.fn(), getTrainingPlanSummaries: jest.fn(), getTrainingPlanById: jest.fn() }));
 jest.mock("../../../db/seed", () => ({ getClasses: jest.fn(), getTrainingPlans: jest.fn(), getLatestTrainingPlanByClass: jest.fn(), saveTrainingPlan: jest.fn() }));
 jest.mock("../../../api/holiday-decisions", () => ({ listCalendarPauses: jest.fn(async () => []) }));
+jest.mock("../../../api/holiday-makeups", () => ({ listHolidayMakeups: jest.fn(), scheduleHolidayMakeup: jest.fn() }));
 jest.mock("../../../api/events", () => ({ listEvents: async () => [] }));
 // Substitute only the async chunk transport; exercise the real calendar action/date flow.
 jest.mock("react", () => {
@@ -101,6 +104,7 @@ beforeEach(() => {
   mockParams = { targetDate: "2026-10-23", targetClassId: "class-a" };
   mockPathname = "/prof/calendar";
   mockQuickEditorPending = null;
+  jest.mocked(listHolidayMakeups).mockResolvedValue([]);
   jest.mocked(listCalendarPauses).mockResolvedValue([]);
   jest.mocked(getClasses).mockResolvedValue(classes);
   jest.mocked(getCalendarTrainingPlanApplications).mockResolvedValue([]);
@@ -108,6 +112,42 @@ beforeEach(() => {
   jest.mocked(getTrainingPlanById).mockResolvedValue(fullPlan);
   jest.mocked(getLatestTrainingPlanByClass).mockResolvedValue({ ...fullPlan, version: 7 });
   jest.mocked(saveTrainingPlan).mockResolvedValue(undefined);
+});
+
+test("a Friday holiday opens its makeup on Monday and routes attendance with the actual lesson date", async () => {
+  const clock = jest.spyOn(holidays, "brazilDateKey").mockReturnValue("2026-11-23");
+  try {
+    mockParams = { targetDate: "2026-11-20" };
+    const row = { classId: "class-a", originalDate: "2026-11-20", date: "2026-11-23", startTime: "16:30" };
+    jest.mocked(listHolidayMakeups).mockResolvedValue([row]);
+    jest.mocked(listCalendarPauses).mockResolvedValue([{ class_id: row.classId, date: row.originalDate, reason: "Feriado" }]);
+    const view = render(React.createElement(CalendarScreen));
+    await flush();
+    expect(view.queryByLabelText("Adicionar reposição")).toBeNull();
+    fireEvent.press(view.getByLabelText(/Turma Alfa, Sem aula · Reposição em 23\/11/));
+    expect(view.getByLabelText("Abrir chamada")).toBeTruthy();
+    fireEvent.press(view.getByLabelText("Voltar à agenda"));
+    fireEvent.press(view.getByLabelText(/^2026-11-23,/));
+    fireEvent.press(view.getByLabelText(/16:30 - 17:30, Turma Alfa, Reposição de 20\/11/));
+    fireEvent.press(view.getByLabelText("Abrir chamada"));
+    expect(mockCalendarPush).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ id: "class-a", section: "attendance", date: "2026-11-23" }) }));
+  } finally { clock.mockRestore(); }
+});
+
+test("coordination adds a makeup on Monday using the latest unfulfilled Friday holiday", async () => {
+  mockParams = { targetDate: "2026-11-23" };
+  mockOrganization = { id: "org-a", role_level: 50 };
+  jest.mocked(getClasses).mockResolvedValue([classes[0]]);
+  jest.mocked(scheduleHolidayMakeup).mockResolvedValue();
+  const view = render(React.createElement(CalendarScreen));
+  await flush();
+  fireEvent.press(view.getByLabelText("Adicionar reposição"));
+  await flush();
+  expect(view.getByText("Ao confirmar, a aula de 20/11/2026 ficará sem chamada por feriado.")).toBeTruthy();
+  fireEvent.press(view.getByText("Confirmar reposição"));
+  await flush();
+  expect(scheduleHolidayMakeup).toHaveBeenCalledTimes(1);
+  expect(scheduleHolidayMakeup).toHaveBeenCalledWith("org-a", "class-a", "2026-11-20", "2026-11-23", "14:00");
 });
 
 test("starts the small grid read independently of classes, and does not load full plans while the picker is closed", async () => {

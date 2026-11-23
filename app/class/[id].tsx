@@ -1,4 +1,4 @@
-import { compactUiMetrics } from "../../src/theme/tokens";
+import { compactUiMetrics, spacing } from "../../src/theme/tokens";
 import { getSessionIdentity, isSessionIdentityCurrent } from "../../src/auth/session";
 import { getReadCacheGeneration } from "../../src/db/client";
 import { calendarReturnRoute } from "../../src/screens/calendar/application/calendar-return-route";
@@ -48,6 +48,12 @@ import { getClassEditChangeSet } from "../../src/screens/classes/application/cla
 import { planClassStaffRoleTransition } from "../../src/screens/classes/application/class-staff-role-transition";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
 import { toLocalDateKey } from "../../src/screens/classes/application/class-session-coverage";
+import { adjacentClassLesson, resolveAttendanceEntryDate } from "../../src/screens/classes/application/class-lesson-calendar";
+import { useClassLessonCalendar } from "../../src/screens/classes/use-class-lesson-calendar";
+import { ClassLessonDateNavigator } from "../../src/screens/classes/components/ClassLessonDateNavigator";
+import { nationalHoliday } from "../../src/core/holidays";
+import { HolidayMakeupSheet } from "../../src/screens/calendar/HolidayMakeupSheet";
+import { isHolidayLesson } from "../../src/screens/calendar/application/holiday-makeup";
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { useCopilotLesson } from "../../src/copilot/lesson-context";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
@@ -93,7 +99,7 @@ import {
 import { listOrgStaffCandidates, mergeOrgStaffCandidates, type OrgMember } from "../../src/api/members";
 import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
-import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateCurrentOrPreviousClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
+import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
 import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
 import { buildClassRosterPdfFileName, resolveClassRosterExportStudents } from "../../src/screens/classes/application/attendance-export";
 import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
@@ -315,6 +321,7 @@ export default function ClassDetails() {
   const rosterColumnsTriggerRef = useRef<View>(null);
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [loadedDetailDataScope, setLoadedDetailDataScope] = useState<string | null>(null);
+  const [makeupSheetScope, setMakeupSheetScope] = useState<string | null>(null);
   useEffect(() => subscribeClassProfile(profile => {
     setCls(current => current?.id === profile.class_id && current.organizationId === profile.organization_id ? { ...current, pedagogicalProfile: profile } : current);
   }), []);
@@ -777,19 +784,34 @@ export default function ClassDetails() {
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
   const todayLessonDateKey = toLocalDateKey(new Date());
   const defaultLessonDate = useMemo(() => parseClassWorkspaceRouteDate(todayLessonDateKey), [todayLessonDateKey]);
-  const selectedLessonDate = useMemo(
-    () => resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, defaultLessonDate),
-    [lessonDate, requestedLessonDate, defaultLessonDate],
-  );
-  const selectedLessonDateKey = selectedLessonDate ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}` : "";
+  const operationalClassId = cls?.id ?? String(id ?? "");
+  const operationalOrganizationId = activeOrganization?.id ?? null;
+  const lessonCalendar = useClassLessonCalendar(detailDataScope, operationalOrganizationId, operationalClassId,
+    classRouteFocused && Boolean(cls) && loadedDetailDataScope === detailDataScope);
+  const referenceLessonDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, defaultLessonDate);
+  const explicitLessonDate = Boolean(lessonDate || requestedLessonDate);
+  const selectedLessonDate = useMemo(() => workspaceSection === "attendance"
+    ? resolveAttendanceEntryDate(referenceLessonDate, explicitLessonDate, classDays, lessonCalendar.paused,
+      lessonCalendar.makeupDates, lessonCalendar.status === "ready")
+    : referenceLessonDate, [classDays, explicitLessonDate, lessonCalendar.paused, lessonCalendar.makeupDates,
+      lessonCalendar.status, referenceLessonDate, workspaceSection]);
+  const selectedLessonDateKey = selectedLessonDate ? toLocalDateKey(selectedLessonDate) : "";
   useCopilotLesson(useMemo(() => cls?.organizationId && selectedLessonDateKey ? ({
     classId: cls.id, organizationId: cls.organizationId, date: selectedLessonDateKey,
     sport: cls.modality ?? "volleyball", className: cls.name,
     currentPlanId: appliedPlan?.id ?? null, onApplied: setAppliedPlan,
     disabled: isGeneratingPlan || isLoadingLessonPlan,
   }) : null, [cls, selectedLessonDateKey, appliedPlan?.id, isGeneratingPlan, isLoadingLessonPlan]));
-  const operationalClassId = cls?.id ?? String(id ?? "");
-  const operationalOrganizationId = activeOrganization?.id ?? null;
+  const selectedDatePaused = lessonCalendar.paused.has(selectedLessonDateKey);
+  const regularOfflineDate = lessonCalendar.offline && selectedLessonDate && classDays.includes(selectedLessonDate.getDay())
+    && !nationalHoliday(selectedLessonDateKey);
+  const attendanceDateBlocked = !selectedLessonDate || selectedDatePaused || (!lessonCalendar.pausesAvailable && !regularOfflineDate);
+  useEffect(() => {
+    if (workspaceSection !== "attendance" || explicitLessonDate || attendanceDateBlocked || !selectedLessonDate ||
+      !classRouteFocused || !cls || loadedDetailDataScope !== detailDataScope) return;
+    router.setParams({ date: selectedLessonDateKey });
+  }, [attendanceDateBlocked, classRouteFocused, cls, detailDataScope, explicitLessonDate, loadedDetailDataScope,
+    router, selectedLessonDate, selectedLessonDateKey, workspaceSection]);
   const loadLessonOperationalSnapshot = useCallback(async () => {
     const requestId = lessonOperationalLoadRequestId.current + 1;
     lessonOperationalLoadRequestId.current = requestId;
@@ -881,7 +903,7 @@ export default function ClassDetails() {
   const embeddedAttendance = useEmbeddedClassAttendance({
     classId: cls?.id ?? String(id ?? ""),
     date: selectedLessonDateKey,
-    enabled: workspaceSection === "attendance" && Boolean(cls) && loadedDetailDataScope === detailDataScope,
+    enabled: workspaceSection === "attendance" && !attendanceDateBlocked && Boolean(cls) && loadedDetailDataScope === detailDataScope,
     onGoToday: (value) => handleLessonDateChange(value),
   });
   useEffect(() => {
@@ -953,10 +975,10 @@ export default function ClassDetails() {
     lessonOperationalSnapshot.organizationId === operationalOrganizationId
       ? lessonOperationalSnapshot
       : null;
-  const isScheduledLessonDay = selectedLessonDate !== null &&
-    calculateCurrentOrPreviousClassDate(classDays, selectedLessonDate)?.getTime() === selectedLessonDate.getTime();
-  const showSelectedLesson = isScheduledLessonDay || Boolean(appliedPlan) ||
-    Boolean(currentLessonOperationalSnapshot?.markedStudentCount || currentLessonOperationalSnapshot?.hasReport);
+  const isScheduledLessonDay = selectedLessonDate !== null && (classDays.includes(selectedLessonDate.getDay()) ||
+    lessonCalendar.makeupDates.includes(selectedLessonDateKey));
+  const showSelectedLesson = !selectedDatePaused && (isScheduledLessonDay || Boolean(appliedPlan) ||
+    Boolean(currentLessonOperationalSnapshot?.markedStudentCount || currentLessonOperationalSnapshot?.hasReport));
   const attendanceOperationalStatus = useMemo<ClassOperationalStatus>(() => {
     if (!selectedLessonDateKey) {
       return { state: "pending", label: "Pendente", detail: "Selecione a data da aula." };
@@ -1040,12 +1062,12 @@ export default function ClassDetails() {
     (direction: -1 | 1) => {
       requestAttendanceAction(() => {
         const baseDate = selectedLessonDate;
-        if (!baseDate || classDays.length === 0) return;
-        const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
+        if (!baseDate) return;
+        const nextDate = adjacentClassLesson(classDays, baseDate, direction, lessonCalendar.paused, lessonCalendar.makeupDates);
         if (nextDate) selectLessonDate(nextDate);
       });
     },
-    [classDays, requestAttendanceAction, selectedLessonDate, selectLessonDate],
+    [classDays, lessonCalendar.paused, lessonCalendar.makeupDates, requestAttendanceAction, selectedLessonDate, selectLessonDate],
   );
   const handleLessonDateChange = (value: string) => {
     requestAttendanceAction(() => {
@@ -2556,18 +2578,11 @@ export default function ClassDetails() {
   const handleSelectWorkspaceSection = (section: ClassWorkspaceSection) => {
     if (section === workspaceSection) return;
     requestAttendanceAction(() => {
-      const attendanceDate = section === "attendance" && !showSelectedLesson
-        ? calculateCurrentOrPreviousClassDate(classDays, selectedLessonDate ?? undefined)
-        : selectedLessonDate;
-      setLessonDate(section === "overview" ? (Platform.OS === "web" ? null : defaultLessonDate) : attendanceDate);
+      // Leave an implicit entry unresolved until the scoped schedule confirms the date.
+      const attendanceDate = explicitLessonDate || showSelectedLesson || selectedDatePaused ? selectedLessonDate : null;
+      setLessonDate(section === "overview" ? null : attendanceDate);
       setWorkspaceSection(section);
-      if (Platform.OS === "web") {
-        if (section === "attendance") {
-          router.setParams({ section, date: attendanceDate ? toLocalDateKey(attendanceDate) : undefined });
-        } else if (workspaceSection === "attendance") {
-          router.setParams({ section: "overview", date: undefined });
-        }
-      }
+      router.setParams({ section, date: section === "attendance" && attendanceDate ? toLocalDateKey(attendanceDate) : undefined });
     });
   };
 
@@ -2654,8 +2669,36 @@ export default function ClassDetails() {
     router.push({ pathname: "/class/[id]/students", params: { id } });
   };
 
+  const makeupFromDate = lessonCalendar.makeups.find(row => row.originalDate === selectedLessonDateKey);
+  const makeupOnDate = lessonCalendar.makeups.find(row => row.date === selectedLessonDateKey);
+  const canScheduleMakeup = (activeOrganization?.role_level ?? 0) >= 50 && Boolean(activeOrganization?.id)
+    && lessonCalendar.status === "ready" && (Boolean(makeupFromDate) || isHolidayLesson(cls, selectedLessonDateKey, selectedDatePaused
+      ? { class_id: cls.id, date: selectedLessonDateKey, reason: lessonCalendar.paused.get(selectedLessonDateKey) } : undefined));
+  const sheetScope = detailDataScope + selectedLessonDateKey;
+  const makeupDetail = makeupOnDate
+    ? <Text style={{ color: colors.muted }}>Reposição de {formatShortDate(makeupOnDate.originalDate)} · {makeupOnDate.startTime}</Text>
+    : makeupFromDate || canScheduleMakeup ? (
+      <View style={{ gap: spacing.xs, alignItems: "flex-start" }}>
+        {makeupFromDate ? <Text style={{ color: colors.muted }}>Feriado · Reposição em {formatShortDate(makeupFromDate.date)} às {makeupFromDate.startTime}</Text> : null}
+        {canScheduleMakeup ? <Button variant="outline" label={makeupFromDate ? "Ver reposição" : "Agendar reposição"}
+          onPress={() => setMakeupSheetScope(sheetScope)} /> : null}
+      </View>
+    ) : null;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      {canScheduleMakeup && activeOrganization && classRouteFocused && makeupSheetScope === sheetScope ?
+        <HolidayMakeupSheet key={sheetScope} organizationId={activeOrganization.id} classes={[cls]} initialClassId={cls.id}
+          originalDate={selectedLessonDateKey} onClose={() => setMakeupSheetScope(null)}
+          onSaved={() => { setMakeupSheetScope(null); lessonCalendar.retry(); showSaveToast({ message: "Reposição agendada.", variant: "success" }); }}
+          onOpenAttendance={row => {
+            setMakeupSheetScope(null);
+            requestAttendanceAction(() => {
+              setLessonDate(parseClassWorkspaceRouteDate(row.date));
+              setWorkspaceSection("attendance");
+              router.setParams({ section: "attendance", date: row.date });
+            });
+          }} /> : null}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScreenPageHeader
           title={className}
@@ -2716,7 +2759,18 @@ export default function ClassDetails() {
           showCompactNavigationFab={false}
           activeSection={workspaceSection}
           onSelectSection={handleSelectWorkspaceSection}
-          attendanceContent={({ dense }) => (
+          attendanceContent={({ dense }) => attendanceDateBlocked ? (
+            <View style={{ gap: spacing.md }}>
+              <ClassLessonDateNavigator colors={colors} dateLabel={lessonDateLabel}
+                onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)}
+                onOpenCalendar={() => setShowLessonDatePicker(true)} calendarAccessibilityLabel="Selecionar data da chamada" />
+              <Text style={{ color: colors.muted }} accessibilityLiveRegion="polite">
+                {selectedDatePaused || lessonCalendar.status === "ready" ? "Sem aula nesta data." : lessonCalendar.status === "error" ? "Não foi possível consultar o calendário da turma." : "Consultando calendário…"}
+              </Text>
+              {!selectedDatePaused && lessonCalendar.status === "error" ? <Button label="Tentar novamente" onPress={lessonCalendar.retry} /> : null}
+              {makeupDetail}
+            </View>
+          ) : (
             <ClassAttendanceWorkspacePanel
               colors={colors}
               compact={compactClassWorkspace}
@@ -2750,6 +2804,7 @@ export default function ClassDetails() {
           )}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
+          lessonCalendarDetail={makeupDetail}
           isPastLessonDate={Boolean(selectedLessonDateKey) && selectedLessonDateKey < todayLessonDateKey}
           showSelectedLesson={showSelectedLesson}
           showLessonOperations={selectedLessonDateKey <= todayLessonDateKey}
@@ -2780,7 +2835,7 @@ export default function ClassDetails() {
       </ScrollView>
 
         <FloatingSaveBar
-          visible={workspaceSection === "attendance" && embeddedAttendance.hasChanges && !embeddedAttendance.draftPendingSync}
+          visible={workspaceSection === "attendance" && !attendanceDateBlocked && embeddedAttendance.hasChanges && !embeddedAttendance.draftPendingSync}
           label="Salvar chamada"
           loading={embeddedAttendance.isSaving}
           loadingLabel="Salvando chamada..."

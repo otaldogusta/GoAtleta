@@ -2,6 +2,9 @@ import { Button } from "../../ui/Button";
 import { ActivityReviewSuggestion } from "./ActivityReviewSuggestion";
 import { useHolidayRecommendation } from "./useHolidayRecommendation";
 import { HolidayRecommendation } from "./HolidayRecommendation";
+import { HolidayMakeupSheet } from "../calendar/HolidayMakeupSheet";
+import { listHolidayMakeups, type HolidayMakeup } from "../../api/holiday-makeups";
+import { isNetworkError } from "../../db/client";
 import { isPaused } from "../../core/holidays";
 import * as Clipboard from "expo-clipboard";
 
@@ -879,8 +882,23 @@ export function HomeProfessorScreen({
 
 
   const holidayCalendar = useHolidayRecommendation(activeOrganization?.id, isAdminDashboardContext && isOrgAdmin, now);
+  const [makeupReview, setMakeupReview] = useState<{
+    organizationId: string; userId: string; originalDate: string; classIds: string[];
+  } | null>(null);
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
   const [selectedDateKey, setSelectedDateKey] = useState(todayDateKey);
+  const [makeupSchedule, setMakeupSchedule] = useState<{ scope: string; rows: HolidayMakeup[] } | null>(null);
+  const makeupOrganizationId = activeOrganization?.id;
+  useFocusEffect(useCallback(() => {
+    if (!scheduleRequestKey || !makeupOrganizationId) return;
+    let current = true;
+    void listHolidayMakeups(makeupOrganizationId).then(rows => {
+      if (current) setMakeupSchedule({ scope: scheduleRequestKey, rows });
+    }).catch(error => {
+      if (current && !isNetworkError(error)) setMakeupSchedule(null);
+    });
+    return () => { current = false; };
+  }, [makeupOrganizationId, scheduleRequestKey]));
 
   const nowTime = useMemo(() => now.getTime(), [now]);
 
@@ -960,12 +978,18 @@ export function HomeProfessorScreen({
 
       const dayIndex = dayDate.getDay();
 
-      const dayClasses = classesByWeekday[dayIndex] ?? [];
+      const dayKey = formatIsoDate(dayDate);
+      const makeups = new Map(makeupSchedule && makeupSchedule.scope === scheduleRequestKey
+        ? makeupSchedule.rows.filter(row => row.date === dayKey).map(row => [row.classId, row.startTime] as const)
+        : []);
+      const regular = classesByWeekday[dayIndex] ?? [];
+      const extras = makeups.size ? classes.filter(cls => makeups.has(cls.id) && !regular.includes(cls)) : [];
+      const dayClasses = [...regular, ...extras];
 
       dayClasses.forEach((cls) => {
-        if (isPaused(holidayCalendar.pauses, cls.id, formatIsoDate(dayDate))) return;
+        if (isPaused(holidayCalendar.pauses, cls.id, dayKey)) return;
 
-        const time = parseTime(cls.startTime);
+        const time = parseTime(makeups.get(cls.id) ?? cls.startTime);
 
         if (!time) return;
 
@@ -1005,7 +1029,7 @@ export function HomeProfessorScreen({
 
     return items.sort((a, b) => a.startTime - b.startTime);
 
-  }, [classes.length, classesByWeekday, scheduleBaseDate, holidayCalendar.pauses]);
+  }, [classes, classesByWeekday, scheduleBaseDate, holidayCalendar.pauses, makeupSchedule, scheduleRequestKey]);
 
 
 
@@ -3001,7 +3025,29 @@ export function HomeProfessorScreen({
         <HolidayRecommendation key={`${activeOrganization?.id}:${holidayCalendar.date}`} holiday={holidayCalendar.holiday!} date={holidayCalendar.date}
           pausedIds={holidayCalendar.pauses.filter(pause => pause.date === holidayCalendar.date).map(pause => pause.class_id)}
           classes={classes}
-          saving={holidayCalendar.saving} error={holidayCalendar.error} onSave={holidayCalendar.save} bottomOffset={floatingNoticeBottom} />
+          saving={holidayCalendar.saving} error={holidayCalendar.error}
+          onSave={async ids => { await holidayCalendar.save(ids); }}
+          onSchedule={async ids => {
+            const organizationId = activeOrganization?.id;
+            const userId = session?.user?.id;
+            if (organizationId && userId && await holidayCalendar.save(ids)) {
+              setMakeupReview({ organizationId, userId, originalDate: holidayCalendar.date, classIds: ids });
+            }
+          }} bottomOffset={floatingNoticeBottom} />
+      ) : null}
+      {makeupReview && makeupReview.organizationId === activeOrganization?.id && makeupReview.userId === session?.user?.id && isAdminDashboardContext && isOrgAdmin ? (
+        <HolidayMakeupSheet organizationId={makeupReview.organizationId} originalDate={makeupReview.originalDate}
+          classes={classes.filter(item => makeupReview.classIds.includes(item.id))}
+          initialClassId={makeupReview.classIds.length === 1 ? makeupReview.classIds[0] : undefined}
+          onClose={() => setMakeupReview(null)} onSaved={saved => {
+            setMakeupReview(null);
+            if (scheduleRequestKey) setMakeupSchedule(previous => {
+              const rows = previous?.scope === scheduleRequestKey ? previous.rows : [];
+              return { scope: scheduleRequestKey, rows: [
+                ...rows.filter(row => row.classId !== saved.classId || row.originalDate !== saved.originalDate), saved,
+              ] };
+            });
+          }} />
       ) : null}
 
     </SafeAreaView>

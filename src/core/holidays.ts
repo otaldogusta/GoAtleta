@@ -15,7 +15,7 @@ export function nationalHoliday(date: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   return holidays[date.slice(5)] ?? null;
 }
-export type CalendarPause = { class_id: string; date: string };
+export type CalendarPause = { class_id: string; date: string; reason?: string | null };
 export function isPaused(pauses: CalendarPause[], classId: string, date: string) {
   return pauses.some(p => p.class_id === classId && p.date === date);
 }

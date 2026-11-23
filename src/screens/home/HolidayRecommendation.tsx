@@ -9,9 +9,10 @@ import { ModalSheet } from "../../ui/ModalSheet";
 import { useAppTheme } from "../../ui/app-theme";
 import { compactUiMetrics as metrics, radius, shadow, spacing } from "../../theme/tokens";
 
-export function HolidayRecommendation({ holiday, date, classes: organizationClasses, pausedIds = [], saving, error, onSave, bottomOffset = spacing.lg }: {
+export function HolidayRecommendation({ holiday, date, classes: organizationClasses, pausedIds = [], saving, error, onSave, onSchedule, bottomOffset = spacing.lg }: {
   holiday: string; date: string; classes: ClassGroup[]; pausedIds?: string[];
   saving: boolean; error: string; onSave: (ids: string[]) => Promise<void>; bottomOffset?: number;
+  onSchedule?: (ids: string[]) => Promise<void>;
 }) {
   const { colors } = useAppTheme();
   const { width, height } = useWindowDimensions();
@@ -83,6 +84,10 @@ export function HolidayRecommendation({ holiday, date, classes: organizationClas
       </ScrollView>
       <Text style={[styles.caption, { color: colors.muted }]}>A confirmação vale só para as aulas de {dateLabel}.</Text>
       {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
+      {suspendedCount > 0 && onSchedule ? (
+        <Button label="Confirmar e agendar reposição" variant="secondary" disabled={saving}
+          onPress={() => void onSchedule(suspendedClasses.map(c => c.id))} />
+      ) : null}
       <View style={[styles.footer, styles.panelFooter, { borderColor: colors.border }]}>
         <Text style={[styles.caption, { color: colors.muted }]}>{classes.length - suspendedCount} com aula · {suspendedCount} sem aula</Text>
         <Button label="Confirmar" loading={saving} loadingLabel="Salvando..." disabled={saving} onPress={() => void onSave(suspendedClasses.map(c => c.id))} />

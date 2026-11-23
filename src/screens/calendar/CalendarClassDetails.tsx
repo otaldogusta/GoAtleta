@@ -28,11 +28,11 @@ import { eventDraftInterval, type EventDraft } from "./application/event-draft";
 import { copyCalendarEntry, exportCalendarEntry, shareCalendarEntry, type CalendarEntryShareSnapshot } from "./application/share-calendar-entry";
 
 export type CalendarClassOpenOptions = { settings?: "1"; settingsSection?: "basics" | "agenda" | "profile" };
-type Props = { classGroup: ClassGroup; date: string; timeLabel: string; unitLabel: string; unitOptions?: string[]; accentColor?: string; onClose: () => void; onOpenClass: (options?: CalendarClassOpenOptions) => void; onDuplicate?: (draft: EventDraft) => void; onChanged?: () => void; onUnitChanged?: (unit: { unit: string; unitId?: string }) => void };
+type Props = { classGroup: ClassGroup; date: string; timeLabel: string; unitLabel: string; unitOptions?: string[]; accentColor?: string; onClose: () => void; onOpenClass: (options?: CalendarClassOpenOptions) => void; onScheduleMakeup?: () => void; onDuplicate?: (draft: EventDraft) => void; onChanged?: () => void; onUnitChanged?: (unit: { unit: string; unitId?: string }) => void };
 type CloseIntent = { scope: string } & ({ kind: "close" } | { kind: "class"; options?: CalendarClassOpenOptions } | { kind: "duplicate"; draft: EventDraft });
 
 /** A lesson keeps its class identity; only an explicit duplicate becomes a new event draft. */
-export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, unitOptions = [], accentColor, onClose, onOpenClass, onDuplicate, onChanged, onUnitChanged }: Props) {
+export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, unitOptions = [], accentColor, onClose, onOpenClass, onScheduleMakeup, onDuplicate, onChanged, onUnitChanged }: Props) {
   useCalendarEditorScrollbars(true);
   const { width, height } = useWindowDimensions(), insets = useSafeAreaInsets();
   const reducedMotion = useCalendarReducedMotion(), focused = useIsFocused();
@@ -165,6 +165,7 @@ export function CalendarClassDetails({ classGroup, date, timeLabel, unitLabel, u
     ...(!range && timeLabel.trim() ? [{ key: "time", icon: "time" as const, label: "Horário", value: timeLabel, onPress: canManage ? () => edit("agenda") : undefined, disabled: detailDisabled }] : []),
   ];
   const actions: NonNullable<CalendarEntryDetailsProps["actions"]> = [
+    ...(canManage && onScheduleMakeup ? [{ key: "makeup", label: "Repor aula", accessibilityLabel: "Agendar reposição", icon: "calendar" as const, disabled, onPress: onScheduleMakeup }] : []),
     ...(canManage && onDuplicate ? [{ key: "duplicate", label: "Duplicar", accessibilityLabel: "Duplicar como novo evento", icon: "copy" as const, disabled: disabled || !eventDraftInterval(duplicateDraft), onPress: () => { if (!pending.current && current()) requestClose({ kind: "duplicate", scope, draft: duplicateDraft }); } }] : []),
     ...(canManage ? [{ key: "edit", label: "Editar", accessibilityLabel: "Editar turma e horários recorrentes", icon: "edit" as const, disabled, onPress: () => edit() }] : []),
     { key: "share", label: "Compartilhar", icon: "share", disabled, onPress: () => void run("share", () => shareCalendarEntry(snapshot, { isCurrent: current })) },

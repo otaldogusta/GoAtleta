@@ -389,7 +389,7 @@ code|Aula atual|Hero e carrossel próprios.|src/screens/home/components/CurrentL
 code|Agenda do dia|Rail de horários e seletor semanal.|src/screens/home/components/TodayScheduleRail.tsx
 code|Slots da agenda|Builder separado da apresentação.|src/screens/home/components/build-home-schedule-slots.ts
 code|Sugestão de revisão de atividade|Componente de revisão contextual. Em 24/10, contexto passou a RPC de leitura administrativa SECURITY INVOKER, com RLS e projeção por turma/dia; sem notas individuais de saúde. Mesma evidência de 100 turmas/1.100 dias passou de 7.404 para mediana 1.001 ms em três leituras. Contexto, abort, fallback restrito à função ausente e negativos de autorização testados; migrations somente no Supabase local isolado.|src/screens/home/ActivityReviewSuggestion.tsx
-code|Recomendação de feriado|Revisa somente turmas com aula prevista na data do feriado. A confirmação em lote fica restrita àquele dia. Testes locais cobrem exclusão de turmas de outros dias e ausência de revisão quando não há aulas previstas.|src/screens/home/useHolidayRecommendation.ts
+code|Recomendação de feriado|Revisa as turmas com aula prevista no feriado. A coordenação pode confirmar a pausa e agendar a reposição no aviso, ou escolher a ocorrência pela Agenda depois. A chamada usa a data efetiva. Validação SQL isolada. Migrations aplicadas e conferidas no banco de produção em 23/11/2026.|src/screens/home/useHolidayRecommendation.ts
 verify|Data, vazio e contexto de turma|Conferir dia sem aula, aula atual e navegação no localhost.
 """)
 add('Perfil, preferências e regulamentação', '/profile', 'app/profile.tsx', """

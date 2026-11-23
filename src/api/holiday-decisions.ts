@@ -7,7 +7,7 @@ const scope = (organizationId: string) => {
   return encodeURIComponent(organizationId);
 };
 export function listCalendarPauses(organizationId: string) {
-  return supabaseRestGet<CalendarPause[]>(`/class_calendar_exceptions?organization_id=eq.${scope(organizationId)}&kind=eq.no_training&select=class_id,date`);
+  return supabaseRestGet<CalendarPause[]>(`/class_calendar_exceptions?organization_id=eq.${scope(organizationId)}&kind=eq.no_training&select=class_id,date,reason`);
 }
 export function getHolidayDecision(organizationId: string, date: string) {
   return supabaseRestGet<HolidayDecision[]>(`/organization_holiday_decisions?organization_id=eq.${scope(organizationId)}&date=eq.${encodeURIComponent(date)}&select=organization_id,date,suspended_class_ids`);
