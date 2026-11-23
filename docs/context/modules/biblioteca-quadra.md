@@ -29,6 +29,7 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 | [activity-catalog-plan-actions.ts](../../../src/screens/library/activity-catalog-plan-actions.ts) | Escolha de aula de destino e criação de versão do plano. |
 | [planning-library-bridge.ts](../../../src/screens/training/application/planning-library-bridge.ts) | Conversão de atividade para bloco planejado. |
 | [visual-tech.tsx](../../../app/class/[id]/visual-tech.tsx) | Entrada autorizada da quadra por turma. |
+| [quadra.tsx](../../../app/quadra.tsx) | Atalho do professor para o mesmo editor com rodízios padrão e edição durante a sessão. |
 | [CourtEditorWorkspace](../../../src/components/visual-court/CourtEditorWorkspace.tsx) | Controlador do editor e compartilhamento. |
 | [CourtWorkspaceView](../../../src/components/visual-court/CourtWorkspaceView.tsx) | Mesma composição visual para edição e leitura. |
 | [useCourtReadOnlyController](../../../src/components/visual-court/useCourtReadOnlyController.ts) | Leitura imutável, sem persistência ou elenco privado. |
@@ -41,6 +42,11 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 | [core/scouting.ts](../../../src/core/scouting.ts), [db/scouting-sessions.ts](../../../src/db/scouting-sessions.ts) | Resultados por fundamento, agregação, ações e conclusão da sessão. |
 
 ## Contratos a preservar
+
+- Em **Atalhos → Quadra**, professores com permissão de planejamento abrem a
+  Recepção P1 do 5×1. A quadra independente tem 2D e 3D, seis rodízios, Ataque,
+  Defesa e exportação de arquivo. A edição usa memória da sessão e dispensa
+  turma, elenco, biblioteca e documentos da organização.
 
 - A Quadra Visual aguarda a sessão e o workspace ativo antes de consultar a
   turma. A busca usa o escopo explícito e mantém visível a mensagem quando

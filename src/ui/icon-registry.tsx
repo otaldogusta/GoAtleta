@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import type { ComponentProps } from "react";
+import Svg, { Path, Rect } from "react-native-svg";
 
 import { decorativeIconProps } from "./decorative-icon-props";
 
@@ -165,17 +166,25 @@ export const GOATLETA_ICON_NAMES = {
   chevronDown: "chevron-down-outline",
 } as const satisfies Record<string, IoniconName>;
 
-export type GoAtletaIconName = keyof typeof GOATLETA_ICON_NAMES;
+export type GoAtletaIconName = keyof typeof GOATLETA_ICON_NAMES | "volleyballCourt";
 
 type GoAtletaIconProps = Omit<ComponentProps<typeof Ionicons>, "name"> & {
   name: GoAtletaIconName;
 };
 
-export function getGoAtletaIconName(name: GoAtletaIconName): IoniconName {
+export function getGoAtletaIconName(name: keyof typeof GOATLETA_ICON_NAMES): IoniconName {
   return GOATLETA_ICON_NAMES[name];
 }
 
 export function GoAtletaIcon({ name, ...props }: GoAtletaIconProps) {
+  if (name === "volleyballCourt") {
+    return (
+      <Svg aria-hidden width={props.size ?? 24} height={props.size ?? 24} viewBox="0 0 24 24" color={props.color}>
+        <Rect x={2} y={5} width={20} height={14} rx={1} fill="none" stroke="currentColor" strokeWidth={1.8} />
+        <Path d="M12 5v14 M8.5 5v14 M15.5 5v14" fill="none" stroke="currentColor" strokeWidth={1.5} />
+      </Svg>
+    );
+  }
   return (
     <Ionicons
       {...decorativeIconProps}

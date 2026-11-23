@@ -58,12 +58,18 @@ export function buildSimulatedReceptionRotationPreset(): CourtVisualPayload {
 /** Select by rotation identity, preserving a destination's authored mode/system.
  * A non-sequence keeps the caller's individual-stage editing fallback.
  */
+function rotationSequenceEntries(payload: CourtVisualPayload) {
+  return payload.timeline.steps.flatMap((step, index) => step.simulation?.mode === "defense"
+    ? [] : [{ index, id: step.id, config: getCourtSimulation(payload, index) }]);
+}
+
 export function getReceptionRotationStep(payload: CourtVisualPayload, currentIndex: number, rotation: number): number {
   if (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= payload.timeline.steps.length
-    || !Number.isInteger(rotation) || rotation < 0 || rotation > 5 || payload.timeline.steps.length !== 6) return -1;
-  const simulations = payload.timeline.steps.map((_, index) => getCourtSimulation(payload, index));
-  if (simulations.some(config => !config) || new Set(simulations.map(config => config!.rotation)).size !== 6) return -1;
-  return simulations.findIndex(config => config!.rotation === rotation);
+    || !Number.isInteger(rotation) || rotation < 0 || rotation > 5) return -1;
+  const entries = rotationSequenceEntries(payload);
+  if (entries.length !== 6 || !entries.some(entry => entry.index === currentIndex) || entries.some(({ config }) => !config)
+    || new Set(entries.map(({ config }) => config!.rotation)).size !== 6) return -1;
+  return entries.find(({ config }) => config!.rotation === rotation)?.index ?? -1;
 }
 
 /** One host transaction switches a complete rotation sequence, without navigating
@@ -72,18 +78,20 @@ export function getReceptionRotationStep(payload: CourtVisualPayload, currentInd
 export function configureCourtRotationSequenceMode(payload: CourtVisualPayload, currentIndex: number, mode: CourtSimulation["mode"]): CourtVisualPayload {
   if (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= payload.timeline.steps.length
     || !["receive", "attack"].includes(mode)) return payload;
-  const source = payload.timeline.steps, current = getCourtSimulation(payload, currentIndex);
-  const sequence = current && source.every(step => Boolean(step.id)) && new Set(source.map(step => step.id)).size === 6
+  const entries = rotationSequenceEntries(payload), current = getCourtSimulation(payload, currentIndex);
+  const sequence = current && entries.every(entry => Boolean(entry.id)) && new Set(entries.map(entry => entry.id)).size === 6
     && getReceptionRotationStep(payload, currentIndex, current.rotation) >= 0;
   if (!sequence) return configureCourtSimulation(payload, currentIndex, { mode });
-  const simulations = source.map((_, index) => getCourtSimulation(payload, index)!);
   let next = payload;
-  simulations.forEach((config, index) => {
-    if (config.mode !== mode) next = configureCourtSimulation(next, index, { mode });
-  });
+  for (const { config, index } of entries) {
+    if (config!.mode !== mode) next = configureCourtSimulation(next, index, { mode });
+  }
+  const rotationsByIndex = new Map(entries.map(({ index, config }) => [index, config!.rotation]));
   const steps = next.timeline.steps.map((step, index) => {
+    const rotation = rotationsByIndex.get(index);
+    if (rotation === undefined) return step;
     if (!/^P[1-6] · (Recepção|Ataque)$/.test(step.label)) return step;
-    const label = `${labels[simulations[index].rotation]} · ${mode === "attack" ? "Ataque" : "Recepção"}`;
+    const label = `${labels[rotation]} · ${mode === "attack" ? "Ataque" : "Recepção"}`;
     return label === step.label ? step : { ...step, label };
   });
   return steps.some((step, index) => step !== next.timeline.steps[index])

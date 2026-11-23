@@ -4,6 +4,7 @@ import { configureCourtSimulation, getCourtSimulation, sampleCourtSimulation } f
 import { sampleReception } from "../court-simulation/reception-motion.js";
 import { receptionFormation } from "../court-simulation/formations.js";
 import { sampleAttack } from "../court-simulation/attack-motion.js";
+import { ensureCourtDefenseStep } from "../court-defense-preset";
 import { displayCourtDrawings, simulationFloorPoint } from "../court-simulation-display";
 import { buildCourtPerspectiveFrame, worldToCourtPoint } from "../visual-court-perspective";
 import {
@@ -148,6 +149,18 @@ describe("shared receive/attack mode across the six-rotation sequence", () => {
 });
 
 describe("canonical six-rotation reception sequence", () => {
+  it("keeps navigation and mode changes across all six rotations after opening defense", () => {
+    const source = buildSimulatedReceptionRotationPreset();
+    const { payload, stepIndex } = ensureCourtDefenseStep(source);
+    const defense = payload.timeline.steps[stepIndex];
+    expect(getReceptionRotationStep(payload, 0, 1)).toBe(1);
+    expect(getReceptionRotationStep(payload, stepIndex, 0)).toBe(-1);
+    const attack = configureCourtRotationSequenceMode(payload, 0, "attack");
+    expect(attack.timeline.steps.slice(0, 6).map(step => step.simulation?.mode)).toEqual(Array(6).fill("attack"));
+    expect(attack.timeline.steps[stepIndex]).toBe(defense);
+    expect(getReceptionRotationStep(attack, 0, 5)).toBe(5);
+  });
+
   it("replaces each legacy pair with one complete reception, preserving the selected rotation", () => {
     const source = legacy(), before = JSON.stringify(source);
     expect(isLegacyReceptionRotationSequence(source)).toBe(true);

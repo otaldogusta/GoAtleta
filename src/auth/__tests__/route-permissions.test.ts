@@ -6,6 +6,13 @@ import {
 } from "../route-permissions";
 
 describe("trainer route permissions", () => {
+  it("gates the standalone court by the same training permission as its shortcut", () => {
+    expect(isTrainerPathAllowed("/quadra", {}, false)).toBe(false);
+    expect(isTrainerPathAllowed("/quadra", { training: true }, false)).toBe(true);
+    expect(isRolePathBlocked({ role: "student", pathname: "/quadra" })).toBe(true);
+    expect(isRolePathBlocked({ role: "family", pathname: "/quadra" })).toBe(true);
+  });
+
   it("matches exact routes and nested routes without prefix collisions", () => {
     expect(getTrainerPermissionKey("/prof/calendar")).toBe("calendar");
     expect(getTrainerPermissionKey("/coord/calendar")).toBe("calendar");

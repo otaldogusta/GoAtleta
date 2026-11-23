@@ -12,6 +12,7 @@ export const trainerPermissionByPrefix = [
   { prefix: "/prof/absence-notices", permissionKey: "absence_notices" },
   { prefix: "/prof/nfc-attendance", permissionKey: "classes" },
   { prefix: "/prof/exercises", permissionKey: "training" },
+  { prefix: "/quadra", permissionKey: "training" },
   { prefix: "/prof/periodization", permissionKey: "periodization" },
   { prefix: "/prof/assistant", permissionKey: "assistant" },
   { prefix: "/prof/regulation-history", permissionKey: "org_members" },
@@ -100,6 +101,7 @@ export const trainerOnlyPrefixes = [
   "/events",
   "/exercises",
   "/periodization",
+  "/quadra",
   "/reports",
   "/org-members",
   "/regulation-history",
@@ -148,6 +150,7 @@ export const isRolePathBlocked = ({
 
 export const hybridVerificationRestrictedPrefixes = [
   "/coord/finance",
+  "/quadra",
   "/family",
   "/prof",
   "/coord",

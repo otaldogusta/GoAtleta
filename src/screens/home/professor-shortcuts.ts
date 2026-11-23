@@ -2,6 +2,7 @@ export const professorShortcuts = [
   { label: "Turmas", description: "Cadastros e lista", icon: "classes", route: "/prof/classes", gate: "canOpenClassesShortcut", keywords: "aula chamada presença" },
   { label: "Alunos", description: "Lista e chamada", icon: "students", route: "/prof/students", gate: "canOpenStudentsShortcut", keywords: "atletas matrículas" },
   { label: "Planejamento", description: "Modelos e planejamentos", icon: "planning", route: "/prof/planning", gate: "canOpenTrainingShortcut", keywords: "montar plano treino" },
+  { label: "Quadra", description: "Rodízios e jogadas em 2D e 3D", icon: "volleyballCourt", route: "/quadra", gate: "canOpenTrainingShortcut", keywords: "vôlei tática recepção ataque defesa" },
   { label: "Agenda", description: "Aulas e chamada", icon: "calendar", route: "/prof/calendar", gate: "canOpenCalendarShortcut" },
   { label: "Presença NFC", description: "Registrar por UID", icon: "nfc", route: "/prof/nfc-attendance", gate: "canOpenClassesShortcut" },
   { label: "Notificações", description: "Atualizações e ausências", icon: "absenceNotices", route: "/prof/absence-notices", gate: "canOpenAbsenceNoticesShortcut" },

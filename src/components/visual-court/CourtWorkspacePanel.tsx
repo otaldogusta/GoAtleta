@@ -23,6 +23,7 @@ type Props = {
   dialogId?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  hideLibrary?: boolean;
   uiScale?: number;
   top?: number;
   bottom?: number;
@@ -113,7 +114,7 @@ function useCourtSheetFocus(open: boolean, dialogId: string, onRequestClose: () 
 }
 
 /** Shares one disclosure surface while retaining each tab's local view state. */
-export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTabChange, adjustments, steps, library, tools, triggerRef, dialogId = "court-workspace-sheet", disabled = false, readOnly = false, uiScale = 1, top = 144, bottom = 88 }: Props) {
+export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTabChange, adjustments, steps, library, tools, triggerRef, dialogId = "court-workspace-sheet", disabled = false, readOnly = false, hideLibrary = false, uiScale = 1, top = 144, bottom = 88 }: Props) {
   const { colors } = useAppTheme();
   const { width, height } = useWindowDimensions();
   const mobile = width <= 700;
@@ -133,7 +134,7 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
   const modal = hasTools || centered;
   const webDialog = modal && Platform.OS === "web";
   const stackSheetHeader = hasTools && width < 380;
-  const tabs = hasTools ? TABS_WITH_TOOLS : TABS;
+  const tabs = (hasTools ? TABS_WITH_TOOLS : TABS).filter(([value]) => !hideLibrary || value !== "library");
   const contents = { adjustments, steps, library, tools };
   useCourtSheetFocus(webDialog && open, dialogId, onRequestClose, triggerRef);
   const tabList = (
