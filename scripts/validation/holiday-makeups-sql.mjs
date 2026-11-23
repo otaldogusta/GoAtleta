@@ -47,6 +47,31 @@ try {
   await migration("20260907214642_organization_holiday_decisions.sql");
   await migration("20261123200000_class_holiday_makeups.sql");
   await migration("20261123201000_guard_holiday_makeup_reviews.sql");
+  await migration("20261123202000_fix_makeup_session_log_dates.sql");
+
+  for (const reportType of ["timestamptz", "text"]) {
+    await db.exec("begin");
+    if (reportType === "text") {
+      await db.exec("alter table session_logs alter column createdat type text using createdat::text");
+      await migration("20261123202000_fix_makeup_session_log_dates.sql");
+    }
+    await db.exec("set local timezone = 'America/Sao_Paulo'");
+    for (const instant of ["2026-11-20T00:00:00.000Z", "2026-11-23T23:59:59.999Z"]) {
+      await db.query("insert into session_logs values ($1,'a',$2)", [org, instant]);
+      await asUser(admin);
+      await db.exec("savepoint before_conflict");
+      await assert.rejects(schedule(), /Já existe chamada ou aula registrada/);
+      await db.exec("rollback to savepoint before_conflict");
+      await db.exec("reset role");
+      await db.exec("delete from session_logs");
+    }
+    await db.query("insert into session_logs values ($1,'a',$2),($1,'a',$3)",
+      [org, "2026-11-19T23:59:59.999Z", "2026-11-24T00:00:00.000Z"]);
+    await asUser(admin);
+    await schedule("a", "2026-11-20", "2026-11-23", "18:00");
+    assert.deepEqual(await visible(), ["a"]);
+    await db.exec("rollback");
+  }
 
   await db.exec("set role anon");
   await assert.rejects(schedule(), /permission denied/);
