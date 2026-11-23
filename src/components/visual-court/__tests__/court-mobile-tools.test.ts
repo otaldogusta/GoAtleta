@@ -20,7 +20,7 @@ jest.mock("../CourtSimulationControls", () => {
   const runtime = jest.requireActual<typeof import("react")>("react");
   return {
     CourtSimulationTransport: (props: { editingControls?: React.ReactNode }) => runtime.createElement("Transport", props, props.editingControls),
-    CourtSimulationModes: "Modes",
+    CourtSimulationModes: "Modes", CourtSimulationQuickControls: "QuickControls",
     CourtSimulationSettings: "Settings",
   };
 });
@@ -339,7 +339,10 @@ describe("court mobile tool flow", () => {
   });
 
   const expectRotationControls = (visible: boolean) => {
-    expect(tree.root.findByType("Transport" as never).props.showRotation).toBe(visible);
+    const quick = tree.root.findAllByType("QuickControls" as never)[0];
+    const rotationInHeader = quick?.props.mode === "receive";
+    expect(tree.root.findByType("Transport" as never).props.showRotation).toBe(visible && !rotationInHeader);
+    if (rotationInHeader) expect(quick.props.config.mode).toBe("receive");
     expect(tree.root.findByType("WorkspacePanel" as never).props.adjustments.props.showRotation).toBe(visible);
   };
 

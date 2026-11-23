@@ -1,7 +1,9 @@
 import { normalizeAttackSettings } from "./court-simulation/attack-settings.js";
+import { attackPresets } from "./court-simulation/attack-motion.js";
 import { normalizeReceiveTarget } from "./court-simulation/reception-target.js";
 
 export type CourtSimulationPoint = [number, number, number];
+type CourtSimulationFoot = [x: number, lift: number, z: number, yaw: number];
 export type CourtDefenseCoverage = "front" | "zone1";
 export type CourtSimulationDefenseSettings = {
   startPositions: Record<string, { x: number; y: number }>;
@@ -54,6 +56,18 @@ export type CourtSimulationActor = {
   previousPose?: string;
   previousSide?: boolean;
   poseBlend?: number;
+  contactWeight?: number;
+  attackFrame?: number;
+  runCycle?: number;
+  attackStrideScale?: number;
+  attackLeadIn?: number;
+  attackSlide?: boolean;
+  attackTakeoffDepth?: number;
+  blockFrame?: number;
+  blockMirror?: boolean;
+  /** Left and right sole centres, with lift above the floor and yaw in radians. */
+  feet?: [CourtSimulationFoot, CourtSimulationFoot];
+  feetWeight?: number;
   mirror?: boolean;
   crouch?: number;
   extension?: number;
@@ -121,6 +135,7 @@ export type CourtSimulationSample = {
   attackArc?: number;
   attackGuide?: CourtSimulationPoint[];
   attackTarget?: CourtSimulationPoint;
+  backRowApproach?: [CourtSimulationPoint, CourtSimulationPoint];
   handSide?: number;
   receiver?: number;
   contact?: [number, number];
@@ -135,7 +150,7 @@ export type CourtSimulationSample = {
   defenseSupport?: Omit<CourtSimulationActor, "id" | "slot" | "visible">[];
 };
 
-const presets = ["4", "go", "31", "1", "2", "5", "red", "pipe", "bic"];
+const presets = attackPresets.map(preset => preset.name);
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 /** The document stores only bounded configuration and canonical references. */

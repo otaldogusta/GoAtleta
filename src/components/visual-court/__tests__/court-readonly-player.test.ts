@@ -11,7 +11,7 @@ import { sampleCourtSimulation } from '../../../core/court-simulation';
 jest.mock('../CourtPerspectiveCanvas', () => ({ CourtPerspectiveCanvas: 'Perspective' }));
 jest.mock('../CourtEditorCanvas', () => ({ CourtEditorCanvas: 'Canvas' }));
 jest.mock('../CourtEditorControls', () => ({ CourtActionButton: 'Action' }));
-jest.mock('../CourtSimulationControls', () => ({ CourtSimulationTransport: 'Transport', CourtSimulationModes: 'Modes', CourtSimulationSettings: 'Settings' }));
+jest.mock('../CourtSimulationControls', () => ({ CourtSimulationTransport: 'Transport', CourtSimulationModes: 'Modes', CourtSimulationQuickControls: 'QuickControls', CourtSimulationSettings: 'Settings' }));
 jest.mock('../CourtStepGallery', () => ({ CourtStepGallery: 'Gallery' }));
 jest.mock('../CourtLibraryBrowser', () => ({ CourtLibraryBrowser: 'Library' }));
 jest.mock('../CourtEditableTitle', () => ({ CourtEditableTitle: 'Title' }));

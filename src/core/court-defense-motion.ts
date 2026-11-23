@@ -1,5 +1,7 @@
 import { courtActorActionPose, type CourtActorAction } from "./court-actor-actions";
 import { sampleBlockerPose } from "./court-simulation/blocker-motion.js";
+import { attackClipTiming, secondsFromTakeoffToHit } from "./court-simulation/attack-clip-timing.js";
+import { courtFootwork } from "./court-simulation/court-footwork.js";
 import type { CourtSimulationActor, CourtSimulationPoint } from "./court-simulation-model";
 
 const phase = (t: number, a: number, b: number) => Math.max(0, Math.min(1, (t - a) / (b - a)));
@@ -36,7 +38,7 @@ export const defenseDefaultAction = (slot: number): CourtActorAction => slot ===
 
 /** The reception and set lead into the authored contact tableau. */
 export function sampleDefenseOrganization(progress: number, starts: CourtSimulationPoint[], destinations: CourtSimulationPoint[],
-  actions: (CourtActorAction | undefined)[], contact: CourtSimulationPoint, duration: number, mirrored = false) {
+  actions: (CourtActorAction | undefined)[], contact: CourtSimulationPoint, duration: number, attackHands: ("right" | "left" | undefined)[] = []) {
   const t = Math.max(0, Math.min(1, progress));
   const attackSide = destinations[6][2] > 0 ? 1 : -1;
   const passer: CourtSimulationPoint = [0, 0, 6.3 * attackSide];
@@ -61,7 +63,17 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
     const facing = heading(ball);
     const terminal = courtActorActionPose(action);
     if (action === "attack") {
+      let capture;
       if (slot === 6) {
+        const impactSeconds = attackContact * duration;
+        const approachSeconds = .32 * duration;
+        const jumpWindow = secondsFromTakeoffToHit(setContact, attackContact, contact[1] - setHand[1], 1.50, duration);
+        // Short authored stages still need a visible run-up before the jump.
+        const takeoff = impactSeconds - Math.min(jumpWindow, (impactSeconds - approachSeconds) * .42);
+        const elapsed = Math.min(t * duration, impactSeconds);
+        capture = attackClipTiming(elapsed, approachSeconds, takeoff, impactSeconds, impactSeconds + .44);
+        const rise = phase(elapsed, takeoff, impactSeconds);
+        position[1] = destination[1] * (1 - (1 - rise) ** 2);
         const windup = ease(phase(t, .58, .82));
         facing[0] = facing[0] * (1 - windup);
         facing[1] = facing[1] + (-5 * attackSide - facing[1]) * windup;
@@ -71,7 +83,7 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
         pose.previousPose = "approach";
         pose.poseBlend = phase(t, .345, .72);
       }
-      return { ...terminal, ...pose, position, facing, side: false, mirror: (slot === 6) !== mirrored };
+      return { ...terminal, ...pose, ...capture, position, facing, side: false, mirror: attackHands[slot] === "left" };
     }
     if (action === "block") {
       // Jump stays separate from the authored position Y.
@@ -79,7 +91,11 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
       // The rig's local +Z points through the palms: face the net from either half.
       return { ...terminal, position, facing, ...hands, handAngle: destination[2] > 0 ? 180 : 0 };
     }
-    return { ...terminal, position, facing };
+    const feet = position[1] === 0 ? courtFootwork(
+      (u: number) => [start[0] + (destination[0] - start[0]) * u, start[2] + (destination[2] - start[2]) * u],
+      movement, { shuffle: true, facing: heading(contact) },
+    ) : {};
+    return { ...terminal, position, facing, ...feet };
   });
   return { actors, support, ball, passContact, setContact, attackContact, visible: true, duration };
 }

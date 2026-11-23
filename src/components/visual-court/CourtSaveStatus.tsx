@@ -26,6 +26,7 @@ const icons: Record<Exclude<Props["status"], "saving">, GoAtletaIconName> = {
 /** Passive save feedback; only a failed or local save exposes an action. */
 export function CourtSaveStatus({ status, onRetry, disabled = false, error }: Props) {
   const { colors } = useAppTheme();
+  if (status === "idle") return null;
   const label = status === "error" && error ? `${error} Tentar novamente.` : labels[status];
   const retry = status === "local" || status === "error";
   const color = status === "error" ? colors.dangerText : colors.muted;
@@ -39,9 +40,9 @@ export function CourtSaveStatus({ status, onRetry, disabled = false, error }: Pr
     style={{ width: 24, height: 32, alignItems: "center", justifyContent: "center", opacity: disabled ? .55 : 1 }}>
     {icon}
   </Pressable>;
-  return <View accessible={status !== "idle"} accessibilityLabel={status === "idle" ? undefined : label}
+  return <View accessible accessibilityLabel={label}
     accessibilityLiveRegion="polite" {...(Platform.OS === "web" ? { title: label, role: "status" as const } : {})}
-    style={{ width: 24, height: 32, alignItems: "center", justifyContent: "center", opacity: status === "idle" ? 0 : .7 }}>
+    style={{ width: 24, height: 32, alignItems: "center", justifyContent: "center", opacity: .7 }}>
     {icon}
   </View>;
 }

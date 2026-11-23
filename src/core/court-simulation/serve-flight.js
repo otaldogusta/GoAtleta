@@ -1,13 +1,11 @@
 // A predictive hand-to-floor flight. Reception samples the descending branch
 // before its floor endpoint, so the guide and the animated ball share one path.
+import {NET_TOP,BALL_RADIUS,TOP_BAND_DEPTH} from '../../../public/visual-court-3d/court-net.js';
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const mix=(a,b,u)=>a+(b-a)*u;
 const finite=(value,fallback)=>Number.isFinite(value)?value:fallback;
-const NET_HEIGHT=2.43;
-const BALL_RADIUS=.12;
-const TAPE_HALF_HEIGHT=.0325;
 const CLEARANCE_MARGIN=.035;
-const NET_VOLUME_HALF_DEPTH=BALL_RADIUS+TAPE_HALF_HEIGHT+CLEARANCE_MARGIN;
+const NET_VOLUME_HALF_DEPTH=BALL_RADIUS+TOP_BAND_DEPTH/2+CLEARANCE_MARGIN;
 const FLOAT_VERTICAL_WOBBLE=.06;
 const SHORT_APEX_LIMIT=4.5;
 
@@ -47,10 +45,10 @@ export function createServeFlight(serverXYZ,targetXZ,kind='Float'){
   const netFraction=-start[2]/(end[2]-start[2]);
   const preferredApex=kind==='Topspin'?.75*netFraction:netFraction;
   const nominalNetMargin=mix(.30,kind==='Topspin'?.95:.40,clamp((target[1]-1)/2,0,1));
-  const minimumCenterHeight=NET_HEIGHT+BALL_RADIUS+TAPE_HALF_HEIGHT+CLEARANCE_MARGIN;
+  const minimumCenterHeight=NET_TOP+BALL_RADIUS+CLEARANCE_MARGIN;
   const wobbleAllowance=kind==='Float'?FLOAT_VERTICAL_WOBBLE:0;
   const constraints=[
-    [netFraction,NET_HEIGHT+nominalNetMargin],
+    [netFraction,NET_TOP+nominalNetMargin],
     ...[-NET_VOLUME_HALF_DEPTH,0,NET_VOLUME_HALF_DEPTH].map(z=>[
       (z-start[2])/(end[2]-start[2]),minimumCenterHeight+wobbleAllowance,
     ]),

@@ -9,7 +9,7 @@ import { compactUiMetrics, radius, spacing } from "../../theme/tokens";
 
 import { CourtVolleyballGlyph } from "./CourtVolleyballGlyph";
 
-export type CourtActionIcon = GoAtletaIconName | "repeatOne" | "courtColor" | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtMotion" | "courtArea" | "courtText";
+export type CourtActionIcon = GoAtletaIconName | "repeatOne" | "courtCursor" | "courtColor" | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtMotion" | "courtArea" | "courtText";
 export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIcon; color: string; size?: number }) {
   if (name === "repeatOne") return <View style={{ width: size, height: size }}>
     <GoAtletaIcon name="repeat" size={size} color={color} />
@@ -17,6 +17,7 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
   </View>;
   let drawing: ReactNode;
   switch (name) {
+    case "courtCursor": drawing = <Path d="M5 3 19 14l-6 .8L16 21l-3 1.2-3-6.3L5 20Z" fill={color} />; break;
     case "courtColor": drawing = <><Circle cx="8" cy="8" r="4" /><Circle cx="16" cy="8" r="4" /><Circle cx="12" cy="16" r="4" fill={color} fillOpacity={0.25} /></>; break;
     case "courtArrow": drawing = <Path d="M4 20 20 4M11 4h9v9" />; break;
     case "courtBall": drawing = <G transform="translate(12 12) scale(0.9)"><CourtVolleyballGlyph ink={color} /></G>; break;
@@ -33,14 +34,15 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
 }
 
 const SHORTCUTS: Record<string, string> = { "Selecionar e mover": "V · Arraste no vazio para selecionar", Desfazer: "Ctrl/Cmd + Z", Refazer: "Ctrl/Cmd + Shift + Z", "Apagar seleção": "Delete" };
-export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, sheetTile = false, subduedSelection = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1 }: {
+export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, sheetTile = false, subduedSelection = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1, showTooltip = true }: {
   label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; sheetTile?: boolean; subduedSelection?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; touchTarget?: boolean; tooltipScale?: number;
+  showTooltip?: boolean;
 }) {
   const { colors } = useAppTheme();
   const tipScale = Number.isFinite(tooltipScale) && tooltipScale > 0 ? tooltipScale : 1;
   const [tip, setTip] = useState<{ position: { left: number; top: number }; scale: number } | null>(null);
   if (tip && tip.scale !== tipScale) setTip(null);
-  const visibleTip = tip?.scale === tipScale ? tip : null;
+  const visibleTip = showTooltip && tip?.scale === tipScale ? tip : null;
   useEffect(() => {
     if (!visibleTip || Platform.OS !== "web") return;
     const hide = () => setTip(null);
@@ -51,7 +53,7 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     return () => { window.removeEventListener("resize", hide); window.removeEventListener("scroll", hide, true); window.removeEventListener("keydown", key); };
   }, [visibleTip]);
   const show = (event: unknown) => {
-    if (Platform.OS !== "web" || text || tile || touchTarget) return;
+    if (!showTooltip || Platform.OS !== "web" || text || tile || touchTarget) return;
     const rect = (event as { currentTarget?: HTMLElement }).currentTarget?.getBoundingClientRect?.();
     if (!rect) return;
     // The button's DOM rect already includes its parent's scale; only the portal's

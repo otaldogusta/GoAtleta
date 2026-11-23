@@ -51,31 +51,65 @@ export function createActorAnatomy(parent){
   part.scale.set(radius,length,depth);part.quaternion.setFromUnitVectors(up,direction.multiplyScalar(1/Math.max(length,1e-9)));
  }
  const fingerPoint=new THREE.Vector3();
+ const upperBody=[torso,neck,head,nose,...limbs.flatMap(limb=>[
+  limb.shoulder,limb.elbow,limb.upperArm,limb.forearm,limb.palm,limb.thumb,...limb.fingers,
+ ])];
+ const trunkAngles=new THREE.Euler(0,0,0,'YXZ'),trunkRotation=new THREE.Quaternion();
+ function articulateTrunk(pitch,yaw,roll){
+  trunkRotation.setFromEuler(trunkAngles.set(pitch,yaw,roll));
+  for(const part of upperBody){
+   part.position.sub(pelvis.position).applyQuaternion(trunkRotation).add(pelvis.position);
+   part.quaternion.premultiply(trunkRotation);
+  }
+ }
+ const bodyRight=new THREE.Vector3(),bodyUp=new THREE.Vector3(),bodyForward=new THREE.Vector3(),basis=new THREE.Matrix4();
  for(const geometry of [sphere,cylinder,torsoShape])geometry.computeBoundingBox();
  let shoulderY=1.43,shoulderZ=.025,height=1.8*.95;
- function updateBody(crouch,jump,yaw,scale=.95,lean=0,stride=0,stance=0,stepLift=0){
-  const bend=crouch/.26,hip=.92-crouch,hipZ=-.13*bend;
+ function updateBody(crouch,jump,yaw,scale=.95,lean=0,stride=0,stance=0,stepLift=0,feet=null,feetWeight=0,hipDepthScale=1){
+  const bend=crouch/.26,hip=.92-crouch,hipZ=-.13*bend*hipDepthScale;
   shoulderY=1.43-crouch;shoulderZ=.025+lean;
-  group.position.y=jump;group.rotation.set(0,yaw,0);group.scale.setScalar(scale);
+  group.position.set(0,jump,0);group.rotation.set(0,yaw,0);group.scale.setScalar(scale);
   segment(torso,0,hip,hipZ,0,shoulderY,shoulderZ,1,1);pelvis.position.set(0,hip,hipZ);
+  pelvis.quaternion.identity();head.quaternion.identity();
   segment(neck,0,1.44-crouch,shoulderZ,0,1.58-crouch,shoulderZ,.047);
   head.position.set(0,1.665-crouch,shoulderZ);nose.position.set(0,1.66-crouch,shoulderZ+.103);
   for(let n=0;n<limbs.length;n++){
-   const limb=limbs[n],side=limb.side,hipX=side*.095,kneeX=side*(.12+.025*bend+stance*.5);
-   const lift=Math.max(0,side*stepLift),kneeY=.49-.35*crouch+.6*lift;
-   const kneeZ=.18*bend+side*stride*.5,ankleX=side*(.13+.035*bend+stance),ankleY=.095+lift,ankleZ=side*stride;
+   const limb=limbs[n],side=limb.side,hipX=side*.095;
+   const footYaw=feet?feet[n][3]*feetWeight:0;
+   const toeX=.065*Math.sin(footYaw),toeZ=.065*Math.cos(footYaw);
+   let lift=Math.max(0,side*stepLift),ankleX=side*(.13+.035*bend+stance),ankleZ=side*stride;
+   let kneeX=side*(.12+.025*bend+stance*.5);
+   if(feet){
+    const foot=feet[n];
+    ankleX+=(foot[0]-ankleX)*feetWeight-toeX;
+    lift+=(foot[1]-lift)*feetWeight;
+    ankleZ+=(foot[2]-ankleZ)*feetWeight+(1-feetWeight)*.065-toeZ;
+   }
+   const ankleY=.095+lift;
+   let kneeY=.49-.35*crouch+.6*lift,kneeZ=.18*bend+ankleZ*.5;
+   if(feet){
+    // Solve the knee between the hip and planted ankle, bending forward (+Z).
+    const dx=ankleX-hipX,dy=ankleY-hip,dz=ankleZ-hipZ;
+    const horizontal=Math.hypot(dx,dy),distance=Math.hypot(horizontal,dz);
+    const bendDistance=Math.sqrt(Math.max(0,.46**2-distance**2/4));
+    const bendScale=bendDistance/(Math.max(1e-6,distance)*Math.max(1e-6,horizontal));
+    kneeX+=(hipX+dx*.5-dx*dz*bendScale-kneeX)*feetWeight;
+    kneeY+=(hip+dy*.5-dy*dz*bendScale-kneeY)*feetWeight;
+    kneeZ+=(hipZ+dz*.5+horizontal**2*bendScale-kneeZ)*feetWeight;
+   }
    limb.shoulder.position.set(side*.18,shoulderY,shoulderZ);
    limb.hip.position.set(hipX,hip,hipZ);limb.knee.position.set(kneeX,kneeY,kneeZ);limb.ankle.position.set(ankleX,ankleY,ankleZ);
    segment(limb.thigh,hipX,hip,hipZ,kneeX,kneeY,kneeZ,.09);
    segment(limb.shorts,hipX,hip+.03,hipZ,hipX+(kneeX-hipX)*.34,hip+(kneeY-hip)*.34,hipZ+(kneeZ-hipZ)*.34,.105);
    segment(limb.shin,kneeX,kneeY,kneeZ,ankleX,ankleY,ankleZ,.067);
-   limb.foot.position.set(ankleX,.055+lift,ankleZ+.065);
+   limb.foot.position.set(ankleX+toeX,.055+lift,ankleZ+toeZ);
+   limb.foot.rotation.set(0,footYaw,0);
   }
  }
  function setArm(n,elbowX,elbowY,elbowZ,handX,handY,handZ,pitch=0,palmTilt=0,fan=0,handYaw=0){
   const limb=limbs[n],side=limb.side;
   limb.elbow.position.set(elbowX,elbowY,elbowZ);
-  segment(limb.upperArm,side*.18,shoulderY,shoulderZ,elbowX,elbowY,elbowZ,.06);
+  segment(limb.upperArm,limb.shoulder.position.x,limb.shoulder.position.y,limb.shoulder.position.z,elbowX,elbowY,elbowZ,.06);
   segment(limb.forearm,elbowX,elbowY,elbowZ,handX,handY,handZ,.047);
   limb.palm.position.set(handX,handY,handZ);limb.palm.rotation.set(pitch,handYaw,palmTilt,'YXZ');
   const cosine=Math.cos(pitch),sine=Math.sin(pitch),cy=Math.cos(handYaw),sy=Math.sin(handYaw);
@@ -87,6 +121,34 @@ export function createActorAnatomy(parent){
   const startX=-side*.032,startZ=-.01*sine,tipX=-side*.068,tipZ=.022*sine+.012*cosine;
   segment(limb.thumb,handX+startX*cy+startZ*sy,handY-.01*cosine,handZ-startX*sy+startZ*cy,handX+tipX*cy+tipZ*sy,handY+.022*cosine-.012*sine,handZ-tipX*sy+tipZ*cy,.013);
  }
+ // The captured landmarks animate the same meshes as the procedural poses.
+ // The shirt's local X axis follows the shoulder line so its twist is visible.
+ function orientBody(part,left,right,spine){
+  bodyRight.subVectors(left,right);
+  bodyForward.crossVectors(bodyRight,spine).normalize();
+  bodyRight.crossVectors(spine,bodyForward).normalize();
+  basis.makeBasis(bodyRight,spine,bodyForward);part.quaternion.setFromRotationMatrix(basis);
+ }
+ function setCapturedTrunk(hips,chest,skull,left,right){
+  segment(torso,hips.x,hips.y,hips.z,chest.x,chest.y,chest.z,1,1);
+  bodyUp.subVectors(chest,hips).normalize();orientBody(torso,left.shoulder,right.shoulder,bodyUp);
+  pelvis.position.copy(hips);orientBody(pelvis,left.hip,right.hip,bodyUp);
+  bodyUp.subVectors(skull,chest).normalize();
+  segment(neck,chest.x,chest.y,chest.z,skull.x-bodyUp.x*.075,skull.y-bodyUp.y*.075,skull.z-bodyUp.z*.075,.047);
+  head.position.copy(skull);orientBody(head,left.shoulder,right.shoulder,bodyUp);
+  nose.position.copy(skull).addScaledVector(bodyForward,.103).addScaledVector(bodyUp,-.005);
+  limbs[0].shoulder.position.copy(left.shoulder);limbs[1].shoulder.position.copy(right.shoulder);
+ }
+ function setCapturedLeg(n,hip,knee,ankle,foot,direction){
+  const limb=limbs[n];
+  limb.hip.position.copy(hip);limb.knee.position.copy(knee);limb.ankle.position.copy(ankle);
+  segment(limb.thigh,hip.x,hip.y,hip.z,knee.x,knee.y,knee.z,.09);
+  segment(limb.shorts,hip.x,hip.y+.03,hip.z,hip.x+(knee.x-hip.x)*.34,hip.y+(knee.y-hip.y)*.34,hip.z+(knee.z-hip.z)*.34,.105);
+  segment(limb.shin,knee.x,knee.y,knee.z,ankle.x,ankle.y,ankle.z,.067);
+  limb.foot.position.copy(foot);
+  // Keep the sole level across its width even when turning to face the net.
+  limb.foot.rotation.set(-Math.asin(Math.max(-1,Math.min(1,direction.y))),Math.atan2(direction.x,direction.z),0,'YXZ');
+ }
  function measureHeight(){
   let top=0;
   for(let n=0;n<group.children.length;n++){
@@ -97,5 +159,5 @@ export function createActorAnatomy(parent){
   }
   height=group.position.y+top*group.scale.y;return height;
  }
- return {group,updateBody,setArm,measureHeight,get height(){return height;}};
+ return {group,updateBody,setArm,articulateTrunk,setCapturedTrunk,setCapturedLeg,measureHeight,get height(){return height;}};
 }

@@ -1,71 +1,203 @@
+import { blockClipValue } from '../../../public/visual-court-3d/block-captured-clip.js';
 import {resolveAttackFlight,sampleAttackFlight} from './attack-physics.js';
 import {sampleBlockerPose,blockerContactMotion} from './blocker-motion.js';
 import {indoorContactProfile} from './attack-calibration.js';
+import {attackClipTiming,secondsFromTakeoffToHit} from './attack-clip-timing.js';
+import {attackApproachLateral,attackApproachProgress,CAPTURED_APPROACH_METRES} from './attack-approach.js';
+import {courtFootwork} from './court-footwork.js';
+import {BACK_ROW_TAKEOFF_DEPTH,BACK_ROW_JUMP_ADVANCE,CHINA_JUMP_ADVANCE,isBackRowAttack} from './attack-settings.js';
 const clamp=t=>Math.max(0,Math.min(1,t));
 const phase=(t,a,b)=>clamp((t-a)/(b-a));
 const ease=t=>t*t*(3-2*t);
 function poseState(t,stages,width=.009){let i=0;while(i+1<stages.length&&t>=stages[i+1][0])i++;return {pose:stages[i][1],previousPose:stages[Math.max(0,i-1)][1],poseBlend:i?ease(phase(t,stages[i][0],stages[i][0]+width)):1};}
 const mix=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u);
+const turn=(from,to,u)=>from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*u;
 const arc=(a,b,u,h)=>{const p=mix(a,b,u);p[1]+=4*h*u*(1-u);return p;};
+function attackHeading(frame,base,destination,hit,set,normal){
+ const dx=destination[0]-base[0],dz=destination[2]-base[2];
+ const setX=hit[0]-set[0],setZ=hit[2]-set[2];
+ const plantAngle=Math.hypot(setX,setZ)>1e-6?Math.atan2(normal*setZ,-normal*setX):Math.PI;
+ const runAngle=Math.hypot(dx,dz)>1e-6?Math.atan2(dx,dz):plantAngle;
+ return turn(runAngle,plantAngle,ease(phase(frame,117,130)));
+}
 export const attackPresets=[
- {name:'4',x:-3.9,z:.65,arc:1.8,contact:.62},
- {name:'go',x:-3.9,z:.65,arc:1.8,contact:.60},
- {name:'31',x:-2.25,z:.65,arc:.35,contact:.57},
- {name:'1',x:1.02,z:.65,arc:.22,contact:.56},
- {name:'2',x:1.02,z:.65,arc:1.1,contact:.58},
- {name:'5',x:3.9,z:.65,arc:1.9,contact:.62},
- {name:'red',x:3.9,z:.65,arc:.65,contact:.57},
- {name:'pipe',x:0,z:1.55,arc:1.7,contact:.62},
- {name:'bic',x:0,z:1.55,arc:.9,contact:.57},
+ // Local animation targets. Arc is the lift above the straight line from
+ // release to impact. Flight is the time between those two contacts.
+ {name:'4',x:-3.9,z:.65,arc:1.8,flight:1.204},
+ {name:'go',x:-3.9,z:.65,arc:.66,flight:.78},
+ {name:'31',x:-2.25,z:.65,arc:.41,flight:.51},
+ {name:'1',x:1.02,z:.65,arc:.26,flight:.29},
+ {name:'2',x:1.02,z:.65,arc:.94,flight:.76},
+ {name:'5',x:3.9,z:.65,arc:1.9,flight:1.204},
+ {name:'red',x:3.9,z:.65,arc:.57,flight:.68},
+ {name:'pipe',x:0,z:1.55,arc:.99,flight:.88},
+ {name:'bic',x:0,z:1.55,arc:.50,flight:.60},
+ {name:'tempo-costas',x:1.72,z:.65,arc:.30,flight:.31},
+ {name:'china',x:4.928,z:.935,arc:.53,flight:.54,blockX:2.85,approachStart:[.72,0,3.03]},
+ {name:'metro',x:.22,z:.65,arc:.45,flight:.45},
+ {name:'fundo-1',x:3.48,z:1.55,arc:.90,flight:.83,approachStart:[3.65,0,5.1]},
 ];
 export const attackPreset=name=>attackPresets.find(p=>p.name===String(name))||attackPresets[0];
 export const attackDuration=layers=>layers.pass?4.4:2.8;
-export function attackFormation(){return [[1.5,0,.8],[-3.65,0,-.25],[-2.72,0,-.25],[-3,0,3],[-.8,0,6.35],[-1.79,0,-.25],[0,0,-10]];}
+export function attackFormation(){return [[1.5,0,.8],[-3.65,0,-.25],[-2.72,0,-.25],[-4.2,0,3],[-.8,0,6.35],[-1.79,0,-.25],[0,0,-10]];}
+export function attackBlockerFormation(attackX,count){
+ const wing=Math.abs(attackX)>2?Math.sign(attackX):0;
+ const halfWidth=(count-1)*.465;
+ const preferred=wing?attackX-wing*.25-wing*halfWidth:attackX;
+ const center=Math.max(-4.05+halfWidth,Math.min(4.05-halfWidth,preferred));
+ const destinations=Array.from({length:3},(_,n)=>[center+(n-(count-1)/2)*.93,0,-.25]);
+ const outside=wing<0?0:count-1;
+ const middle=wing?outside-wing:destinations.slice(0,count).reduce((nearest,point,n)=>
+  Math.abs(point[0])<Math.abs(destinations[nearest][0])?n:nearest,0);
+ const central=count===1?0:middle;
+ const nearWing=count===1?0:wing?outside:central===0?1:central-1;
+ const farWing=count===3?3-central-nearWing:2;
+ const wingX=(wing||Math.sign(nearWing-central)||1)*3.65;
+ return [nearWing,central,farWing].map((index,slot)=>{
+  const start=count===1&&slot===0?destinations[0]:[slot===1?0:slot===0?wingX:-wingX,0,-.25];
+  return {start,destination:slot<count?destinations[index]:start};
+ });
+}
+
+function closeBlock(t,actor,start,destination,setContact,takeoff,seconds){
+ const dx=destination[0]-start[0],travel=Math.abs(dx);
+ const impact=takeoff+.154*seconds;
+ if(travel<=.15||t>=impact){actor.position=destination;return;}
+ const plant=takeoff-.07*seconds;
+ const progress=phase(t,setContact,plant);
+ const frame=1+31*progress;
+ if(t<takeoff+.08*seconds){
+  actor.feet=[0,1].map(index=>{
+   const sourceFoot=dx<0?index:1-index,channel=2+3*sourceFoot;
+   const from=blockClipValue(1,channel),to=blockClipValue(32,channel);
+   // Bring the closing foot forward sooner to avoid a deep split mid-run.
+   const closing=phase(frame,20,32);
+   const footFrame=sourceFoot===1?frame+3*Math.sin(Math.PI*closing):frame;
+   const travelFraction=(blockClipValue(footFrame,channel)-from)/(to-from);
+   // Turn the opening shoe during its swing, hold its heading on the
+   // ground, then square it to the net during the closing step.
+   const heading=sourceFoot===1
+    ? .96*ease(phase(frame,1,13))*(1-ease(phase(frame,20,32)))
+    : .14*ease(phase(frame,13,26));
+   return [start[0]+dx*travelFraction+(index===0?.17:-.17),Math.max(0,blockClipValue(footFrame,channel+1)-.05),
+    start[2]+blockClipValue(footFrame,channel+2),Math.sign(dx)*heading];
+  });
+  actor.feetWeight=1-ease(phase(t,takeoff,takeoff+.08*seconds));
+ }
+ actor.position=progress===1?destination:[(actor.feet[0][0]+actor.feet[1][0])/2,0,start[2]];
+ actor.blockFrame=t<plant?1+31*progress:t<takeoff?32+6*phase(t,plant,takeoff):38+8*phase(t,takeoff,impact);
+ actor.blockMirror=dx>0;
+}
 let flightCacheKey='',flightCacheValue=null;
 function resolvedFlight(hit,target,walls,attackArc){const key=JSON.stringify([hit,target,walls,attackArc]);if(key!==flightCacheKey){flightCacheValue=resolveAttackFlight({hit,target,walls,net:true,profile:indoorContactProfile,attackArc});flightCacheKey=key;}return flightCacheValue;}
 // Reconstructed from the nine visible Indoor presets; timings remain visual estimates.
-function sampleCore(t,{layers={},bases=attackFormation(),preset='4',blockers=1,x,targetOverride=null,hitOverride=null,setHeight=null,attackArc=null,passHeight=2.1,blockAngle=0,blockAngles={},manualBlockers=[]}={}){
- const config=attackPreset(preset),blockX=x??config.x,handSide=blockX>0?-1:1;x=hitOverride?.[0]??x??config.x;const z=hitOverride?.[1]??config.z;
+function sampleCore(t,{layers={},bases=attackFormation(),preset='4',blockers=1,x,targetOverride=null,hitOverride=null,setHeight=null,attackArc=null,passHeight=2.1,blockAngle=0,blockAngles={},manualBlockers=[],attackHand='right'}={}){
+ const config=attackPreset(preset),blockX=x??config.blockX??config.x,handSide=attackHand==='left'?-1:1;x=hitOverride?.[0]??x??config.x;const z=hitOverride?.[1]??config.z;
  t=clamp(t);const lead=layers.pass?1.6/4.4:0,u=(t-lead)/(1-lead);
- const motion=u<.19?u:.19+(u-.19)*(.62-.19)/(config.contact-.19);
  const target=targetOverride?[targetOverride[0],.12,targetOverride[1]]:[blockX>0?-2.38:2.38,.12,-4.95];
  // Aiming changes the outgoing shot, not the striking hand or contact anchor.
  const setter=bases[0],hit=[x+handSide*.13,3,z-.1],set=[setter[0]-.22,2.28,setter[2]-.08];
  const actors=bases.map(p=>({position:[...p],role:'setter',pose:'ready',jump:0,facing:[x,z],side:true}));
  const s=actors[0];s.jump=.23*Math.sin(Math.PI*phase(u,.13,.25));
+ if(config.name==='tempo-costas'||config.name==='china'||config.name==='fundo-1')s.facing=[setter[0]-1,setter[2]];
  Object.assign(s,poseState(u,[[-1,'ready'],[-.02,'load'],[.13,'rise'],[.17,'contact'],[.195,'follow'],[.265,'ready']]));
- const a=actors[3];a.role='attacker';a.position=mix(bases[3],[x,0,z],ease(phase(motion,.18,.56)));
- a.pose=motion<.12?'ready':motion<.47?'approach':motion<.54?'plant':motion<.60?'draw':motion<.645?'contact':motion<.75?'follow':motion<.89?'land':'ready';
- a.jump=.9*Math.sin(Math.PI*phase(motion,.51,.82));a.facing=[target[0],target[2]];a.side=false;a.mirror=handSide<0;
- const contact=lead+(1-lead)*config.contact,clockScale=4.4/attackDuration(layers);
- // Reference checkpoints at 68/72/74/78/82/86% anchor takeoff, extension and landing.
- // Preserve the physical jump duration when the pass lead-in is disabled.
- const jumpStart=contact-.053*clockScale,jumpPeak=contact-.012*clockScale,jumpEnd=contact+.11*clockScale;
- a.jump=t<jumpPeak?.9*Math.sin(Math.PI/2*phase(t,jumpStart,jumpPeak)):.9*Math.cos(Math.PI/2*phase(t,jumpPeak,jumpEnd));
- const approachStart=lead+(1-lead)*.18,plantStart=jumpStart-.025*clockScale,poseTransition=.009*clockScale;
- Object.assign(a,poseState(t,[[0,'ready'],[approachStart,'approach'],[plantStart,'plant'],[jumpStart,'draw'],[contact-.015*clockScale,'contact'],[contact+.022*clockScale,'follow'],[jumpEnd,'land'],[jumpEnd+.055*clockScale,'ready']],poseTransition));
+ const duration=attackDuration(layers),seconds=1/duration;
+ const setContact=lead+(1-lead)*.19,contact=setContact+config.flight*seconds;
+ const contactPhase=.19+config.flight/2.8;
+ const setArc=setHeight??config.arc;
+ // Follow the editable set when its apex is within a playable jump window.
+ // Use seconds so adding a pass or a rebound cannot accelerate the approach.
+ const takeoffLead=secondsFromTakeoffToHit(setContact,contact,hit[1]-set[1],setArc,duration,config.flight<=.31?.32:.42);
+ const jumpStart=contact-takeoffLead*seconds,jumpPeak=contact-.04*seconds,jumpEnd=contact+.44*seconds;
+ const backRow=isBackRowAttack(config.name),slide=config.name==='china';
+ const takeoff=[slide?x-CHINA_JUMP_ADVANCE:x,0,backRow?Math.max(BACK_ROW_TAKEOFF_DEPTH,z+BACK_ROW_JUMP_ADVANCE):z];
+ const runStart=backRow?[bases[3][0],0,Math.max(bases[3][2],takeoff[2]+.55)]:bases[3];
+ const runDistance=Math.hypot(takeoff[0]-runStart[0],takeoff[2]-runStart[2]);
+ const normalApproachStart=lead+(1-lead)*.18;
+ const runTime=Math.max(.43,runDistance/4);
+ const approachStart=Math.max(0,Math.min(normalApproachStart,jumpStart-runTime*seconds)-Math.max(0,runDistance-2.65)*.16*seconds);
+ const plantStart=jumpStart-.11*seconds,poseTransition=.04*seconds;
+ const bodyScale=.9,captureMetres=CAPTURED_APPROACH_METRES*bodyScale;
+ // Short edits fit the recorded stride. Once there is space for a real
+ // preparatory step, gradually assign the surplus to running feet. At
+ // full weight the final approach has the exact length it had in Blender.
+ const surplus=Math.max(0,runDistance-captureMetres);
+ const extraSteps=ease(phase(surplus,.25,.65));
+ const leadDistance=surplus*extraSteps;
+ const leadFraction=runDistance>0?leadDistance/runDistance:0;
+ const capturedStart=approachStart+(jumpStart-approachStart)*leadFraction;
+ const a=actors[3];a.role='attacker';
+ Object.assign(a,attackClipTiming(t*duration,capturedStart*duration,jumpStart*duration,contact*duration,jumpEnd*duration,.22));
+ const progress=attackApproachProgress(a.attackFrame);
+ let leadProgress=0;
+ a.attackLeadIn=0;
+ if(leadDistance>0){
+  const fullLeadFraction=surplus/runDistance;
+  const leadEnd=Math.max(approachStart+(jumpStart-approachStart)*fullLeadFraction,Math.min(.22*seconds,jumpStart*.2));
+  leadProgress=ease(phase(t,approachStart,leadEnd));
+  const leadPath=u=>[
+   runStart[0]+(takeoff[0]-runStart[0])*fullLeadFraction*u,
+   runStart[2]+(takeoff[2]-runStart[2])*fullLeadFraction*u,
+  ];
+  const gait=courtFootwork(leadPath,leadProgress);
+  if(gait.feet){
+   // Release the extra steps across the last half metre as the recorded
+   // starting pose takes over. A short adjustment blends in proportionally.
+   const blendSpan=Math.min(.35,.50/surplus);
+   a.attackLeadIn=ease(clamp(Math.min(leadProgress,1-leadProgress)/blendSpan))*extraSteps;
+   Object.assign(a,gait);
+  }
+ }
+ a.position=mix(runStart,takeoff,leadFraction*leadProgress+(1-leadFraction)*progress);
+ if(runDistance>1e-6){
+  const sway=-handSide*bodyScale*attackApproachLateral(a.attackFrame,progress);
+  a.position[0]+=sway*(takeoff[2]-runStart[2])/runDistance;
+  a.position[2]-=sway*(takeoff[0]-runStart[0])/runDistance;
+ }
+ a.attackStrideScale=(runDistance-leadDistance)/captureMetres;
+ a.attackSlide=slide;
+ if(backRow)a.attackTakeoffDepth=takeoff[2];
+ if(backRow&&t>jumpStart){
+  const travel=takeoff[2]-z;
+  // Carry the forward momentum through contact, then slow before landing.
+  const forward=t<=contact?phase(t,jumpStart,contact):1+.22*(1-(1-phase(t,contact,jumpEnd))**2);
+  a.position[2]-=travel*forward;
+ }
+ if(slide)a.position[0]+=CHINA_JUMP_ADVANCE*(phase(t,jumpStart,contact)+.4*ease(phase(t,contact,jumpEnd)));
+ const rise=phase(t,jumpStart,jumpPeak),fall=phase(t,jumpPeak,jumpEnd);
+ a.jump=.9*(t<jumpPeak?1-(1-rise)**2:1-fall*fall);
+ a.side=false;a.mirror=handSide<0;
+ // Retain the authored side of the set normal when the contact handle crosses the setter.
+ const normal=config.x>1.5-.22?1:-1;
+ const heading=attackHeading(a.attackFrame,runStart,takeoff,hit,set,normal);
+ a.facing=[a.position[0]+Math.sin(heading),a.position[2]+Math.cos(heading)];
+ const swingStart=contact-.10*seconds,followStart=contact+.045*seconds;
+ Object.assign(a,poseState(t,[[0,'ready'],[approachStart,'approach'],[plantStart,'plant'],[jumpStart,'launch'],
+  [jumpStart+.13*seconds,'draw'],[swingStart,'contact'],[followStart,'follow'],
+  [jumpEnd-.04*seconds,'land'],[jumpEnd+.20*seconds,'ready']],poseTransition));
+ if(a.pose==='contact')a.poseBlend=ease(phase(t,swingStart,contact));
  if(a.pose==='approach'&&t>=approachStart+poseTransition){
   // Both poses have the same silhouette key. Only the articulated 3D rig
   // interprets the blend as progress through the alternating footfalls.
   a.previousPose='approach';
   a.poseBlend=phase(t,approachStart+poseTransition,plantStart);
  }
- if(t<jumpStart){a.facing=[x,z];if(t<lead+(1-lead)*.12)a.facing=[0,-9];}
  const count=Math.max(1,Math.min(3,blockers)),blockIds=[1,2,5];
  // Moving the attack contact edits the hitter and ball; the chosen preset
  // anchors automatic blockers until the preset or their own positions change.
- const preferred=blockX<-2?blockX+.25+(count-1)*.465:blockX>2?blockX-.25-(count-1)*.465:blockX;
- const center=Math.max(-4.05+(count-1)*.465,Math.min(4.05-(count-1)*.465,preferred));
- const walls=[];
+ const blockerFormation=attackBlockerFormation(blockX,count);
+ const contacts=[];
  for(const [n,i] of blockIds.entries()){
-  const b=actors[i],destination=manualBlockers.includes(i)?[...bases[i]]:[center+(n-(count-1)/2)*.93,0,-.25];
+  const b=actors[i],manual=manualBlockers.includes(i);
+  const {start,destination}=manual?{start:bases[i],destination:bases[i]}:blockerFormation[n];
   const angle=blockAngles[i]??blockAngle;
-  if(n<count&&layers.block)walls.push({...blockerContactMotion(destination,angle),angle});
-  b.position=mix(bases[i],destination,ease(phase(t,lead+(1-lead)*.24,contact-.07*clockScale)));
+  if(n<count&&layers.block)contacts.push({x:destination[0],wall:{...blockerContactMotion(destination,angle),angle}});
+  closeBlock(t,b,start,destination,setContact,contact-.154*seconds,seconds);
   Object.assign(b,sampleBlockerPose((t-contact)*attackDuration(layers)));
   b.role='blocker';b.pose='block';b.side=false;b.facing=[x,z];b.handAngle=angle;
  }
 
+ const walls=contacts.sort((a,b)=>a.x-b.x).map(contact=>contact.wall);
  const flight=layers.attack?resolvedFlight(hit,target,walls,attackArc):null;
  const p=bases[4],passContact=layers.pass?.118:null,passHand=[p[0]-.48,.75,p[2]-.28];
  const receiver=actors[4];receiver.role='passer';receiver.facing=[p[0]-.75,p[2]-1];receiver.side=false;
@@ -81,9 +213,9 @@ function sampleCore(t,{layers={},bases=attackFormation(),preset='4',blockers=1,x
   ball=mix(origin,passHand,incoming);ball[1]=origin[1]+(passHand[1]-origin[1])*incoming*incoming;
  }
  else if(u<.19){const passPhase=phase(t,passContact??0,lead+(1-lead)*.19);ball=layers.pass?arc(passHand,set,passPhase,passHeight):arc([setter[0],1.85,setter[2]],set,phase(u,0,.19),.08);}
- else if(u<config.contact)ball=arc(set,hit,phase(u,.19,config.contact),setHeight??config.arc);
- else ball=layers.attack?sampleAttackFlight(flight,phase(u,config.contact,1)):arc(hit,[x,0,z],phase(u,config.contact,1),0);
- return {actors,ball,flight,walls,attackTarget:target,...(flight?{attackArc:flight.attackArc,attackGuide:flight.attackGuide}:{}),handSide,setArc:setHeight??config.arc,passArc:passHeight,passContact,passHand:layers.pass?passHand:null,visible:true,duration:attackDuration(layers),setContact:lead+(1-lead)*.19,attackContact:lead+(1-lead)*config.contact};
+ else if(t<contact)ball=arc(set,hit,phase(t,setContact,contact),setArc);
+ else ball=layers.attack?sampleAttackFlight(flight,phase(u,contactPhase,1)):arc(hit,[x,0,z],phase(u,contactPhase,1),0);
+ return {actors,ball,flight,walls,attackTarget:target,...(backRow?{backRowApproach:[runStart,takeoff]}:{}),...(flight?{attackArc:flight.attackArc,attackGuide:flight.attackGuide}:{}),handSide,setArc,passArc:passHeight,passContact,passHand:layers.pass?passHand:null,visible:true,duration,setContact,attackContact:contact};
 }
 
 // Keep approach/contact clocks fixed in seconds. A longer rebound extends the

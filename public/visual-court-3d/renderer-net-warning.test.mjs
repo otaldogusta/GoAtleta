@@ -8,12 +8,12 @@ const p=(x,y,z)=>({x,y,z});
 test('contact follows the actual mesh and finite tape volumes, in either direction',()=>{
  for(const direction of [1,-1]){
   const mesh=renderedNetContact([p(0,2,direction),p(0,2,-direction)]);assert.equal(mesh.part,'mesh');assert.equal(mesh.point.z,0);
-  const tape=renderedNetContact([p(5.265,2.45,direction),p(5.265,2.45,-direction)]);assert.equal(tape.part,'top-tape');assert.ok(Math.abs(tape.point.z)<=.0175+1e-9);
-  assert.equal(renderedNetContact([p(0,1.42,direction),p(0,1.42,-direction)]).part,'bottom-tape');
+  const tape=renderedNetContact([p(4.99,2.43,direction),p(4.99,2.43,-direction)]);assert.equal(tape.part,'top-tape');assert.ok(Math.abs(tape.point.z)<=.0175+1e-9);
+  assert.equal(renderedNetContact([p(0,1.43,direction),p(0,1.43,-direction)]).part,'bottom-tape');
  }
 });
 test('above, below and outside the visible net are negative; this does not classify a volleyball fault',()=>{
- for(const [x,y] of [[0,2.463],[0,1.417],[5.276,2.43],[5.26,2],[0,.025]])assert.equal(renderedNetContact([p(x,y,1),p(x,y,-1)]),null);
+ for(const [x,y] of [[0,2.431],[0,1.429],[5.001,2.43],[5.001,2],[0,.025]])assert.equal(renderedNetContact([p(x,y,1),p(x,y,-1)]),null);
  assert.equal(renderedNetContact([p(0,2,.02),p(0,2,1)]),null);
  assert.equal(renderedNetContact([p(0,2,1),p(0,2,1)]),null);
 });

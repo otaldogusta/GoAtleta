@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {simulationHandleEdit,isHeightHandle,previewAttackCurve,actorPoseView} from './renderer-simulation-geometry.mjs';
+import {simulationHandleEdit,isHeightHandle,previewAttackCurve,previewServeTarget,actorPoseView} from './renderer-simulation-geometry.mjs';
 import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
+
+test('the serve guide and marker follow the draft destination with the contact anchored',()=>{
+ const contact={x:1,y:2.5,z:-10},end={x:-1,y:.12,z:6};
+ const data={mode:'receive',paths:[{id:'serve',points:[contact,{x:0,y:3,z:0},end]}],
+  markers:[{id:'serve-target',point:{...end,y:.025}}]};
+ const preview=previewServeTarget(data,{x:2,y:.03,z:8});
+ assert.deepEqual(preview.paths[0].points,[contact,{x:1.5,y:3,z:1},{x:2,y:.12,z:8}]);
+ assert.deepEqual(preview.markers[0].point,{x:2,y:.025,z:8});
+ assert.deepEqual(data.paths[0].points.at(-1),end);
+});
 
 test('handle preview uses world coordinates and bounds height without owning settings',()=>{
  const handle={kind:'set',point:{x:0,y:4,z:1},value:1.8},before=JSON.stringify(handle);

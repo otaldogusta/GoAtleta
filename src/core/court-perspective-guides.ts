@@ -1,9 +1,10 @@
 import type { CourtVisualPayload } from "./visual-court";
 import { sampleCourtSimulation } from "./court-simulation";
+import { BACK_ROW_JUMP_ADVANCE, BACK_ROW_TAKEOFF_DEPTH, CHINA_JUMP_ADVANCE } from "./court-simulation/attack-settings.js";
 
 type Point = { x: number; y: number; z: number };
-export type CourtPerspectiveHandleKind = "set" | "pass" | "attack" | "hit" | "target" | "serve";
-export type CourtPerspectiveHandle = { kind: CourtPerspectiveHandleKind; point: Point; value?: number };
+export type CourtPerspectiveHandleKind = "set" | "pass" | "attack" | "hit" | "target" | "serve" | "approach-start" | "approach-end";
+export type CourtPerspectiveHandle = { kind: CourtPerspectiveHandleKind; point: Point; value?: number; depthRange?: [number, number] };
 export type CourtPerspectiveGuidePath = { id: string; points: Point[]; dashed?: boolean; color: string; opacity: number; arrow?: number };
 export type CourtPerspectiveGuideMarker = { id: string; kind: "dot" | "ring" | "cross"; point: Point; color: string; contactTime?: number };
 export type CourtPerspectiveSimulation = {
@@ -95,14 +96,24 @@ function buildGuides(payload: CourtVisualPayload, index: number, timing: Sample)
         });
       }
       const attacker = timing.actors.find(actor => actor.slot === 3), contactActor = sampleCourtSimulation(payload, index, attackContact)?.actors.find(actor => actor.slot === 3);
-      if (attacker && contactActor) path("approach", [point(timing.bases[3]), point(contactActor.position)].map(at => ({ ...at, y: .025 })), true, .35);
+      if (attacker && contactActor) {
+        const [start, end] = (timing.backRowApproach ?? [timing.bases[3], contactActor.position]).map(at => ({ ...point(at), y: .025 }));
+        if (timing.config.preset === "china") end.x -= CHINA_JUMP_ADVANCE;
+        path("approach", [start, end], true, .35);
+        if (!payload.editor?.actorMeta[attacker.id]?.locked) {
+          handles.push(
+            { kind: "approach-start", point: start, depthRange: timing.backRowApproach ? [end.z + .55, 9] : undefined },
+            { kind: "approach-end", point: end, depthRange: timing.backRowApproach ? [BACK_ROW_TAKEOFF_DEPTH, 4.5 + BACK_ROW_JUMP_ADVANCE] : undefined },
+          );
+        }
+      }
     }
   }
   const flight = timing.flight, labels = { block: "Mão", net: "Rede", tape: "Fita", floor: "Chão" };
   const contacts = flight?.collisions.map(contact => contact.type === "block" ? `Mão ${(contact.wallIndex ?? 0) + 1}` : labels[contact.type]) ?? [];
   const chain = contacts.slice(0, 4).join(" → ") + (contacts.length > 4 ? ` +${contacts.length - 4}` : "");
   return {
-    guideKey: JSON.stringify(["serve-flight-v4", timing.config, timing.bases, timing.defenseContact]), paths, markers, handles,
+    guideKey: JSON.stringify(["serve-flight-v4", timing.config, timing.bases, timing.defenseContact, timing.handSide, handles.map(item => item.kind)]), paths, markers, handles,
     walls: timing.config.layers.block ? (timing.walls ?? []).map(wall => ({ center: point(wall.center), width: wall.width, height: wall.height, angle: wall.angle })) : [],
     outcome: timing.mode === "attack" && timing.config.layers.attack ? `${chain || "Ataque livre"} · ${flight?.landed ? flight.out ? "fora" : "dentro" : "limite de contatos"}` : "",
     blocked: Boolean(flight?.collisions.some(contact => contact.type !== "floor")),

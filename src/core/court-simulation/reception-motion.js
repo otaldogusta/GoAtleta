@@ -1,5 +1,6 @@
 import {effectiveRotation,receptionDestinations,receptionReceiver} from './formations.js';
 import {createServeFlight,sampleServeFlight,receiveFlightFraction} from './serve-flight.js';
+import {courtFootwork,setterPenetration} from './court-footwork.js';
 
 export const RECEIVE_CONTACT=.64;
 export const SERVE_CONTACT=.38;
@@ -9,6 +10,11 @@ const smooth=t=>t*t*(3-2*t);
 const mix=(a,b,t)=>a+(b-a)*t;
 const move=(a,b,t)=>[mix(a[0],b[0],t),mix(a[1],b[1],t)];
 const length=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+function blendPose(time,transitions,defaultDuration){
+ for(const [start,previousPose,duration=defaultDuration] of transitions){
+  if(time>=start&&time<start+duration)return {previousPose,poseBlend:smooth(phase(time,start,start+duration))};
+ }
+}
 export const setterWindows=[[.35,.80],[.35,.59],[.32,.62],[.36,.70],[.32,.42],[.32,.46]];
 
 function arc(a,b,u,height){
@@ -51,32 +57,44 @@ export function sampleReception(t,{system='5-1',rotation=0,bases,landing=[-1.45,
     const start=[base[0],base[2]];
     let p=start,role=i===6?'server':[3,4,5].includes(i)?'passer':'setter',pose='ready',jump=0;
     let facing=[server[0],server[2]],side=false;
+    let feet,transition;
     if(i===6){
       const eventSeconds=seconds-lead;
       pose=eventSeconds<-1.1?'ready':eventSeconds<-.55?'toss':eventSeconds<-.06?'draw':eventSeconds<.06?'contact':eventSeconds<.5?'follow':'idle';
       facing=[path.end[0],path.end[2]];
+      transition=blendPose(eventSeconds,[[-1.1,'ready'],[-.55,'toss'],[-.06,'draw',.06],[.06,'contact'],[.5,'follow']],.10);
     }else if(i===0){
       const begin=setterBegin,end=setterWindows[r][1];
-      if(r===0){
-        // R1 penetration: stay in the right lane before cutting toward the net.
-        p=[mix(start[0],setterTarget[0],smooth(phase(t,.50,.75))),mix(start[1],setterTarget[1],smooth(phase(t,begin,.78)))];
-      }else p=move(start,setterTarget,smooth(phase(t,begin,end)));
-      const travelling=t>begin&&t<end&&length(start,setterTarget)>.25;
-      if(travelling){role='attacker';pose='approach';side=true;facing=setterTarget;}
+      const runEnd=r===0?.78:end;
+      const runPhase=phase(t,begin,runEnd);
+      const penetration=r===0&&length(start,setterTarget)>.25?setterPenetration(start,setterTarget,runPhase):null;
+      p=penetration?.position??move(start,setterTarget,smooth(runPhase));
+      const travelling=t>begin&&t<runEnd&&length(start,setterTarget)>.25;
+      feet=penetration
+        ? travelling?{feet:penetration.feet,feetWeight:penetration.feetWeight,runCycle:penetration.runCycle}:{}
+        : courtFootwork(u=>move(start,setterTarget,u),smooth(runPhase));
+      if(travelling){
+        role='attacker';pose='approach';side=true;
+        facing=penetration?.facing??setterTarget;
+      }
       else if(t>=end){
         pose=t<.91?'load':t<.965?'rise':'contact';side=true;
         // Prepare the front set toward the entrance, regardless of the pass source.
         facing=[-4.5,p[1]];
       }
-      jump=.25*smooth(phase(t,.91,.97));
+      jump=(penetration?.jump??0)+.25*smooth(phase(t,.91,.97));
+      if(t>=end)transition=blendPose(t,[[end,'ready'],[.91,'load'],[.965,'rise']],.028);
     }else if(i===receiver&&t<RECEIVE_CONTACT){
       p=move(start,contact,smooth(phase(t,.32,.50)));
       pose=t<.55?'ready':t<.60?'load':'contact';
       side=t>=.55;facing=setterTarget;
+      feet=courtFootwork(u=>move(start,contact,u),smooth(phase(t,.32,.50)),{shuffle:true,facing:setterTarget});
+      transition=blendPose(t,[[.55,'ready'],[.60,'load']],.035);
     }else{
       const origin=i===receiver?contact:start,destination=destinations[i];
       const recovery=i===receiver&&i!==4?smooth(phase(t,.69,1)):release;
       p=move(origin,destination,recovery);
+      feet=courtFootwork(u=>move(origin,destination,u),recovery,{shuffle:i===receiver,facing:i===4?server:setterTarget});
       const travelling=t>RECEIVE_CONTACT&&t<.995&&length(origin,destination)>1;
       if(i===receiver&&t<.69){pose='follow';side=true;facing=setterTarget;}
       else if(travelling){role='attacker';pose='approach';side=true;facing=destination;}
@@ -84,8 +102,9 @@ export function sampleReception(t,{system='5-1',rotation=0,bases,landing=[-1.45,
       // The libero makes a small recovery adjustment without a running silhouette.
       if(i===4&&i===receiver&&t>=.69){role='passer';pose='ready';side=false;}
       if(t>=.995&&Math.abs(destination[0])>4&&destination[1]<4){side=true;facing=[0,p[1]];}
+      if(i===receiver&&t<.69)transition=blendPose(t,[[RECEIVE_CONTACT,'contact']],.025);
     }
-    return {position:[p[0],0,p[1]],role,pose,jump,facing,side};
+    return {position:[p[0],0,p[1]],role,pose,jump,facing,side,...feet,...transition};
   });
   const dx=path.end[0]-server[0],dz=path.end[2]-server[2],distance=Math.hypot(dx,dz)||1;
   const hand=(forward,right,height)=>[server[0]+dx/distance*forward+dz/distance*right,server[1]+height,server[2]+dz/distance*forward-dx/distance*right];

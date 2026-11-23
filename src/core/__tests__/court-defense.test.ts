@@ -61,6 +61,24 @@ describe("authored zone-four defense", () => {
     expect(displayCourtDrawings(payload, stepIndex, 1).find(drawing => drawing.id === end.ballId)!.points).toEqual([simulationFloorPoint(end.ball)]);
   });
 
+  it.each(["4", "1", "5"] as const)("drives only the hitter from the capture and holds its impact pose for defense %s", preset => {
+    const { payload, stepIndex } = ensureCourtDefenseStep(newCourtBoard(), preset);
+    const contact = sampleCourtSimulation(payload, stepIndex, 0)!.attackContact!;
+    const actorsAt = (progress: number) => buildCourtPerspectiveFrame(payload, stepIndex, progress).actors.filter(actor => actor.attackFrame !== undefined);
+    const [impact] = actorsAt(contact);
+    expect(actorsAt(contact)).toHaveLength(1);
+    expect(impact.poseRole).toBe("attacker");
+    expect(impact.attackFrame).toBeCloseTo(145);
+    expect(impact.contactWeight).toBeCloseTo(1);
+    const [tableau] = actorsAt(1);
+    expect(tableau).toMatchObject({ id: impact.id, attackFrame: 145, contactWeight: 1, mirror: impact.mirror });
+    for (const axis of ["x", "y", "z"] as const) expect(tableau.position[axis]).toBeCloseTo(impact.position[axis], 8);
+    const [justBefore] = actorsAt(contact - .001);
+    expect(justBefore.id).toBe(impact.id);
+    expect(justBefore.attackFrame!).toBeGreaterThan(144);
+    expect(justBefore.attackFrame!).toBeLessThan(145);
+  });
+
   it("keeps the authored tactical contour editable and mirrors the exit as a separate defense stage", () => {
     const { payload, stepIndex } = setup(), exit = ensureCourtDefenseStep(payload, "5");
     const shadowFor = (board: typeof payload, index: number) => frameDrawings(board, index).find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)!;
@@ -88,7 +106,8 @@ describe("authored zone-four defense", () => {
         expect(actor.jump).toBe(expectedActor.jump);
         expect(actor.facing[0]).toBeCloseTo(-expectedActor.facing[0]);
       });
-      expect(exitFrame.actors[6].mirror).toBe(!entryFrame.actors[6].mirror);
+      expect(exitFrame.actors[6].mirror).toBe(false);
+      expect(entryFrame.actors[6].mirror).toBe(false);
     }
     const edited = setCourtAreaVertex(exit.payload, exit.stepIndex, exitShadow.id, 0, { x: .28, y: .55 }, 1);
     expect(shadowFor(edited, stepIndex)).toEqual(entryShadow);

@@ -83,11 +83,66 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   pelos meshes. Alvo transitório de contato aproxima as mãos da bola dentro
   do alcance, sem alterar trajetória ou posição autoral.
   [Contrato e validação](../../ui/QUADRA_CORPOS_3D_2026-11-12.md).
+  O piso 3D usa y=0. A rede padrão usa 2,43 m até a borda superior,
+  com as mesmas medidas de referência para o desenho, aviso e física
+  das trajetórias. O rig do ataque usa a elevação calculada pela simulação.
+  Na passada final, a quadra reproduz o avanço, a transferência lateral de
+  peso e a altura do quadril do Blender entre as alças editáveis.
+  Aproximações mais longas acrescentam passos antes da passada final.
+  Deslocamentos de recepção e defesa usam
+  apoios alternados com uma curva de elevação extraída de corrida capturada.
+  Na corrida do levantador em P1, a anatomia 3D usa o ciclo CMU com os apoios
+  sincronizados ao trajeto e o pé externo plantado durante o corte.
 
 - No ataque 3D, as passadas alternam apoio e balanço durante a aproximação.
-  O sampler mantém a pose de aproximação e fornece seu progresso ao rig; a
-  representação 2D usa a mesma pose de antes. Manchete, levantamento, cortada
-  e bloqueio refinam as poses sobre o mesmo relógio e geometria de contato.
+  O lápis do jogador permite escolher a mão de ataque para toda a jogada.
+  Destro é o padrão, com esquerda–direita–esquerda. Canhoto usa
+  direita–esquerda–direita. A preferência acompanha a exportação da jogada.
+  Em Ataque 3D, as alças da linha tracejada editam a partida do atacante
+  e o fim da aproximação. Mover o fim reposiciona o contato do levantamento.
+  Em Pipe e Pipe rápida, o fim da passada marca a impulsão
+  atrás dos 3 m. O atacante avança em direção à rede durante o voo e
+  aterrissa à frente do ponto de impulsão.
+
+- Em **Ataque → Ajustes → Levantamento**, a ordem segue entrada (4),
+  meio (3), saída (2) e fundo. A entrada e a saída têm bola alta e chutada
+  (mais rápida). O meio tem tempo cabeça (também chamado tempo frente),
+  chutada de meio (rápida e mais afastada do levantador) e meia bola
+  (altura intermediária). Pipe e Pipe rápida usam o corredor de fundo da 6.
+  Os identificadores de jogadas salvas continuam os mesmos.
+  Cada preset define arco e tempo de voo próprios e a aproximação se ajusta
+  ao instante da cortada. [Medidas e fontes da calibração](../../ui/QUADRA_CORPOS_3D_2026-11-12.md#calibração-dos-levantamentos-do-ataque).
+  [Apostila de Fábio Baccin Fiorante](https://pt.scribd.com/document/800113821/Apostila-Voleibol-II-2017) e
+  [estudo sobre os ataques de fundo na Superliga](https://periodicos.uem.br/ojs/index.php/RevEducFis/article/download/39671/751375138344/).
+  Tempo costas, China, Metro (sete) e Fundo 1 têm presets próprios.
+  O central do elenco usa roxo nas jogadas de meio. Na China, ele
+  parte junto à linha dos 3 m, impulsiona com um pé perto da lateral
+  da saída e avança no ar. As duas alças seguem editáveis. No Fundo 1, o
+  oposto recebe um levantamento rápido e avança no corredor da 1 após
+  impulsionar atrás dos 3 m. Cêzinha
+  fica como chamada a confirmar com a equipe, pois as fontes consultadas
+  não sustentam uma equivalência única.
+  [Demonstração de ataques de meio da FERA](https://www.youtube.com/watch?v=mpxH1rhltVE) e
+  [material tático hospedado pela CBV](https://wp.cbv.com.br/wp-content/uploads/2023/07/5-redacao-cientifica-artigo-17fev.pdf).
+
+- No bloqueio de ponta, os apoios e as posições iniciais seguem a formação da jogada.
+  No bloqueio duplo de ponta, o jogador da ponta começa posicionado e
+  o central fecha vindo do meio após a soltura do levantamento. O pé oposto
+  à direção inicia o cruzamento longo e o outro fecha no segundo passo.
+  Com dois ou três bloqueadores, o central vermelho começa na posição 3
+  e os bloqueadores de ponta começam nas posições 2 e 4, conforme a
+  quantidade selecionada. A flexão principal ocorre no último apoio. Os braços
+  vão para trás na plantada e sobem no salto sincronizado com a ponta.
+  O pé de apoio mantém posição e orientação no piso. O pé oposto ao
+  braço de ataque fecha a plantada, orientada pela perpendicular em planta
+  ao levantamento.
+  A impulsão usa o ápice do levantamento editável como referência e
+  encadeia subida dos braços, armação, extensão, contato e aterrissagem.
+  O relógio da jogada fornece ao atacante 3D o quadro da animação capturada
+  no Blender. A impulsão corresponde ao quadro 132 e a batida ao 145, quando
+  a palma toca a superfície da bola. O Ataque segue até a aterrissagem e a
+  Defesa segura a pose de contato enquanto as direções da cortada se desenham.
+  A representação 2D usa a chave da pose no mesmo relógio.
 
 - Gestos 3D distinguem mover objeto, girar o fundo e aproximar/deslocar com dois
   dedos. Arraste conserva o ponto de pega elevado e a prévia até confirmação

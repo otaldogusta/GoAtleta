@@ -81,7 +81,7 @@ describe("shared court workspace panel", () => {
     expect(StyleSheet.flatten(content("Biblioteca").props.style).display).toBe("none");
     expect(content("Biblioteca").props.inert).toBe(true);
     update({ ...value, tab: "library" });
-    expect(tree!.root.findByProps({ accessibilityLabel: "Biblioteca" }).props.accessibilityState.selected).toBe(true);
+    expect(tree!.root.findAllByProps({ accessibilityRole: "tab" })).toHaveLength(0);
     expect(content("Biblioteca").props["aria-hidden"]).toBe(false);
     expect(content("Biblioteca").props.inert).toBe(false);
     expect(StyleSheet.flatten(content("Biblioteca").props.style).display).toBe("flex");

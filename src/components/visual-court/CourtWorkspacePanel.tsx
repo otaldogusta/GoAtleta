@@ -120,21 +120,24 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
   const compactWeb = mobile && Platform.OS === "web";
   const scale = mobile ? 1 : uiScale;
   const motion = useDisclosureMotion(open, { axis: mobile ? "y" : "x", distance: 24, duration: 200 });
-  const panelWidth = mobile ? Math.min(440, width - 24) : 360;
+  const centered = tab === "library";
+  const panelWidth = centered ? Math.min(560, width - 24) : mobile ? Math.min(440, width - 24) : 360;
   const panelBottom = mobile ? compactWeb ? bottom : Math.max(bottom, width < 460 ? 120 : bottom) : undefined;
   const panelHeight = Math.max(160, Math.min(compactWeb ? Math.min(380, height * .62) : 600, mobile ? height - top - (panelBottom ?? bottom) : (height - top - bottom) / scale));
+  const libraryHeight = Math.min(540, height * .82);
   const gripWidth = compactWeb ? mobileCourtChrome.gripWidth : 80;
   const gripHeight = compactWeb ? mobileCourtChrome.gripHeight : 40;
   const panelHeader = compactWeb ? 32 : 44;
   const right = mobile ? (width - panelWidth) / 2 : 20 * scale;
   const hasTools = tools != null && !readOnly;
-  const webDialog = hasTools && Platform.OS === "web";
+  const modal = hasTools || centered;
+  const webDialog = modal && Platform.OS === "web";
   const stackSheetHeader = hasTools && width < 380;
   const tabs = hasTools ? TABS_WITH_TOOLS : TABS;
   const contents = { adjustments, steps, library, tools };
   useCourtSheetFocus(webDialog && open, dialogId, onRequestClose, triggerRef);
   const tabList = (
-    <View accessibilityRole="tablist" accessibilityLabel="Áreas da jogada" style={[styles.tabs, hasTools && (stackSheetHeader ? styles.stackedSheetTabs : styles.sheetTabs), { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+    <View accessibilityRole="tablist" accessibilityLabel="Áreas da jogada" style={[styles.tabs, modal && (stackSheetHeader ? styles.stackedSheetTabs : styles.sheetTabs), { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
       {tabs.map(([value, label]) => {
         const unavailable = disabled || (readOnly && value === "library");
         return <Pressable suppressWebHoverFeedback disableWebPressScale key={value} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: tab === value, disabled: unavailable }} aria-selected={tab === value} {...(webDialog ? { nativeID: `${dialogId}-tab-${value}`, "aria-controls": `${dialogId}-${value}`, tabIndex: !unavailable && tab === value ? 0 : -1, dataSet: { courtSheetTab: value } } : {})} disabled={unavailable} onPress={() => { if (!unavailable) onTabChange(value); }} style={({ hovered, pressed }) => [styles.tab, hasTools ? styles.sheetTab : mobile ? { minHeight: compactWeb ? 28 : 36 } : null, { backgroundColor: tab === value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
@@ -145,22 +148,22 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
   );
 
   return <>
-    {open ? <Pressable accessibilityRole={hasTools ? undefined : "button"} accessibilityLabel={hasTools ? undefined : "Fechar controles da jogada"} aria-hidden={hasTools || undefined} focusable={hasTools ? false : undefined} {...(webDialog ? { tabIndex: -1, dataSet: { courtSheetBackdrop: "true" } } : {})} suppressWebHoverFeedback disableWebPressScale onPress={onRequestClose} style={styles.backdrop} /> : null}
-    {motion.mounted ? <Animated.View accessibilityLabel="Painel da jogada" {...(hasTools ? { nativeID: dialogId, role: "dialog", "aria-modal": open, tabIndex: -1 } : {})} pointerEvents={open ? "auto" : "none"} accessibilityElementsHidden={!open} importantForAccessibility={open ? "auto" : "no-hide-descendants"} aria-hidden={!open} {...(Platform.OS === "web" ? { inert: !open } : {})} style={[styles.panel, { width: panelWidth, height: panelHeight, right, top: mobile ? undefined : top, bottom: panelBottom, paddingTop: hasTools ? spacing.xs : mobile ? panelHeader : 14, paddingHorizontal: compactWeb ? 12 : 16, opacity: motion.style.opacity, transform: [...motion.style.transform, { scale }], transformOrigin: "top right", borderColor: colors.border, backgroundColor: colors.surface }, shadow.elevated]}>
-      {hasTools ? <View style={[styles.sheetHeader, stackSheetHeader && styles.stackedSheetHeader]}>
-        {tabList}
-        <Pressable accessibilityRole="button" accessibilityLabel="Fechar controles da jogada" {...(webDialog ? { dataSet: { courtSheetClose: "true" } } : {})} suppressWebHoverFeedback disableWebPressScale onPress={onRequestClose} style={({ hovered, pressed }) => [styles.close, { backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent" }]}>
+    {open ? <Pressable accessibilityRole={modal ? undefined : "button"} accessibilityLabel={modal ? undefined : "Fechar controles da jogada"} aria-hidden={modal || undefined} focusable={modal ? false : undefined} {...(webDialog ? { tabIndex: -1, dataSet: { courtSheetBackdrop: "true" } } : {})} suppressWebHoverFeedback disableWebPressScale onPress={onRequestClose} style={[styles.backdrop, centered && { backgroundColor: "rgba(0,0,0,0.5)", zIndex: 59 }]} /> : null}
+    {motion.mounted ? <Animated.View accessibilityLabel={centered ? "Biblioteca da quadra" : "Painel da jogada"} accessibilityViewIsModal={centered && open} {...(modal ? { nativeID: dialogId, role: "dialog", "aria-modal": open, tabIndex: -1 } : {})} pointerEvents={open ? "auto" : "none"} accessibilityElementsHidden={!open} importantForAccessibility={open ? "auto" : "no-hide-descendants"} aria-hidden={!open} {...(Platform.OS === "web" ? { inert: !open } : {})} style={[styles.panel, { width: panelWidth, height: panelHeight, right, top: mobile ? undefined : top, bottom: panelBottom, paddingTop: hasTools ? spacing.xs : mobile ? panelHeader : 14, paddingHorizontal: compactWeb ? 12 : 16, opacity: motion.style.opacity, transform: [...motion.style.transform, { scale }], transformOrigin: "top right", borderColor: colors.border, backgroundColor: colors.surface }, centered && { zIndex: 60, height: libraryHeight, right: (width - panelWidth) / 2, top: (height - libraryHeight) / 2, bottom: undefined, transform: motion.style.transform }, shadow.elevated]}>
+      {modal ? <View style={[styles.sheetHeader, stackSheetHeader && styles.stackedSheetHeader]}>
+        {centered ? <Text accessibilityRole="header" style={{ flex: 1, color: colors.text, fontSize: 16, fontWeight: "600" }}>Biblioteca</Text> : tabList}
+        <Pressable accessibilityRole="button" accessibilityLabel={centered ? "Fechar Biblioteca" : "Fechar controles da jogada"} {...(webDialog ? { dataSet: { courtSheetClose: "true" } } : {})} suppressWebHoverFeedback disableWebPressScale onPress={onRequestClose} style={({ hovered, pressed }) => [styles.close, { backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent" }]}>
           <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
         </Pressable>
       </View> : tabList}
       {tabs.map(([value, label]) => {
         const active = open && tab === value;
-        return <View key={value} accessibilityLabel={`Conteúdo: ${label}`} {...(webDialog ? { nativeID: `${dialogId}-${value}`, role: "tabpanel", "aria-labelledby": `${dialogId}-tab-${value}` } : {})} pointerEvents={active ? "auto" : "none"} accessibilityElementsHidden={!active} importantForAccessibility={active ? "auto" : "no-hide-descendants"} aria-hidden={!active} {...(Platform.OS === "web" ? { inert: !active } : {})} style={[styles.content, { display: tab === value ? "flex" : "none" }]}>
+        return <View key={value} accessibilityLabel={`Conteúdo: ${label}`} {...(webDialog && !centered ? { nativeID: `${dialogId}-${value}`, role: "tabpanel", "aria-labelledby": `${dialogId}-tab-${value}` } : {})} pointerEvents={active ? "auto" : "none"} accessibilityElementsHidden={!active} importantForAccessibility={active ? "auto" : "no-hide-descendants"} aria-hidden={!active} {...(Platform.OS === "web" ? { inert: !active } : {})} style={[styles.content, { display: tab === value ? "flex" : "none" }]}>
           {contents[value]}
         </View>;
       })}
     </Animated.View> : null}
-    {!hasTools && (!readOnly || open) ? <Animated.View testID="court-panel-toggle-frame" style={[styles.toggleFrame, { right: mobile ? (width - gripWidth) / 2 : right, top: mobile ? undefined : Math.min(top + 300 * scale, height / 2 + 56 * scale) - 32 * scale, bottom: mobile ? panelBottom ?? bottom : undefined, width: mobile ? gripWidth : 32, height: mobile ? gripHeight : 64, transform: [mobile ? { translateY: motion.progress.interpolate({ inputRange: [0, 1], outputRange: [0, -(panelHeight - panelHeader)] }) } : { translateX: motion.progress.interpolate({ inputRange: [0, 1], outputRange: [0, -(panelWidth + 8) * scale] }) }, { scale }], transformOrigin: "top right" }]}>
+    {!modal && (!readOnly || open) ? <Animated.View testID="court-panel-toggle-frame" style={[styles.toggleFrame, { right: mobile ? (width - gripWidth) / 2 : right, top: mobile ? undefined : Math.min(top + 300 * scale, height / 2 + 56 * scale) - 32 * scale, bottom: mobile ? panelBottom ?? bottom : undefined, width: mobile ? gripWidth : 32, height: mobile ? gripHeight : 64, transform: [mobile ? { translateY: motion.progress.interpolate({ inputRange: [0, 1], outputRange: [0, -(panelHeight - panelHeader)] }) } : { translateX: motion.progress.interpolate({ inputRange: [0, 1], outputRange: [0, -(panelWidth + 8) * scale] }) }, { scale }], transformOrigin: "top right" }]}>
       <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel={open ? "Recolher controles" : "Abrir controles"} accessibilityState={{ expanded: open }} hitSlop={compactWeb ? { top: 6, bottom: 6 } : undefined} onPress={onToggle} style={({ hovered, pressed }) => [styles.toggle, mobile ? { borderRadius: radius.full, borderWidth: open ? 0 : 1 } : null, { backgroundColor: hovered || pressed ? colors.secondaryBg : mobile && open ? "transparent" : colors.surface, borderColor: colors.border }]}>
         {mobile ? <View pointerEvents="none" style={[styles.grip, compactWeb ? { width: 28 } : null, { backgroundColor: colors.muted }]} /> : <GoAtletaIcon name={open ? "chevronForward" : "chevronBack"} size={16} color={colors.primaryBg} />}
       </Pressable>

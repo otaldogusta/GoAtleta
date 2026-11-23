@@ -8,6 +8,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#09090f;scr
 canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
 #labels{position:absolute;inset:0;pointer-events:none}
 .actor-label{position:absolute;transform:translate(-50%,-100%);border:0;background:#0a112366;color:#e4edfa;padding:3px 5px;border-radius:5px;font:12px Arial,sans-serif;pointer-events:auto;cursor:pointer;white-space:nowrap}
+.actor-position{position:absolute;transform:translateX(-50%);background:#0a1123e6;color:#e4edfa;border-radius:999px;min-width:19px;text-align:center;padding:2px;font:600 11px/15px Arial,sans-serif;pointer-events:none}
 .actor-label:focus-visible{outline:2px solid #8fbeff;outline-offset:2px}
 .actor-label[data-hovered=true]{background:#224263aa;color:#fff}
 .guide-handle{position:absolute;z-index:5;width:44px;height:44px;padding:0;transform:translate(-50%,-50%);touch-action:none;cursor:grab;background:transparent;border:0;border-radius:50%;pointer-events:auto}
@@ -38,5 +39,5 @@ canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
 <div id="net-warnings" aria-label="Avisos das trajetórias" aria-live="off"></div>
 <output id="simulation-feedback" aria-live="polite" hidden></output>
 <div id="error" hidden role="status"></div>
-<script type="module" src="./renderer.mjs?v=defense-attack-trace-20261120"></script>
+<script type="module" src="./renderer.mjs?v=cmu-p1-20261123"></script>
 </html>

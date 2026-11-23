@@ -1,11 +1,12 @@
 import {isWorldPoint} from './renderer-geometry.mjs';
+import {NET_TOP,NET_BOTTOM,NET_WIDTH,TOP_BAND_HEIGHT,BOTTOM_BAND_HEIGHT,TOP_BAND_DEPTH,BOTTOM_BAND_DEPTH} from './court-net.js';
 
 // The visible mesh and the two BoxGeometry tapes in renderer.mjs. No ball radius,
 // posts, antennas or volleyball-rule envelope is added to this visual contact test.
 export const RENDERED_NET_BOUNDS=Object.freeze([
- {part:'mesh',min:{x:-5.25,y:1.43,z:0},max:{x:5.25,y:2.43,z:0}},
- {part:'top-tape',min:{x:-5.275,y:2.43-.065/2,z:-.035/2},max:{x:5.275,y:2.43+.065/2,z:.035/2}},
- {part:'bottom-tape',min:{x:-5.275,y:1.43-.025/2,z:-.025/2},max:{x:5.275,y:1.43+.025/2,z:.025/2}},
+ {part:'mesh',min:{x:-NET_WIDTH/2,y:NET_BOTTOM,z:0},max:{x:NET_WIDTH/2,y:NET_TOP,z:0}},
+ {part:'top-tape',min:{x:-NET_WIDTH/2,y:NET_TOP-TOP_BAND_HEIGHT,z:-TOP_BAND_DEPTH/2},max:{x:NET_WIDTH/2,y:NET_TOP,z:TOP_BAND_DEPTH/2}},
+ {part:'bottom-tape',min:{x:-NET_WIDTH/2,y:NET_BOTTOM,z:-BOTTOM_BAND_DEPTH/2},max:{x:NET_WIDTH/2,y:NET_BOTTOM+BOTTOM_BAND_HEIGHT,z:BOTTOM_BAND_DEPTH/2}},
 ]);
 const epsilon=1e-9;
 function segmentBox(a,b,bounds){

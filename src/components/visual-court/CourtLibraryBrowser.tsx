@@ -27,7 +27,7 @@ export function CourtLibraryBrowser(props: Props) {
   const compact = props.compact ?? false;
   const filtered = Boolean(props.query || props.favorites || props.onlyLesson);
   return <View style={styles.browser}>
-    <View style={[styles.search, compact ? { minHeight: 34 } : null, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+    <View {...{ dataSet: { courtLibrarySearch: "true" } }} style={[styles.search, compact ? { minHeight: 34 } : null, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
       <GoAtletaIcon name="search" size={17} color={colors.muted} />
       <TextInput accessibilityLabel="Buscar na biblioteca" placeholder="Buscar jogadas" placeholderTextColor={colors.muted} value={props.query} onChangeText={props.onQuery} style={{ flex: 1, minHeight: compact ? 32 : 44, color: colors.text, fontSize: compact ? 12 : 14, borderRadius: 0 }} />
     </View>

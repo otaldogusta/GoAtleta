@@ -1,7 +1,9 @@
+import { middleAttackColor } from "./court-simulation/attack-settings.js";
 import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep } from "./visual-court";
 import { actorPoint, courtSelectionElevation, courtTrajectoryHeightTargets, drawingAtProgress, frameDrawings, pointAlong, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
 import { courtTrajectoryHeightAt, courtTrajectoryHeights, parseCourtTrajectoryHeights, type CourtTrajectoryHandleKind, type CourtTrajectoryHeights } from "./court-arrow-trajectory";
-import { sampleCourtSimulation } from "./court-simulation";
+import { receptionPlayerIdentity, receptionServerIdentity, sampleCourtSimulation } from "./court-simulation";
+import type { CourtSimulationActor } from "./court-simulation-model";
 import { courtDrawingTraceProgress } from "./court-simulation-display";
 import { buildCourtPerspectiveSimulation, type CourtPerspectiveSimulation } from "./court-perspective-guides";
 import { projectCourtBlockShadow } from "./court-block-shadow";
@@ -12,6 +14,7 @@ export type CourtPerspectivePoseRole = "setter" | "passer" | "attacker" | "serve
 export type CourtPerspectiveActor = {
   id: string;
   label: string;
+  rotationPosition?: number;
   role: CourtVisualActor["role"];
   color: string;
   locked: boolean;
@@ -30,6 +33,17 @@ export type CourtPerspectiveActor = {
   previousPose?: string;
   previousSide?: boolean;
   poseBlend?: number;
+  contactWeight?: number;
+  attackFrame?: number;
+  runCycle?: number;
+  attackStrideScale?: number;
+  attackLeadIn?: number;
+  attackSlide?: boolean;
+  attackTakeoffDepth?: number;
+  blockFrame?: number;
+  blockMirror?: boolean;
+  feet?: CourtSimulationActor["feet"];
+  feetWeight?: number;
   poseScale?: number;
   crouch?: number;
   extension?: number;
@@ -168,10 +182,13 @@ export function buildCourtPerspectiveFrame(
       const position = path.length ? pointAlong(path, fraction) : actorPoint(payload, index, actor.id);
       const meta = payload.editor?.actorMeta[actor.id];
       const elevation = sampled.has(actor.id) && !authoredFinal ? undefined : courtSelectionElevation(payload, index, actor.id);
-      const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || !/^\d+$/.test(String(actor.label || actor.number || "")));
+      const identity = receptionPlayerIdentity(simulation?.config, actor.id);
+      const server = receptionServerIdentity(simulation?.config, actor);
+      const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || identity || server || !/^\d+$/.test(String(actor.label || actor.number || "")));
       const result: CourtPerspectiveActor = {
-        id: actor.id, label: showLabel ? actor.label || String(actor.number ?? "") : "",
-        role: actor.role, color: actor.color ?? actor.baseColor ?? (meta?.team === "B" ? "#4389ff" : "#19c87b"),
+        id: actor.id, label: showLabel ? identity?.label ?? server?.label ?? (actor.label || String(actor.number ?? "")) : "",
+        ...(showLabel && identity ? { rotationPosition: identity.position } : {}),
+        role: actor.role, color: identity?.color ?? server?.color ?? middleAttackColor(simulation?.config, actor.id) ?? actor.color ?? actor.baseColor ?? (meta?.team === "B" ? "#4389ff" : "#19c87b"),
         locked: Boolean(meta?.locked), position: courtPointToWorld(position, elevation ?? 0),
         ...(elevation !== undefined ? { elevation } : {}),
         facing: heading(path, fraction, position), poseRole: poseRole(actor, step, meta?.team),
@@ -182,7 +199,7 @@ export function buildCourtPerspectiveFrame(
       const action = step.actorActions?.[actor.id];
       if (!state && action) {
         const { role, ...pose } = courtActorActionPose(action);
-        Object.assign(result, pose, { poseRole: role });
+        Object.assign(result, pose, { poseRole: role, ...(action === "attack" ? { mirror: actor.attackHand === "left" } : {}) });
       }
       if (state) {
         const [x, y, z] = state.position;
@@ -193,6 +210,15 @@ export function buildCourtPerspectiveFrame(
           poseRole: state.role, pose: state.pose, jump: state.jump, side: state.side,
           mirror: state.mirror ?? (state.role === "server"), previousPose: state.previousPose,
           previousSide: state.previousSide, poseBlend: state.poseBlend,
+          ...(state.contactWeight !== undefined ? { contactWeight: state.contactWeight } : {}),
+          ...(state.attackFrame !== undefined ? { attackFrame: state.attackFrame } : {}),
+          ...(state.runCycle !== undefined ? { runCycle: state.runCycle } : {}),
+          ...(state.attackStrideScale !== undefined ? { attackStrideScale: state.attackStrideScale } : {}),
+          ...(state.attackLeadIn ? { attackLeadIn: state.attackLeadIn } : {}),
+          ...(state.attackSlide ? { attackSlide: true } : {}),
+          ...(state.attackTakeoffDepth !== undefined ? { attackTakeoffDepth: state.attackTakeoffDepth } : {}),
+          ...(state.feet ? { feet: state.feet, feetWeight: state.feetWeight } : {}),
+          ...(state.blockFrame !== undefined ? { blockFrame: state.blockFrame, blockMirror: state.blockMirror } : {}),
           crouch: state.crouch, extension: state.extension, handAngle: state.handAngle,
           poseScale: state.role === "server" ? 1 : simulation!.mode === "receive" ? .9 : state.role === "setter" ? .86 : state.role === "passer" ? .96 : .9,
           path: [],

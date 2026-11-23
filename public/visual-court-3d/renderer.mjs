@@ -1,7 +1,7 @@
 import * as THREE from './three.module.min.js';
-import {createActorRig} from './actor-rig.mjs';
+import {createActorRig} from './actor-rig.mjs?v=cmu-p1-20261123';
 import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail,shouldCancelFrameGesture} from './renderer-geometry.mjs';
-import {isHeightHandle,previewAttackCurve,simulationHandleEdit} from './renderer-simulation-geometry.mjs';
+import {isHeightHandle,previewAttackCurve,previewServeTarget,simulationHandleEdit} from './renderer-simulation-geometry.mjs?v=serve-target-preview-20261123';
 import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
 import {renderPixelRatio,syncRendererResolution} from './renderer-resolution.mjs';
 import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs';
@@ -12,7 +12,8 @@ import {targetPickSurface,pickCourtObject,pickCourtHit,pickCourtTouchHit,courtHo
 import {courtSolidMaterial,createContactShadow,updateContactShadow} from './renderer-appearance.mjs';
 import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs';
 import {trajectoryStroke,trajectoryTipDirection,createTrajectorySelection,trajectoryHandleTarget,trajectoryHandlePoint,trajectoryControlLayout,trajectoryHeightValue,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,shouldCancelTrajectoryDrag,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs?v=defense-attack-trace-20261120';
-import {renderedNetContact,showsNetWarning,netWarningLayout} from './renderer-net-warning.mjs?v=net-warning-above-20261112';
+import {renderedNetContact,showsNetWarning,netWarningLayout} from './renderer-net-warning.mjs?v=net-floor-20261122';
+import {BALL_RADIUS,NET_TOP,NET_BOTTOM,NET_WIDTH,TOP_BAND_HEIGHT,BOTTOM_BAND_HEIGHT,TOP_BAND_DEPTH,BOTTOM_BAND_DEPTH,TOP_BAND_CENTER,BOTTOM_BAND_CENTER} from './court-net.js';
 
 // This surface renders the parent editor's frame. It has no document, timeline,
 // presets, persistence or undo stack. Only camera and uncommitted gestures live here.
@@ -74,26 +75,45 @@ function hoverObject(id,pointerType){
 }
 
 const apron=mesh(new THREE.PlaneGeometry(18,28),material('#090c13'));apron.rotation.x=-Math.PI/2;
-const court=mesh(new THREE.PlaneGeometry(9,18),material('#0a1123'));court.rotation.x=-Math.PI/2;court.position.y=.005;
+const court=mesh(new THREE.PlaneGeometry(9,18),material('#0a1123',{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));court.rotation.x=-Math.PI/2;
 const courtGroup=new THREE.Group();scene.add(courtGroup);
-for(const z of [-9,-3,0,3,9])line([[-4.5,.012,z],[4.5,.012,z]],'#456397',false,courtGroup);
+for(const z of [-9,0,9])line([[-4.5,.012,z],[4.5,.012,z]],'#456397',false,courtGroup);
 for(const x of [-4.5,4.5])line([[x,.012,-9],[x,.012,9]],'#456397',false,courtGroup);
+// Floor strips keep a visible width at oblique camera angles. All 22 marks
+// share one draw call, with normal depth testing against the players and net.
+const attackMarks=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,.05).rotateX(-Math.PI/2),
+ new THREE.MeshBasicMaterial({color:'#8ca8d4',polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),22);
+const markTransform=new THREE.Matrix4();
+let markIndex=0;
+for(const z of [-3,3]){
+ attackMarks.setMatrixAt(markIndex++,markTransform.makeScale(9,1,1).setPosition(0,.02,z));
+ // Five 15 cm marks separated by 20 cm on each side, as in the 2D court.
+ for(const side of [-1,1])for(let i=0;i<5;i++){
+  const center=4.5+.20+.075+i*.35;
+  attackMarks.setMatrixAt(markIndex++,markTransform.makeScale(.15,1,1).setPosition(side*center,.02,z));
+ }
+}
+courtGroup.add(attackMarks);
 line([[-9,.01,-14],[9,.01,-14],[9,.01,14],[-9,.01,14],[-9,.01,-14]],'#242934');
 const grid=new THREE.Group();scene.add(grid);
 for(let x=-4;x<4.5;x+=.5)line([[x,.015,-9],[x,.015,9]],'#6687b4',false,grid,.12);
 for(let z=-8.5;z<9;z+=.5)line([[-4.5,.015,z],[4.5,.015,z]],'#6687b4',false,grid,.12);
 grid.visible=false;
 const net=new THREE.Group();scene.add(net);
-const netSurface=mesh(new THREE.PlaneGeometry(10.5,1),material('#98a7c1',{transparent:true,opacity:.17,side:THREE.DoubleSide,depthWrite:false}),net);netSurface.position.y=1.93;
-for(let x=-5.25;x<5.26;x+=.25)line([[x,1.43,0],[x,2.43,0]],'#8b97ad',false,net,.025);
-for(let y=1.43;y<2.44;y+=.2)line([[-5.25,y,0],[5.25,y,0]],'#8b97ad',false,net,.025);
+const netCenter=(NET_TOP+NET_BOTTOM)/2,netHalfWidth=NET_WIDTH/2;
+const netSurface=mesh(new THREE.PlaneGeometry(NET_WIDTH,NET_TOP-NET_BOTTOM),material('#98a7c1',{transparent:true,opacity:.17,side:THREE.DoubleSide,depthWrite:false}),net);netSurface.position.y=netCenter;
+const strands=[];
+for(let i=0;i<=100;i++)strands.push(new THREE.Vector3(i*.1-netHalfWidth,NET_BOTTOM,0),new THREE.Vector3(i*.1-netHalfWidth,NET_TOP,0));
+for(let i=1;i<10;i++)strands.push(new THREE.Vector3(-netHalfWidth,NET_BOTTOM+i*.1,0),new THREE.Vector3(netHalfWidth,NET_BOTTOM+i*.1,0));
+net.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(strands),new THREE.LineBasicMaterial({color:'#8b97ad',transparent:true,opacity:.08})));
 const tape=courtSolidMaterial('#b5bdc9'),postMaterial=courtSolidMaterial('#b5bdc9','post');
-mesh(new THREE.BoxGeometry(10.55,.065,.035),tape,net).position.y=2.43;
-mesh(new THREE.BoxGeometry(10.55,.025,.025),tape,net).position.y=1.43;
+mesh(new THREE.BoxGeometry(NET_WIDTH,TOP_BAND_HEIGHT,TOP_BAND_DEPTH),tape,net).position.y=TOP_BAND_CENTER;
+mesh(new THREE.BoxGeometry(NET_WIDTH,BOTTOM_BAND_HEIGHT,BOTTOM_BAND_DEPTH),tape,net).position.y=BOTTOM_BAND_CENTER;
 for(const x of [-5.35,5.35]){
- mesh(new THREE.CylinderGeometry(.035,.045,2.6,10),postMaterial,net).position.set(x,1.3,0);
- mesh(new THREE.BoxGeometry(.045,1,.03),tape,net).position.set(Math.sign(x)*4.5,1.93,0);
- for(let j=0;j<16;j++)mesh(new THREE.CylinderGeometry(.014,.014,.1,6),courtSolidMaterial(j%2?'#df5d64':'#dfe2e5'),net).position.set(Math.sign(x)*4.5,1.73+j*.1,0);
+ mesh(new THREE.CylinderGeometry(.035,.045,2.55,10),postMaterial,net).position.set(x,2.55/2,0);
+ mesh(new THREE.BoxGeometry(.05,1,.03),tape,net).position.set(Math.sign(x)*4.5,netCenter,0);
+ mesh(new THREE.CylinderGeometry(.005,.005,1,6),tape,net).position.set(Math.sign(x)*4.525,netCenter,0);
+ for(let j=0;j<8;j++)mesh(new THREE.CylinderGeometry(.005,.005,.1,6),courtSolidMaterial(j%2?'#df5d64':'#dfe2e5'),net).position.set(Math.sign(x)*4.525,NET_TOP+.05+j*.1,0);
 }
 const loader=new THREE.TextureLoader();
 const ballTexture=loader.load('./reference/ball.webp',texture=>{texture.colorSpace=THREE.SRGBColorSpace;invalidate();});
@@ -110,16 +130,20 @@ function makeActor(actor){
  label.addEventListener('pointerenter',event=>hoverObject(actor.id,event.pointerType));
  label.addEventListener('pointermove',event=>{if(!event.buttons)hoverObject(actor.id,event.pointerType);});
  label.addEventListener('pointerleave',()=>{if(hoveredId===actor.id)clearHover();});
- const result={group,shadow,rig,selection,label,height:1.9};actorMap.set(actor.id,result);return result;
+ const positionBadge=document.createElement("span");
+ positionBadge.className="actor-position";positionBadge.hidden=true;positionBadge.setAttribute("aria-hidden","true");labels.append(positionBadge);
+ const result={group,shadow,rig,selection,label,positionBadge,height:1.9};actorMap.set(actor.id,result);return result;
 }
-function applyActor(actor,object,contactBall){
+function applyActor(actor,object,contactBall,attackImpact){
  object.group.position.set(actor.position.x,actor.position.y,actor.position.z);
  updateContactShadow(object.shadow,actor.position.y,actor.position.y+Math.max(0,actor.jump||0));
  const tint=colorOf(actor.color);
  object.rig.group.traverse(child=>{if(child.material?.color)child.material.color.set(tint);});
- const contactTarget=actor.pose==='contact'||actor.poseRole==='server'&&['ready','toss'].includes(actor.pose)?contactBall:undefined;
+ const contactTarget=actor.poseRole==='attacker'&&actor.contactWeight!==undefined?attackImpact:
+  actor.pose==='contact'||actor.previousPose==='contact'&&(actor.poseBlend??1)<1||
+  actor.poseRole==='server'&&(['ready','toss'].includes(actor.pose)||['ready','toss'].includes(actor.previousPose)&&(actor.poseBlend??1)<1)?contactBall:undefined;
  object.rig.update(contactTarget?{...actor,contactTarget}:actor);object.height=object.rig.height;
- object.group.visible=!frame.hide.includes('actors');object.selection.visible=frame.selected.includes(actor.id);object.label.textContent=actor.label;object.label.setAttribute('aria-label',`Selecionar jogador ${actor.label}`);object.label.setAttribute('aria-pressed',String(frame.selected.includes(actor.id)));object.label.disabled=packet.disabled;object.label.dataset.hovered=String(hoveredId===actor.id);
+ object.group.visible=!frame.hide.includes('actors');object.selection.visible=frame.selected.includes(actor.id);object.label.textContent=actor.label;object.label.setAttribute('aria-label',`Selecionar jogador ${actor.label}${actor.rotationPosition ? ` · posição ${actor.rotationPosition}` : ""}`);object.label.setAttribute('aria-pressed',String(frame.selected.includes(actor.id)));object.label.disabled=packet.disabled;object.label.dataset.hovered=String(hoveredId===actor.id);
 }
 function makeText(text,color,size){
  const bitmap=document.createElement('canvas');bitmap.width=1024;bitmap.height=192;const context=bitmap.getContext('2d');context.font='600 64px Arial';context.textAlign='center';context.textBaseline='middle';context.fillStyle=color;context.fillText(String(text||'Anotação').slice(0,200),512,96,1000);
@@ -133,9 +157,20 @@ function buildDrawing(drawing){
   const stroke=['arrow','curve'].includes(drawing.kind)?trajectoryStroke(drawing,Boolean(packet?.landscape)):points;
   if(!stroke.length)return group;
   line(drawing.kind==='area'?[...stroke,stroke[0]]:stroke,color,Boolean(drawing.dashed),group);
-  if(drawing.kind==='area'&&points.length>2){const shape=new THREE.Shape(points.map(p=>new THREE.Vector2(p.x,-p.z))),fill=mesh(new THREE.ShapeGeometry(shape),material(color,{transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}),group);fill.rotation.x=-Math.PI/2;fill.position.y=first.y-.005;}
+  if(drawing.kind==='area'&&points.length>2){
+   // The original Defense board used this generated ID for the same editable area.
+   const blockShadow=drawing.id==='defense-block-shadow'||drawing.id==='board_mwecn3c3_goz1ka3k';
+   const shape=new THREE.Shape(points.map(p=>new THREE.Vector2(p.x,-p.z)));
+   // Give the shadow priority over the offset court floor at grazing angles.
+   const fill=mesh(new THREE.ShapeGeometry(shape),material(color,{
+    transparent:true,opacity:blockShadow?.52:.2,side:THREE.DoubleSide,depthWrite:false,
+    ...(blockShadow?{polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}:{})
+   }),group);
+   fill.rotation.x=-Math.PI/2;
+   fill.position.y=first.y-.005;
+  }
   if(['arrow','curve'].includes(drawing.kind)&&stroke.length>1){const direction=trajectoryTipDirection(stroke,drawing.traceProgress!==undefined);if(direction){const cone=mesh(new THREE.ConeGeometry(.09,.28,12),material(color),group);cone.position.copy(vector(stroke.at(-1)));cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction);}}
- }else if(drawing.kind==='ball')mesh(new THREE.SphereGeometry(.12,24,16),courtSolidMaterial('#ffffff','ball',ballTexture),group).position.copy(vector(first));
+ }else if(drawing.kind==='ball')mesh(new THREE.SphereGeometry(BALL_RADIUS,24,16),courtSolidMaterial('#ffffff','ball',ballTexture),group).position.copy(vector(first));
  else if(drawing.kind==='cone'){const cone=mesh(new THREE.ConeGeometry(size*.45,size,16),courtSolidMaterial(color),group);cone.position.set(first.x,first.y+size*.5,first.z);mesh(new THREE.BoxGeometry(size*1.15,.045,size*1.15),courtSolidMaterial(color),group).position.set(first.x,first.y+.022,first.z);}
  else if(drawing.kind==='target'){for(const radius of [size,size*.5]){const ring=mesh(new THREE.TorusGeometry(radius,.018,8,40),courtSolidMaterial(color),group);ring.rotation.x=-Math.PI/2;ring.position.copy(vector(first));}const pick=targetPickSurface(size,drawing.id);pick.position.copy(vector(first));group.add(pick);}
  else if(drawing.kind==='ladder'){const ladder=new THREE.Group();group.add(ladder);ladder.position.copy(vector(first));ladder.rotation.y=-(drawing.rotation||0)*Math.PI/180;for(const x of [-.62,.62])mesh(new THREE.BoxGeometry(size*.14,.05,size*4),courtSolidMaterial('#263445'),ladder).position.x=x*size;for(const z of [-1.65,-.825,0,.825,1.65])mesh(new THREE.BoxGeometry(size*1.3,.05,size*.16),courtSolidMaterial(color),ladder).position.z=z*size;}
@@ -171,22 +206,31 @@ function updatePaths(){
 }
 function setDraft(drawing){if(draftGroup)dispose(draftGroup);draftGroup=drawing?buildDrawing(drawing):null;if(draftGroup)scene.add(draftGroup);invalidate();}
 let simulationGuides=null,simulationKey='',handleDrag=null;
-const handleButtons=new Map(),handleNames={set:'Altura do levantamento',pass:'Altura do passe',attack:'Curva do ataque',hit:'Contato do ataque',target:'Destino do ataque',serve:'Destino do saque'};
+const handleButtons=new Map(),handleNames={set:'Altura do levantamento',pass:'Altura do passe',attack:'Curva do ataque',hit:'Contato do ataque',target:'Destino do ataque',serve:'Destino do saque','approach-start':'Início da passada','approach-end':'Fim da passada'};
 function updateSimulation(){
- const original=frame.simulation,drag=handleDrag?.kind==='attack'?handleDrag:null;
- const curveEdit=drag?simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y):null;
- const data=original&&curveEdit?previewAttackCurve(original,curveEdit.value):original;
+ const original=frame.simulation,drag=handleDrag,edit=drag?.moved?simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y):null;
+
+ const data=edit?.kind==='attack'?previewAttackCurve(original,edit.value):edit?.kind==='serve'?previewServeTarget(original,edit.point):original;
  if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';delete canvas.dataset.serveNetCrossing;for(const button of handleButtons.values())button.hidden=true;feedback.hidden=true;return;}
- const key=data===original?data.guideKey:JSON.stringify([data.guideKey,'attack-preview',curveEdit.value]);
+ const key=data===original?data.guideKey:JSON.stringify([data.guideKey,edit]);
  if(simulationKey!==key){if(simulationGuides)dispose(simulationGuides);simulationGuides=createSimulationGuides(data);scene.add(simulationGuides);simulationKey=key;const crossing=serveNetCrossing(simulationGuides);if(crossing)canvas.dataset.serveNetCrossing=JSON.stringify(crossing);else delete canvas.dataset.serveNetCrossing;}
  simulationGuides.visible=data.guidesVisible&&!frame.hide.includes('movements');
+ const approach=simulationGuides.getObjectByName('approach');
+ if(approach&&['approach-start','approach-end'].includes(handleDrag?.kind)){
+  const edit=simulationHandleEdit(handleDrag.handle,handleDrag.last);
+  if(edit){
+   const positions=approach.geometry.attributes.position;
+   positions.setXYZ(edit.kind==='approach-start'?0:1,edit.point.x,edit.point.y,edit.point.z);
+   positions.needsUpdate=true;approach.geometry.computeBoundingSphere();approach.computeLineDistances();
+  }
+ }
  for(const marker of simulationGuides.children)if(marker.userData.contactTime!==undefined){const elapsed=data.elapsedSeconds-marker.userData.contactTime,pulse=elapsed>=0?Math.exp(-elapsed*12):0;marker.scale.setScalar(1+pulse*.7);marker.material.opacity=.65+pulse*.35;}
  feedback.hidden=!data.outcome;if(feedback.textContent!==data.outcome)feedback.textContent=data.outcome;feedback.dataset.blocked=String(data.blocked);
  const handles=new Map((data.handles||[]).map(handle=>[handle.kind,handle]));
  for(const [kind,name] of Object.entries(handleNames)){
   let button=handleButtons.get(kind);if(!button){button=makeGuideHandle(kind,name);handleButtons.set(kind,button);handleLayer.append(button);}
-  const handle=handles.get(kind),at=handleDrag?.kind===kind&&kind!=='attack'?handleDrag.last:handle?.point,position=at?project(vector(at)):null;
-  button.hidden=!handle||!data.guidesVisible||!packet.simulationHandles||!position?.visible;button.disabled=packet.disabled&&!(packet.allowServeHandle&&kind==='serve');
+  const handle=handles.get(kind),at=handleDrag?.kind===kind&&kind!=='attack'?simulationHandleEdit(handle,handleDrag.last,handleDrag.last.y-handle.point.y)?.point:handle?.point,position=at?project(vector(at)):null;
+  button.hidden=!handle||!simulationGuides.visible||!packet.simulationHandles||!position?.visible;button.disabled=packet.disabled&&!(packet.allowServeHandle&&kind==='serve');
   if(position){button.style.left=`${position.x}px`;button.style.top=`${position.y}px`;}
  }
 }
@@ -203,6 +247,7 @@ function finishHandle(event,cancelled=false){
  const drag=handleDrag;if(!drag||drag.pointerId!==event.pointerId)return;
  if(!cancelled)updateHandlePoint(event);
  handleDrag=null;
+ if(drag.kind==='approach-start'||drag.kind==='approach-end')simulationKey='';
  if(!cancelled&&drag.moved&&drag.revision===revision&&(!packet.disabled||packet.allowServeHandle&&drag.kind==='serve')){const edit=simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y);if(edit&&(edit.value===undefined||Math.abs(edit.value-drag.handle.value)>1e-8))emit('simulation-handle',edit,drag.revision);}
  invalidate();
 }
@@ -488,15 +533,23 @@ function render(now){pending=0;if(!frame||!active||!renderer||document.hidden||l
   const next=integrateCameraMotion({azimuth,elevation},cameraMotion,Math.max(0,now-cameraMotionTime));
   azimuth=next.azimuth;elevation=next.elevation;cameraMotion=next.motion;cameraMotionTime=Math.max(now,cameraMotionTime);updateCamera();
  }
- if(renderer.getPixelRatio()!==renderPixelRatio(devicePixelRatio))resize();pickTargets.length=0;const actorIds=new Set(frame.actors.map(a=>a.id));for(const [id,object] of actorMap)if(!actorIds.has(id)){object.label.remove();dispose(object.group);actorMap.delete(id);}
+ if(renderer.getPixelRatio()!==renderPixelRatio(devicePixelRatio))resize();pickTargets.length=0;const actorIds=new Set(frame.actors.map(a=>a.id));for(const [id,object] of actorMap)if(!actorIds.has(id)){object.label.remove();object.positionBadge.remove();dispose(object.group);actorMap.delete(id);}
  const displayFrame=trajectoryDisplayFrame(previewCourtObjects(frame,preview,elevationDrag||pendingElevationPreview));
  const contactBall=displayFrame.simulation?(displayFrame.drawings.find(drawing=>drawing.id===displayFrame.simulation.ballId)?.points[0]||displayFrame.simulation.ball):undefined;
- for(const actor of displayFrame.actors){const object=actorMap.get(actor.id)||makeActor(actor);applyActor(actor,object,contactBall);if(object.group.visible&&!actor.illustration)pickTargets.push(object.rig.group);const point=object.group.position.clone();point.y+=object.height+.18;const screen=project(point);object.label.hidden=!actor.label||!object.group.visible||!screen.visible;object.label.style.left=`${screen.x}px`;object.label.style.top=`${screen.y}px`;}
+ // On the editable defense tableau the ball can already be moving under the pointer.
+ const attackImpact=displayFrame.simulation?.mode==='defense' && displayFrame.progress===1 ? contactBall
+  : displayFrame.simulation?.markers?.find(marker=>marker.id==='hit'||marker.id==='defense-hit')?.point;
+ for(const actor of displayFrame.actors){const object=actorMap.get(actor.id)||makeActor(actor);applyActor(actor,object,contactBall,attackImpact);if(object.group.visible&&!actor.illustration)pickTargets.push(object.rig.group);const point=object.group.position.clone();point.y+=object.height+.18;const screen=project(point);object.label.hidden=!actor.label||!object.group.visible||!screen.visible;object.label.style.left=`${screen.x}px`;object.label.style.top=`${screen.y}px`;
+  const badge=object.positionBadge;
+  const feet=actor.rotationPosition&&object.group.visible?project(object.group.position):null;
+  badge.hidden=!feet?.visible;
+  if(feet?.visible){badge.textContent=String(actor.rotationPosition);badge.style.left=`${feet.x}px`;badge.style.top=`${feet.y+9}px`;}
+ }
  updateDrawings(displayFrame.drawings);updatePaths();updateSimulation();updateElevationHandle(displayFrame);updateTrajectoryHandles(displayFrame);updateAreaHandles(displayFrame);grid.visible=Boolean(packet.grid)&&frame.court&&!packet.plain;court.visible=courtGroup.visible=Boolean(frame.court)&&!packet.plain;net.visible=Boolean(frame.net)&&!packet.plain;for(const object of drawingMap.values())if(object.group.visible)pickTargets.push(object.group);
  updateNetWarnings(displayFrame);
  if(hoveredId)hoverPainter.paint(actorMap.get(hoveredId)?.group||drawingMap.get(hoveredId)?.group);
  renderer.render(scene,camera);selectionAnchor(displayFrame);canvas.dataset.stepId=frame.stepId;canvas.dataset.progress=String(frame.progress);canvas.dataset.actorPositions=JSON.stringify(frame.actors.map(a=>({id:a.id,position:a.position})));canvas.dataset.renderedPositions=JSON.stringify([...actorMap.entries()].map(([id,a])=>({id,position:{x:a.group.position.x,y:a.group.position.y,z:a.group.position.z}})));canvas.dataset.selected=JSON.stringify(frame.selected);canvas.dataset.revision=String(revision);
- canvas.dataset.ballPosition=frame.simulation?JSON.stringify(frame.simulation.ball):'';canvas.dataset.simulationMode=frame.simulation?.mode||'';canvas.dataset.simulationDuration=String(frame.simulation?.duration||0);canvas.dataset.simulationOutcome=frame.simulation?.outcome||'';canvas.dataset.actorPoses=JSON.stringify(frame.actors.map(actor=>({id:actor.id,role:actor.poseRole,pose:actor.pose,jump:actor.jump,extension:actor.extension,handAngle:actor.handAngle})));
+ canvas.dataset.ballPosition=frame.simulation?JSON.stringify(frame.simulation.ball):'';canvas.dataset.simulationMode=frame.simulation?.mode||'';canvas.dataset.simulationDuration=String(frame.simulation?.duration||0);canvas.dataset.simulationOutcome=frame.simulation?.outcome||'';canvas.dataset.actorPoses=JSON.stringify(frame.actors.map(actor=>({id:actor.id,role:actor.poseRole,pose:actor.pose,jump:actor.jump,extension:actor.extension,handAngle:actor.handAngle,runCycle:actor.runCycle})));
  canvas.dataset.camera=JSON.stringify({azimuth,elevation,distance,target:target.toArray()});
  if(cameraMotion)invalidate();
 }
@@ -521,7 +574,7 @@ function holdTrajectoryPreview(drag){
  clearPendingTrajectoryPreview();pendingTrajectoryPreview={...drag,point:{...drag.point},...(drag.destination?{destination:{...drag.destination}}:{})};
  const held=pendingTrajectoryPreview;pendingTrajectoryTimer=setTimeout(()=>{if(pendingTrajectoryPreview===held){clearPendingTrajectoryPreview();invalidate();}},1200);
 }
-function cancelGesture(preserveContacts=false,forgetContacts=false){clearHover();stopCameraMotion();clearPendingMovePreview();clearPendingElevationPreview();clearPendingTrajectoryPreview();gesture=null;preview=null;handleDrag=null;elevationDrag=null;trajectoryDrag=null;touchCamera=null;if(!preserveContacts)touchContacts=forgetContacts?emptyTouchContacts():cancelTouchContacts(touchContacts);setDraft(null);canvas.style.cursor='default';invalidate();}
+function cancelGesture(preserveContacts=false,forgetContacts=false){clearHover();stopCameraMotion();clearPendingMovePreview();clearPendingElevationPreview();clearPendingTrajectoryPreview();gesture=null;preview=null;if(handleDrag?.kind?.startsWith('approach-'))simulationKey='';handleDrag=null;elevationDrag=null;trajectoryDrag=null;touchCamera=null;if(!preserveContacts)touchContacts=forgetContacts?emptyTouchContacts():cancelTouchContacts(touchContacts);setDraft(null);canvas.style.cursor='default';invalidate();}
 function cameraDistanceLimits(){return {min:12,max:140};}
 function consumeTouch(event){event.preventDefault();event.stopPropagation();}
 document.addEventListener('pointerdown',event=>{

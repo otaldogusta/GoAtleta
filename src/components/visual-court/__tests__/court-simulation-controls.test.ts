@@ -61,7 +61,7 @@ describe("shared court simulation controls", () => {
 
   it("shows only the authored defense scenario and shared camera controls", async () => {
     const { props } = await panel({ ...config(), mode: "defense" }, "defense");
-    for (const label of ["Saque: Flutuante", "Rodízio P1", "Curva do ataque", "Bloqueadores: 3", "Próxima jogada"]) {
+    for (const label of ["Saque: Flutuante", "Rodízio P1", "Curva da cortada", "Bloqueadores: 3", "Próximo levantamento"]) {
       expect(tree!.root.findAllByProps({ accessibilityLabel: label })).toHaveLength(0);
     }
     expect(tree!.root.findByProps({ accessibilityLabel: "Visão: Frente" })).toBeTruthy();
@@ -97,12 +97,12 @@ describe("shared court simulation controls", () => {
   it("preserves contact targets and manual blockers when changing individual hands", async () => {
     const value = config();
     const { onChange } = await panel(value);
-    press("Mãos do bloqueio: 2");
+    press("Aplicar ângulo das mãos a: 2");
     act(() => tree!.root.findByProps({ accessibilityLabel: "Ângulo das mãos do bloqueio" }).props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
-    expect(onChange).toHaveBeenLastCalledWith({ attackSettings: { ...value.attackSettings, blockAngles: { "2": 31 } } });
-    press("Mãos do bloqueio: Todos");
+    expect(onChange).toHaveBeenLastCalledWith({ attackSettings: { ...value.attackSettings, blockAngles: { "2": 35 } } });
+    press("Aplicar ângulo das mãos a: Todos");
     act(() => tree!.root.findByProps({ accessibilityLabel: "Ângulo das mãos do bloqueio" }).props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
-    expect(onChange).toHaveBeenLastCalledWith({ attackSettings: { ...value.attackSettings, blockAngle: 6, blockAngles: {} } });
+    expect(onChange).toHaveBeenLastCalledWith({ attackSettings: { ...value.attackSettings, blockAngle: 10, blockAngles: {} } });
   });
   it("offers attack rotation selection for a canonical sequence and keeps individual attacks compact", async () => {
     const { props, onChange } = await panel(config(), "attack");
@@ -138,7 +138,7 @@ describe("shared court simulation controls", () => {
   it("commits one native attack curve drag while preserving contact, destination and blockers", async () => {
     const value = config();
     const { onChange } = await panel(value);
-    const range = () => tree!.root.findByProps({ accessibilityLabel: "Curva do ataque" });
+    const range = () => tree!.root.findByProps({ accessibilityLabel: "Curva da cortada" });
     expect(range().props.accessibilityValue).toMatchObject({ min: .03, max: 4, now: .8 });
     expect(range().props.accessibilityValue.text).toMatch(/m/);
     act(() => range().props.onLayout({ nativeEvent: { layout: { width: 100 } } }));
@@ -159,25 +159,25 @@ describe("shared court simulation controls", () => {
 
   it("shows attack curvature only when the attack trajectory is enabled", async () => {
     const { props } = await panel();
-    expect(tree!.root.findAllByProps({ accessibilityLabel: "Curva do ataque" }).filter(node => typeof node.type === "string")).toHaveLength(1);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Curva da cortada" }).filter(node => typeof node.type === "string")).toHaveLength(1);
     act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, config: { ...props.config!, layers: { ...props.config!.layers, attack: false } } })));
-    expect(tree!.root.findAllByProps({ accessibilityLabel: "Curva do ataque" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Curva da cortada" })).toHaveLength(0);
     act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, mode: "receive" })));
-    expect(tree!.root.findAllByProps({ accessibilityLabel: "Curva do ataque" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Curva da cortada" })).toHaveLength(0);
   });
 
   it("uses the effective sampled attack curve until the author overrides it", async () => {
     const value = config(); value.attackSettings.attackArc = null;
     const { props } = await panel(value);
     act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, attackArcValue: .47 })));
-    expect(tree!.root.findByProps({ accessibilityLabel: "Curva do ataque" }).props.accessibilityValue.now).toBe(.47);
+    expect(tree!.root.findByProps({ accessibilityLabel: "Curva da cortada" }).props.accessibilityValue.now).toBe(.47);
   });
 
   it("commits a web attack curve once on pointer release or key release and restores its automatic value", async () => {
     Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
     const value = config();
     const { onChange, props } = await panel(value);
-    const range = () => tree!.root.findByProps({ "aria-label": "Curva do ataque" });
+    const range = () => tree!.root.findByProps({ "aria-label": "Curva da cortada" });
     expect(range().props).toMatchObject({ type: "range", min: .03, max: 4, step: .01, value: .8 });
     expect(range().props["aria-valuetext"]).toMatch(/m/);
     act(() => range().props.onChange({ currentTarget: { value: "1.25" } }));
@@ -210,7 +210,7 @@ describe("shared court simulation controls", () => {
   it("discards a pending web curve when the value or availability changes", async () => {
     Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
     const { props, onChange } = await panel();
-    const range = () => tree!.root.findByProps({ "aria-label": "Curva do ataque" });
+    const range = () => tree!.root.findByProps({ "aria-label": "Curva da cortada" });
     act(() => range().props.onChange({ currentTarget: { value: "2" } }));
     expect(range().props.value).toBe(2);
     act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, disabled: true })));
@@ -236,9 +236,9 @@ describe("shared court simulation controls", () => {
   it("selects presets cyclically and clears only obsolete contact settings", async () => {
     const value = config();
     const { onChange } = await panel(value);
-    press("Jogada anterior");
-    expect(onChange).toHaveBeenLastCalledWith({ preset: "bic", attackSettings: { ...value.attackSettings, hitOverride: null, setHeight: null, attackArc: null } });
-    press("Próxima jogada");
+    press("Levantamento anterior");
+    expect(onChange).toHaveBeenLastCalledWith({ preset: "fundo-1", attackSettings: { ...value.attackSettings, hitOverride: null, setHeight: null, attackArc: null } });
+    press("Próximo levantamento");
     expect(onChange).toHaveBeenLastCalledWith({ preset: "go", attackSettings: { ...value.attackSettings, hitOverride: null, setHeight: null, attackArc: null } });
   });
 

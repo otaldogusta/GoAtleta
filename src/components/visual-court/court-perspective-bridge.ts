@@ -155,10 +155,11 @@ export function parseCourtPerspectiveCommand(value: unknown, context: CourtPersp
   if (value.type === "simulation-handle") {
     if (!fields(["kind", "point", "value"]) || hidden.includes("movements")) return null;
     const simulation = getCourtSimulation(context.payload, context.stepIndex);
-    if (!simulation || !["set", "pass", "attack", "hit", "target", "serve"].includes(String(value.kind))) return null;
+    if (!simulation || !["set", "pass", "attack", "hit", "target", "serve", "approach-start", "approach-end"].includes(String(value.kind))) return null;
     const kind = value.kind as CourtPerspectiveHandleKind;
     if (kind === "serve" ? simulation.mode !== "receive" : simulation.mode !== "attack") return null;
     if (kind === "pass" && !simulation.layers.pass || (kind === "target" || kind === "attack") && !simulation.layers.attack) return null;
+    if ((kind === "approach-start" || kind === "approach-end") && (!simulation.layers.attack || locked(simulation.actorIds[3]))) return null;
     const at = value.point;
     if (!record(at) || !onlyFields(at, ["x", "y", "z"]) || !finite(at.x, -9, 9) || !finite(at.y, 0, 9) || !finite(at.z, -12, 12)) return null;
     const height = kind === "set" || kind === "pass" || kind === "attack";

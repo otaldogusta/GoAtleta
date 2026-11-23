@@ -1,5 +1,6 @@
 import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep } from "./visual-court";
-import { attackFormation, attackPreset, sampleAttack } from "./court-simulation/attack-motion.js";
+import { attackBlockerFormation, attackFormation, attackPreset, sampleAttack } from "./court-simulation/attack-motion.js";
+import { ATTACK_APPROACH_MAX_X, BACK_ROW_JUMP_ADVANCE, BACK_ROW_TAKEOFF_DEPTH, CHINA_JUMP_ADVANCE, isBackRowAttack, isMiddleAttack } from "./court-simulation/attack-settings.js";
 import { receptionFormation } from "./court-simulation/formations.js";
 import { sampleReception } from "./court-simulation/reception-motion.js";
 import { sampleDefenseOrganization } from "./court-defense-motion";
@@ -10,6 +11,33 @@ const world = (point: CourtPoint): CourtSimulationPoint => [(point.x - .5) * 9, 
 const court = (point: CourtSimulationPoint): CourtPoint => ({ x: point[0] / 9 + .5, y: point[2] / 18 + .5 });
 const roles: CourtVisualActor["role"][] = ["setter", "opposite", "middle", "outside", "libero", "outside"];
 const labels = ["Lv", "Op", "C", "P", "Lb", "P"];
+const opponentRed = "#e8757c";
+
+export function receptionServerIdentity(config: CourtSimulation | undefined, actor: CourtVisualActor) {
+  if (config?.mode !== "receive" || config.actorIds[6] !== actor.id) return undefined;
+  const color = actor.color ?? actor.baseColor;
+  // Older boards reuse the opposing team's original blue player as the server.
+  return { label: "Sacador", color: !color || ["#3b82f6", "#4389ff"].includes(color.toLowerCase()) ? opponentRed : color };
+}
+/** Presentation follows the simulation slots, including boards with generic actor names. */
+export function receptionPlayerIdentity(config: CourtSimulation | undefined, id: string) {
+  if (config?.mode !== "receive") return undefined;
+  const slot = config.actorIds.indexOf(id);
+  // The legal rotation stays fixed while the players move into reception.
+  const rotate = (zone: number) => (zone - 1 - config.rotation + 6) % 6 + 1;
+  const firstMiddle = rotate(3), secondMiddle = rotate(6);
+  const middleInFront = firstMiddle >= 2 && firstMiddle <= 4;
+  const identities = [
+    { label: "Levantador", color: "#38bdf8", position: rotate(1) },
+    { label: "Oposto", color: "#38bdf8", position: rotate(4) },
+    { label: middleInFront ? "Central¹" : "Central²", color: "#a78bfa", position: middleInFront ? firstMiddle : secondMiddle },
+    { label: "Ponteiro¹", color: "#19c87b", position: rotate(5) },
+    { label: "Líbero", color: "#a78bfa", position: middleInFront ? secondMiddle : firstMiddle },
+    { label: "Ponteiro²", color: "#19c87b", position: rotate(2) },
+  ];
+  return slot >= 0 && slot < identities.length ? identities[slot] : undefined;
+}
+
 function visibleSlots(config: CourtSimulation) {
   return config.actorIds.map((_, slot) => slot).filter(slot => config.mode !== "attack" || slot === 0 || slot === 3 && config.layers.attack || slot === 4 && config.layers.pass || [1, 2, 5].slice(0, config.blockers).includes(slot) && config.layers.block);
 }
@@ -28,19 +56,20 @@ export function sampleCourtSimulation(payload: CourtVisualPayload, index: number
   if (!config) return null;
   const step = payload.timeline.steps[index], fraction = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
   const bases = config.actorIds.map(id => world(step.actorPositions[id] ?? payload.actors.find(actor => actor.id === id)!.initialPosition));
+  const attackHand = (slot: number) => payload.actors.find(actor => actor.id === config.actorIds[slot])?.attackHand;
   if (config.mode === "defense") {
     const elevation = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 8 ? value : 0;
     const starts = config.actorIds.map(id => world(config.defenseSettings!.startPositions[id]));
     const destinations = bases.map((p, slot) => [p[0], elevation(step.actorElevations?.[config.actorIds[slot]]), p[2]] as CourtSimulationPoint);
     const drawing = payload.editor!.drawings[step.id].find(item => item.id === config.ballId)!;
     const ball = world(drawing.points[0]); ball[1] = .12 + elevation(drawing.elevation);
-    const { support, ...raw } = sampleDefenseOrganization(fraction, starts, destinations, config.actorIds.map(id => step.actorActions?.[id]), ball, step.durationMs / 1000, config.preset === "5");
+    const { support, ...raw } = sampleDefenseOrganization(fraction, starts, destinations, config.actorIds.map(id => step.actorActions?.[id]), ball, step.durationMs / 1000, config.actorIds.map((_, slot) => attackHand(slot)));
     return { ...raw, config, bases, progress: fraction, mode: "defense", ballId: config.ballId, visibleIds: [...config.actorIds], defenseContact: ball, defenseSupport: support,
       elapsedSeconds: fraction * raw.duration, actors: raw.actors.map((actor, slot) => ({ ...actor, id: config.actorIds[slot], slot, visible: true })) };
   }
   const raw = (config.mode === "receive"
     ? sampleReception(fraction, { system: config.system, rotation: config.rotation, bases, landing: [config.landingOverride?.x ?? (config.seam === "Left" ? -1.45 : 1.4), config.landingOverride?.z ?? 6.65], serve: config.serve })
-    : sampleAttack(fraction, { bases, preset: config.preset, blockers: config.blockers, layers: config.layers, ...config.attackSettings })) as unknown as Omit<CourtSimulationSample, "config" | "bases" | "actors" | "ballId" | "visibleIds" | "mode" | "elapsedSeconds" | "progress"> & { actors: Omit<CourtSimulationActor, "id" | "slot" | "visible">[] };
+    : sampleAttack(fraction, { bases, preset: config.preset, blockers: config.blockers, layers: config.layers, ...config.attackSettings, attackHand: attackHand(3) })) as unknown as Omit<CourtSimulationSample, "config" | "bases" | "actors" | "ballId" | "visibleIds" | "mode" | "elapsedSeconds" | "progress"> & { actors: Omit<CourtSimulationActor, "id" | "slot" | "visible">[] };
   const visibleIds = visibleSlots(config).map(slot => config.actorIds[slot]);
   return {
     ...raw, config, bases, progress: fraction, mode: config.mode, ballId: config.ballId, visibleIds, visible: true,
@@ -77,7 +106,7 @@ export function configureCourtSimulation(payload: CourtVisualPayload, index: num
     let actor = actors.find(item => actorMeta[item.id]?.team === "B" && !opponentIds.includes(item.id));
     if (!actor) {
       const id = makeId(), initialPosition = court(slot === 6 ? [1.7, 0, -10.44] : [-3.65 + opponentIds.length * .93, 0, -.25]);
-      actor = { id, label: slot === 6 ? "Saq" : "Bloq", role: "athlete", color: "#e8757c", initialPosition };
+      actor = { id, label: slot === 6 ? "Saq" : "Bloq", role: "athlete", color: opponentRed, initialPosition };
       actors.push(actor); actorMeta[id] = { team: "B", simulationSupport: true }; positions[id] = initialPosition;
     }
     opponentIds.push(actor.id); return actor.id;
@@ -85,6 +114,11 @@ export function configureCourtSimulation(payload: CourtVisualPayload, index: num
   const actorIds = previous?.mode === mode ? [...previous.actorIds] : mode === "receive"
     ? [...ownIds, opponent(6)]
     : [ownIds[0], opponent(1), opponent(2), ownIds[3], ownIds[4], opponent(5), ownIds[1]];
+  const selectedPreset = patch.preset ?? previous?.preset ?? "4";
+  if (mode === "attack" && (previous?.mode !== "attack" || selectedPreset !== previous.preset)) {
+    actorIds[3] = ownIds[isMiddleAttack(selectedPreset) ? 2 : selectedPreset === "fundo-1" ? 1 : 3];
+    actorIds[6] = ownIds[selectedPreset === "fundo-1" ? 3 : 1];
+  }
   let drawings = [...(payload.editor.drawings[source.id] ?? [])];
   let ball = drawings.find(item => item.id === previous?.ballId) ?? drawings.find(item => item.kind === "ball");
   if (!ball) {
@@ -112,15 +146,19 @@ export function configureCourtSimulation(payload: CourtVisualPayload, index: num
       // These are shared authoring bases, so the paused 2D and 3D views agree too.
       const reference = attackPreset("4"), approach = formation[3];
       const inset = Math.abs(reference.x) - Math.abs(approach[0]);
-      positions[actorIds[3]] = court([Math.sign(preset.x) * Math.max(0, Math.abs(preset.x) - inset), 0, preset.z + approach[2] - reference.z]);
-      const preferred = preset.x < -2 ? preset.x + .25 + (count - 1) * .465 : preset.x > 2 ? preset.x - .25 - (count - 1) * .465 : preset.x;
-      const center = Math.max(-4.05 + (count - 1) * .465, Math.min(4.05 - (count - 1) * .465, preferred));
-      [1, 2, 5].forEach((slot, n) => { positions[actorIds[slot]] = court([center + (n - (count - 1) / 2) * .93, 0, -.25]); });
+      const depth = isBackRowAttack(config.preset) ? 5.1 : preset.z + approach[2] - reference.z;
+      const start = preset.approachStart ?? [Math.sign(preset.x) * Math.max(0, Math.abs(preset.x) - inset), 0, depth];
+      positions[actorIds[3]] = court([start[0], start[1], start[2]]);
+      const front = attackBlockerFormation(preset.blockX ?? preset.x, count);
+      [1, 2, 5].forEach((slot, n) => { positions[actorIds[slot]] = court(front[n].start as CourtSimulationPoint); });
     }
   }
   const required = new Set(actorIds);
-  const inactiveOwn = mode === "attack" ? [ownIds[1], ownIds[2], ownIds[5]] : [];
-  const visibleActorIds = [...new Set([...initiallyVisible.filter(id => (!actorMeta[id]?.simulationSupport || required.has(id)) && !inactiveOwn.includes(id)),
+  const inactiveOwn = mode === "attack" ? [1, 2, 3, 5].map(slot => ownIds[slot]).filter(id => id !== actorIds[3]) : [];
+  const previousBlockers = mode === "receive" && previous?.mode === "attack"
+    ? [1, 2, 5].map(slot => previous.actorIds[slot])
+    : [];
+  const visibleActorIds = [...new Set([...initiallyVisible.filter(id => !required.has(id) && !actorMeta[id]?.simulationSupport && !inactiveOwn.includes(id) && !previousBlockers.includes(id)),
     ...(mode === "receive" ? ownIds : []), ...visibleSlots(config).map(slot => actorIds[slot])])];
   const phase = mode === "attack" ? "attack_shape" : source.phase === "receive_release" ? "receive_release" : "receive_legal";
   const step: CourtVisualStep = { ...source, phase, simulation: config, actorPositions: positions,
@@ -142,16 +180,32 @@ export function resetCourtSimulation(payload: CourtVisualPayload, index: number)
   }, { resetFormation: true });
 }
 
-export type CourtSimulationHandleEdit = { kind: "hit" | "target" | "serve" | "pass" | "set" | "attack"; point?: CourtPoint; value?: number };
+export type CourtSimulationHandleEdit = { kind: "hit" | "target" | "serve" | "pass" | "set" | "attack" | "approach-start" | "approach-end"; point?: CourtPoint; value?: number };
 export function updateCourtSimulationHandle(payload: CourtVisualPayload, index: number, edit: CourtSimulationHandleEdit): CourtVisualPayload {
   const config = getCourtSimulation(payload, index);
   if (!config || config.mode === "defense") return payload;
   const point = edit.point && Number.isFinite(edit.point.x) && Number.isFinite(edit.point.y) ? world(edit.point) : null;
+  if (edit.kind === "approach-start" || edit.kind === "approach-end") {
+    const actorId = config.actorIds[3];
+    if (!point || config.mode !== "attack" || !config.layers.attack || payload.editor?.actorMeta[actorId]?.locked) return payload;
+    const x = Math.max(-ATTACK_APPROACH_MAX_X, Math.min(ATTACK_APPROACH_MAX_X, point[0]));
+    if (edit.kind === "approach-end") {
+      const z = isBackRowAttack(config.preset)
+        ? Math.max(BACK_ROW_TAKEOFF_DEPTH, Math.min(4.5 + BACK_ROW_JUMP_ADVANCE, point[2])) - BACK_ROW_JUMP_ADVANCE
+        : Math.max(.2, Math.min(4.5, point[2]));
+      return configureCourtSimulation(payload, index, { attackSettings: { hitOverride: [x + (config.preset === "china" ? CHINA_JUMP_ADVANCE : 0), z] } });
+    }
+    const approach = sampleCourtSimulation(payload, index, 0)?.backRowApproach;
+    const start = court([x, 0, Math.max(approach ? approach[1][2] + .55 : .2, Math.min(9, point[2]))]);
+    const step = payload.timeline.steps[index];
+    return { ...payload, timeline: { ...payload.timeline, steps: payload.timeline.steps.map((item, i) =>
+      i === index ? { ...step, actorPositions: { ...step.actorPositions, [actorId]: start } } : item) } };
+  }
   if (edit.kind === "serve") return point ? configureCourtSimulation(payload, index, { landingOverride: { x: point[0], z: point[2] } }) : payload;
   if (edit.kind === "target") return point ? configureCourtSimulation(payload, index, { attackSettings: { targetOverride: [point[0], point[2]] } }) : payload;
   if (edit.kind === "hit") {
     if (!point) return payload;
-    const handSide = sampleCourtSimulation(payload, index, 0)?.handSide ?? (attackPreset(config.preset).x > 0 ? -1 : 1);
+    const handSide = sampleCourtSimulation(payload, index, 0)?.handSide ?? 1;
     return configureCourtSimulation(payload, index, { attackSettings: { hitOverride: [point[0] - handSide * .13, point[2] + .1] } });
   }
   if (!Number.isFinite(edit.value)) return payload;

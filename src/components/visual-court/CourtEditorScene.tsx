@@ -3,7 +3,8 @@ import { Platform } from "react-native";
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
 import { actorPoint, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
-import { sampleCourtSimulation } from "../../core/court-simulation";
+import { receptionPlayerIdentity, receptionServerIdentity, sampleCourtSimulation } from "../../core/court-simulation";
+import { middleAttackColor } from "../../core/court-simulation/attack-settings.js";
 import { displayCourtDrawings, simulationFloorPoint, type DisplayedCourtDrawing } from "../../core/court-simulation-display";
 import { buildCourtPerspectiveSimulation } from "../../core/court-perspective-guides";
 import { resolveCourtLayers } from "../../core/court-layers";
@@ -28,7 +29,9 @@ export function displayActors(p: CourtVisualPayload, index: number, progress?: n
   return p.actors.filter(a => !p.editor?.actorMeta[a.id]?.hidden && (!s.visibleActorIds || s.visibleActorIds.includes(a.id)) && (!sample || !s.simulation?.actorIds.includes(a.id) || sample.visibleIds.includes(a.id))).map(a => {
     const simulated = sample?.actors.find(item => item.id === a.id);
     const trajectory = (s.trajectories ?? s.transitions)?.find(t => t.actorId === a.id);
-    return { ...a, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
+    const identity = receptionPlayerIdentity(sample?.config, a.id);
+    const server = receptionServerIdentity(sample?.config, a);
+    return { ...a, label: identity?.label ?? server?.label ?? a.label, receptionRole: Boolean(identity || server), color: identity?.color ?? server?.color ?? middleAttackColor(sample?.config, a.id) ?? a.color, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
   });
 }
 const interpolate = (a: CourtPoint, b: CourtPoint, t: number): CourtPoint => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
@@ -196,7 +199,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
           <Circle cx={pt.x} cy={pt.y - 35} r={16} fill={color} stroke="#10213880" strokeWidth={2} />
           <Path transform={`translate(${pt.x} ${pt.y})`} d={PERSON_BODY_PATH} fill={color} stroke="#10213880" strokeWidth={2} strokeLinejoin="round" />
         </G> : <Circle cx={pt.x} cy={pt.y} r={52} fill={color} stroke="#ffffff55" strokeWidth={2} />}
-        {!hide.includes("labels") && (p.editor?.showActorNumbers !== false || !/^\d+$/.test(String(a.label || a.number || ""))) ? <SvgText x={pt.x} y={pt.y + (person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={person ? 25 : 37} fill={a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
+        {!hide.includes("labels") && (p.editor?.showActorNumbers !== false || !/^\d+$/.test(String(a.label || a.number || ""))) ? <SvgText x={pt.x} y={pt.y + (a.receptionRole ? -72 : person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={a.receptionRole ? 24 : person ? 25 : 37} fill={a.receptionRole ? "#fff" : a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
         {p.editor?.actorMeta[a.id]?.locked ? <Circle cx={pt.x + 39} cy={pt.y - 39} r={7} fill="#fff" /> : null}
       </G>;
     })}

@@ -2,7 +2,7 @@ import { repairReceptionMiddleIdentity } from '../court-reception-middle-identit
 import { buildSimulatedReceptionRotationPreset } from '../court-simulation-sequence';
 import { buildCourtPerspectiveFrame } from '../visual-court-perspective';
 
-it('keeps the same central through P2, P1 and P6 without renaming players or moving their formation', () => {
+it('keeps the same central through P2, P1 and P6 with the full label and without changing saved players or formation', () => {
   const source = buildSimulatedReceptionRotationPreset();
   source.actors = source.actors.map(actor => actor.id === 'c2' ? { ...actor, label: 'C¹' } : actor.id === 'c1' ? { ...actor, label: 'C²' } : actor);
   const step = source.timeline.steps[0];
@@ -15,9 +15,9 @@ it('keeps the same central through P2, P1 and P6 without renaming players or mov
   expect(fixed.timeline.steps[0].actorPositions.c2).toEqual(initial);
   for (const index of [5, 0, 1]) {
     const middles = buildCourtPerspectiveFrame(fixed, index, 0).actors.filter(actor => actor.role === 'middle');
-    expect(middles.map(actor => [actor.id, actor.label])).toEqual([['c2', 'C¹']]);
+    expect(middles.map(actor => [actor.id, actor.label])).toEqual([['c2', 'Central¹']]);
   }
-  for (const index of [2, 3, 4]) expect(buildCourtPerspectiveFrame(fixed, index, 0).actors.filter(actor => actor.role === 'middle').map(actor => actor.id)).toEqual(['c1']);
+  for (const index of [2, 3, 4]) expect(buildCourtPerspectiveFrame(fixed, index, 0).actors.filter(actor => actor.role === 'middle').map(actor => [actor.id, actor.label])).toEqual([['c1', 'Central²']]);
   expect(JSON.stringify(source)).toBe(before);
   expect(repairReceptionMiddleIdentity(fixed)).toBe(fixed);
   const custom = { ...source, timeline: { steps: source.timeline.steps.map((s, i) => i === 0 ? { ...s, label: 'Jogada autoral' } : s) } };

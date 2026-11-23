@@ -2,14 +2,55 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from './three.module.min.js';
 import {createActorRig} from './actor-rig.mjs';
+import {ATTACK_CLIP_JOINT as joint,ATTACK_CLIP_SIZE,sampleAttackClip} from './attack-captured-clip.mjs';
 import {createBlocker} from './blocker-rig.mjs';
+import {attackFormation,sampleAttack} from '../../src/core/court-simulation/attack-motion.js';
+import {sampleReception} from '../../src/core/court-simulation/reception-motion.js';
+import {receptionFormation} from '../../src/core/court-simulation/formations.js';
 
 const near=(a,b,tolerance=1e-7)=>assert.ok(Math.abs(a-b)<tolerance,`${a} != ${b}`);
-const names={setter:['ready','load','rise','contact','follow','backfollow'],passer:['ready','load','contact','follow'],attacker:['ready','approach','plant','draw','contact','follow','land'],server:['ready','toss','draw','contact','follow','idle']};
+const names={setter:['ready','load','rise','contact','follow','backfollow'],passer:['ready','load','contact','follow'],attacker:['ready','approach','plant','launch','draw','contact','follow','land'],server:['ready','toss','draw','contact','follow','idle']};
 const part=(rig,name)=>rig.group.getObjectByName(name);
+test('reception runners keep the hips up through their entire supported stride',()=>{
+ const rig=fixture();
+ for(let rotation=0;rotation<6;rotation++){
+  const bases=[...receptionFormation('5-1',rotation),[1.7,0,-10.44]];
+  const options={rotation,bases};
+  for(let i=1;i<200;i++)for(const actor of sampleReception(i/200,options).actors){
+   if(actor.feetWeight!==1 || (actor.pose!=='approach'&&actor.pose!=='ready'))continue;
+   const [x,y,z]=actor.position;
+   rig.update({...actor,poseRole:actor.role,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]});
+   assert.ok(part(rig,'pelvis').position.y>.80,`rotation ${rotation+1} frame ${i} ${actor.pose}`);
+  }
+ }
+});
 const world=object=>object.getWorldPosition(new THREE.Vector3());
 function fixture(){const parent=new THREE.Group(),rig=createActorRig(parent);return {parent,group:rig.group,update:rig.update,get height(){return rig.height;}};}
 function matrices(rig){rig.group.updateMatrixWorld(true);return rig.group.children.map(object=>({name:object.name,matrix:[...object.matrixWorld.elements]}));}
+
+test('P1 uses the captured limbs and keeps the outside shoe anchored while cutting',()=>{
+ const rig=fixture(),bases=[...receptionFormation('5-1',0),[1.7,0,-10.44]];
+ const frames=Array.from({length:1500},(_,index)=>sampleReception(index/1500,{bases}).actors[0]);
+ const cut=frames.findIndex(actor=>actor.runCycle!==undefined&&actor.position[0]<bases[0][0]-.000001);
+ assert.ok(cut>0);
+ const render=(actor,runCycle=actor.runCycle)=>{
+  const [x,y,z]=actor.position;
+  rig.parent.position.set(x,y,z);
+  rig.update({...actor,runCycle,poseRole:actor.role,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]});
+ };
+ const actor=frames[cut];
+ render(actor,NaN);
+ const arm=part(rig,'left-palm').position.clone();
+ const shoulder=part(rig,'right-shoulder').position.clone();
+ render(actor);
+ assert.ok(arm.distanceTo(part(rig,'left-palm').position)>.03);
+ assert.ok(shoulder.distanceTo(part(rig,'right-shoulder').position)>.02);
+ const support=world(part(rig,'left-foot'));
+ for(const frame of frames.slice(cut+1,cut+15)){
+  render(frame);
+  near(world(part(rig,'left-foot')).distanceTo(support),0);
+ }
+});
 
 test('all sporting poses use one connected solid anatomy and a valid pose-specific height',()=>{
  const rig=fixture(),objects=[...rig.group.children],geometries=objects.map(object=>object.geometry),materials=objects.map(object=>object.material);
@@ -140,6 +181,245 @@ test('the striking palm contacts the sphere through yaw, mirroring, authored hei
  }
 });
 
+test('the captured attack rolls over the planted foot and closes on the foot opposite the hitting arm',()=>{
+ const rig=fixture(), sides=['left','right'];
+ for(const [preset,startX] of [['4',-3],['5',3]]){
+  const bases=attackFormation();bases[3][0]=startX;
+  const options={preset,bases,attackHand:preset==='4'?'right':'left',layers:{pass:true,attack:true},targetOverride:[1,-3]}, timing=sampleAttack(0,options);
+  const at=time=>sampleAttack(time/timing.duration,options);
+  const start=(1.6+2.8*.18), takeoff=[...Array(700)].map((_,i)=>start+i*.002).find(time=>at(time).actors[3].pose==='launch');
+  assert.ok(takeoff!==undefined);
+  const feetAt=time=>{
+   const actor=at(time).actors[3],[x,y,z]=actor.position;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:'attacker',position:{x,y,z},poseScale:.9,facing:[actor.facing[0]-x,actor.facing[1]-z]});
+   rig.parent.updateMatrixWorld(true);
+   return sides.map(side=>{
+    const foot=part(rig,`${side}-foot`),forward=new THREE.Vector3(0,0,1).transformDirection(foot.matrixWorld);
+    return {center:world(foot),forward,knee:world(part(rig,side+'-knee'))};
+   });
+  };
+  const opposite=preset==='4'?0:1, dominant=1-opposite;
+  const feetAtFrame=frame=>{
+   let lo=0,hi=timing.attackContact*timing.duration;
+   for(let i=0;i<35;i++){
+    const mid=(lo+hi)/2;
+    if(at(mid).actors[3].attackFrame<frame)lo=mid;else hi=mid;
+   }
+   return feetAt(hi);
+  };
+  // Check support against the floor on the original capture clock. The heel
+  // rolls up while the planted shoe stays at the same spot on the court.
+  const horizontal=(a,b)=>Math.hypot(a.center.x-b.center.x,a.center.z-b.center.z);
+  for(const [from,to,side] of [[30,50,dominant],[80,90,opposite],[105,116,dominant]]){
+   const anchor=feetAtFrame(from)[side];
+   for(let frame=from+1;frame<=to;frame++)assert.ok(horizontal(anchor,feetAtFrame(frame)[side])<.055,`support ${frame}`);
+  }
+  const lead=frame=>{
+   const feet=feetAtFrame(frame);
+   return feet[opposite].center.clone().sub(feet[dominant].center).dot(feet[dominant].forward);
+  };
+  assert.ok(lead(70)>.3 && lead(104)<-.3 && lead(117)>.18,'three authored footfalls');
+  const close=feetAtFrame(125);
+  // An IK pole flip can move a knee across the support line between two video frames.
+  let previous=feetAt(start);
+  for(let ms=1;start+ms/1000<=takeoff;ms++){
+   const next=feetAt(start+ms/1000);
+   for(let side=0;side<2;side++)assert.ok(next[side].knee.distanceTo(previous[side].knee)<.03,'knee continuity through plant');
+   previous=next;
+  }
+  const setup=at(takeoff-.01).actors[3], [x,,z]=setup.position, [fx,fz]=setup.facing;
+  assert.ok(close[opposite].center.clone().sub(close[dominant].center).dot(new THREE.Vector3(fx-x,0,fz-z))>.18);
+  const set=sampleAttack(timing.setContact,options).ball;
+  const impact=sampleAttack(timing.attackContact,options);
+  for(const actor of [setup,impact.actors[3]]){
+   const forward=actor.facing.map((value,i)=>value-actor.position[i*2]);
+   near(forward[0]*(impact.ball[0]-set[0])+forward[1]*(impact.ball[2]-set[2]),0);
+   assert.ok(forward[1]<0);
+  }
+ }
+});
+
+test('the court keeps the Blender pelvis height and leg lengths throughout the run and the last plant',()=>{
+ const rig=fixture(),capture=new Float32Array(ATTACK_CLIP_SIZE);
+ const captured=name=>new THREE.Vector3().fromArray(capture,joint[name]);
+ for(const preset of ['4','5','china','pipe','fundo-1'])for(const attackHand of ['left','right']){
+  const options={preset,attackHand,layers:{attack:true,pass:true,block:true}};
+  const {attackContact}=sampleAttack(0,options);
+  for(let i=0;i<300;i++){
+   const actor=sampleAttack(i/300*attackContact,options).actors[3];
+   if(actor.attackFrame>132)break;
+   const [x,y,z]=actor.position;
+   rig.update({...actor,poseRole:'attacker',poseScale:.9,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]});
+   if(actor.attackLeadIn>0)continue;
+   sampleAttackClip(actor.attackFrame,capture);
+   near(part(rig,'pelvis').position.y,capture[joint.pelvis+1]);
+   for(const side of ['left','right']){
+    const source=actor.mirror?(side==='right'?'left':'right'):side;
+    const ankle=part(rig,side+'-ankle').position,knee=part(rig,side+'-knee').position,hip=part(rig,side+'-hip').position;
+    near(hip.distanceTo(knee),captured(source+'Hip').distanceTo(captured(source+'Knee')));
+    near(knee.distanceTo(ankle),captured(source+'Knee').distanceTo(captured(source+'Ankle')));
+    const drive=actor.attackSlide && side===attackHand && actor.attackFrame>104;
+    if(drive && actor.attackFrame>=122)assert.ok(ankle.y>capture[joint[source+'Ankle']+1]+.3);
+    if(!drive)near(ankle.y,capture[joint[source+'Ankle']+1]);
+   }
+  }
+ }
+});
+
+test('both knees flex forward relative to the turning pelvis on original and edited approaches',()=>{
+ const rig=fixture(),up=new THREE.Vector3(0,1,0);
+ for(const mirror of [false,true])for(const attackStrideScale of [.45,1,1.25]){
+  for(let frame=1;frame<=172;frame+=.5){
+   rig.update({poseRole:'attacker',attackFrame:frame,attackStrideScale,mirror});
+   const left=part(rig,'left-hip').position,right=part(rig,'right-hip').position;
+   const forward=left.clone().sub(right).cross(up).normalize();
+   for(const side of ['left','right']){
+    const hip=part(rig,side+'-hip').position;
+    const axis=part(rig,side+'-ankle').position.clone().sub(hip).normalize();
+    const bend=part(rig,side+'-knee').position.clone().sub(hip).projectOnPlane(axis);
+    assert.ok(bend.dot(forward)>=-1e-8,`${side} knee behind the leg at frame ${frame}, stride ${attackStrideScale}, mirror ${mirror}`);
+   }
+  }
+ }
+});
+
+test('an extended approach alternates grounded shoes before entering the captured three steps',()=>{
+ const rig=fixture(),bases=attackFormation();
+ bases[3]=[-4.2,0,7];
+ for(const attackHand of ['right','left']){
+  const options={bases,attackHand,preset:'4',layers:{pass:true,attack:true,block:true}};
+  const {attackContact}=sampleAttack(0,options),supports=new Set();
+  for(let i=0;i<600;i++){
+   const actor=sampleAttack(i/600*attackContact,options).actors[3];
+   if(actor.attackLeadIn<.9999)continue;
+   const [x,y,z]=actor.position;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:'attacker',poseScale:.9,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]});
+   rig.parent.updateMatrixWorld(true);
+   assert.ok(part(rig,'pelvis').position.y>.90,'upright lead-in');
+   for(const [n,side] of ['right','left'].entries()){
+    const [ax,lift,az]=actor.feet[n];
+    if(lift || actor.feet[1-n][1]<.05)continue;
+    supports.add(side);
+    const foot=world(part(rig,side+'-foot'));
+    assert.ok(Math.hypot(foot.x-ax,foot.z-az)<.04,'planted shoe stays on its footprint');
+   }
+  }
+  assert.equal(supports.size,2);
+ }
+});
+
+test('dragging the attack contact across the setter does not reverse the facing',()=>{
+ const options={preset:'5',layers:{pass:true,attack:true}};
+ const headings=[1.409,1.411].map(x=>{
+  const selection={...options,hitOverride:[x,2]};
+  const timing=sampleAttack(0,selection), {position,facing}=sampleAttack(timing.attackContact,selection).actors[3];
+  return new THREE.Vector3(facing[0]-position[0],0,facing[1]-position[2]);
+ });
+ assert.ok(headings[0].angleTo(headings[1])<.01);
+});
+
+test('the front-row capture uses the same vertical jump as the simulation before contact correction',()=>{
+ const rig=fixture(),options={preset:'4',layers:{attack:true,pass:true}},timing=sampleAttack(0,options);
+ const hit=sampleAttack(timing.attackContact,options).ball;
+ for(const offset of [-.8,-.3,-.15,0,.24,.5]){
+  const actor=sampleAttack(timing.attackContact+offset/timing.duration,options).actors[3];
+  const [x,y,z]=actor.position;
+  rig.update({...actor,poseRole:'attacker',position:{x,y,z},contactWeight:0,
+   contactTarget:{x:hit[0],y:hit[1],z:hit[2]}});
+  near(rig.group.position.y,actor.jump);
+ }
+});
+
+test('the back-row capture leaves both shoes behind the line and reaches the set in flight',()=>{
+ const rig=fixture();
+ for(const preset of ['pipe','bic','fundo-1']) for(const attackHand of ['left','right']){
+  const options={preset,attackHand,layers:{pass:true,attack:true,block:true}},timing=sampleAttack(0,options);
+  const hit=sampleAttack(timing.attackContact,options);
+  const place=frame=>{
+   const actor=frame.actors[3],[x,y,z]=actor.position,[bx,by,bz]=hit.ball;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:'attacker',position:{x,y,z},poseScale:.9,facing:[actor.facing[0]-x,actor.facing[1]-z],
+    contactTarget:{x:bx,y:by,z:bz}});
+   rig.parent.updateMatrixWorld(true);
+  };
+  for(let i=0;i<240;i++){
+   const frame=sampleAttack(i/240*timing.attackContact,options);
+   if(frame.actors[3].jump>0)break;
+   place(frame);
+   for(const side of ['left','right'])assert.ok(world(part(rig,side+'-foot')).z-.145*.9>3);
+  }
+  place(hit);
+  near(world(part(rig,attackHand+'-palm')).distanceTo(new THREE.Vector3(...hit.ball)),.12,1e-6);
+ }
+});
+
+test('the captured arm swing and palm contact follow the set through replay, edited heights and mirrored attacks',()=>{
+ const rig=fixture();
+ for(const [preset,setHeight,pass,attackHand] of [['4',null,true,'right'],['4',null,true,'left'],['1',null,true,'right'],['5',null,true,'right'],['5',.45,false,'left'],['4',2.16,true,'right']]){
+  const options={preset,setHeight,attackHand,layers:{pass,attack:true,block:true}}, timing=sampleAttack(0,options);
+  const at=seconds=>sampleAttack(timing.attackContact+seconds/timing.duration,options);
+  const impact=at(0).ball;
+  const put=frame=>{
+   const actor=frame.actors[3], [x,y,z]=actor.position;
+   const target=actor.contactWeight===undefined?frame.ball:impact;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:'attacker',position:{x,y,z},poseScale:.9,facing:[actor.facing[0]-x,actor.facing[1]-z],
+    contactTarget:{x:target[0],y:target[1],z:target[2]}});
+   rig.parent.updateMatrixWorld(true);
+   return actor.mirror?'left-palm':'right-palm';
+  };
+  const poseAtClipFrame=wanted=>{
+   let low=wanted>145?timing.attackContact:0,high=wanted>145?1:timing.attackContact;
+   for(let i=0;i<32;i++){
+    const mid=(low+high)*.5;
+    if(sampleAttack(mid,options).actors[3].attackFrame<wanted)low=mid;
+    else high=mid;
+   }
+   const sampled=sampleAttack(high,options);
+   near(sampled.actors[3].attackFrame,wanted,1e-5);
+   return put(sampled);
+  };
+  poseAtClipFrame(104);
+  for(const side of ['left','right']){
+   assert.ok(part(rig,side+'-palm').position.z<part(rig,side+'-shoulder').position.z-.35,'wide backswing at penultimate footfall');
+  }
+  poseAtClipFrame(132);
+  for(const side of ['left','right']){
+   assert.ok(part(rig,side+'-palm').position.y>part(rig,side+'-shoulder').position.y+.25,'both hands rise at takeoff');
+  }
+  const striker=poseAtClipFrame(141),hittingSide=striker.split('-')[0],guideSide=hittingSide==='right'?'left':'right';
+  const elbow=part(rig,hittingSide+'-elbow').position,shoulder=part(rig,hittingSide+'-shoulder').position;
+  assert.ok(Math.abs(elbow.y-shoulder.y)<.1 && elbow.z<shoulder.z-.2,'elbow drawn back at shoulder height');
+  assert.ok(part(rig,guideSide+'-palm').position.y>part(rig,striker).position.y+.2,'guide hand points up before the whip');
+  const draw=matrices(rig);
+  poseAtClipFrame(143);
+  assert.ok(elbow.z>part(rig,striker).position.z+.1,'elbow leads the accelerating hand');
+  const ballAtHit=at(0);
+  near(ballAtHit.actors[3].attackFrame,145);
+  put(ballAtHit);
+  const headPosition=world(part(rig,'head'));
+  const forward=world(part(rig,'nose')).sub(headPosition);
+  const up=headPosition.sub(world(part(rig,'pelvis')));
+  const right=forward.cross(up);
+  const shoulders=world(part(rig,'right-shoulder')).sub(world(part(rig,'left-shoulder')));
+  assert.ok(shoulders.dot(right)>0,'the named right shoulder is on the visible anatomical right');
+  near(world(part(rig,striker)).distanceTo(new THREE.Vector3(...ballAtHit.ball)),.12,1e-6);
+  const hit=matrices(rig);
+  put(at(.0449));
+  const release=world(part(rig,striker));
+  put(at(.0451));
+  assert.ok(release.distanceTo(world(part(rig,striker)))<.01);
+  poseAtClipFrame(150);
+  assert.ok(part(rig,striker).position.y<1.4);
+  poseAtClipFrame(141);
+  assert.deepEqual(matrices(rig),draw);
+  put(ballAtHit);
+  assert.deepEqual(matrices(rig),hit);
+ }
+});
+
 test('contact cache follows changes to parent position, jump, heading and scale without moving the ball',()=>{
  const rig=fixture(),target={x:.13,y:2.20,z:.25},before=JSON.stringify(target);
  const actor={poseRole:'attacker',pose:'contact',poseScale:1,jump:0,position:{x:0,y:0,z:0},facing:[0,1],contactTarget:target};
@@ -169,5 +449,108 @@ test('the setter uses both hands while the server holds and tosses with the supp
   const target={x:.03,y:pose==='ready'?1.72:2.15,z:pose==='ready'?.6:.36};
   rig.update({poseRole:'server',pose,poseScale:1,mirror,position:{x:0,y:0,z:0},facing:[0,1],contactTarget:target});rig.parent.updateMatrixWorld(true);
   near(world(part(rig,mirror?'right-palm':'left-palm')).distanceTo(new THREE.Vector3(target.x,target.y,target.z)),.12);
+ }
+});
+
+test('the platform, overhead set and serving hands release the ball continuously on replay and scrub',()=>{
+ const rig=fixture();
+ for(const [poseRole,previousPose,pose,target] of [
+  ['passer','contact','follow',{x:-.48,y:1.05,z:.23}],
+  ['setter','contact','backfollow',{x:.04,y:2.14,z:.16}],
+  ['server','contact','follow',{x:.12,y:2.20,z:.26}],
+  ['server','toss','draw',{x:.03,y:2.16,z:.36}],
+ ])for(const mirror of [false,true]){
+  const actor={poseRole,position:{x:0,y:0,z:0},facing:[0,1],poseScale:1,mirror,contactTarget:target};
+  const update=(phase,from,blend)=>rig.update({...actor,pose:phase,previousPose:from,poseBlend:blend});
+  update(previousPose,previousPose,1);
+  const contact=matrices(rig);
+  const initialHands=['left','right'].map(side=>world(part(rig,side+'-palm')));
+  const contactCenter=poseRole==='server'?initialHands[Number((previousPose==='contact')!==mirror)]:
+   initialHands[0].clone().lerp(initialHands[1],.5);
+  near(contactCenter.distanceTo(new THREE.Vector3(target.x,target.y,target.z)),.12);
+  update(pose,previousPose,0);
+  assert.deepEqual(matrices(rig),contact);
+  update(pose,previousPose,.0001);
+  for(const [n,side] of ['left','right'].entries())assert.ok(world(part(rig,side+'-palm')).distanceTo(initialHands[n])<.001);
+  update(pose,previousPose,.53);
+  const partial=matrices(rig);
+  update(pose,previousPose,1);
+  const released=matrices(rig);
+  rig.update({...actor,pose,contactTarget:undefined});
+  assert.deepEqual(matrices(rig),released);
+  update(pose,previousPose,.53);
+  assert.deepEqual(matrices(rig),partial);
+ }
+});
+
+test('procedural passers, setters and servers use world-space plant locations through a change of facing',()=>{
+ const rig=fixture(),feet=[[-.19,0,.16,-.15],[.23,.085,.06,.25]],scale=.9;
+ for(const poseRole of ['passer','setter','server'])for(const x of [0,.09]){
+  const position={x,y:0,z:0};
+  rig.parent.position.set(x,0,0);
+  rig.update({poseRole,pose:'contact',poseScale:scale,position,feet,feetWeight:1,facing:[x*2,1]});
+  rig.parent.updateMatrixWorld(true);
+  for(const [n,side] of ['left','right'].entries()){
+   const [footX,lift,footZ,heading]=feet[n],shoe=part(rig,side+'-foot');
+   near(world(shoe).distanceTo(new THREE.Vector3(footX,.055*scale+lift,footZ)),0);
+   const forward=new THREE.Vector3(0,0,1).transformDirection(shoe.matrixWorld);
+   near(forward.distanceTo(new THREE.Vector3(Math.sin(heading),0,Math.cos(heading))),0);
+  }
+ }
+});
+
+test('the run uses the foot ahead to swing the opposite arm without a second animation clock',()=>{
+ const rig=fixture();
+ for(const leadingFoot of [0,1]){
+  const feet=[0,1].map(n=>[n===0?-.15:.15,0,n===leadingFoot?.3:-.3,0]);
+  rig.update({poseRole:'attacker',pose:'approach',facing:[0,1],position:{x:0,y:0,z:0},feet});
+  const reaching=part(rig,(leadingFoot===0?'right':'left')+'-palm').position.z;
+  const trailing=part(rig,(leadingFoot===0?'left':'right')+'-palm').position.z;
+  assert.ok(reaching-trailing>.3);
+ }
+});
+
+test('serve, reception and set in all six rotations put the designated hand or platform on the ball',()=>{
+ const rig=fixture();
+ for(const serve of ['Float','Topspin'])for(let rotation=0;rotation<6;rotation++){
+  const options={system:'5-1',rotation,serve,bases:[...receptionFormation('5-1',rotation),[1.7,0,-10.44]]};
+  const timing=sampleReception(0,options);
+  for(const [slot,progress] of [[6,timing.serveContact],[timing.receiver,timing.receiveContact],[0,1]]){
+   const frame=sampleReception(progress,options),actor=frame.actors[slot],[x,y,z]=actor.position;
+   const [ballX,ballY,ballZ]=frame.ball,server=slot===6;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:actor.role,mirror:server,poseScale:server?1:.9,position:{x,y,z},
+    facing:[actor.facing[0]-x,actor.facing[1]-z],contactTarget:{x:ballX,y:ballY,z:ballZ}});
+   rig.parent.updateMatrixWorld(true);
+   const hand=world(part(rig,'left-palm'));
+   if(!server)hand.lerp(world(part(rig,'right-palm')),.5);
+   near(hand.distanceTo(new THREE.Vector3(ballX,ballY,ballZ)),.12);
+  }
+ }
+});
+test('the Blender block approach keeps the rendered knee bent through the long crossing',()=>{
+ const rig=fixture(), options={blockers:2,layers:{pass:true,attack:true,block:true}};
+ for(const preset of ['4','5']){
+  const slot=2, config={...options,preset};
+  let strongestTurn=0;
+  let runningDip=0,plantDip=0;
+  for(let i=0;i<=160;i++){
+   const actor=sampleAttack(i/160,config).actors[slot];
+   if(!actor.feet||actor.feetWeight!==1)continue;
+   const [x,y,z]=actor.position;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:'blocker',position:{x,y,z}});
+   const dip=.92-part(rig,'pelvis').position.y;
+   if(actor.blockFrame<32)runningDip=Math.max(runningDip,dip);
+   else plantDip=Math.max(plantDip,dip);
+   if(Math.abs(rig.group.rotation.y)>Math.abs(strongestTurn))strongestTurn=rig.group.rotation.y;
+   for(const side of ['left','right']){
+    const hip=part(rig,side+'-hip').position,knee=part(rig,side+'-knee').position,ankle=part(rig,side+'-ankle').position;
+    near(hip.distanceTo(knee),.46,1e-5);
+    near(knee.distanceTo(ankle),.46,1e-5);
+   }
+  }
+  assert.ok((preset==='4'?-strongestTurn:strongestTurn)>Math.PI/4);
+  assert.ok(plantDip>runningDip+.1,`running dip ${runningDip}, plant dip ${plantDip}`);
  }
 });

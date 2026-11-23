@@ -8,9 +8,11 @@ const CONTACT_END=.484,CONTACT_STEP=.022;
 export function sampleBlockerPose(secondsSinceAttack){
  const seconds=finiteTime(secondsSinceAttack);
  const rise=clamp((seconds+.154)/.176),fall=clamp((seconds-.264)/.22);
+ const landing=seconds-CONTACT_END;
+ const absorb=.16*ease(clamp(landing/.10))*(1-ease(clamp((landing-.10)/.20)));
  return {
   jump:.85*Math.sin(rise*Math.PI/2)*Math.cos(fall*Math.PI/2),
-  crouch:.26*Math.sin(Math.PI*clamp((seconds+.33)/.176)),
+  crouch:.26*Math.sin(Math.PI*clamp((seconds+.33)/.176))+absorb,
   extension:ease(rise)*(1-ease(fall)),
  };
 }

@@ -1,0 +1,11 @@
+// World coordinates in metres, measured from the playing surface (y = 0).
+export const NET_TOP=2.43;
+export const NET_BOTTOM=NET_TOP-1;
+export const NET_WIDTH=10;
+export const TOP_BAND_HEIGHT=.07;
+export const BOTTOM_BAND_HEIGHT=.05;
+export const TOP_BAND_DEPTH=.035;
+export const BOTTOM_BAND_DEPTH=.025;
+export const TOP_BAND_CENTER=NET_TOP-TOP_BAND_HEIGHT/2;
+export const BOTTOM_BAND_CENTER=NET_BOTTOM+BOTTOM_BAND_HEIGHT/2;
+export const BALL_RADIUS=.12;

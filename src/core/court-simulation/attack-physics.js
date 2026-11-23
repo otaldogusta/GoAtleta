@@ -1,7 +1,8 @@
 // Local visual simulation. Positions are metres; time is seconds; Y points up.
 // Raised hands and the net are finite surfaces. Every response starts exactly
 // at the previous contact, and the next event is solved from that new velocity.
-const GRAVITY=9.81, BALL_RADIUS=.12, EPS=1e-8, CONTACT_EPS=2e-6;
+import {BALL_RADIUS,NET_TOP,NET_BOTTOM,NET_WIDTH,TOP_BAND_HEIGHT,TOP_BAND_CENTER} from '../../../public/visual-court-3d/court-net.js';
+const GRAVITY=9.81, EPS=1e-8, CONTACT_EPS=2e-6;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const dot=(a,b)=>a.reduce((n,v,i)=>n+v*b[i],0);
 const add=(a,b,k=1)=>a.map((v,i)=>v+b[i]*k);
@@ -98,17 +99,18 @@ function handSurfaces(description,wallIndex){
 function netSurfaces(option){
  if(!option)return [];
  const description=typeof option==='object'?option:{},center=finitePoint(description.center,[0,0,0]);
- const width=Math.max(.01,number(description.width,10.5));
- const bottom=center[1]+number(description.bottom,1.43),top=Math.max(bottom+.01,center[1]+number(description.top,2.43));
+ const width=Math.max(.01,number(description.width,NET_WIDTH));
+ const bottom=center[1]+number(description.bottom,NET_BOTTOM),top=Math.max(bottom+.01,center[1]+number(description.top,NET_TOP));
  const mesh=rectangleSurface({center:[center[0],(bottom+top)/2,center[2]],width,height:top-bottom},'net');
- const tapeRadius=Math.max(0,number(description.tapeRadius,.025)),radius=BALL_RADIUS+tapeRadius,halfWidth=width/2;
+ const tapeY=option===true?center[1]+TOP_BAND_CENTER:top;
+ const tapeRadius=Math.max(0,number(description.tapeRadius,option===true?TOP_BAND_HEIGHT/2:.025)),radius=BALL_RADIUS+tapeRadius,halfWidth=width/2;
  const tape={type:'tape',radius,activeFrom:0,activeUntil:Infinity,
   nearest:point=>{
-   const closest=[clamp(point[0],center[0]-halfWidth,center[0]+halfWidth),top,center[2]];
+   const closest=[clamp(point[0],center[0]-halfWidth,center[0]+halfWidth),tapeY,center[2]];
    return {closest,distance:length(add(point,closest,-1))};
   },
   polynomials:segment=>{
-   const x=segment.origin[0]-center[0],dx=segment.velocity[0],y=[segment.origin[1]-top,segment.velocity[1],-.5*GRAVITY],z=[segment.origin[2]-center[2],segment.velocity[2]];
+   const x=segment.origin[0]-center[0],dx=segment.velocity[0],y=[segment.origin[1]-tapeY,segment.velocity[1],-.5*GRAVITY],z=[segment.origin[2]-center[2],segment.velocity[2]];
    return [[0],[x+halfWidth,dx],[x-halfWidth,dx]].map(part=>squaredDistancePolynomial([part,y,z],radius));
   },
   tapeRadius
@@ -147,7 +149,7 @@ function intersectSurface(segment,surface,profile,firstTouch=true){
 
 /**
  * Resolve successive contacts until the ground or the bounded contact limit.
- * net is opt-in; true uses x +/-5.25, y1.43..2.43 at z0. Its object form accepts
+ * net is opt-in; true uses the canonical indoor court geometry. Its object form accepts
  * center (translation), width, bottom, top and tapeRadius. Hand descriptions
  * optionally limit contact to absolute seconds activeFrom..activeUntil. A hand's
  * motion array is piecewise translation: {start,end,center,velocity}, with centre

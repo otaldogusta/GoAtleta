@@ -60,6 +60,7 @@ export type CourtVisualActor = {
   label: string;
   number?: number;
   representation?: "circle" | "person";
+  attackHand?: "right" | "left";
   role: CourtVisualActorRole;
   color?: string;
   baseColor?: string;

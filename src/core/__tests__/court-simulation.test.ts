@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { configureCourtSimulation, getCourtSimulation, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../court-simulation";
 import { normalizeCourtSimulation } from "../court-simulation-model";
+import { buildCourtPerspectiveSimulation } from "../court-perspective-guides";
 import { attackPresets, sampleAttack } from "../court-simulation/attack-motion.js";
 import { sampleReception } from "../court-simulation/reception-motion.js";
 import { buildEditable5x1ReceptionPreset, parseCourtVisualPayload, serializeCourtVisualPayload } from "../visual-court";
@@ -9,14 +10,82 @@ import { actorPoint, continueStepFromEnd, deleteSelection, duplicateStep, frameD
 
 const receiveBoard = () => upgradeCourtEditor(buildEditable5x1ReceptionPreset(), "Recepção da turma");
 const attackBoard = () => configureCourtSimulation(receiveBoard(), 0, { mode: "attack" });
+
+it("sends a fast set to the opposite running along zone one", () => {
+  const board = configureCourtSimulation(attackBoard(), 0, { preset: "fundo-1" });
+  const timing = sampleCourtSimulation(board, 0, 0)!;
+  const [start, takeoff] = timing.backRowApproach!;
+  expect(timing.actors[3].id).toBe(timing.config.teamActorIds![1]);
+  expect(start[0]).toBeGreaterThan(3);
+  expect(Math.abs(start[0] - takeoff[0])).toBeLessThan(.2);
+  expect(takeoff[2]).toBeGreaterThan(3);
+  expect((timing.attackContact! - timing.setContact!) * timing.duration).toBeCloseTo(.83);
+  const hit = sampleCourtSimulation(board, 0, timing.attackContact!)!;
+  expect(hit.actors[3].position[2]).toBeLessThan(3);
+  expect(hit.actors[3].jump).toBeGreaterThan(.6);
+});
+
+it("restores the adjusted China run-up at the three-meter line and the exit sideline", () => {
+  const board = configureCourtSimulation(attackBoard(), 0, { preset: "china" });
+  const edited = updateCourtSimulationHandle(board, 0, { kind: "approach-end", point: { x: .7, y: .6 } });
+  const restored = resetCourtSimulation(edited, 0);
+  const frame = sampleCourtSimulation(restored, 0, 0)!;
+  const { handles } = buildCourtPerspectiveSimulation(restored, 0, frame, true);
+  const start = handles.find(handle => handle.kind === "approach-start")!.point;
+  const end = handles.find(handle => handle.kind === "approach-end")!.point;
+  expect(start.x).toBeCloseTo(.72);
+  expect(start.z).toBeCloseTo(3.03);
+  expect(end.x).toBeCloseTo(4.378);
+  expect(end.z).toBeCloseTo(.935);
+});
+
+it("round trips the new attacks with the actual middle or opposite bound to the strike", () => {
+  const original = attackBoard();
+  const team = getCourtSimulation(original, 0)!.teamActorIds!;
+  let board = original;
+  for (const preset of ["tempo-costas", "metro", "china", "fundo-1", "4"]) {
+    board = configureCourtSimulation(board, 0, { preset });
+    const config = getCourtSimulation(board, 0)!;
+    const hitter = team[preset === "4" ? 3 : preset === "fundo-1" ? 1 : 2];
+    expect(config.actorIds[3]).toBe(hitter);
+    expect(new Set(config.actorIds).size).toBe(config.actorIds.length);
+    expect(config.teamActorIds).toEqual(team);
+    expect(board.timeline.steps[0].visibleActorIds).toContain(hitter);
+    const reopened = parseCourtVisualPayload(serializeCourtVisualPayload(board))!;
+    expect(getCourtSimulation(reopened, 0)).toEqual(config);
+  }
+});
+
+it("edits the run-up endpoints independently and keeps the strike registered to the ball", () => {
+  const board = attackBoard();
+  const point = { x: -.19, y: .9 };
+  const start = updateCourtSimulationHandle(board, 0, { kind: "approach-start", point });
+  expect(sampleCourtSimulation(start, 0, 0)!.actors[3].position[2]).toBeCloseTo(7.2);
+  expect(sampleCourtSimulation(start, 0, 0)!.bases[3][0]).toBeCloseTo(-6.21);
+  const end = updateCourtSimulationHandle(start, 0, { kind: "approach-end", point: { x: 1.3, y: .6 } });
+  const timing = sampleCourtSimulation(end, 0, 0)!;
+  const impact = sampleCourtSimulation(end, 0, timing.attackContact!)!;
+  expect(impact.actors[3].position[0]).toBeCloseTo(6.25);
+  expect(impact.actors[3].position[2]).toBeCloseTo(1.8);
+  expect(impact.ball[0]).toBeCloseTo(6.38);
+  expect(timing.bases[3]).toEqual(sampleCourtSimulation(start, 0, 0)!.bases[3]);
+});
 const point = (x: number, z: number) => ({ x: x / 9 + .5, y: z / 18 + .5 });
+it("keeps the back-row takeoff handle behind the attack line", () => {
+  const board = configureCourtSimulation(attackBoard(), 0, { preset: "pipe" });
+  const edited = updateCourtSimulationHandle(board, 0, { kind: "approach-end", point: point(.2, 2.7) });
+  const timing = sampleCourtSimulation(edited, 0, 0)!;
+  expect(timing.backRowApproach![1][2]).toBeCloseTo(3.45);
+  const hit = sampleCourtSimulation(edited, 0, timing.attackContact!)!;
+  expect(hit.actors[3].position[2]).toBeCloseTo(1.55);
+});
 const near = (actual: number[], expected: number[], tolerance = 1e-8) => expect(Math.hypot(...actual.map((value, index) => value - expected[index]))).toBeLessThan(tolerance);
 
 describe("shared canonical volleyball simulation", () => {
   it("keeps unchanged mockup engines exact while attack extensions retain behavioral parity", () => {
     // Attack curve editing extends motion/physics/settings in the shared engine.
     // Node parity tests cover attack extensions and reception net clearance.
-    for (const name of ["attack-calibration", "blocker-motion", "reception-target", "formations"]) {
+    for (const name of ["attack-calibration", "reception-target", "formations"]) {
       const original = fs.readFileSync(path.join(__dirname, "fixtures/court-reference", `${name}.mjs`), "utf8").replace(/\.mjs/g, ".js").replace(/\r\n/g, "\n");
       const actual = fs.readFileSync(path.join(__dirname, "../court-simulation", `${name}.js`), "utf8").replace(/\r\n/g, "\n");
       expect(actual).toBe(original);
@@ -60,6 +129,18 @@ describe("shared canonical volleyball simulation", () => {
     const receive = configureCourtSimulation(attack, 0, { mode: "receive" });
     expect(sampleCourtSimulation(receive, 0, 0)!.visibleIds).toHaveLength(7);
     expect(getCourtSimulation(receive, 0)!.actorIds.slice(0, 6).every(id => receive.editor!.actorMeta[id]?.team !== "B")).toBe(true);
+  });
+
+  it("hides the previous attack blockers when switching to reception on older boards", () => {
+    const attack = configureCourtSimulation(receiveBoard(), 0, { mode: "attack", blockers: 3 });
+    const ids = getCourtSimulation(attack, 0)!.actorIds;
+    for (const slot of [1, 2, 5]) delete attack.editor!.actorMeta[ids[slot]].simulationSupport;
+    const receive = configureCourtSimulation(attack, 0, { mode: "receive" });
+    const server = getCourtSimulation(receive, 0)!.actorIds[6];
+    for (const slot of [1, 2, 5]) {
+      expect(receive.actors.some(actor => actor.id === ids[slot])).toBe(true);
+      expect(receive.timeline.steps[0].visibleActorIds!.includes(ids[slot])).toBe(ids[slot] === server);
+    }
   });
 
   it("preserves the initial active C2 and P2 identities through attack and reception filters", () => {
@@ -134,14 +215,18 @@ describe("shared canonical volleyball simulation", () => {
     const rightStart = sampleCourtSimulation(right, 0, 0)!.actors[3].position;
     const middleStart = sampleCourtSimulation(middle, 0, 0)!.actors[3].position;
     const backStart = sampleCourtSimulation(back, 0, 0)!.actors[3].position;
-    near(leftStart, [-3, 0, 3]);
-    expect(rightStart[0]).toBeCloseTo(-leftStart[0]);
+    near(leftStart, [-4.2, 0, 3]);
+    near(rightStart, [4.2, 0, 3]);
+    const rightFast = configureCourtSimulation(left, 0, { preset: "red" });
+    near(sampleCourtSimulation(rightFast, 0, 0)!.actors[3].position, [4.2, 0, 3]);
     expect(middleStart[0]).toBeGreaterThan(leftStart[0]);
     expect(middleStart[0]).toBeLessThan(0);
     expect(backStart[0]).toBe(0);
     expect(backStart[2]).toBeGreaterThan(leftStart[2]);
     for (const board of [right, middle, back]) {
-      expect(getCourtSimulation(board, 0)!.actorIds).toEqual(config.actorIds);
+      const expected = [...config.actorIds];
+      if (board === middle) expected[3] = config.teamActorIds![2];
+      expect(getCourtSimulation(board, 0)!.actorIds).toEqual(expected);
       expect(getCourtSimulation(board, 0)!.ballId).toBe(config.ballId);
       expect(board.actors).toEqual(left.actors);
       expect(board.timeline.steps.slice(1)).toEqual(left.timeline.steps.slice(1));

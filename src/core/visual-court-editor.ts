@@ -566,9 +566,10 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
   const color = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : "#19c87b";
   const optionalColor = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : undefined;
   const roles = ["setter", "outside", "middle", "opposite", "libero", "athlete", "coach"];
-  const actors = p.actors.map((a: { id: string; label: string; number?: number; color?: string; baseColor?: string; role: string; initialPosition: CourtPoint; currentZone?: number; rotationOrder?: number; isBackRow?: boolean; isFrontRow?: boolean }) => ({
+  const actors = p.actors.map((a: { id: string; label: string; attackHand?: unknown; number?: number; color?: string; baseColor?: string; role: string; initialPosition: CourtPoint; currentZone?: number; rotationOrder?: number; isBackRow?: boolean; isFrontRow?: boolean }) => ({
     id: text(a.id),
     label: text(a.label, 24),
+    ...(a.attackHand === "left" || a.attackHand === "right" ? { attackHand: a.attackHand } : {}),
     ...(Number.isFinite(a.number) ? { number: Math.min(99, Math.max(0, Number(a.number))) } : {}),
     ...(optionalColor(a.color) ? { color: optionalColor(a.color) } : {}),
     ...(optionalColor(a.baseColor) ? { baseColor: optionalColor(a.baseColor) } : {}),

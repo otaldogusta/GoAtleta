@@ -12,6 +12,11 @@ export function simulationHandleEdit(handle,point,deltaY=0){
   const [min,max]=heightRanges[kind];
   return {kind,point:{...at,x:clamp(handle.point.x,-9,9),z:clamp(handle.point.z,-12,12)},value:clamp(handle.value+deltaY,min,max)};
  }
+ // Match the host's attack approach bound at the end of the dashed line.
+ if(kind==='approach-start'||kind==='approach-end'){
+  const [min,max]=handle.depthRange??[.2,kind==='approach-start'?9:4.5];
+  return {kind,point:{x:clamp(at.x,-6.25,6.25),y:.025,z:clamp(at.z,min,max)}};
+ }
  if(!['hit','target','serve'].includes(kind))return null;
  if(kind==='hit'){at.x=clamp(at.x,-4.43,4.43);at.z=clamp(at.z,.1,4.4);}
  if(kind==='target')at.z=clamp(at.z,-12,-.75);
@@ -37,6 +42,19 @@ export function previewAttackCurve(data,value){
   handles:data.handles.map(item=>item===handle?{...item,point:{...middle},value:bounded}:item),
   outcome:'',
  };
+}
+
+/** Keep the service contact anchored while the destination is being edited. */
+export function previewServeTarget(data, target){
+ if(data?.mode!=='receive'||!isWorldPoint(target))return data;
+ const serve=data.paths?.find(path=>path.id==='serve'),end=serve?.points.at(-1);
+ if(!end||serve.points.length<2||!serve.points.every(isWorldPoint))return data;
+ const dx=target.x-end.x,dz=target.z-end.z;
+ if(Math.hypot(dx,dz)<1e-8)return data;
+ const last=serve.points.length-1;
+ const points=serve.points.map((point,index)=>({...point,x:point.x+dx*index/last,z:point.z+dz*index/last}));
+ return {...data,paths:data.paths.map(path=>path===serve?{...serve,points}:path),
+  markers:data.markers?.map(marker=>marker.id==='serve-target'?{...marker,point:{...marker.point,x:target.x,z:target.z}}:marker)};
 }
 
 /** The renderer consumes sampled headings; it never advances an animation clock. */
