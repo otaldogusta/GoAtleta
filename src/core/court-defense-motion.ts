@@ -34,17 +34,22 @@ function poseAt(t: number, stages: readonly (readonly [number, string])[]) {
 const passPoses = [[0, "contact"], [.045, "follow"], [.19, "ready"]] as const;
 const setPoses = [[0, "ready"], [.21, "load"], [.30, "rise"], [.35, "contact"], [.41, "follow"], [.54, "ready"]] as const;
 const attackPoses = [[0, "ready"], [.32, "approach"], [.72, "plant"], [.80, "draw"], [attackContact, "contact"]] as const;
-export const defenseDefaultAction = (slot: number): CourtActorAction => slot === 6 ? "attack" : slot === 1 || slot === 2 ? "block" : "defend";
+export function defenseDefaultAction(slot: number, preset: string): CourtActorAction {
+  if (slot === 6) return "attack";
+  const closesFromWing = slot === 1 && preset !== "1";
+  return slot === 2 || closesFromWing ? "block" : "defend";
+}
 
 /** The reception and set lead into the authored contact tableau. */
 export function sampleDefenseOrganization(progress: number, starts: CourtSimulationPoint[], destinations: CourtSimulationPoint[],
-  actions: (CourtActorAction | undefined)[], contact: CourtSimulationPoint, duration: number, attackHands: ("right" | "left" | undefined)[] = []) {
+  actions: CourtActorAction[], contact: CourtSimulationPoint, duration: number, attackHands: ("right" | "left" | undefined)[] = []) {
   const t = Math.max(0, Math.min(1, progress));
   const attackSide = destinations[6][2] > 0 ? 1 : -1;
   const passer: CourtSimulationPoint = [0, 0, 6.3 * attackSide];
   const setter: CourtSimulationPoint = [0, 0, 1.05 * attackSide];
   const passHand: CourtSimulationPoint = [0, .85, 5.68 * attackSide];
   const setHand: CourtSimulationPoint = [0, 2.1, 1.02 * attackSide];
+  const ballAtArrival = arc(setHand, contact, phase(.78, setContact, attackContact), 1.50);
   const ball = t >= attackContact ? [...contact] as CourtSimulationPoint : t < setContact ? arc(passHand, setHand, phase(t, passContact, setContact), 1.65)
     : arc(setHand, contact, phase(t, setContact, attackContact), 1.50);
   const support: ActorMotion[] = [
@@ -52,9 +57,11 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
     { role: "setter", position: setter, facing: heading(contact), ...poseAt(t, setPoses), jump: 0, side: true },
   ];
   const actors: ActorMotion[] = destinations.map((destination, slot) => {
-    const action = actions[slot] ?? defenseDefaultAction(slot);
+    const action = actions[slot];
     // The defense holds its formation through the pass and reads the set on release.
-    const movement = ease(phase(t, slot === 6 ? .32 : setContact, .78));
+    const movementStart = slot === 6 ? .32 : setContact;
+    const stridePhase = phase(t, movementStart, .78);
+    const movement = ease(stridePhase);
     const start = starts[slot], position: CourtSimulationPoint = t === 1 ? [...destination] : [
       start[0] + (destination[0] - start[0]) * movement,
       destination[1] * ease(phase(t, .72, .98)),
@@ -85,17 +92,32 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
       }
       return { ...terminal, ...pose, ...capture, position, facing, side: false, mirror: attackHands[slot] === "left" };
     }
+    const floorPath = (u: number) => [start[0] + (destination[0] - start[0]) * u, start[2] + (destination[2] - start[2]) * u];
+    const travelSeconds = (.78 - movementStart) * duration;
     if (action === "block") {
       // Jump stays separate from the authored position Y.
       const hands = sampleBlockerPose(-.33 + .352 * phase(t, .72, attackContact));
       // The rig's local +Z points through the palms: face the net from either half.
-      return { ...terminal, position, facing, ...hands, handAngle: destination[2] > 0 ? 180 : 0 };
+      const netDirection = destination[2] > 0 ? -1 : 1;
+      const [midX, midZ] = floorPath(.5);
+      const gait = courtFootwork(floorPath, movement, {
+        shuffle: true, facing: [midX, midZ + netDirection], travelSeconds, stridePhase, holdRunStance: true,
+        endYaw: netDirection < 0 ? Math.PI : 0,
+      });
+      // The blocking clip numbers its feet from the opposite side of the net.
+      const feet: CourtSimulationActor["feet"] = gait.feet && [gait.feet[1], gait.feet[0]];
+      return {
+        ...terminal, position, facing, ...hands, ...gait, feet, handAngle: netDirection < 0 ? 180 : 0,
+        jump: hands.jump + (gait.jump ?? 0),
+      };
     }
+    const ballAtStart = movementStart === setContact ? setHand : arc(passHand, setHand, phase(movementStart, passContact, setContact), 1.65);
     const feet = position[1] === 0 ? courtFootwork(
-      (u: number) => [start[0] + (destination[0] - start[0]) * u, start[2] + (destination[2] - start[2]) * u],
-      movement, { shuffle: true, facing: heading(contact) },
+      floorPath, movement, { shuffle: true, facing: heading(contact), travelSeconds, stridePhase, holdRunStance: true,
+        startYaw: Math.atan2(ballAtStart[0] - start[0], ballAtStart[2] - start[2]),
+        endYaw: Math.atan2(ballAtArrival[0] - destination[0], ballAtArrival[2] - destination[2]) },
     ) : {};
     return { ...terminal, position, facing, ...feet };
   });
-  return { actors, support, ball, passContact, setContact, attackContact, visible: true, duration };
+  return { actors, support, ball, passHand, setHand, passContact, setContact, attackContact, visible: true, duration };
 }

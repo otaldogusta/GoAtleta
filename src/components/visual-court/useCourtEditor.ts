@@ -8,7 +8,7 @@ import { isAuthError, isNetworkError, isPermissionError } from "../../db/client"
 import { buildTechnicalVisualId, getClassById, getStudentsByClass, listTechnicalVisualsByClass, saveTechnicalVisual } from "../../db/seed";
 import type { ClassGroup, Student } from "../../core/models";
 import { type CourtVisualDocument, type CourtVisualPayload } from "../../core/visual-court";
-import { buildSimulatedReceptionRotationPreset } from "../../core/court-simulation-sequence";
+import { buildCourtSystemTemplates } from "./court-library";
 import { editorId, newCourtBoard, upgradeCourtEditor, type EditorSnapshot } from "../../core/visual-court-editor";
 
 export type CourtAutosaveStatus = "idle" | "pending" | "saving" | "saved" | "local" | "error";
@@ -115,8 +115,7 @@ export function useCourtEditor(classId: string, { autosavePaused = false }: { au
         try { const parsed: unknown = JSON.parse(trashRaw || "[]"); if (Array.isArray(parsed)) trash = parsed.filter((id): id is string => typeof id === "string"); } catch { /* Keep the library accessible if preferences are damaged. */ }
         if (!active || run !== generation.current) return;
         setTrashedIds(trash);
-        const templates = [["5×1 · Recepção", buildSimulatedReceptionRotationPreset()]] as [string, CourtVisualPayload][];
-        const locals: CourtVisualDocument[] = templates.map(([title, payload], i) => ({ id: `template_${i}`, classId, organizationId: classData.organizationId!, sourceKind: "rotation", title, payload, createdAt: "", updatedAt: "" }));
+        const templates = buildCourtSystemTemplates(classId, classData.organizationId);
         const backupPrefix = `goatleta:court-draft:v2:${userId}:${classData.organizationId}:${classId}:backup:`;
         const backups: CourtVisualDocument[] = [];
         try {
@@ -126,7 +125,7 @@ export function useCourtEditor(classId: string, { autosavePaused = false }: { au
             try { const d = raw ? JSON.parse(raw) as CourtVisualDocument : null; if (d?.organizationId === classData.organizationId && d.classId === classId && d.payload?.editor?.version === 1) backups.push(d); } catch { /* Ignore a corrupt backup. */ }
           }
         } catch { /* Remote library remains available if local storage fails. */ }
-        const all = [...backups.reverse(), ...docs, ...locals].map(d => ({ ...d, payload: upgradeCourtEditor(d.payload, d.title) }));
+        const all = [...backups.reverse(), ...docs, ...templates].map(d => ({ ...d, payload: upgradeCourtEditor(d.payload, d.title) }));
         const preferred = all.find(d => d.sourceId === "goatleta:5x1-reception" && !trash.includes(d.id))
           ?? all.find(d => d.id === "template_0" && !trash.includes(d.id))
           ?? all.find(d => !trash.includes(d.id));

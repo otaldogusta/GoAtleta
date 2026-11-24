@@ -1,6 +1,7 @@
 import type { CourtPoint, CourtVisualPayload } from "./visual-court";
 import { drawingAtProgress, frameDrawings, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
 import { sampleCourtSimulation } from "./court-simulation";
+import { revealCourtBlockShadow } from "./court-block-shadow";
 import type { CourtSimulationSample } from "./court-simulation-model";
 
 /** The 2D floor projection of the very same sampled 3D action. */
@@ -20,13 +21,14 @@ export function courtDrawingTraceProgress(drawing: CourtDrawing, sample: CourtSi
   return sample.progress === 1 ? 1 : (sample.progress - contact) / (1 - contact);
 }
 
-export function displayCourtDrawings(payload: CourtVisualPayload, index: number, progress = 0): DisplayedCourtDrawing[] {
-  const sample = sampleCourtSimulation(payload, index, progress);
+export function displayCourtDrawings(payload: CourtVisualPayload, index: number, progress?: number): DisplayedCourtDrawing[] {
+  const sample = sampleCourtSimulation(payload, index, progress ?? 0);
   const drawBall = (drawing: CourtDrawing, point: readonly number[]) => ({ ...drawing, points: [simulationFloorPoint(point)], motion: undefined });
   const drawings = resolveCourtDrawingAnchors(frameDrawings(payload, index).filter(drawing => courtDrawingTraceProgress(drawing, sample) >= 0).map(drawing => sample && drawing.id === sample.ballId
     ? drawBall(drawing, sample.defenseContact ?? sample.ball)
-    : drawingAtProgress(drawing, progress)));
-  return drawings.filter(drawing => !drawing.hidden && !(sample && drawing.id === sample.ballId && !sample.visible))
+    : drawingAtProgress(drawing, progress ?? 0)));
+  const displayed = progress === undefined ? drawings : revealCourtBlockShadow(drawings, sample, payload.editor);
+  return displayed.filter(drawing => !drawing.hidden && !(sample && drawing.id === sample.ballId && !sample.visible))
     .map(drawing => {
       if (sample?.defenseContact && drawing.id === sample.ballId) return drawBall(drawing, sample.ball);
       const traceProgress = courtDrawingTraceProgress(drawing, sample);

@@ -74,7 +74,7 @@ describe("shared court simulation controls", () => {
     const { props } = await panel(defense, "defense");
     const onDefenseCoverageChange = jest.fn();
     act(() => tree!.update(React.createElement(CourtSimulationSettings, { ...props, onDefenseCoverageChange })));
-    const front = "Sistema de defesa: Cobertura frontal", zone1 = "Sistema de defesa: Cobertura da posição 1";
+    const front = "Largada pela rede", zone1 = "Largada pelo fundo";
     expect(tree!.root.findByProps({ accessibilityLabel: front }).props.accessibilityState.checked).toBe(true);
     press(zone1);
     expect(onDefenseCoverageChange).toHaveBeenCalledWith("zone1");
@@ -292,7 +292,7 @@ describe("shared court simulation controls", () => {
       press("Velocidade da reprodução");
       expect(trigger().props.accessibilityState.expanded).toBe(true);
       const popup = tree!.root.findByType("Dropdown" as never);
-      expect(popup.props).toMatchObject({ surface: "none", preferredWidth: 208, maxHeight: 34 });
+      expect(popup.props).toMatchObject({ surface: "none", preferredWidth: width > 700 ? 64 : 92, maxHeight: width > 700 ? 96 : 192 });
       expect(StyleSheet.flatten(popup.props.scrollContentStyle)).toMatchObject({ padding: 0, gap: 0 });
       expect(popup.findAllByType(Text).map(node => node.props.children)).not.toContain("Velocidade");
       const group = tree!.root.findByProps({ accessibilityLabel: "Velocidade", accessibilityRole: "radiogroup" });

@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCourtEditor } from "../useCourtEditor";
+import { useStandaloneCourt } from "../useStandaloneCourt";
 import { moveSelection, newCourtBoard, actorPoint, duplicateStep, upgradeCourtEditor } from "../../../core/visual-court-editor";
 import { configureCourtSimulation, getCourtSimulation } from "../../../core/court-simulation";
 import { buildEditable5x1ReceptionPreset } from "../../../core/visual-court";
@@ -66,9 +67,39 @@ describe("visual court workspace persistence and history", () => {
     expect(mockList).toHaveBeenCalledWith("class_1", { organizationId: "org_1", limit: 200 });
     expect(mockStudents).toHaveBeenCalledWith("class_1", { organizationId: "org_1" });
     expect(mockSave).not.toHaveBeenCalled();
-    expect(editor!.documents.length).toBe(1);
+    expect(editor!.documents.map(document => document.title)).toEqual([
+      "5×1 · Recepção", "4×2 · Recepção", "6×2 · Recepção", "6×0 · Recepção",
+    ]);
+    expect(editor!.activeDocumentId).toBe("template_0");
     expect(editor!.dirty).toBe(false);
     expect(editor!.payload.timeline.steps.map(step => step.simulation?.rotation)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+  it("opens each system from the standalone court without loading a class or writing a template", async () => {
+    function StandaloneHarness() {
+      editor = useStandaloneCourt();
+      return null;
+    }
+    await act(async () => { tree = TestRenderer.create(React.createElement(StandaloneHarness)); });
+    const systems = ["5-1", "4-2", "6-2", "6-0"];
+    expect(editor.documents.map(document => document.payload.timeline.steps[0].simulation?.system)).toEqual(systems);
+    for (const model of editor.documents) {
+      await act(async () => { expect(await editor.open(model.payload, model.id)).toBe(true); });
+      expect(editor.activeDocumentId).toBe(model.id);
+      expect(editor.stepIndex).toBe(0);
+      expect(editor.payload.editor?.title).toBe(model.title);
+      act(() => editor.commit(payload => ({ ...payload, editor: { ...payload.editor!, title: "Ajuste do professor" } })));
+      expect(editor.payload.editor?.title).toBe("Ajuste do professor");
+      expect(editor.documents.find(document => document.id === model.id)?.payload.editor?.title).toBe(model.title);
+    }
+    act(() => editor.undo());
+    expect(editor.payload.editor?.title).toBe("6×0 · Recepção");
+    act(() => editor.undo());
+    expect(editor.payload.editor?.title).toBe("Ajuste do professor");
+    expect(editor.payload.timeline.steps[0].simulation?.system).toBe("6-2");
+    expect(editor.canSave).toBe(false);
+    expect(mockClass).not.toHaveBeenCalled();
+    expect(mockList).not.toHaveBeenCalled();
+    expect(mockSave).not.toHaveBeenCalled();
   });
   it("replaces the legacy pairs in one undoable edit and navigates rotations without consuming redo", async () => {
     await mount();
@@ -186,7 +217,7 @@ describe("visual court workspace persistence and history", () => {
   });
   it("ignores corrupt local state without losing remote library access", async () => {
     await AsyncStorage.setItem(draftKey, "bad json"); await mount();
-    expect(editor!.loading).toBe(false); expect(editor!.documents).toHaveLength(1); expect(editor!.error).toBe("");
+    expect(editor!.loading).toBe(false); expect(editor!.documents).toHaveLength(4); expect(editor!.error).toBe("");
   });
   it("records a gesture once, undoes and redoes the actual positions", async () => {
     await mount(); const id = editor!.payload.actors[0].id;
@@ -280,13 +311,17 @@ describe("visual court workspace persistence and history", () => {
     await act(async () => { await Promise.all([editor!.save(), editor!.save()]); });
     expect(mockSave).toHaveBeenCalledTimes(1);
   });
-  it("allows saving an untouched model and keeps its source model", async () => {
+  it.each(["5×1", "4×2", "6×2", "6×0"])("saves an untouched %s model as a class document and keeps the original available", async system => {
     await mount();
+    const model = editor.documents.find(document => document.title === `${system} · Recepção`)!;
+    await act(async () => { await editor.open(model.payload, model.id); });
     expect(editor!.dirty).toBe(false);
     expect(editor!.canSave).toBe(true);
     await act(async () => { await editor!.save(); });
     expect(editor!.activeDocumentId).toBe("saved_1");
-    expect(editor!.documents.some(document => document.id === "template_0")).toBe(true);
+    expect(mockSave.mock.calls[0][0]).toMatchObject({ classId: "class_1", sourceKind: "free", title: model.title, payload: model.payload });
+    expect(mockSave.mock.calls[0][0].sourceId).toBe(`goatleta:${system.replace("×", "x")}-reception`);
+    expect(editor.documents.find(document => document.id === model.id)).toEqual(model);
     expect(editor!.canSave).toBe(false);
   });
   it("retains a local fallback across reload and allows synchronization without editing", async () => {

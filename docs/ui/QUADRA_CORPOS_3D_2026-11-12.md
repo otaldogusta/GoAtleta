@@ -205,3 +205,97 @@ tempos descrevem o movimento estudado, enquanto a tabela mede o voo da bola.
   A quadra sincroniza o ciclo com os apoios e mantém o pé externo fixo no corte
   para a rede. [CMU Graphics Lab](https://mocap.cs.cmu.edu/) ·
   [Conversão BVH](https://github.com/una-dinosauria/cmu-mocap).
+
+## Gestos com bola na Quadra 3D
+
+Na recepção, o sacador solta a bola com uma mão e golpeia com a outra. O saque
+flutuante e o saque com rotação têm terminações diferentes. O receptor deixa
+espaço à frente do tronco para juntar os antebraços. O levantador usa a direção
+da jogada e o salto da simulação. Na etapa de defesa, os jogadores baixam a base
+quando o adversário corta. O passe e o levantamento de preparação pertencem aos
+dois jogadores de apoio do outro lado da rede.
+
+O [arquivo de autoria](../../scripts/author-court-skill-clips.py) gera a cena
+editável no Blender 4.5 e exporta as articulações em milímetros. O relógio da
+jogada alinha os quadros de lançamento, contato e recuperação ao voo real da
+bola. Arrastar a barra para trás reconstrói a pose daquele instante.
+[Sincronização no editor](../../src/core/court-skill-motion.ts) ·
+[Aplicação no boneco](../../public/visual-court-3d/skill-motion-rig.mjs).
+
+No fim da recepção, o oposto, o central e os dois ponteiros soltam os braços,
+orientam o tronco entre o levantador e a rede e assentam um pé à frente do
+outro. A base vem do primeiro quadro da passada de ataque do Blender e se
+espelha para canhotos. Quem recebeu conclui a manchete antes dessa transição.
+O levantador prepara o toque, e o líbero recompõe a cobertura.
+
+Para a manchete, a referência foi a manutenção da plataforma depois do contato.
+Para o saque, foram usadas a armação, a aceleração do braço e a terminação.
+[USA Volleyball](https://usavolleyball.org/resource/5-keys-to-/) ·
+[Reeser e colaboradores](https://pmc.ncbi.nlm.nih.gov/articles/PMC3445065/).
+
+Para conferir o peso do corpo na virada, a revisão acompanhou o pé de apoio
+em coordenadas da quadra. A literatura sobre correção de deslizamento mostra
+como a transição entre o apoio e o balanço afeta a continuidade da passada.
+O estudo de personagens articulados DeepMimic também serviu de referência
+para observar mãos e pés junto com a orientação do tronco. No editor,
+o instante de cada contato vem da jogada e pode ser revisto quadro a quadro.
+[Kovar, Schreiner e Gleicher](https://research.cs.wisc.edu/graphics/Gallery/kovar.vol/Cleanup/) ·
+[Peng e colaboradores](https://xbpeng.github.io/projects/DeepMimic/DeepMimic_2018.pdf).
+
+A caminhada e o ajuste lateral têm ações próprias. Na caminhada, o braço
+contrário acompanha a perna que avança. No ajuste lateral, o pé do lado do
+deslocamento abre a base, o outro aproxima e o peito continua voltado para
+a jogada. O editor usa a distância e o tempo disponíveis para escolher
+o movimento e manter a sola no ponto de apoio durante a troca de peso.
+[Autoria dos ciclos](../../scripts/author-court-travel-clips.py) ·
+[Referência de movimentação defensiva da USA Volleyball](https://usavolleyball.org/resource/five-tips-for-better-backcourt-defense/).
+
+### Referências visuais da infiltração, do passe e do bloqueio
+
+No P1, a infiltração termina com o levantador em condição de ver o passe.
+Em seguida ele muda a orientação dos apoios para distribuir a bola.
+O capítulo da treinadora Erin Virtue traz exemplos de jogo a partir de 3min38s.
+[USA Volleyball no YouTube](https://www.youtube.com/watch?v=FcwnwN1nagg&t=218s).
+
+Na infiltração padrão, o levantador começa com passos curtos, ganha velocidade
+no corredor e freia antes de girar para o passe. A ação do Blender adapta a
+corrida CMU 16_35 ao rig da quadra. Na recuperação, o calcanhar sobe sob o
+quadril e o braço oposto passa junto às costelas. O motor fixa a sola durante
+o apoio e controla a intensidade do ciclo pela velocidade de deslocamento.
+[Autoria da corrida no Blender](../../scripts/author-court-setter-run.py).
+
+A quadra usa essa ação também nos percursos corridos dos outros rodízios,
+como a infiltração do levantador no P4 e a cobertura do líbero depois do
+passe. O comprimento da trajetória e o tempo disponível determinam se o
+atleta corre, caminha ou faz um ajuste lateral. Na aproximação longa do
+bloqueio triplo, as últimas marcas da corrida coincidem com os apoios
+iniciais do fechamento de bloqueio. A passada de ataque usa sua própria ação.
+
+Nas Etapas manuais, o jogador acompanha o traçado do professor. O ritmo dos
+passos depende dos metros percorridos e da duração configurada. Ao assistir
+em 0,5×, o professor vê os mesmos apoios em câmera lenta. Um gesto atribuído
+ao jogador, como bloquear ou levantar, tem prioridade sobre o ciclo de corrida.
+
+Para o passo lateral da recepção, o trecho entre 1min04s e 1min06s da Sikana
+mostra as mãos separadas junto ao quadril durante o ajuste. Os antebraços se
+aproximam na chegada da bola. O ciclo do líbero no Blender incorpora essa
+preparação e a transferência de peso para o pé que abre o deslocamento.
+[Demonstração de recepção](https://www.youtube.com/watch?v=_gADTBWhp9s&t=64s).
+
+No fechamento do bloqueio, a sequência fotográfica P69 mostra a mudança
+de orientação durante a corrida paralela à rede. A ação do central separa o
+giro do quadril, dos ombros e da cabeça. A freada começa no penúltimo apoio
+e os braços já embalam para a subida quando os pés fecham. As curvas foram
+animadas no Blender e ajustadas às distâncias da quadra. No contato, o ombro
+avança para que a palma alcance o ponto previsto na simulação.
+[Sequência P69 da FIVB](https://www.fivb.com/wp-content/uploads/2024/03/FIVB_Coach_Manual_EN.pdf#page=118) ·
+[Autoria do bloqueio](../../scripts/author-court-swing-block.py).
+
+Para encontrar outras demonstrações, o quadro público do The Art of
+Coaching Volleyball no Pinterest reúne exercícios de treino. A publicação
+de Mike Sealy identifica o exercício de swing block. Para rever o movimento
+contínuo, a demonstração de Mark Rosen e o exercício de Jed Stotsenberg
+mostram o trabalho dos bloqueadores junto à rede.
+[Swing Blocking, Mike Sealy, no Pinterest](https://www.pinterest.com/pin/e1_AfqPShwYhInj6Xu7PndQlnxW5WPgf4Yf20RrkDnCQdMD_tIM4Uy0/) ·
+[Mark Rosen](https://www.theartofcoachingvolleyball.com/swing-blocking-footwork-for-beginners/) ·
+[Jed Stotsenberg no YouTube](https://www.youtube.com/watch?v=QRgANLdhOLU).

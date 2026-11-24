@@ -34,9 +34,10 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
 }
 
 const SHORTCUTS: Record<string, string> = { "Selecionar e mover": "V · Arraste no vazio para selecionar", Desfazer: "Ctrl/Cmd + Z", Refazer: "Ctrl/Cmd + Shift + Z", "Apagar seleção": "Delete" };
-export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, sheetTile = false, subduedSelection = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1, showTooltip = true }: {
+export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, sheetTile = false, subduedSelection = false, danger = false, dragKind, onAdd, compact = false, touchTarget = false, tooltipScale = 1, showTooltip = true, compactSize = 34 }: {
   label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; sheetTile?: boolean; subduedSelection?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void; compact?: boolean; touchTarget?: boolean; tooltipScale?: number;
   showTooltip?: boolean;
+  compactSize?: number;
 }) {
   const { colors } = useAppTheme();
   const tipScale = Number.isFinite(tooltipScale) && tooltipScale > 0 ? tooltipScale : 1;
@@ -87,8 +88,8 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     <Pressable suppressWebHoverFeedback={compact} disableWebPressScale={compact} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
       onHoverIn={show} onHoverOut={() => setTip(null)} onFocus={show} onBlur={() => setTip(null)}
       onPress={() => { setTip(null); onPress(); }}
-      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: 34, minHeight: 34, ...(!text ? { width: 34 } : {}), borderRadius: 999, overflow: "hidden" }, touchTarget && !tile && { minWidth: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, ...(!text ? { width: compactUiMetrics.touchTarget } : {}) }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active && !subduedSelection ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }, sheetTile && styles.sheetTileAction, subduedSelection && active && { borderColor: colors.border }]}>
-      <CourtToolIcon name={icon} size={sheetTile ? compactUiMetrics.iconSize : tile ? 22 : compact ? 18 : 21} color={ink} />
+      style={({ hovered, pressed }) => [styles.action, !text && !tile && { width: 44, paddingHorizontal: 0, gap: 0 }, text && styles.textAction, tile && styles.tile, compact && !tile && { minWidth: compactSize, minHeight: compactSize, ...(!text ? { width: compactSize } : {}), borderRadius: 999, overflow: "hidden" }, touchTarget && !tile && { minWidth: compactUiMetrics.touchTarget, minHeight: compactUiMetrics.touchTarget, ...(!text ? { width: compactUiMetrics.touchTarget } : {}) }, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active && !subduedSelection ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }, sheetTile && styles.sheetTileAction, subduedSelection && active && { borderColor: colors.border }]}>
+      <CourtToolIcon name={icon} size={sheetTile ? compactUiMetrics.iconSize : tile ? 22 : compact ? Math.min(18, compactSize - 12) : 21} color={ink} />
       {text || tile ? <Text style={{ color: ink, flexShrink: sheetTile ? 1 : undefined, fontSize: 12, fontWeight: "600", textAlign: tile && !sheetTile ? "center" : "left" }}>{label}</Text> : null}
     </Pressable>
     {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${label.toLowerCase()}`} disabled={disabled} onPress={onAdd} style={sheetTile ? [styles.sheetAdd, { borderLeftColor: colors.border }] : { position: "absolute", top: 2, right: 2, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={16} color={sheetTile ? colors.text : ink} /></Pressable> : null}

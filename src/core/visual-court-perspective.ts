@@ -2,16 +2,18 @@ import { middleAttackColor } from "./court-simulation/attack-settings.js";
 import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep } from "./visual-court";
 import { actorPoint, courtSelectionElevation, courtTrajectoryHeightTargets, drawingAtProgress, frameDrawings, pointAlong, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
 import { courtTrajectoryHeightAt, courtTrajectoryHeights, parseCourtTrajectoryHeights, type CourtTrajectoryHandleKind, type CourtTrajectoryHeights } from "./court-arrow-trajectory";
-import { receptionPlayerIdentity, receptionServerIdentity, sampleCourtSimulation } from "./court-simulation";
+import { courtOpponentIdentity, receptionPlayerIdentity, sampleCourtSimulation } from "./court-simulation";
 import type { CourtSimulationActor } from "./court-simulation-model";
 import { courtDrawingTraceProgress } from "./court-simulation-display";
 import { buildCourtPerspectiveSimulation, type CourtPerspectiveSimulation } from "./court-perspective-guides";
-import { projectCourtBlockShadow } from "./court-block-shadow";
+import { projectCourtBlockShadow, revealCourtBlockShadow } from "./court-block-shadow";
 import { courtActorActionPose } from "./court-actor-actions";
+import { courtSkillMotion, type CourtSkillMotion } from "./court-skill-motion";
+import { manualCourtTravel } from "./court-manual-travel";
 
 export type CourtWorldPoint = { x: number; y: number; z: number };
 export type CourtPerspectivePoseRole = "setter" | "passer" | "attacker" | "server" | "blocker";
-export type CourtPerspectiveActor = {
+export type CourtPerspectiveActor = CourtSkillMotion & {
   id: string;
   label: string;
   rotationPosition?: number;
@@ -36,6 +38,11 @@ export type CourtPerspectiveActor = {
   contactWeight?: number;
   attackFrame?: number;
   runCycle?: number;
+  runDrive?: number;
+  attackReadiness?: number;
+  attackReadyLeft?: boolean;
+  plantedStance?: boolean;
+  travelMotion?: CourtSimulationActor["travelMotion"];
   attackStrideScale?: number;
   attackLeadIn?: number;
   attackSlide?: boolean;
@@ -183,23 +190,36 @@ export function buildCourtPerspectiveFrame(
       const meta = payload.editor?.actorMeta[actor.id];
       const elevation = sampled.has(actor.id) && !authoredFinal ? undefined : courtSelectionElevation(payload, index, actor.id);
       const identity = receptionPlayerIdentity(simulation?.config, actor.id);
-      const server = receptionServerIdentity(simulation?.config, actor);
-      const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || identity || server || !/^\d+$/.test(String(actor.label || actor.number || "")));
+      const opponent = courtOpponentIdentity(simulation?.config, actor);
+      const label = identity?.label ?? opponent?.label ?? (actor.label || String(actor.number ?? ""));
+      const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || !/^\d+$/.test(label));
+      const state = sampled.get(actor.id);
+      const action = step.actorActions?.[actor.id];
+      const manualTravel = !state && !elevation && (!action || action === "ready") && path.length > 1;
+      const worldPath = showMovement || manualTravel ? path.map(point => courtPointToWorld(point, elevation ?? 0)) : [];
       const result: CourtPerspectiveActor = {
-        id: actor.id, label: showLabel ? identity?.label ?? server?.label ?? (actor.label || String(actor.number ?? "")) : "",
+        id: actor.id, label: showLabel ? label : "",
         ...(showLabel && identity ? { rotationPosition: identity.position } : {}),
-        role: actor.role, color: identity?.color ?? server?.color ?? middleAttackColor(simulation?.config, actor.id) ?? actor.color ?? actor.baseColor ?? (meta?.team === "B" ? "#4389ff" : "#19c87b"),
+        role: actor.role, color: identity?.color ?? opponent?.color ?? middleAttackColor(simulation?.config, actor.id) ?? actor.color ?? actor.baseColor ?? (meta?.team === "B" ? "#4389ff" : "#19c87b"),
         locked: Boolean(meta?.locked), position: courtPointToWorld(position, elevation ?? 0),
         ...(elevation !== undefined ? { elevation } : {}),
         facing: heading(path, fraction, position), poseRole: poseRole(actor, step, meta?.team),
         pose: "ready", jump: 0,
-        path: showMovement ? path.map(point => courtPointToWorld(point, elevation ?? 0)) : [],
+        path: showMovement ? worldPath : [],
       };
-      const state = sampled.get(actor.id);
-      const action = step.actorActions?.[actor.id];
       if (!state && action) {
         const { role, ...pose } = courtActorActionPose(action);
         Object.assign(result, pose, { poseRole: role, ...(action === "attack" ? { mirror: actor.attackHand === "left" } : {}) });
+      }
+      if (manualTravel) {
+        const gait = manualCourtTravel(worldPath, fraction, step.durationMs);
+        if (gait) {
+          Object.assign(result, gait);
+          if (result.poseRole === "blocker" && gait.feet) {
+            result.feet = [gait.feet[1], gait.feet[0]];
+            result.handAngle = Math.atan2(gait.facing[0], gait.facing[1]) * 180 / Math.PI;
+          }
+        }
       }
       if (state) {
         const [x, y, z] = state.position;
@@ -210,9 +230,14 @@ export function buildCourtPerspectiveFrame(
           poseRole: state.role, pose: state.pose, jump: state.jump, side: state.side,
           mirror: state.mirror ?? (state.role === "server"), previousPose: state.previousPose,
           previousSide: state.previousSide, poseBlend: state.poseBlend,
+          ...courtSkillMotion(simulation!, state, state.slot),
           ...(state.contactWeight !== undefined ? { contactWeight: state.contactWeight } : {}),
           ...(state.attackFrame !== undefined ? { attackFrame: state.attackFrame } : {}),
           ...(state.runCycle !== undefined ? { runCycle: state.runCycle } : {}),
+          ...(state.runDrive !== undefined ? { runDrive: state.runDrive } : {}),
+          ...(state.attackReadiness !== undefined ? { attackReadiness: state.attackReadiness, attackReadyLeft: state.attackReadyLeft } : {}),
+          ...(state.plantedStance ? { plantedStance: true } : {}),
+          ...(state.travelMotion ? { travelMotion: state.travelMotion } : {}),
           ...(state.attackStrideScale !== undefined ? { attackStrideScale: state.attackStrideScale } : {}),
           ...(state.attackLeadIn ? { attackLeadIn: state.attackLeadIn } : {}),
           ...(state.attackSlide ? { attackSlide: true } : {}),
@@ -238,7 +263,7 @@ export function buildCourtPerspectiveFrame(
         role: setter ? "setter" : "libero", color: "#4389ff", locked: true, illustration: true, simulated: true,
         position: { x, y, z }, facing: length > .000001 ? [dx / length, dz / length] : [0, z >= 0 ? -1 : 1],
         poseRole: state.role, pose: state.pose, jump: state.jump, side: state.side,
-        previousPose: state.previousPose, poseBlend: state.poseBlend, poseScale: setter ? .86 : .96, path: [],
+        previousPose: state.previousPose, poseBlend: state.poseBlend, ...courtSkillMotion(simulation!, state), poseScale: setter ? .86 : .96, path: [],
       });
     });
   }
@@ -250,7 +275,7 @@ export function buildCourtPerspectiveFrame(
     const drawings = [...legacy, ...frameDrawings(payload, index)].filter(drawing => courtDrawingTraceProgress(drawing, simulation) >= 0).map(drawing => simulation && drawing.id === simulation.ballId
       ? { ...drawing, points: [{ x: (simulation.defenseContact ?? simulation.ball)[0] / 9 + .5, y: (simulation.defenseContact ?? simulation.ball)[2] / 18 + .5 }] }
       : drawingAtProgress(drawing, fraction));
-    const projected = resolveCourtDrawingAnchors(drawings).map(drawing => {
+    const projected = revealCourtBlockShadow(resolveCourtDrawingAnchors(drawings), simulation, payload.editor).map(drawing => {
       const elevation = ["ball", "cone", "target", "ladder"].includes(drawing.kind) && (drawing.id !== simulation?.ballId || authoredFinal) ? courtSelectionElevation(payload, index, drawing.id) : undefined;
       const result = perspectiveDrawing(drawing, showMovement, elevation);
       const traceProgress = courtDrawingTraceProgress(drawing, simulation);

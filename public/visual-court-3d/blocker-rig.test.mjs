@@ -59,6 +59,17 @@ test('arm and leg segments remain attached to their joints through preparation a
  }
 });
 
+test('the central keeps both arm lengths from backswing through contact above the net',()=>{
+ const {group,update}=fixture();
+ for(const clipMirror of [false,true])for(let clipFrame=1;clipFrame<=46;clipFrame+=.5){
+  update({clipFrame,clipMirror,extension:Math.min(1,Math.max(0,(clipFrame-32)/12))});
+  for(const side of ['left','right']){
+   near(group.getObjectByName(side+'-upper-arm').scale.y,.32);
+   near(group.getObjectByName(side+'-forearm').scale.y,.33);
+  }
+ }
+});
+
 test('both palms preserve the canonical height, reach, single rotation and unscaled jump',()=>{
  const {parent,group,update}=fixture();parent.position.y=1.25;
  for(const [crouch,extension,jump,angle] of [[0,0,0,0],[.26,0,0,35],[.1,.5,.3,-30],[0,1,.85,180]]){
@@ -75,6 +86,32 @@ test('both palms preserve the canonical height, reach, single rotation and unsca
  }
  parent.position.y=0;update({jump:.85,extension:1});parent.updateMatrixWorld(true);
  for(const side of ['left','right'])assert.ok(world(group.getObjectByName(`${side}-palm`)).y>2.43+.065/2);
+});
+
+test('the central reads across the net while crossing and squares the shoulders on the plant',()=>{
+ const {group,update}=fixture();
+ const part=name=>world(group.getObjectByName(name));
+ for(const clipMirror of [false,true]){
+  const sign=clipMirror?1:-1;
+  function angles(frame){
+   update({clipFrame:frame,clipMirror});
+   group.updateMatrixWorld(true);
+   const shoulders=part('right-shoulder').sub(part('left-shoulder'));
+   const nose=part('nose').sub(part('head'));
+   return [group.rotation.y,Math.atan2(-shoulders.z,shoulders.x),Math.atan2(nose.x,nose.z)];
+  }
+  const [hips,chest,eyes]=angles(20);
+  const crossing=snapshot(group);
+  assert.ok(sign*hips>1.25&&sign*chest>1&&sign*eyes>.25);
+  assert.ok(sign*eyes<sign*chest-.5);
+  const [brakingHips,brakingChest]=angles(26);
+  assert.ok(sign*(brakingHips-brakingChest)>.35);
+  const [,plantChest,plantEyes]=angles(32);
+  near(plantChest,0);near(plantEyes,0);
+  for(const frame of [34,36,38,46])angles(frame);
+  assert.deepEqual(angles(20),[hips,chest,eyes],'scrubbing restores the same pose');
+  assert.deepEqual(snapshot(group),crossing);
+ }
 });
 
 test('crouching bends knees and hips while feet stay grounded and updates reuse every mesh',()=>{

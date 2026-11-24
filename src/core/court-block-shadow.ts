@@ -1,11 +1,13 @@
-import type { CourtSimulationActor, CourtSimulationPoint } from "./court-simulation-model";
-import type { CourtPoint } from "./visual-court";
+import type { CourtDrawing } from "./court-drawing-types";
+import type { CourtSimulationActor, CourtSimulationPoint, CourtSimulationSample } from "./court-simulation-model";
+import type { CourtPoint, CourtVisualPayload } from "./visual-court";
 
 type Palm = { x: number; y: number; z: number };
 type Floor = Omit<Palm, "y">;
 type ShadowProjection = { points: CourtPoint[]; rays: [Palm, Palm][] };
 
 export const DEFENSE_BLOCK_SHADOW_ID = "defense-block-shadow";
+const legacyBlockShadowId = "board_mwecn3c3_goz1ka3k";
 
 function clip(points: Floor[], axis: "x" | "z", boundary: number, sign: number): Floor[] {
   return points.flatMap((point, index) => {
@@ -20,6 +22,31 @@ function clip(points: Floor[], axis: "x" | "z", boundary: number, sign: number):
       [axis]: boundary,
     };
     return inside ? [intersection, point] : [intersection];
+  });
+}
+
+/** Reveal the authored floor area from the net as the airborne block reaches up. */
+export function revealCourtBlockShadow(drawings: CourtDrawing[], sample: CourtSimulationSample | null, editor: CourtVisualPayload["editor"]): CourtDrawing[] {
+  if (sample?.mode !== "defense" || sample.progress === 1) return drawings;
+  const defenders = sample.config.teamActorIds ?? sample.config.actorIds.slice(0, 6);
+  let reach = 0;
+  for (const actor of sample.actors) {
+    if (actor.role === "blocker" && actor.visible && defenders.includes(actor.id) && !editor?.actorMeta[actor.id]?.hidden) {
+      // Footwork also moves the body vertically. The hand extension starts at block takeoff.
+      reach = Math.max(reach, actor.extension ?? 0);
+    }
+  }
+  if (reach >= 1) return drawings;
+  return drawings.flatMap(drawing => {
+    if (drawing.kind !== "area" || (drawing.id !== DEFENSE_BLOCK_SHADOW_ID && drawing.id !== legacyBlockShadowId)) return [drawing];
+    if (reach <= 0 || drawing.points.length < 3) return [];
+    const depths = drawing.points.map(point => point.y);
+    const min = Math.min(...depths), max = Math.max(...depths);
+    const towardFarBaseline = Math.abs(min - .5) <= Math.abs(max - .5);
+    const limit = towardFarBaseline ? min + (max - min) * reach : max - (max - min) * reach;
+    const floor = drawing.points.map(({ x, y }) => ({ x, z: y }));
+    const points = clip(floor, "z", limit, towardFarBaseline ? -1 : 1).map(({ x, z }) => ({ x, y: z }));
+    return [{ ...drawing, points }];
   });
 }
 

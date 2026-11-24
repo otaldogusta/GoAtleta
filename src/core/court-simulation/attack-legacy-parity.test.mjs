@@ -8,14 +8,16 @@ import { sampleBlockerPose } from './blocker-motion.js';
 import { attackPresets as legacyPresets, sampleAttack as sampleReference } from '../__tests__/fixtures/court-reference/attack-motion.mjs';
 
 const legacyFrame = frame => {
- const { attackArc, attackGuide, backRowApproach, ...result } = frame;
+ const { attackArc, attackGuide, backRowApproach, setHand, ...result } = frame;
  // The hitter and the blockers use new approaches. The remaining poses,
  // timing, contacts and flight still follow the same reference.
  result.actors = result.actors.map((actor, index) => {
   if(index===3)return { role:actor.role, side:actor.side, mirror:actor.mirror };
   if(actor.role==='blocker'){
-   const {position,feet,feetWeight,blockFrame,blockMirror,...pose}=actor;
-   return pose;
+   const {position,feet,feetWeight,plantedStance,blockFrame,blockMirror,runCycle,runDrive,travelMotion,facing,...pose}=actor;
+   // The run to the pin has a short flight between footfalls before the
+   // blocking jump starts. Still compare the entire blocking jump itself.
+   return runCycle===undefined?pose:{...pose,jump:0};
   }
   return actor;
  });
@@ -44,10 +46,19 @@ test('the wing starts set and the central closes from inside the court before ju
   const firstFoot=preset==='4'?1:0;
   assert.ok(first.feet[firstFoot][1]>0);
   assert.deepEqual(first.feet[1-firstFoot],set.actors[middle].feet[1-firstFoot]);
-  const footAt=frame=>sampleAttack(initial.setContact+(initial.attackContact-.224/initial.duration-initial.setContact)*(frame-1)/31,options).actors[middle].feet[firstFoot];
+  const travelSeconds=(initial.attackContact-initial.setContact)*initial.duration-.224;
+  const sampleCount=160;
+  const close=Array.from({length:sampleCount+1},(_,i)=>
+   sampleAttack(initial.setContact+travelSeconds*i/(sampleCount*initial.duration),options).actors[middle]);
+  const footAt=frame=>close.find(actor=>actor.blockFrame>=frame-1e-6).feet[firstFoot];
   assert.ok(Math.abs(footAt(14)[3])>.9);
   assert.equal(footAt(14)[3],footAt(19)[3]);
   assert.ok(Math.abs(footAt(32)[3])<1e-8);
+  const average=Math.abs(close.at(-1).position[0]-close[0].position[0])/travelSeconds;
+  for(let i=1;i<close.length;i++){
+   const speed=Math.abs(close[i].position[0]-close[i-1].position[0])*sampleCount/travelSeconds;
+   assert.ok(speed<average*2,'the crossing step carries the hips without a sudden burst');
+  }
   const planted=at(-.22).actors[middle];
   assert.equal(planted.jump,0);
   assert.deepEqual(planted.feet,takeoff.actors[middle].feet);
@@ -71,6 +82,55 @@ test('the wing starts set and the central closes from inside the court before ju
    const frame=sampleAttack(i/100,options);
    for(const slot of [wing,middle]) assert.ok(Math.abs(frame.actors[slot].position[0])<4.5);
   }
+ }
+});
+
+test('a quick set leaves real time for the block to close, including the far wing and no-pass replays',()=>{
+ for(const pass of [false,true])for(const blockers of [2,3]){
+  for(const [preset,edits] of [['1',{}],['tempo-costas',{}],['metro',{x:-1.4,hitOverride:[-1.35,.9],attackArc:1.7}]]){
+   const config={preset,blockers,...edits,layers:{pass,attack:true,block:true}};
+   const initial=sampleAttack(0,config),duration=initial.duration;
+   const at=seconds=>sampleAttack(seconds/duration,config);
+   const hit=initial.attackContact*duration,set=initial.setContact*duration;
+   const slots=[1,2,5].slice(0,blockers);
+   assert.equal(initial.actors[2].position[0],0);
+   assert.ok(Math.abs(initial.actors[1].position[0])>3.5);
+   const peak=slots.map(()=>0),previous=slots.map(slot=>initial.actors[slot].position[0]);
+   for(let sample=1;sample<=Math.ceil(hit*120);sample++){
+    const actors=at(sample/120).actors;
+    slots.forEach((slot,n)=>{
+     const x=actors[slot].position[0];
+     peak[n]=Math.max(peak[n],Math.abs(x-previous[n])*120);
+     previous[n]=x;
+    });
+   }
+   assert.ok(peak.every(speed=>speed<=6.05),`${preset} ${blockers}: ${peak} m/s`);
+   const planted=at(hit-.19),airborne=at(hit-.10);
+   for(const slot of slots){
+    assert.ok(Math.abs(planted.actors[slot].position[0]-airborne.actors[slot].position[0])<1e-8);
+    assert.equal(planted.actors[slot].jump,0);
+    assert.ok(airborne.actors[slot].jump>0);
+    assert.equal(airborne.actors[slot].jump,airborne.actors[1].jump);
+   }
+   const sameBall=sampleAttack(0,{...config,layers:{...config.layers,block:false}});
+   assert.ok(Math.abs(hit-set-(sameBall.attackContact-sameBall.setContact)*sameBall.duration)<1e-8);
+   for(const [seconds,target] of [[set,initial.setHand],[hit,initial.flight.hit]]){
+    assert.ok(Math.hypot(...at(seconds).ball.map((v,i)=>v-target[i]))<1e-8);
+   }
+   if(!pass&&blockers===3)assert.ok(set>sameBall.setContact*sameBall.duration);
+  }
+ }
+});
+
+test('manual blockers stay on the edited marks without extending the attack clock',()=>{
+ const config={preset:'tempo-costas',blockers:3,manualBlockers:[1,2,5],layers:{pass:false,attack:true,block:true}};
+ const bases=attackFormation();
+ bases[5]=[3.6,0,-.6];
+ const initial=sampleAttack(0,{...config,bases});
+ assert.ok(Math.abs(initial.setContact*initial.duration-.532)<1e-8);
+ for(const progress of [0,initial.setContact,initial.attackContact]){
+  const frame=sampleAttack(progress,{...config,bases});
+  for(const slot of config.manualBlockers)assert.deepEqual(frame.actors[slot].position,bases[slot]);
  }
 });
 

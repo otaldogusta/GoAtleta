@@ -7,6 +7,8 @@ import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
+import { COURT_SYSTEMS } from "./court-library";
+import { SIX_ZERO_ATTACK_PRESETS } from "../../core/court-simulation/attack-settings";
 import { courtEditingDock, courtPlaybackLayout } from "./court-overlay-layout";
 
 type SimulationMode = CourtSimulation["mode"];
@@ -31,9 +33,9 @@ const ATTACK_SET_OPTIONS = [
 const BLOCKER_IDS = [1, 2, 5];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
 
-function Segments<T extends string | number>({ label, options, value, onChange, disabled = false, nativeID, compact = false, fullTouchTarget = false, slideSelection = false }: {
+function Segments<T extends string | number>({ label, options, value, onChange, disabled = false, nativeID, compact = false, fullTouchTarget = false, slideSelection = false, backgroundColor, vertical = false }: {
   label: string; options: readonly { value: T; label: string; disabled?: boolean; accessibilityLabel?: string }[]; value: T | undefined;
-  onChange: (value: T) => void; disabled?: boolean; nativeID?: string; compact?: boolean; fullTouchTarget?: boolean; slideSelection?: boolean;
+  onChange: (value: T) => void; disabled?: boolean; nativeID?: string; compact?: boolean; fullTouchTarget?: boolean; slideSelection?: boolean; backgroundColor?: string; vertical?: boolean;
 }) {
   const { colors } = useAppTheme();
   const touch = Platform.OS !== "web";
@@ -41,13 +43,13 @@ function Segments<T extends string | number>({ label, options, value, onChange, 
   const fontSize = compact ? fullTouchTarget ? 11 : 10 : 12;
   const selectedIndex = options.findIndex(option => option.value === value);
   const sliding = Platform.OS === "web" && slideSelection && selectedIndex >= 0;
-  return <View nativeID={nativeID} accessibilityRole="radiogroup" accessibilityLabel={label} style={[styles.segments, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+  return <View nativeID={nativeID} accessibilityRole="radiogroup" accessibilityLabel={label} style={[styles.segments, vertical && { flexDirection: "column", alignItems: "stretch", borderRadius: 14 }, { borderColor: colors.border, backgroundColor: backgroundColor ?? colors.inputBg }]}>
     {sliding ? <View pointerEvents="none" aria-hidden style={{ position: "absolute", left: 3, right: 3, top: 3, bottom: 3 }}>
       <View {...{ dataSet: { courtModeIndicator: "true" } }} style={{ width: `${100 / options.length}%`, height: "100%",
         borderRadius: radius.full, backgroundColor: colors.primaryBg, opacity: disabled || options[selectedIndex].disabled ? .38 : 1,
         transform: [{ translateX: `${selectedIndex * 100}%` }] }} />
     </View> : null}
-    {options.map(option => <Pressable suppressWebHoverFeedback disableWebPressScale key={option.value} accessibilityRole="radio" accessibilityLabel={option.accessibilityLabel ?? `${label}: ${option.label}`} accessibilityState={{ checked: value === option.value, disabled: disabled || option.disabled }} aria-checked={value === option.value} disabled={disabled || option.disabled} onPress={() => { if (!disabled && !option.disabled) onChange(option.value); }} style={({ hovered, pressed }) => [styles.segment, sizing, { backgroundColor: value === option.value ? sliding ? "transparent" : colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || option.disabled ? 0.38 : 1 }]}>
+    {options.map(option => <Pressable suppressWebHoverFeedback disableWebPressScale key={option.value} accessibilityRole="radio" accessibilityLabel={option.accessibilityLabel ?? `${label}: ${option.label}`} accessibilityState={{ checked: value === option.value, disabled: disabled || option.disabled }} aria-checked={value === option.value} disabled={disabled || option.disabled} onPress={() => { if (!disabled && !option.disabled) onChange(option.value); }} style={({ hovered, pressed }) => [styles.segment, sizing, vertical && { flex: 0 }, { backgroundColor: value === option.value ? sliding ? "transparent" : colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled || option.disabled ? 0.38 : 1 }]}>
       <Text numberOfLines={1} style={{ color: value === option.value ? colors.primaryText : colors.muted, fontSize, fontWeight: touch && value === option.value ? "600" : "400" }}>{option.label}</Text>
     </Pressable>)}
   </View>;
@@ -101,6 +103,8 @@ function Range({ label, value, min, max, step, onChange, disabled = false, text,
       .court-slider::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin-top:-6px;border:0;border-radius:50%;background:${colors.text};transition:box-shadow 120ms ease}
       .court-slider::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:${colors.text}}
       .court-slider:hover::-webkit-slider-thumb,.court-slider:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px ${colors.primaryBg}33}
+      .court-timeline-slider::-webkit-slider-thumb{width:13px;height:13px;margin-top:-4.5px}
+      .court-timeline-slider::-moz-range-thumb{width:13px;height:13px}
       .court-timeline-slider:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 2px ${colors.primaryBg},0 0 0 5px ${colors.primaryBg}33}
       .court-timeline-slider:focus-visible::-moz-range-thumb{box-shadow:0 0 0 2px ${colors.primaryBg},0 0 0 5px ${colors.primaryBg}33}
       .court-slider:not(.court-timeline-slider):focus-visible{outline:2px solid ${colors.primaryBg};outline-offset:3px;border-radius:6px}
@@ -142,13 +146,14 @@ function IconButton({ label, icon, onPress, primary = false, disabled = false, c
 export function CourtSimulationModes({ mode, onChange, disabled = false, defenseAvailable = true }: {
   mode: SimulationMode; onChange: (mode: SimulationMode) => void; disabled?: boolean; defenseAvailable?: boolean;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, mode: themeMode } = useAppTheme();
+  const surface = themeMode === "dark" ? "rgba(10,25,43,0.94)" : "rgba(247,251,255,0.96)";
   const { width } = useWindowDimensions();
   const touch = Platform.OS !== "web" || width <= 700;
   const compactWeb = Platform.OS === "web" && width <= 700;
   const web = Platform.OS === "web";
   const activeIndex = mode === "receive" ? 0 : mode === "attack" ? 1 : 2;
-  return <View accessibilityRole="tablist" accessibilityLabel="Modo da jogada" style={[styles.modes, compactWeb ? { padding: 3 } : null, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+  return <View accessibilityRole="tablist" accessibilityLabel="Modo da jogada" style={[styles.modes, compactWeb ? { padding: 3 } : null, { borderColor: colors.border, backgroundColor: surface }]}>
     {web ? <>
       <style>{`
         [data-court-mode-indicator] { transition: transform 170ms cubic-bezier(.2,.75,.25,1); }
@@ -181,6 +186,7 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
   const layout = courtPlaybackLayout(width, uiScale, Platform.OS === "web");
   const compactOptions = Platform.OS === "web" && layout.stacked;
   const editingDock = Boolean(editingControls && dockInsets);
+  const compactSpeedMenu = Platform.OS === "web" && width > 700;
   const controlsScale = compactOptions ? Math.min(1, layout.width / 276) : 1;
   const speedTrigger = useRef<View>(null);
   const speedMenuId = useId();
@@ -222,17 +228,17 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
   const speedControl = <View ref={speedTrigger} collapsable={false}>
     <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Velocidade da reprodução" accessibilityValue={{ text: rate }} accessibilityState={{ expanded: speedOpen && !disabled, disabled }} disabled={disabled} onPress={toggleSpeed} style={({ hovered, pressed }) => [styles.transportRow, { minWidth: compactOptions || editingDock ? 44 : 48, minHeight: editingDock ? 44 : Platform.OS === "web" ? 32 : 40, paddingHorizontal: compactOptions ? 4 : 6, justifyContent: "center", borderRadius: radius.full, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
       <Text numberOfLines={1} style={{ color: colors.text, fontSize: Platform.OS === "web" ? 11 : 12, fontVariant: ["tabular-nums"] }}>{rate}</Text>
-      <GoAtletaIcon name="chevronDown" size={12} color={colors.muted} />
+      <GoAtletaIcon name="chevronUp" size={12} color={colors.muted} />
     </Pressable>
   </View>;
-  const options = <View accessibilityLabel="Rodízio e opções de reprodução" style={[styles.transportRow, compactOptions || editingDock ? { flex: 1, minWidth: 0 } : null, { justifyContent: "space-between", gap: editingDock ? 0 : compactOptions ? 4 : 6, paddingHorizontal: editingDock ? 0 : compactOptions ? 4 : 6, minHeight: 36, borderRadius: radius.full, backgroundColor: compactOptions || editingDock ? "transparent" : colors.background }]}>
+  const options = <View accessibilityLabel="Rodízio e opções de reprodução" style={[styles.transportRow, editingDock ? { flex: 1, minWidth: 0 } : null, { justifyContent: "space-between", gap: editingDock ? 0 : compactOptions ? 4 : 6, paddingHorizontal: editingDock ? 0 : compactOptions ? 4 : 6, minHeight: 36, borderRadius: radius.full, backgroundColor: editingDock ? "transparent" : colors.background }]}>
     {rotationControls}
     {speedControl}
     {editingDock ? null : editingControls ?? <IconButton transport compact={compactOptions} label="Mostrar ajustes" icon="list" onPress={onOpenSteps} />}
   </View>;
   return <><View accessibilityLabel="Reprodução da jogada" style={[styles.transport, { bottom, justifyContent: "space-between" }, editingDock ? { left: courtEditingDock.left + (dockInsets?.left ?? 0), right: courtEditingDock.right + (dockInsets?.right ?? 0), height: courtEditingDock.height } : { width: layout.width, height: layout.height, transform: [{ scale: uiScale }], transformOrigin: "bottom center" }]}>
     <View style={{ height: 24, justifyContent: "center" }}><Range transport label="Avançar ou voltar na jogada" value={progress} min={0} max={1} step={0.001} onChange={onSeek} disabled={disabled} text={`${Math.round(clamp(progress, 0, 1) * 100)}%`} /></View>
-    <View accessibilityLabel="Comandos de reprodução" style={[styles.transportRow, { justifyContent: "space-between", gap: compactOptions ? 4 : 8, height: 44 }, editingDock ? { width: "100%", height: courtEditingDock.commandsHeight, gap: 0, paddingHorizontal: courtEditingDock.commandsPadding, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background } : compactOptions ? { width: layout.width / controlsScale, paddingHorizontal: 4, borderRadius: radius.full, backgroundColor: colors.background, transform: [{ scale: controlsScale }], transformOrigin: "bottom left" } : null]}>
+    <View accessibilityLabel="Comandos de reprodução" style={[styles.transportRow, { justifyContent: "space-between", gap: compactOptions ? 4 : 8, height: 44 }, editingDock ? { width: "100%", height: courtEditingDock.commandsHeight, gap: 0, paddingHorizontal: courtEditingDock.commandsPadding, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background } : compactOptions ? { width: layout.width / controlsScale, transform: [{ scale: controlsScale }], transformOrigin: "bottom left" } : null]}>
       <View style={[styles.transportRow, { gap: editingDock ? 0 : compactOptions ? 4 : 8 }]}>
         <IconButton transport circular compact={compactOptions || editingDock} fullTarget={editingDock} label={playing ? "Pausar jogada" : "Reproduzir jogada"} icon={playing ? "pause" : "play"} onPress={onPlay} primary disabled={disabled} />
         <IconButton transport circular compact={compactOptions || editingDock} fullTarget={editingDock} label="Voltar ao início da jogada" icon="refresh" onPress={onRestart} disabled={disabled} />
@@ -242,8 +248,8 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
     </View>
     {layout.stacked && !compactOptions && !editingDock ? options : null}
   </View>
-    <AnchoredDropdown visible={speedOpen && !disabled} layout={speedLayout} container={null} animationStyle={{}} zIndex={6100} maxHeight={Platform.OS === "web" ? 34 : 44} nestedScrollEnabled={false} density="popover" surface="none" preferredWidth={208} align="end" scrollContentStyle={{ padding: 0, gap: 0 }} fitContent showVerticalScrollIndicator={false} onRequestClose={closeSpeed} interactiveRefs={[speedTrigger]}>
-      <Segments nativeID={speedMenuId} label="Velocidade" options={SPEED_OPTIONS} value={boundedSpeed} disabled={disabled} onChange={value => { if (!disabled) { onSpeed(value); closeSpeed(); } }} />
+    <AnchoredDropdown visible={speedOpen && !disabled} layout={speedLayout} container={null} animationStyle={{}} zIndex={6100} maxHeight={compactSpeedMenu ? 96 : 192} nestedScrollEnabled={false} density="popover" surface="none" preferredWidth={compactSpeedMenu ? 64 : 92} align="end" scrollContentStyle={{ padding: 0, gap: 0 }} fitContent showVerticalScrollIndicator={false} onRequestClose={closeSpeed} interactiveRefs={[speedTrigger]}>
+      <Segments vertical compact={compactSpeedMenu} fullTouchTarget={!compactSpeedMenu} nativeID={speedMenuId} label="Velocidade" options={SPEED_OPTIONS} value={boundedSpeed} disabled={disabled} onChange={value => { if (!disabled) { onSpeed(value); closeSpeed(); } }} />
     </AnchoredDropdown>
   </>;
 }
@@ -264,34 +270,40 @@ function SettingsGroup({ title, children }: { title?: string; children: ReactNod
   </View>;
 }
 
-function AttackSetPicker({ preset, attackSettings, onChange, disabled, compactWeb }: {
-  preset: string; attackSettings?: CourtSimulation["attackSettings"]; onChange: (patch: Partial<CourtSimulation>) => void;
-  disabled: boolean; compactWeb: boolean;
+function AttackSetPicker({ preset, system, attackSettings, onChange, disabled, compactWeb, backgroundColor }: {
+  preset: string; system?: CourtSimulation["system"]; attackSettings?: CourtSimulation["attackSettings"]; onChange: (patch: Partial<CourtSimulation>) => void;
+  disabled: boolean; compactWeb: boolean; backgroundColor?: string;
 }) {
   const { colors } = useAppTheme();
-  const setIndex = Math.max(0, ATTACK_SET_OPTIONS.findIndex(option => option.id === preset));
+  const options = system === "6-0"
+    ? ATTACK_SET_OPTIONS.filter(option => SIX_ZERO_ATTACK_PRESETS.includes(option.id))
+    : ATTACK_SET_OPTIONS;
+  const setIndex = Math.max(0, options.findIndex(option => option.id === preset));
+  const current = options[setIndex];
+  const zoneLabels: Record<string, string> = { "4": "Ponta (4)", "1": "Meio (3)", "fundo-1": "Fundo 1" };
   const choosePreset = (delta: number) => {
-    const count = ATTACK_SET_OPTIONS.length;
-    const { id } = ATTACK_SET_OPTIONS[(setIndex + delta + count) % count];
+    const count = options.length;
+    const { id } = options[(setIndex + delta + count) % count];
     onChange({ preset: id, ...(attackSettings ? { attackSettings: { ...attackSettings, hitOverride: null, setHeight: null, attackArc: null } } : {}) });
   };
-  return <View style={[styles.segments, { borderColor: colors.border, backgroundColor: colors.inputBg }]}><IconButton label="Levantamento anterior" icon="chevronBack" onPress={() => choosePreset(-1)} disabled={disabled} /><Text key={setIndex} {...{ dataSet: { courtQuickSlide: "true" } }} style={{ flex: 1, minWidth: 0, textAlign: "center", color: colors.text, fontSize: compactWeb ? 10 : 12 }}>{ATTACK_SET_OPTIONS[setIndex].label}</Text><IconButton label="Próximo levantamento" icon="chevronForward" onPress={() => choosePreset(1)} disabled={disabled} /></View>;
+  return <View style={[styles.segments, { borderColor: colors.border, backgroundColor: backgroundColor ?? colors.inputBg }]}><IconButton label="Levantamento anterior" icon="chevronBack" onPress={() => choosePreset(-1)} disabled={disabled} /><Text key={setIndex} {...{ dataSet: { courtQuickSlide: "true" } }} style={{ flex: 1, minWidth: 0, textAlign: "center", color: colors.text, fontSize: compactWeb ? 10 : 12 }}>{system === "6-0" ? zoneLabels[current.id] : current.label}</Text><IconButton label="Próximo levantamento" icon="chevronForward" onPress={() => choosePreset(1)} disabled={disabled} /></View>;
 }
 
-export function CourtSimulationQuickControls({ mode, config, disabled, onChange, onDefensePresetChange, unavailableDefensePresets }: {
+export function CourtSimulationQuickControls({ mode, config, disabled, onChange, onDefensePresetChange, unavailableDefensePresets, backgroundColor }: {
   mode: SimulationMode; config: CourtSimulation | null; disabled: boolean;
   onChange: (patch: Partial<CourtSimulation>) => void;
   onDefensePresetChange: (preset: CourtDefensePreset) => void;
   unavailableDefensePresets?: readonly CourtDefensePreset[];
+  backgroundColor?: string;
 }) {
   const { width } = useWindowDimensions();
   const compact = Platform.OS === "web" && width <= 700;
   return <View key={mode} {...{ dataSet: { courtQuickSlide: "true" } }} style={{ alignSelf: "center", width: mode === "receive" ? 252 : 218, maxWidth: "100%" }}>
-    {mode === "receive" ? <Segments label="Rodízio" slideSelection compact={compact} disabled={disabled} value={config?.rotation ?? 0}
+    {mode === "receive" ? <Segments label="Rodízio" backgroundColor={backgroundColor} slideSelection compact={compact} disabled={disabled} value={config?.rotation ?? 0}
       options={ROTATIONS.map((label, value) => ({ label, value, accessibilityLabel: `Rodízio ${label}` }))}
       onChange={rotation => onChange({ rotation })} />
-      : mode === "attack" ? <AttackSetPicker preset={config?.preset ?? "4"} attackSettings={config?.attackSettings} onChange={onChange} disabled={disabled} compactWeb={compact} />
-      : <Segments label="Ataque da defesa" slideSelection compact={compact} disabled={disabled} value={courtDefensePreset(config?.preset)}
+      : mode === "attack" ? <AttackSetPicker preset={config?.preset ?? "4"} system={config?.system} attackSettings={config?.attackSettings} onChange={onChange} disabled={disabled} compactWeb={compact} backgroundColor={backgroundColor} />
+      : <Segments label="Ataque da defesa" backgroundColor={backgroundColor} slideSelection compact={compact} disabled={disabled} value={courtDefensePreset(config?.preset)}
         options={COURT_DEFENSE_ATTACKS.map(option => ({ ...option, disabled: unavailableDefensePresets?.includes(option.value) }))}
         onChange={onDefensePresetChange} />}
   </View>;
@@ -333,24 +345,26 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
   return <ScrollView accessibilityLabel="Ajustes da jogada" keyboardShouldPersistTaps="handled" style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: compactWeb ? 8 : 10, paddingBottom: spacing.sm }}>
 
         {mode === "attack" && showRotation ? rotationControl : null}
-        {mode === "receive" ? <>
-          <Row label="SISTEMA"><Segments compact={compactWeb} label="Sistema" value={config?.system ?? "5-1"} options={[{ value: "5-1", label: "5–1" }, { value: "6-2", label: "6–2" }]} onChange={system => onChange({ system })} disabled={disabled} /></Row>
+        {mode === "receive" ? <SettingsGroup title="Jogada">
+          <Row label="SISTEMA"><Segments compact={compactWeb} label="Sistema" value={config?.system ?? "5-1"} options={COURT_SYSTEMS} onChange={system => onChange({ system })} disabled={disabled} /></Row>
           {showRotation && !primarySelectorInHeader ? rotationControl : null}
           <Row label="SAQUE"><Segments compact={compactWeb} label="Saque" value={config?.serve ?? "Float"} options={[{ value: "Float", label: "Flutuante" }, { value: "Topspin", label: "Com rotação" }]} onChange={serve => onChange({ serve })} disabled={disabled} /></Row>
           <Row label="ALVO"><Segments compact={compactWeb} label="Alvo do saque" value={config?.seam ?? "Left"} options={[{ value: "Left", label: "Esquerda" }, { value: "Right", label: "Direita" }]} onChange={seam => onChange({ seam })} disabled={disabled} /></Row>
-        </> : mode === "defense" ? <>
+        </SettingsGroup> : mode === "defense" ? <>
           {onDefensePresetChange && !primarySelectorInHeader ? <Row label="ATAQUE"><Segments<CourtDefensePreset> label="Ataque da defesa" value={courtDefensePreset(config?.preset)} onChange={onDefensePresetChange} disabled={disabled} compact={compactWeb} fullTouchTarget={compactWeb || Platform.OS !== "web"}
             options={COURT_DEFENSE_ATTACKS.map(option => ({ ...option, disabled: unavailableDefensePresets?.includes(option.value) }))} /></Row> : null}
           {onDefenseCoverageChange ? <Row label="COBERTURA"><Segments<CourtDefenseCoverage> label="Sistema de defesa" value={config?.defenseSettings?.coverage} onChange={onDefenseCoverageChange} disabled={disabled} compact={compactWeb} fullTouchTarget={mobile || touch} options={[
-            { value: "front", label: "Frontal", accessibilityLabel: "Sistema de defesa: Cobertura frontal", disabled: unavailableDefenseCoverage?.includes("front") },
-            { value: "zone1", label: "Posição 1", accessibilityLabel: "Sistema de defesa: Cobertura da posição 1", disabled: unavailableDefenseCoverage?.includes("zone1") },
+            { value: "front", label: "Pela rede", accessibilityLabel: "Largada pela rede", disabled: unavailableDefenseCoverage?.includes("front") },
+            { value: "zone1", label: config?.system && config.system !== "6-0" ? "Pelo líbero" : "Pelo fundo", accessibilityLabel: "Largada pelo fundo", disabled: unavailableDefenseCoverage?.includes("zone1") },
           ]} /></Row> : null}
-          <Text style={{ color: colors.muted, fontSize: compactWeb ? 11 : 12 }}>Organização da defesa até o contato.</Text>
+          <Text style={{ color: colors.muted, fontSize: compactWeb ? 11 : 12 }}>{config?.defenseSettings?.coverage === "zone1"
+            ? `${config?.system && config.system !== "6-0" ? "Líbero" : "Defensor do fundo"} na largada, jogador da rede na diagonal e defensor do fundo na paragonal.`
+            : "Jogador da rede na largada e defensor do fundo na paragonal."}</Text>
         </> : <>
           <SettingsGroup title="Jogada">
             <Row label="INCLUIR"><View accessibilityLabel="Camadas da simulação" style={[styles.segments, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>{([["attack", "Ataque"], ["pass", "Passe"], ["block", "Bloqueio"]] as const).map(([key, label]) => <Pressable suppressWebHoverFeedback disableWebPressScale key={key} accessibilityRole="button" accessibilityLabel={`Camada ${label.toLowerCase()}`} accessibilityState={{ selected: layers[key], disabled }} aria-pressed={layers[key]} disabled={disabled} onPress={() => onChange({ layers: { ...layers, [key]: !layers[key] } })} style={({ hovered, pressed }) => [styles.segment, compactWeb ? { minHeight: 22 } : mobile && touch ? { minHeight: 36 } : null, { backgroundColor: layers[key] ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}><Text style={{ color: layers[key] ? colors.primaryText : colors.muted, fontSize: compactWeb ? 10 : 12 }}>{label}</Text></Pressable>)}</View></Row>
             <Row label="FORMATO"><Segments compact={compactWeb} label="Formato" value={config?.format ?? "Indoor"} options={[{ value: "Indoor", label: "Quadra" }, { value: "9-man", label: "9 jogadores", disabled: true, accessibilityLabel: "9 jogadores. Em breve" }]} onChange={format => onChange({ format })} disabled={disabled} /></Row>
-            {!primarySelectorInHeader ? <Row label="LEVANTAMENTO"><AttackSetPicker preset={preset} attackSettings={attackSettings} onChange={onChange} disabled={disabled} compactWeb={compactWeb} /></Row> : null}
+            {!primarySelectorInHeader ? <Row label="LEVANTAMENTO"><AttackSetPicker preset={preset} system={config?.system} attackSettings={attackSettings} onChange={onChange} disabled={disabled} compactWeb={compactWeb} /></Row> : null}
             {layers.attack ? <Row label="CURVA DA CORTADA"><Range key={preset} label="Curva da cortada" value={attackArc} min={.03} max={4} step={.01} onChange={value => onChange({ attackSettings: { ...attackSettings, attackArc: value } })} onReset={() => onChange({ attackSettings: { ...attackSettings, attackArc: null } })} disabled={disabled} formatValue={value => `${value.toFixed(2).replace(".", ",")} m`} onPreview={value => onAttackPreview?.(value === null ? null : { ...attackSettings, attackArc: value }, "curve")} commitOnEnd /></Row> : null}
           </SettingsGroup>
           {layers.block ? <SettingsGroup>

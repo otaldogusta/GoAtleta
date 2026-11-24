@@ -1,5 +1,5 @@
 import * as THREE from './three.module.min.js';
-import {createActorRig} from './actor-rig.mjs?v=cmu-p1-20261123';
+import {createActorRig} from './actor-rig.mjs?v=reception-attack-ready-20261123';
 import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail,shouldCancelFrameGesture} from './renderer-geometry.mjs';
 import {isHeightHandle,previewAttackCurve,previewServeTarget,simulationHandleEdit} from './renderer-simulation-geometry.mjs?v=serve-target-preview-20261123';
 import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
@@ -139,9 +139,9 @@ function applyActor(actor,object,contactBall,attackImpact){
  updateContactShadow(object.shadow,actor.position.y,actor.position.y+Math.max(0,actor.jump||0));
  const tint=colorOf(actor.color);
  object.rig.group.traverse(child=>{if(child.material?.color)child.material.color.set(tint);});
- const contactTarget=actor.poseRole==='attacker'&&actor.contactWeight!==undefined?attackImpact:
+ const contactTarget=actor.contactTarget ?? (actor.poseRole==='attacker'&&actor.contactWeight!==undefined?attackImpact:
   actor.pose==='contact'||actor.previousPose==='contact'&&(actor.poseBlend??1)<1||
-  actor.poseRole==='server'&&(['ready','toss'].includes(actor.pose)||['ready','toss'].includes(actor.previousPose)&&(actor.poseBlend??1)<1)?contactBall:undefined;
+  actor.poseRole==='server'&&(['ready','toss'].includes(actor.pose)||['ready','toss'].includes(actor.previousPose)&&(actor.poseBlend??1)<1)?contactBall:undefined);
  object.rig.update(contactTarget?{...actor,contactTarget}:actor);object.height=object.rig.height;
  object.group.visible=!frame.hide.includes('actors');object.selection.visible=frame.selected.includes(actor.id);object.label.textContent=actor.label;object.label.setAttribute('aria-label',`Selecionar jogador ${actor.label}${actor.rotationPosition ? ` · posição ${actor.rotationPosition}` : ""}`);object.label.setAttribute('aria-pressed',String(frame.selected.includes(actor.id)));object.label.disabled=packet.disabled;object.label.dataset.hovered=String(hoveredId===actor.id);
 }

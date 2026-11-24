@@ -4,9 +4,11 @@ export const ATTACK_APPROACH_MAX_X=6.25;
 export const BACK_ROW_TAKEOFF_DEPTH=3.45;
 export const BACK_ROW_JUMP_ADVANCE=1.9;
 export const CHINA_JUMP_ADVANCE=.55;
+// The setter occupies zone 2. The other two front players and the right back can finish.
+export const SIX_ZERO_ATTACK_PRESETS=['4','1','fundo-1'];
 export const isBackRowAttack=preset=>preset==='pipe'||preset==='bic'||preset==='fundo-1';
 export const isMiddleAttack=preset=>['1','2','31','tempo-costas','china','metro'].includes(preset);
-export const middleAttackColor=(simulation,actorId)=>simulation?.mode==='attack'&&simulation.actorIds?.[3]===actorId&&isMiddleAttack(simulation.preset)?'#8b5cf6':undefined;
+export const middleAttackColor=(simulation,actorId)=>simulation?.mode==='attack'&&simulation.system!=='6-0'&&simulation.actorIds?.[3]===actorId&&isMiddleAttack(simulation.preset)?'#8b5cf6':undefined;
 const scalar=(v,min,max,fallback)=>Number.isFinite(v)?limit(v,min,max):fallback;
 const pair=(p,xMin,xMax,zMin,zMax)=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&Number.isFinite(p[1])?[limit(p[0],xMin,xMax),limit(p[1],zMin,zMax)]:null;
 const angles=value=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).filter(([key,angle])=>['1','2','5'].includes(key)&&Number.isFinite(angle)).map(([key,angle])=>[key,limit(angle,-65,65)])):{};

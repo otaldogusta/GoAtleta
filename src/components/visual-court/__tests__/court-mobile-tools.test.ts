@@ -139,6 +139,42 @@ describe("court mobile tool flow", () => {
     expect(editor.stepIndex).toBe(0);
   });
 
+  it("keeps the selected six-zero rotation across attack and defense, even after visiting another rotation's defense", async () => {
+    await mount(990, { payload: buildSimulatedReceptionRotationPreset("6-0") });
+    const mode = (value: string) => act(() => tree.root.findByType("Modes" as never).props.onChange(value));
+    const quick = () => tree.root.findByType("QuickControls" as never).props;
+    const active = () => editor.payload.timeline.steps[editor.stepIndex].simulation!;
+    const team = active().teamActorIds;
+    mode("defense");
+    const firstDefense = editor.stepIndex;
+    mode("receive");
+    act(() => quick().onChange({ rotation: 1 }));
+    mode("attack");
+    act(() => quick().onChange({ preset: "fundo-1" }));
+    expect(active()).toMatchObject({ mode: "attack", system: "6-0", rotation: 1, preset: "fundo-1", teamActorIds: team });
+    mode("defense");
+    expect(editor.stepIndex).not.toBe(firstDefense);
+    act(() => quick().onDefensePresetChange("1"));
+    expect(active()).toMatchObject({ mode: "defense", system: "6-0", rotation: 1, blockers: 1, teamActorIds: team });
+    mode("attack");
+    expect(active()).toMatchObject({ mode: "attack", rotation: 1, preset: "fundo-1", teamActorIds: team });
+    mode("receive");
+    expect(active()).toMatchObject({ mode: "receive", rotation: 1, system: "6-0", teamActorIds: team });
+    act(() => quick().onChange({ rotation: 0 }));
+    mode("defense");
+    expect(editor.stepIndex).toBe(firstDefense);
+  });
+
+  it("takes the six-zero team from the active rotation when changing systems in settings", async () => {
+    await mount(990, { payload: buildSimulatedReceptionRotationPreset("5-1"), stepIndex: 2 });
+    act(() => tree.root.findByType("QuickControls" as never).props.onChange({ system: "6-0" }));
+    const sims = editor.payload.timeline.steps.map(step => step.simulation!);
+    expect(new Set(sims[2].teamActorIds).size).toBe(6);
+    for (const [rotation, sim] of sims.entries()) {
+      expect(sim).toMatchObject({ system: "6-0", rotation, teamActorIds: sims[2].teamActorIds });
+    }
+  });
+
   it("opens hydrated defense at contact and preserves voluntary seeking and playback", async () => {
     await mount();
     const next = ensureCourtDefenseStep(editor.payload);
@@ -189,11 +225,11 @@ describe("court mobile tool flow", () => {
     await mount();
     const sheet = () => tree.root.findByType("WorkspacePanel" as never).props;
     const transport = () => tree.root.findByType("Transport" as never).props;
-    expect(transport().editingControls).toBeTruthy();
+    expect(transport().editingControls).toBeUndefined();
     act(() => transport().onOpenSteps());
     expect(sheet().tab).toBe("adjustments");
     act(() => sheet().onRequestClose());
-    act(() => paletteButton("Ferramentas").props.onPress());
+    press("Mais ferramentas");
     expect(sheet()).toMatchObject({ open: true, tab: "tools" });
     act(() => render({ suspended: true }));
     expect(sheet().open).toBe(false);
@@ -201,7 +237,7 @@ describe("court mobile tool flow", () => {
     expect(sheet()).toMatchObject({ open: true, tab: "tools" });
     act(() => sheet().onTabChange("steps"));
     act(() => sheet().onRequestClose());
-    act(() => paletteButton("Ferramentas").props.onPress());
+    press("Mais ferramentas");
     expect(sheet()).toMatchObject({ open: true, tab: "tools" });
     press("Bola");
     expect(sheet().open).toBe(false);

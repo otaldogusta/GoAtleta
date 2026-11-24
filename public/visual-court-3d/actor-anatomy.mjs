@@ -44,6 +44,7 @@ export function createActorAnatomy(parent){
    shin:mesh(`${name}-shin`,cylinder),ankle:oval(`${name}-ankle`,.047,.055,.05),foot:oval(`${name}-foot`,.079,.055,.145),
   };
  });
+ for(const limb of limbs)limb.digits=[limb.thumb,...limb.fingers];
  const from=new THREE.Vector3(),to=new THREE.Vector3(),direction=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);
  function segment(part,ax,ay,az,bx,by,bz,radius,depth=radius){
   from.set(ax,ay,az);to.set(bx,by,bz);direction.subVectors(to,from);
@@ -62,6 +63,12 @@ export function createActorAnatomy(parent){
    part.quaternion.premultiply(trunkRotation);
   }
  }
+ // The eyes keep reading the play while the hips and chest turn to travel.
+ function faceHead(yaw){
+  head.rotation.set(0,yaw,0);
+  nose.quaternion.copy(head.quaternion);
+  nose.position.set(.103*Math.sin(yaw),-.005,.103*Math.cos(yaw)).add(head.position);
+ }
  const bodyRight=new THREE.Vector3(),bodyUp=new THREE.Vector3(),bodyForward=new THREE.Vector3(),basis=new THREE.Matrix4();
  for(const geometry of [sphere,cylinder,torsoShape])geometry.computeBoundingBox();
  let shoulderY=1.43,shoulderZ=.025,height=1.8*.95;
@@ -70,7 +77,7 @@ export function createActorAnatomy(parent){
   shoulderY=1.43-crouch;shoulderZ=.025+lean;
   group.position.set(0,jump,0);group.rotation.set(0,yaw,0);group.scale.setScalar(scale);
   segment(torso,0,hip,hipZ,0,shoulderY,shoulderZ,1,1);pelvis.position.set(0,hip,hipZ);
-  pelvis.quaternion.identity();head.quaternion.identity();
+  pelvis.quaternion.identity();head.quaternion.identity();nose.quaternion.identity();
   segment(neck,0,1.44-crouch,shoulderZ,0,1.58-crouch,shoulderZ,.047);
   head.position.set(0,1.665-crouch,shoulderZ);nose.position.set(0,1.66-crouch,shoulderZ+.103);
   for(let n=0;n<limbs.length;n++){
@@ -98,6 +105,7 @@ export function createActorAnatomy(parent){
     kneeZ+=(hipZ+dz*.5+horizontal**2*bendScale-kneeZ)*feetWeight;
    }
    limb.shoulder.position.set(side*.18,shoulderY,shoulderZ);
+   limb.shoulder.quaternion.identity();limb.elbow.quaternion.identity();
    limb.hip.position.set(hipX,hip,hipZ);limb.knee.position.set(kneeX,kneeY,kneeZ);limb.ankle.position.set(ankleX,ankleY,ankleZ);
    segment(limb.thigh,hipX,hip,hipZ,kneeX,kneeY,kneeZ,.09);
    segment(limb.shorts,hipX,hip+.03,hipZ,hipX+(kneeX-hipX)*.34,hip+(kneeY-hip)*.34,hipZ+(kneeZ-hipZ)*.34,.105);
@@ -106,7 +114,8 @@ export function createActorAnatomy(parent){
    limb.foot.rotation.set(0,footYaw,0);
   }
  }
- function setArm(n,elbowX,elbowY,elbowZ,handX,handY,handZ,pitch=0,palmTilt=0,fan=0,handYaw=0){
+ const handRoll=new THREE.Quaternion();
+ function setArm(n,elbowX,elbowY,elbowZ,handX,handY,handZ,pitch=0,palmTilt=0,fan=0,handYaw=0,relaxedGrip=0){
   const limb=limbs[n],side=limb.side;
   limb.elbow.position.set(elbowX,elbowY,elbowZ);
   segment(limb.upperArm,limb.shoulder.position.x,limb.shoulder.position.y,limb.shoulder.position.z,elbowX,elbowY,elbowZ,.06);
@@ -114,28 +123,39 @@ export function createActorAnatomy(parent){
   limb.palm.position.set(handX,handY,handZ);limb.palm.rotation.set(pitch,handYaw,palmTilt,'YXZ');
   const cosine=Math.cos(pitch),sine=Math.sin(pitch),cy=Math.cos(handYaw),sy=Math.sin(handYaw);
   for(let finger=0;finger<4;finger++){
-   const dx=(finger-1.5)*.021,tip=.085-Math.max(0,Math.abs(finger-1.5)-.5)*.008;
-   const tipX=dx*1.3+side*.025*fan,startZ=.035*sine,tipZ=tip*sine+.015*cosine;
-   segment(limb.fingers[finger],handX+dx*cy+startZ*sy,handY+.035*cosine,handZ-dx*sy+startZ*cy,handX+tipX*cy+tipZ*sy,handY+tip*cosine-.015*sine,handZ-tipX*sy+tipZ*cy,.009);
+   const dx=(finger-1.5)*.021,tip=.085-Math.max(0,Math.abs(finger-1.5)-.5)*.008-.023*relaxedGrip;
+   const curl=.015+.021*relaxedGrip;
+   const tipX=dx*(1.3-.34*relaxedGrip)+side*.025*fan,startZ=.035*sine,tipZ=tip*sine+curl*cosine;
+   segment(limb.fingers[finger],handX+dx*cy+startZ*sy,handY+.035*cosine,handZ-dx*sy+startZ*cy,handX+tipX*cy+tipZ*sy,handY+tip*cosine-curl*sine,handZ-tipX*sy+tipZ*cy,.009);
   }
   const startX=-side*.032,startZ=-.01*sine,tipX=-side*.068,tipZ=.022*sine+.012*cosine;
   segment(limb.thumb,handX+startX*cy+startZ*sy,handY-.01*cosine,handZ-startX*sy+startZ*cy,handX+tipX*cy+tipZ*sy,handY+.022*cosine-.012*sine,handZ-tipX*sy+tipZ*cy,.013);
+  if(relaxedGrip>0){
+   // Roll palm and fingers together about the forearm, thumb toward the sky.
+   handRoll.setFromAxisAngle(direction.set(sy*sine,cosine,cy*sine),-side*1.15*relaxedGrip);
+   limb.palm.quaternion.premultiply(handRoll);
+   for(const digit of limb.digits){
+    digit.position.sub(limb.palm.position).applyQuaternion(handRoll).add(limb.palm.position);
+    digit.quaternion.premultiply(handRoll);
+   }
+  }
  }
  // The captured landmarks animate the same meshes as the procedural poses.
  // The shirt's local X axis follows the shoulder line so its twist is visible.
- function orientBody(part,left,right,spine){
+ function orientBody(part,left,right,spine,leftIsNegativeX){
   bodyRight.subVectors(left,right);
+  if(leftIsNegativeX)bodyRight.negate();
   bodyForward.crossVectors(bodyRight,spine).normalize();
   bodyRight.crossVectors(spine,bodyForward).normalize();
   basis.makeBasis(bodyRight,spine,bodyForward);part.quaternion.setFromRotationMatrix(basis);
  }
- function setCapturedTrunk(hips,chest,skull,left,right){
+ function setCapturedTrunk(hips,chest,skull,left,right,leftIsNegativeX=false){
   segment(torso,hips.x,hips.y,hips.z,chest.x,chest.y,chest.z,1,1);
-  bodyUp.subVectors(chest,hips).normalize();orientBody(torso,left.shoulder,right.shoulder,bodyUp);
-  pelvis.position.copy(hips);orientBody(pelvis,left.hip,right.hip,bodyUp);
+  bodyUp.subVectors(chest,hips).normalize();orientBody(torso,left.shoulder,right.shoulder,bodyUp,leftIsNegativeX);
+  pelvis.position.copy(hips);orientBody(pelvis,left.hip,right.hip,bodyUp,leftIsNegativeX);
   bodyUp.subVectors(skull,chest).normalize();
   segment(neck,chest.x,chest.y,chest.z,skull.x-bodyUp.x*.075,skull.y-bodyUp.y*.075,skull.z-bodyUp.z*.075,.047);
-  head.position.copy(skull);orientBody(head,left.shoulder,right.shoulder,bodyUp);
+  head.position.copy(skull);orientBody(head,left.shoulder,right.shoulder,bodyUp,leftIsNegativeX);
   nose.position.copy(skull).addScaledVector(bodyForward,.103).addScaledVector(bodyUp,-.005);
   limbs[0].shoulder.position.copy(left.shoulder);limbs[1].shoulder.position.copy(right.shoulder);
  }
@@ -159,5 +179,5 @@ export function createActorAnatomy(parent){
   }
   height=group.position.y+top*group.scale.y;return height;
  }
- return {group,updateBody,setArm,articulateTrunk,setCapturedTrunk,setCapturedLeg,measureHeight,get height(){return height;}};
+ return {group,updateBody,setArm,articulateTrunk,faceHead,setCapturedTrunk,setCapturedLeg,measureHeight,get height(){return height;}};
 }

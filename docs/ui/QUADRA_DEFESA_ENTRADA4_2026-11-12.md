@@ -37,6 +37,9 @@ A sombra laranja inicial da entrada é o desenho de cinco vértices ajustado
 pelo professor. Na saída de rede (posição 2), o cenário e a área são
 espelhados na largura da quadra. Entrada e saída são etapas independentes.
 As alças continuam disponíveis no quadro de contato para ajuste manual.
+Durante a reprodução em 2D e 3D, a sombra começa a aparecer na impulsão.
+Conforme as mãos sobem, a borda avança da rede para o fundo e revela o
+contorno completo no contato. Voltar na linha do tempo recua a sombra.
 O seletor Entrada de rede / Saída de rede abre cada cenário no seu quadro
 final e mantém as edições independentes. A prévia fictícia foi conferida
 em 2D e 3D nos tamanhos 1034 × 857 e 390 × 844, em claro e escuro. No
@@ -49,11 +52,18 @@ Em **Defesa → Ajustes da jogada**, selecione **Entrada**, **Meio** ou
 O topo da quadra reúne os modos Recepção, Ataque e Defesa.
 Escolher um cartão em Etapas conserva o ponto de rolagem da lista e abre
 o quadro final da Defesa diretamente.
-No Meio, o levantamento, o contato da cortada, o bloqueio e a sombra
-são organizados no centro da rede, com alternativas para os dois lados.
-Na cobertura frontal, o jogador da frente que está fora do bloqueio
-assume a zona curta. Na cobertura pela posição 1, o defensor do fundo
-direito avança. O outro defensor ocupa o destino deixado por quem avançou.
+Na bola rápida pelo meio, o central salta sozinho diante do ponto de ataque.
+O jogador da direita recua para defender a bola curta. A sombra parte das mãos
+do central. O quadro de contato usa as marcas ajustadas pelo professor.
+As setas verde e amarela terminam perto das laterais esquerda e direita de
+quem defende. A rosa chega mais fundo, à esquerda. Cada seta tem sua própria altura.
+Em **Pela rede**, o jogador da rede que fica fora do bloqueio cobre a
+largada. Em **Pelo líbero**, o líbero avança para a largada e o jogador
+da rede recua para a diagonal. No 5×1, o ponteiro do fundo defende a
+paragonal em ambas. No 6×0, a opção **Pelo fundo** atribui a largada ao
+defensor que começa na posição 5 contra a Entrada ou o Meio, e ao defensor
+da posição 1 contra a Saída. Na Saída, a 5 cobre a paralela e a 6 cobre a
+paragonal.
 O deslocamento começa na saída do levantamento.
 
 Cada combinação tem uma etapa própria, com posições, sombra e trajetórias

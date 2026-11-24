@@ -84,8 +84,8 @@ const near = (actual: number[], expected: number[], tolerance = 1e-8) => expect(
 describe("shared canonical volleyball simulation", () => {
   it("keeps unchanged mockup engines exact while attack extensions retain behavioral parity", () => {
     // Attack curve editing extends motion/physics/settings in the shared engine.
-    // Node parity tests cover attack extensions and reception net clearance.
-    for (const name of ["attack-calibration", "reception-target", "formations"]) {
+    // The extended formation engine is compared by rotation against the same frozen reference.
+    for (const name of ["attack-calibration", "reception-target"]) {
       const original = fs.readFileSync(path.join(__dirname, "fixtures/court-reference", `${name}.mjs`), "utf8").replace(/\.mjs/g, ".js").replace(/\r\n/g, "\n");
       const actual = fs.readFileSync(path.join(__dirname, "../court-simulation", `${name}.js`), "utf8").replace(/\r\n/g, "\n");
       expect(actual).toBe(original);

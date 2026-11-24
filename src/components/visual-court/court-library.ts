@@ -1,4 +1,19 @@
+import { buildSimulatedReceptionRotationPreset } from "../../core/court-simulation-sequence";
 import type { CourtVisualDocument, CourtVisualPayload } from "../../core/visual-court";
+
+export const COURT_SYSTEMS = [
+  { value: "5-1", label: "5×1", id: "template_0", sourceId: "goatleta:5x1-reception" },
+  { value: "4-2", label: "4×2", id: "template_4x2", sourceId: "goatleta:4x2-reception" },
+  { value: "6-2", label: "6×2", id: "template_6x2", sourceId: "goatleta:6x2-reception" },
+  { value: "6-0", label: "6×0", id: "template_6x0", sourceId: "goatleta:6x0-reception" },
+] as const;
+
+export function buildCourtSystemTemplates(classId = "", organizationId = ""): CourtVisualDocument[] {
+  return COURT_SYSTEMS.map(({ value, label, id, sourceId }) => ({
+    id, sourceId, classId, organizationId, sourceKind: "rotation", title: `${label} · Recepção`,
+    payload: buildSimulatedReceptionRotationPreset(value), createdAt: "", updatedAt: "",
+  }));
+}
 
 export type CourtLibraryLocation = "local" | "team" | "template" | "trash";
 export type CourtLibraryFilter = "all" | CourtLibraryLocation;
@@ -17,7 +32,8 @@ export type CourtLibraryItem = {
 };
 
 function isSystem(document: CourtVisualDocument | null, payload: CourtVisualPayload) {
-  return document?.sourceKind === "rotation" || /(^|[\s,;])sistema([\s,;]|$)/i.test(payload.editor?.tags || "");
+  return document?.sourceKind === "rotation" || COURT_SYSTEMS.some(model => model.sourceId === document?.sourceId)
+    || /(^|[\s,;])sistema([\s,;]|$)/i.test(payload.editor?.tags || "");
 }
 
 function locationFor(document: CourtVisualDocument): CourtLibraryLocation {
@@ -85,11 +101,15 @@ export function buildCourtLibraryItems(
   return items.filter(item => item.location !== "local" || !item.document || localCopies.get(signatureFor(item)) === item);
 }
 
+function searchableText(text: string) {
+  return text.toLocaleLowerCase("pt-BR").replace(/(\d)\s*[x×–-]\s*(?=\d)/g, "$1x");
+}
+
 export function filterCourtLibraryItems(
   items: CourtLibraryItem[],
   options: { filter: CourtLibraryFilter; query: string; favorites: boolean; lessonDate?: string; onlyLesson: boolean },
 ): CourtLibraryItem[] {
-  const query = options.query.trim().toLocaleLowerCase("pt-BR");
+  const query = searchableText(options.query.trim());
   return items.filter(item => {
     if (options.filter === "all" ? item.location === "trash" : item.location !== options.filter) return false;
     if (options.filter !== "trash") {
@@ -97,6 +117,6 @@ export function filterCourtLibraryItems(
       if (options.onlyLesson && item.payload.editor?.lessonLink?.date !== options.lessonDate) return false;
     }
     const searchable = `${item.title} ${item.payload.editor?.folder || ""} ${item.payload.editor?.tags || ""} ${item.kind}`;
-    return searchable.toLocaleLowerCase("pt-BR").includes(query);
+    return searchableText(searchable).includes(query);
   });
 }

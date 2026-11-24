@@ -45,8 +45,17 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 - Em **Atalhos → Quadra**, professores com permissão de planejamento abrem a
   Recepção P1 do 5×1. A quadra independente tem 2D e 3D, seis rodízios, Ataque,
-  Defesa e exportação de arquivo. A edição usa memória da sessão e dispensa
-  turma, elenco, biblioteca e documentos da organização.
+  Defesa e exportação de arquivo. A Biblioteca oferece os mesmos modelos de
+  recepção 5×1, 4×2 simples, 6×2 e 6×0 da quadra da turma. Cada um abre seis rodízios.
+  No 4×2 levanta quem está na rede; no 6×2, quem vem do fundo.
+  No 6×0 as seis camisas rodam. O modelo abre com cinco passadores em W
+  e quem ocupa a zona 2 já está entre 2 e 3 para levantar para
+  a ponta (4), o meio (3) ou o fundo 1. A zona de cada camisa acompanha o rodízio
+  ao alternar entre Recepção, Ataque e Defesa.
+  Na base defensiva do 6×0, os ocupantes das zonas 5 e 6 do rodízio
+  trocam de lado antes do ataque adversário.
+  No atalho, a troca de modelo pode ser desfeita na sessão e dispensa carregar
+  turma, elenco ou documentos da organização.
 
 - A Quadra Visual aguarda a sessão e o workspace ativo antes de consultar a
   turma. A busca usa o escopo explícito e mantém visível a mensagem quando
@@ -95,10 +104,14 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   Na passada final, a quadra reproduz o avanço, a transferência lateral de
   peso e a altura do quadril do Blender entre as alças editáveis.
   Aproximações mais longas acrescentam passos antes da passada final.
-  Deslocamentos de recepção e defesa usam
-  apoios alternados com uma curva de elevação extraída de corrida capturada.
-  Na corrida do levantador em P1, a anatomia 3D usa o ciclo CMU com os apoios
-  sincronizados ao trajeto e o pé externo plantado durante o corte.
+  Na recepção e na defesa, os pés alternam apoio e balanço em marcas da quadra.
+  Caminhada, ajuste lateral e corrida usam ciclos distintos para o corpo inteiro.
+  A velocidade controla o balanço dos braços nas infiltrações e coberturas
+  corridas. No P1, o pé externo planta antes do giro para o passe. Quando um
+  bloqueador vem da outra ponta, a corrida termina nos apoios iniciais do
+  fechamento junto à rede.
+  Nas Etapas, um percurso desenhado no chão usa caminhada ou corrida conforme
+  a distância e a duração da etapa. O jogador segue os mesmos pontos do 2D.
 
 - No ataque 3D, as passadas alternam apoio e balanço durante a aproximação.
   O lápis do jogador permite escolher a mão de ataque para toda a jogada.
@@ -149,6 +162,13 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   a palma toca a superfície da bola. O Ataque segue até a aterrissagem e a
   Defesa segura a pose de contato enquanto as direções da cortada se desenham.
   A representação 2D usa a chave da pose no mesmo relógio.
+  No saque, na manchete e no levantamento, a Quadra 3D usa os marcadores
+  das ações do Blender com os contatos da bola da mesma jogada. Na defesa,
+  o time baixa a base à espera da cortada adversária. No P1, o levantador
+  chega voltado para quem recebe. Na passada lateral, o líbero prepara a
+  plataforma depois do ajuste. O central consegue virar o quadril para
+  correr e continuar acompanhando a jogada com a cabeça.
+  [Gestos com bola e fontes editáveis](../../ui/QUADRA_CORPOS_3D_2026-11-12.md#gestos-com-bola-na-quadra-3d).
 
 - Gestos 3D distinguem mover objeto, girar o fundo e aproximar/deslocar com dois
   dedos. Arraste conserva o ponto de pega elevado e a prévia até confirmação
@@ -237,6 +257,8 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 - Na recepção, o levantador inicia a saída na soltura do lançamento do
   sacador (evento `tossStart`), preservando bases, destino e corredor da P1.
+  Ao fim do passe, o oposto, o central e os dois ponteiros se orientam para
+  o levantamento e firmam os pés para iniciar a passada. O líbero fica na cobertura.
 
 - Defesa oferece entrada 4, meio e saída de rede (posição 2), em etapas independentes
   acrescentadas sob demanda. O sampler comum anima a organização até o contato.
@@ -248,14 +270,17 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   No início da reprodução, o passe da posição 6 chega ao levantador na 3.
   O levantamento para a entrada 4 dispara o ajuste do bloqueio e da defesa.
   Passador e levantador são participantes da reprodução em 2D/3D.
+  Na defesa do meio, só o central salta e o jogador da direita cobre a bola curta.
+  Entrada e saída usam bloqueio duplo por padrão.
   Bloqueadores saltam com o contato do atacante, com mãos acima da rede; salto
   derivado separado da elevação autoral e seleção acompanhando o corpo elevado.
   Corpo inteiro 3D mantém juntas independentes da câmera; mãos voltadas à rede
   na Defesa e seleção pelos meshes reais, sem preencher o vão entre os braços.
   Abre no quadro final editável; Play, scrub e câmera continuam disponíveis.
   A sombra inicial usa os cinco vértices ajustados na entrada e os espelha
-  junto com a formação e as trajetórias na saída. Cada área mantém seus
-  vértices editáveis no quadro final.
+  junto com a formação e as trajetórias na saída. Durante o salto, a sombra
+  avança da rede para o fundo conforme os bloqueadores estendem as mãos.
+  No contato, o contorno está completo. Seus vértices são editáveis no quadro final.
   `actorActions` define a ação por etapa, separada da função esportiva, com
   importação/cópias e guardas de leitura/bloqueio preservadas. As três trajetórias
   são alternativas autorais e se desenham progressivamente da bola até

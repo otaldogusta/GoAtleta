@@ -75,8 +75,9 @@ describe("shared court workspace panel", () => {
     }
     const value = { ...props(), adjustments: React.createElement(Content, { id: "adjustments" }), steps: React.createElement(Content, { id: "steps" }), library: React.createElement(Content, { id: "library" }) };
     await mount(value);
-    act(() => tree!.root.findByProps({ accessibilityLabel: "Biblioteca" }).props.onPress());
-    expect(value.onTabChange).toHaveBeenCalledWith("library");
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Biblioteca", accessibilityRole: "tab" })).toHaveLength(0);
+    act(() => tree!.root.findByProps({ accessibilityLabel: "Etapas" }).props.onPress());
+    expect(value.onTabChange).toHaveBeenCalledWith("steps");
     expect(tree!.root.findByProps({ accessibilityLabel: "Ajustes" }).props.accessibilityState.selected).toBe(true);
     expect(StyleSheet.flatten(content("Biblioteca").props.style).display).toBe("none");
     expect(content("Biblioteca").props.inert).toBe(true);

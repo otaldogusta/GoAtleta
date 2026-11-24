@@ -1,7 +1,8 @@
 import { buildEditable5x1ReceptionPreset, type CourtVisualPayload, type CourtVisualStep } from "./visual-court";
-import { upgradeCourtEditor, type CourtDrawing } from "./visual-court-editor";
+import { newCourtBoard, upgradeCourtEditor, type CourtDrawing } from "./visual-court-editor";
 import { configureCourtSimulation, getCourtSimulation } from "./court-simulation";
 import type { CourtSimulation } from "./court-simulation-model";
+import { receptionFormation, receptionTeamOrder } from "./court-simulation/formations.js";
 
 const labels = ["P1", "P6", "P5", "P4", "P3", "P2"];
 
@@ -17,7 +18,7 @@ export function isLegacyReceptionRotationSequence(payload: CourtVisualPayload): 
 }
 
 /** Explicit, undoable conversion; existing actors and document metadata stay canonical. */
-export function replaceReceptionRotationSequence(payload: CourtVisualPayload, stepIndex = 0): { payload: CourtVisualPayload; stepIndex: number } {
+export function replaceReceptionRotationSequence(payload: CourtVisualPayload, stepIndex = 0, system?: CourtSimulation["system"]): { payload: CourtVisualPayload; stepIndex: number } {
   if (!isLegacyReceptionRotationSequence(payload)) return { payload, stepIndex };
   const source = payload.timeline.steps;
   const activeIndex = Number.isInteger(stepIndex) && stepIndex >= 0 && stepIndex < source.length ? stepIndex : 0;
@@ -44,15 +45,42 @@ export function replaceReceptionRotationSequence(payload: CourtVisualPayload, st
   });
   let next: CourtVisualPayload = { ...payload, timeline: { ...payload.timeline, steps }, editor: { ...payload.editor!, drawings } };
   for (let index = 0; index < steps.length; index++) {
-    next = configureCourtSimulation(next, index, { mode: "receive", rotation: index }, { resetFormation: true });
+    next = configureCourtSimulation(next, index, { mode: "receive", rotation: index, ...(system ? { system } : {}) }, { resetFormation: true });
   }
   return { payload: next, stepIndex: rotation };
 }
 
 /** The reception template has one complete shared simulation per rotation. */
-export function buildSimulatedReceptionRotationPreset(): CourtVisualPayload {
+export function buildSimulatedReceptionRotationPreset(system: CourtSimulation["system"] = "5-1"): CourtVisualPayload {
+  const title = `${system.replace("-", "×")} · Recepção`;
+  if (system === "6-0") {
+    const blank = newCourtBoard(title), teamOrder = receptionTeamOrder(system, 0), opening = receptionFormation(system, 0);
+    const team = blank.actors.filter(actor => blank.editor!.actorMeta[actor.id].team === "A").map((actor, index) => {
+      const [x, , z] = opening[teamOrder.indexOf(index)];
+      return { ...actor, number: index + 1, label: String(index + 1), role: "athlete" as const,
+        representation: "person" as const, color: "#19c87b", initialPosition: { x: x / 9 + .5, y: z / 18 + .5 } };
+    });
+    const steps = labels.map(label => ({ id: `six-zero-${label}`, label: `${label} · Recepção`,
+      durationMs: 4100, actorPositions: Object.fromEntries(team.map(actor => [actor.id, actor.initialPosition])),
+      visibleActorIds: team.map(actor => actor.id) }));
+    let board: CourtVisualPayload = { ...blank, actors: team, timeline: { steps },
+      editor: { ...blank.editor!, actorMeta: Object.fromEntries(team.map(actor => [actor.id, { team: "A" }])) } };
+    for (let rotation = 0; rotation < steps.length; rotation++) {
+      board = configureCourtSimulation(board, rotation, { mode: "receive", system, rotation }, { resetFormation: true });
+    }
+    return board;
+  }
   const source = buildEditable5x1ReceptionPreset();
-  return replaceReceptionRotationSequence(upgradeCourtEditor(source, source.editor?.title ?? "5×1 · Recepção")).payload;
+  const board = replaceReceptionRotationSequence(upgradeCourtEditor(source, title), 0, system).payload;
+  if (system === "5-1") return board;
+  const setters = board.timeline.steps[0].simulation!.teamActorIds!.slice(0, 2);
+  return {
+    ...board, editor: { ...board.editor!, title },
+    actors: board.actors.map(actor => {
+      const setter = setters.indexOf(actor.id);
+      return setter < 0 ? actor : { ...actor, role: "setter", label: setter === 0 ? "Levantador¹" : "Levantador²", color: "#38bdf8", baseColor: "#38bdf8" };
+    }),
+  };
 }
 
 /** Select by rotation identity, preserving a destination's authored mode/system.

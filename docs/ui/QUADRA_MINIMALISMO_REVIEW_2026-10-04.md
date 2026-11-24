@@ -248,3 +248,13 @@ Repetição de inserção, agrupamento adicional de desenhos, pastas por finalid
 - O título superior identifica a quadra/jogada aberta; o nome da turma permanece abaixo. Clicar ou acionar o título pelo teclado abre edição inline transparente, com fonte de 16 px/peso 600, sem caixa separada.
 - Enter ou perder foco confirma um nome não vazio, removendo espaços nas extremidades. Escape cancela; vazio ou nome inalterado preserva o título e não cria entrada no histórico. Campo remonta ao trocar o documento. Edição usa o mesmo comando de metadados existente, com Desfazer e rascunho; nenhuma nova operação de banco ou renomeação da turma foi introduzida.
 - 35 testes focados aprovados: sete de interação/validação do título e 28 existentes de persistência/Biblioteca. Tipos, ESLint e diff aprovados. No localhost autenticado: Enter, perda de foco, Escape, atualização do card e Desfazer; entrada longa medida em 390 px com largura de 254 px, dentro do cabeçalho e sem overflow do documento. Viewport restaurada. Títulos temporários desfeitos/cancelados; sem Salvar remoto. Aparelho nativo não exercitado nesta rodada.
+
+### Modelos de recepção na Biblioteca — 24/11/2026
+
+A Biblioteca da turma mostra 5×1, 4×2 simples e 6×2 em Tudo e Modelos. A busca aceita tanto `4x2` quanto `4×2`. Cada modelo abre os seis rodízios na vista atual. No 4×2 simples, o levantador da rede assume o segundo toque. No 6×2, essa função é do levantador do fundo. O atalho do professor oferece os mesmos modelos em memória e permite desfazer a troca para recuperar a edição anterior.
+
+Prévia local do professor em `http://localhost:8081/quadra-mobile-qa-local.html?standalone`. A Biblioteca da prévia com dados fictícios foi conferida em 3D e o atalho em 2D. O Inventário Visual registra o antes e o depois no tema escuro.
+
+No modelo 6×0, cinco jogadores começam em W e o jogador da zona 2 já está entre 2 e 3. Em P1, o camisa 3 levanta, o 1 abre para a ponta, o 2 fica disponível pelo meio e o 6 prepara o ataque pela zona 1. A cada rodízio, quem ocupa essas zonas assume as respectivas funções. O fundo 1 salta de trás da linha de ataque e avança no ar. Recepção, Ataque e Defesa mantêm a identidade das camisas ao alternar de aba.
+
+Prévia do modelo em `http://localhost:8081/quadra-mobile-qa-local.html?standalone&system=6-0&3d`.

@@ -2,7 +2,7 @@ import { ensureCourtDefenseStep, getCourtDefenseSideStepIndex, getCourtDefenseSt
 import { defensePlaybackClock } from "../court-defense-motion";
 import { normalizeCourtSimulation } from "../court-simulation-model";
 import { configureCourtSimulation, getCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../court-simulation";
-import { buildCourtPerspectiveFrame } from "../visual-court-perspective";
+import { buildCourtPerspectiveFrame, courtPointToWorld } from "../visual-court-perspective";
 import { displayCourtDrawings, simulationFloorPoint } from "../court-simulation-display";
 import { resolveCourtLayers } from "../court-layers";
 import { changeDrawings, copyStepSelection, courtTrajectoryHeightTargets, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, setCourtActorAction, setCourtAreaVertex, setCourtSelectionElevation, setCourtTrajectoryPoint } from "../visual-court-editor";
@@ -21,6 +21,46 @@ const expected = {
 };
 
 describe("authored zone-four defense", () => {
+  it.each(["4", "5"] as const)("keeps a blocking foot on its floor mark while closing in defense %s", preset => {
+    const { payload, stepIndex } = ensureCourtDefenseStep(newCourtBoard(), preset);
+    const blockersAt = (t: number) => sampleCourtSimulation(payload, stepIndex, t)!.actors.filter(a => a.role === "blocker");
+    const supported = new Set<string>();
+    for (let i = 0; i < 21; i++) {
+      const time = .49 + i * .005;
+      const first = blockersAt(time), next = blockersAt(time + .00001);
+      for (const [index, actor] of first.entries()) {
+        expect(actor.feetWeight).toBe(1);
+        expect(next[index].position).not.toEqual(actor.position);
+        for (const [side, foot] of actor.feet!.entries()) {
+          const other = next[index].feet![side];
+          if (foot[1] !== 0 || other[1] !== 0) continue;
+          expect(other).toEqual(foot);
+          supported.add(actor.id);
+        }
+        // The incoming run has flight; a lateral adjustment always keeps support.
+        if (actor.feet!.every(foot => foot[1] > 0)) expect(actor.runDrive).toBeGreaterThan(0);
+      }
+    }
+    expect(supported.size).toBe(blockersAt(.53).length);
+  });
+
+  it("loads the defenders' stance as the opponent hits while only the pass and set support touch the ball", () => {
+    const { payload, stepIndex } = setup();
+    const timing = sampleCourtSimulation(payload, stepIndex, 0)!;
+    const start = buildCourtPerspectiveFrame(payload, stepIndex, 0);
+    const support = start.actors.find(actor => actor.illustration && actor.poseRole === "passer");
+    expect(support?.skillProgress).toBe(0);
+    const defenders = start.actors.filter(actor => actor.skillMotion === "dig");
+    expect(defenders.length).toBeGreaterThan(0);
+    const impact = buildCourtPerspectiveFrame(payload, stepIndex, timing.attackContact!);
+    for (const player of defenders) {
+      const end = impact.actors.find(actor => actor.id === player.id)!;
+      expect(end.skillProgress).toBeGreaterThan(player.skillProgress!);
+      expect(end.skillProgress).toBeLessThan(0);
+      expect(end.contactTarget).toBeUndefined();
+    }
+  });
+
   it("appends once without replacing existing stages or actors and preserves the exact tableau", () => {
     const board = newCourtBoard(), before = JSON.stringify(board), next = ensureCourtDefenseStep(board);
     expect(next.stepIndex).toBe(board.timeline.steps.length);
@@ -117,7 +157,7 @@ describe("authored zone-four defense", () => {
     expect(shadowFor(roundTrip, stepIndex).points).toEqual(entryShadow.points);
   });
 
-  it.each([["4", 4], ["1", 4], ["5", 0]] as const)("creates independent frontal and position-one coverage for attack %s", (preset, zoneOneSlot) => {
+  it.each([["4", 0], ["1", 0], ["5", 4]] as const)("creates independent net and backcourt short-ball coverage for attack %s", (preset, zoneOneSlot) => {
     const legacy = ensureCourtDefenseStep(newCourtBoard(), preset);
     const front = ensureCourtDefenseStep(legacy.payload, preset, "front");
     const zone1 = ensureCourtDefenseStep(front.payload, preset, "zone1");
@@ -153,7 +193,7 @@ describe("authored zone-four defense", () => {
     expect(getCourtDefenseSideStepIndex(entry.payload, "5", "front")).toBe(-1);
   });
 
-  it("builds a middle attack with central contact, independent blocking and alternatives to both sides", () => {
+  it("puts only the middle blocker in front of the quick and the wing in short right defense", () => {
     const entry = ensureCourtDefenseStep(newCourtBoard(), "4", "front");
     const middle = ensureCourtDefenseStep(entry.payload, "1", "front");
     const exit = ensureCourtDefenseStep(middle.payload, "5", "front");
@@ -165,14 +205,104 @@ describe("authored zone-four defense", () => {
     const setter = contact.defenseSupport!.find(actor => actor.role === "setter")!;
     expect(Math.abs(contact.actors[6].position[0] - setter.position[0])).toBeGreaterThan(.7);
     const blockers = contact.actors.filter(actor => actor.role === "blocker");
-    expect(blockers).toHaveLength(2);
-    expect(Math.abs(blockers[0].position[0] + blockers[1].position[0])).toBeLessThan(1);
+    expect(contact.config.blockers).toBe(1);
+    expect(blockers.map(actor => actor.slot)).toEqual([2]);
+    const [central] = blockers, wing = contact.actors[1];
+    expect(central.position[0]).toBeCloseTo(contact.ball[0]);
+    expect(central.jump).toBeGreaterThan(0);
+    expect(wing.role).toBe("passer");
+    expect(wing.position[0]).toBeGreaterThan(central.position[0]);
+    expect(wing.position[2]).toBeGreaterThan(central.position[2]);
+    expect(wing.position[1] + wing.jump).toBe(0);
     const frame = buildCourtPerspectiveFrame(exit.payload, middle.stepIndex, 1);
-    const ends = frame.drawings.filter(drawing => drawing.startBallId).map(drawing => drawing.points.at(-1)!.x);
-    expect(ends.some(x => x < -2)).toBe(true);
-    expect(ends.some(x => x > 2)).toBe(true);
-    expect(frame.drawings.find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)!.points.some(pt => pt.x < 0)).toBe(true);
+    // In frontal coverage the player from the front takes the short left mark.
+    expect(simulationFloorPoint(contact.actors[3].position).x).toBeCloseTo(.290072, 5);
+    expect(simulationFloorPoint(contact.actors[0].position).x).toBeCloseTo(.137527, 5);
+    for (const [id, x, y, height] of [
+      ["anchor-arrow-a", .040631, .816639, .420256],
+      ["anchor-arrow-b", .955603, .808522, .442989],
+      ["anchor-curve", .223660, .918953, .403650],
+    ] as const) {
+      const tip = frame.drawings.find(drawing => drawing.id === id)!.points.at(-1)!;
+      const mark = courtPointToWorld({ x, y }, height);
+      expect(tip.x).toBeCloseTo(mark.x, 4);
+      expect(tip.z).toBeCloseTo(mark.z, 4);
+      expect(tip.y).toBeCloseTo(mark.y, 4);
+    }
+    const [left, right] = frame.drawings.find(drawing => drawing.id === DEFENSE_BLOCK_SHADOW_ID)!.points;
+    expect((left.x + right.x) / 2).toBeCloseTo(central.position[0]);
+    expect(right.x - left.x).toBeLessThan(1);
+    expect(frame.actors.filter(actor => actor.poseRole === "blocker").map(actor => actor.id)).toEqual([central.id]);
+    for (const sideIndex of [entry.stepIndex, exit.stepIndex]) {
+      expect(sampleCourtSimulation(exit.payload, sideIndex, 1)!.actors.filter(actor => actor.role === "blocker").map(actor => actor.slot)).toEqual([1, 2]);
+    }
     expect(getCourtDefenseSideStepIndex(exit.payload, "1", "zone1")).toBe(middle.stepIndex);
+  });
+
+  it("uses single blocking for a middle stage without actions and honors a coach's second blocker", () => {
+    const { payload, stepIndex } = ensureCourtDefenseStep(newCourtBoard(), "1", "zone1");
+    const step = payload.timeline.steps[stepIndex], wingId = step.simulation!.actorIds[1];
+    delete step.actorActions;
+    const blockingSlots = (board: typeof payload) => sampleCourtSimulation(board, stepIndex, 1)!.actors
+      .filter(actor => actor.role === "blocker").map(actor => actor.slot);
+    expect(blockingSlots(payload)).toEqual([2]);
+    const adjusted = setCourtActorAction(payload, stepIndex, [wingId], "block");
+    expect(blockingSlots(ensureCourtDefenseStep(adjusted, "1", "zone1").payload)).toEqual([1, 2]);
+  });
+
+  it.each([DEFENSE_BLOCK_SHADOW_ID, "board_mwecn3c3_goz1ka3k"])("reveals only the tactical shadow %s from the net to the backcourt in both views", id => {
+    const { payload, stepIndex } = setup(), drawings = frameDrawings(payload, stepIndex);
+    const shadow = drawings.find(item => item.id === DEFENSE_BLOCK_SHADOW_ID)!;
+    const otherArea = { ...shadow, id: "coach-area", color: "#ffcc00" };
+    const imported = changeDrawings(payload, stepIndex, [...drawings.filter(item => item !== shadow), { ...shadow, id }, otherArea]);
+    const edited = setCourtAreaVertex(imported, stepIndex, id, 2, { x: .81, y: .96 }, 1);
+    const authored = frameDrawings(edited, stepIndex).find(item => item.id === id)!.points;
+    expect(authored[2]).toEqual({ x: .81, y: .96 });
+    const snapshot = JSON.stringify(edited);
+    const shadowAt = (progress: number) => {
+      const flat = displayCourtDrawings(edited, stepIndex, progress);
+      const model = buildCourtPerspectiveFrame(edited, stepIndex, progress).drawings;
+      const points = flat.find(drawing => drawing.id === id)?.points;
+      expect(model.find(drawing => drawing.id === id)?.points).toEqual(points?.map(point => courtPointToWorld(point, .025)));
+      expect(flat.find(drawing => drawing.id === otherArea.id)?.points).toEqual(otherArea.points);
+      expect(model.find(drawing => drawing.id === otherArea.id)?.points).toEqual(otherArea.points.map(point => courtPointToWorld(point, .025)));
+      return points;
+    };
+    expect(shadowAt(0)).toBeUndefined();
+    expect(shadowAt(.825)).toBeUndefined();
+    const rising = shadowAt(.87)!;
+    expect(rising.length).toBeGreaterThanOrEqual(3);
+    const depths = rising.map(point => point.y), fullDepths = authored.map(point => point.y);
+    expect(Math.min(...depths)).toBeCloseTo(Math.min(...fullDepths), 9);
+    expect(Math.max(...depths)).toBeGreaterThan(Math.min(...depths));
+    const laterDepth = Math.max(...shadowAt(.90)!.map(point => point.y));
+    expect(Math.max(...depths)).toBeLessThan(laterDepth);
+    expect(laterDepth).toBeLessThan(Math.max(...fullDepths));
+    expect(shadowAt(.94)).toEqual(authored);
+    expect(shadowAt(1)).toEqual(authored);
+    expect(displayCourtDrawings(edited, stepIndex).find(drawing => drawing.id === id)?.points).toEqual(authored);
+    expect(shadowAt(.87)).toEqual(rising);
+    expect(shadowAt(.80)).toBeUndefined();
+    expect(JSON.stringify(edited)).toBe(snapshot);
+  });
+
+  it("requires a visible jumping blocker to reveal the shadow but preserves the final editable area", () => {
+    const { payload, stepIndex } = setup();
+    const ids = sampleCourtSimulation(payload, stepIndex, .94)!.actors.filter(actor => actor.role === "blocker").map(actor => actor.id);
+    expect(ids).toHaveLength(2);
+    const visibleInBoth = (progress: number) => [
+      displayCourtDrawings(payload, stepIndex, progress),
+      buildCourtPerspectiveFrame(payload, stepIndex, progress).drawings,
+    ].map(drawings => drawings.some(item => item.id === DEFENSE_BLOCK_SHADOW_ID));
+    payload.editor!.actorMeta[ids[0]].hidden = true;
+    expect(visibleInBoth(.94)).toEqual([true, true]);
+    payload.editor!.actorMeta[ids[1]].hidden = true;
+    const step = payload.timeline.steps[stepIndex];
+    const opponent = step.simulation!.actorIds[6];
+    step.actorActions = { ...step.actorActions, [opponent]: "block" };
+    expect(visibleInBoth(.87)).toEqual([false, false]);
+    expect(visibleInBoth(.94)).toEqual([false, false]);
+    expect(visibleInBoth(1)).toEqual([true, true]);
   });
 
   it("keeps 3D descent guides for old areas that match the projection from the outer hands", () => {
@@ -296,7 +426,16 @@ describe("authored zone-four defense", () => {
     for (const progress of [0, .5, .72, .78, .82]) {
       const blockers = blockersAt(progress);
       expect(blockers).toHaveLength(2);
-      blockers.forEach(actor => { expect(actor.position[1]).toBe(0); expect(actor.jump).toBe(0); });
+      blockers.forEach(actor => {
+        expect(actor.position[1]).toBe(0);
+        const inRunningFlight = actor.runCycle != null && actor.feet?.every(foot => foot[1] > 0);
+        if (inRunningFlight) {
+          expect(actor.jump).toBeLessThanOrEqual(.045);
+          expect(actor.extension).toBe(0);
+        } else {
+          expect(actor.jump).toBe(0);
+        }
+      });
     }
     blockersAt(.78).forEach(actor => expect(actor.crouch).toBeGreaterThan(.2));
     blockersAt(.9).forEach(actor => { expect(actor.jump).toBeGreaterThan(0); expect(actor.jump).toBeLessThan(.85); });

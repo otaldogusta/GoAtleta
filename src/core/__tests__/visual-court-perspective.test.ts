@@ -1,6 +1,7 @@
 import { buildCourtPerspectiveFrame, courtPointToWorld, worldToCourtPoint } from "../visual-court-perspective";
 import { actorPoint, changeDrawings, moveSelection, newCourtBoard, pointAlong } from "../visual-court-editor";
 import { configureCourtSimulation, sampleCourtSimulation } from "../court-simulation";
+import { buildSimulatedReceptionRotationPreset, getReceptionRotationStep } from "../court-simulation-sequence";
 
 describe("canonical court perspective projection", () => {
   it.each([.15, .4, 3, 6.65, 9])("draws the actual serve guide above the rendered net for target depth %s", z => {
@@ -42,6 +43,50 @@ describe("canonical court perspective projection", () => {
       expect(actor.path).toEqual(path.map(point => courtPointToWorld(point)));
     }
     expect(buildCourtPerspectiveFrame(authored, 0, 0.5).actors[0].position).not.toEqual(courtPointToWorld(actorPoint(authored, 0, id)));
+  });
+
+  it("keeps one travelling stride through dense points and a return to the same mark", () => {
+    const board = newCourtBoard(), id = board.actors[0].id, step = board.timeline.steps[0];
+    const points = Array.from({ length: 81 }, (_, i) => ({ x: .2 + .014 * Math.min(i, 80 - i), y: .7 }));
+    step.durationMs = 3200;
+    step.trajectories = [{ id: "return", actorId: id, points }];
+    const at = (progress: number) => buildCourtPerspectiveFrame(board, 0, progress).actors[0];
+    const frames = [.20, .235, .247, .48, .49999, .50001, .52, .74, .78].map(at);
+    expect(frames.every(actor => actor.runDrive! > .7 && actor.plantedStance)).toBe(true);
+    expect(frames[0].facing[0]).toBeCloseTo(1);
+    expect(frames.at(-1)!.facing[0]).toBeCloseTo(-1);
+    expect(Math.hypot(frames[5].facing[0] - frames[4].facing[0], frames[5].facing[1] - frames[4].facing[1])).toBeLessThan(.002);
+    expect(at(.5).position).toEqual(courtPointToWorld(points[40]));
+    const mark = frames[0].feet!.findIndex(foot => foot[1] === 0);
+    expect(mark).toBeGreaterThanOrEqual(0);
+    expect(at(.2001).feet![mark]).toEqual(frames[0].feet![mark]);
+    expect(at(.20)).toEqual(frames[0]);
+    expect(at(1).position).toEqual(at(0).position);
+  });
+
+  it("walks, plants both feet during a recorded stop, then runs the fast section of the same stage", () => {
+    const board = newCourtBoard(), id = board.actors[0].id, step = board.timeline.steps[0];
+    step.durationMs = 2500;
+    step.trajectories = [{ id: "change-speed", actorId: id, points: [.1, .15, .2, .2, .43, .66].map(x => ({ x, y: .7 })) }];
+    board.editor!.hiddenLayers = ["movements"];
+    const at = (progress: number) => buildCourtPerspectiveFrame(board, 0, progress).actors[0];
+    expect(at(.21).travelMotion?.kind).toBe("walk");
+    expect(at(.46).feet).toEqual(at(.54).feet);
+    expect(at(.5).runDrive).toBeUndefined();
+    expect(at(.5).travelMotion).toBeUndefined();
+    const running = at(.79);
+    expect(running.runDrive).toBeGreaterThan(.9);
+    expect(running.path).toEqual([]);
+    step.durationMs = 10000;
+    expect(at(.79).travelMotion?.kind).toBe("walk");
+    step.durationMs = 2500;
+    step.actorActions = { [id]: "block" };
+    expect(at(.79)).toMatchObject({ pose: "block", poseRole: "blocker", extension: 1, jump: 0 });
+    expect(at(.79).runCycle).toBeUndefined();
+    delete step.actorActions;
+    step.actorElevations = { [id]: 1.25 };
+    expect(at(.79).position.y).toBe(1.25);
+    expect(at(.79).feet).toBeUndefined();
   });
 
   it("preserves identities, labels, colors and teacher changes with no mutation", () => {
@@ -109,6 +154,65 @@ describe("canonical court perspective projection", () => {
 });
 
 describe("canonical simulation in the perspective frame", () => {
+  it("passes the opening stance and authored hitting hand through to each eligible receiver", () => {
+    const board = buildSimulatedReceptionRotationPreset(), timing = sampleCourtSimulation(board, 0, 0)!;
+    const slots = timing.config.actorIds;
+    board.actors.find(actor => actor.id === slots[3])!.attackHand = "left";
+    const pass = buildCourtPerspectiveFrame(board, 0, timing.receiveContact!);
+    const end = buildCourtPerspectiveFrame(board, 0, 1), simulation = sampleCourtSimulation(board, 0, 1)!;
+    expect(pass.actors.every(actor => actor.attackReadiness === undefined)).toBe(true);
+    for (const slot of [1, 2, 3, 5]) {
+      const actor = end.actors.find(candidate => candidate.id === slots[slot])!;
+      expect(actor).toMatchObject({ attackReadiness: 1, attackReadyLeft: slot === 3, plantedStance: true,
+        poseRole: simulation.actors[slot].role, feet: simulation.actors[slot].feet });
+    }
+    expect(end.actors.find(actor => actor.id === slots[0])?.skillMotion).toBe("setJump");
+    expect(end.actors.find(actor => actor.id === slots[4])?.attackReadiness).toBeUndefined();
+  });
+
+  it("sends the P4 penetration and coverage strides to the renderer while the pass keeps its own gesture", () => {
+    const board = buildSimulatedReceptionRotationPreset();
+    const step = getReceptionRotationStep(board, 0, 3);
+    const timing = sampleCourtSimulation(board, step, 0)!;
+    const actorAt = (slot: number, progress: number) => buildCourtPerspectiveFrame(board, step, progress)
+      .actors.find(actor => actor.id === timing.config.actorIds[slot])!;
+    for (const [slot, progress] of [[0, .4], [4, .83]]) {
+      const runner = actorAt(slot, progress);
+      expect(runner.runCycle).toBeCloseTo(sampleCourtSimulation(board, step, progress)!.actors[slot].runCycle!);
+      expect(runner.runDrive).toBeGreaterThan(0);
+      expect(runner.feet).toHaveLength(2);
+    }
+    const receiver = actorAt(timing.receiver!, timing.receiveContact!);
+    expect(receiver.skillProgress).toBeCloseTo(0);
+    expect(receiver.runCycle).toBeUndefined();
+  });
+
+  it.each(["Float", "Topspin"] as const)("anchors %s to the release, strike and forearm contacts when scrubbing", serve => {
+    const board = configureCourtSimulation(newCourtBoard(), 0, { mode: "receive", serve });
+    const timing = sampleCourtSimulation(board, 0, 0)!;
+    const shot = (p: number, slot: number) => buildCourtPerspectiveFrame(board, 0, p).actors.find(a => a.id === timing.config.actorIds[slot])!;
+    const release = timing.tossStart!, strike = timing.serveContact!, pass = timing.receiveContact!;
+    expect(shot(release, 6).skillProgress).toBeCloseTo(-.65, 6);
+    expect(shot(strike, 6)).toMatchObject({ skillMotion: serve === "Float" ? "serve" : "serveSpin", skillProgress: 0 });
+    expect(shot(strike + .04, 6).contactTarget).toEqual(shot(strike, 6).contactTarget);
+    expect(shot(strike - .02, 6).skillProgress).toBeLessThan(0);
+    expect(shot(pass, timing.receiver!).skillProgress).toBe(0);
+    const [x, y, z] = sampleCourtSimulation(board, 0, pass)!.ball;
+    expect(shot(pass, timing.receiver!).contactTarget).toEqual({ x, y, z });
+    expect(shot(1, 0)).toMatchObject({ skillMotion: "setJump", skillProgress: 0 });
+  });
+
+  it.each([["4", "setJump"], ["china", "setBack"]])("aligns the %s set to the ball even when the guides are hidden", (preset, clip) => {
+    const board = configureCourtSimulation(newCourtBoard(), 0, { mode: "attack", preset, blockers: 2 });
+    board.editor!.hiddenLayers = ["movements"];
+    const timing = sampleCourtSimulation(board, 0, 0)!;
+    const frame = buildCourtPerspectiveFrame(board, 0, timing.setContact!);
+    const setter = frame.actors.find(a => a.id === timing.config.actorIds[0])!;
+    expect(setter).toMatchObject({ skillMotion: clip, skillProgress: 0 });
+    for (const axis of ["x", "y", "z"] as const) expect(setter.contactTarget![axis]).toBeCloseTo(frame.simulation!.ball[axis], 8);
+    expect(frame.actors.find(a => a.id === timing.config.actorIds[3])?.skillMotion).toBeUndefined();
+  });
+
   it("keeps the intended attack curve editable independently of contacts, floor targets and blockers", () => {
     const preset = configureCourtSimulation(newCourtBoard(), 0, { mode: "attack", preset: "pipe" });
     const board = configureCourtSimulation(preset, 0, { attackSettings: { attackArc: 1.5 } });

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {sampleReception} from './reception-motion.js';
-import {effectiveRotation,receptionDestinations,receptionFormation} from './formations.js';
+import {effectiveRotation,receptionDestinations,receptionFormation,receptionReceiver} from './formations.js';
+import * as reference from '../__tests__/fixtures/court-reference/formations.mjs';
 
 const scenarios=[
   {name:'default',server:[1.7,0,-10.44],landing:[-1.45,6.65]},
@@ -18,6 +19,16 @@ function eachScenario(check){
   }
 }
 
+test('5–1 and 6–2 preserve the original reception bases, release paths and seam choices',()=>{
+  eachScenario(({system,rotation,landing})=>{
+    const bases=receptionFormation(system,rotation);
+    assert.equal(effectiveRotation(system,rotation),reference.effectiveRotation(system,rotation));
+    assert.deepEqual(bases,reference.receptionFormation(system,rotation));
+    assert.deepEqual(receptionDestinations(system,rotation),reference.receptionDestinations(system,rotation));
+    assert.equal(receptionReceiver(bases,landing),reference.receptionReceiver(bases,landing));
+  });
+});
+
 test('the setter holds its authored base until the server releases the toss in every rotation',()=>{
   eachScenario((config,label)=>{
     const initial=sampleReception(0,config),base=config.bases[0];
@@ -27,6 +38,79 @@ test('the setter holds its authored base until the server releases the toss in e
       near(sampleReception(progress,config).actors[0].position,base);
     }
   });
+});
+
+test('straight sprints keep their player role and ground marks as the capture gains and loses weight',()=>{
+  // Setter and libero in P4, then both wings covering in P1.
+  for(const [rotation,slot] of [[3,0],[3,4],[0,3],[0,5]]){
+    const config=configFor('5-1',rotation,'Float',scenarios[0]);
+    const frames=Array.from({length:501},(_,i)=>sampleReception(i/500,config).actors[slot]);
+    const moving=frames.filter(actor=>actor.runCycle!==undefined);
+    assert.ok(moving.length>50);
+    assert.ok(moving[0].runDrive<.03&&moving.at(-1).runDrive<.03);
+    assert.ok(moving.some(actor=>actor.runDrive>.65&&actor.feet.every(foot=>foot[1]>0)));
+    assert.ok(frames.every(actor=>actor.role===frames[0].role));
+    const first=frames.indexOf(moving[0]),last=frames.indexOf(moving.at(-1));
+    assert.ok(frames.slice(first-1,last+2).every(actor=>actor.plantedStance));
+    near(frames[first-1].feet[1],moving[0].feet[1]);
+    const support=moving.at(-1).feet.findIndex(foot=>foot[1]===0);
+    assert.notEqual(support,-1);
+    const landed=moving.at(-1).feet[support],rest=frames[last+1].feet[support];
+    near(landed.slice(0,3),rest.slice(0,3));
+    near([Math.cos(landed[3]),Math.sin(landed[3])],[Math.cos(rest[3]),Math.sin(rest[3])]);
+  }
+});
+
+test('both systems finish with all four attack lanes open and both feet planted before the set',()=>{
+  eachScenario(config=>{
+    const timing=sampleReception(0,config),pass=sampleReception(timing.receiveContact,config);
+    assert.ok(pass.actors.every(actor=>actor.attackReadiness===undefined));
+    const options=[1,2,3,5],destinations=receptionDestinations(config.system,config.rotation);
+    const settling=sampleReception(1-.28/timing.duration,config);
+    const planted=sampleReception(1-.09/timing.duration,config),finish=sampleReception(1,config);
+    for(const slot of options){
+      const actor=finish.actors[slot],[x,z]=destinations[slot],dx=actor.facing[0]-x,dz=actor.facing[1]-z;
+      assert.ok(settling.actors[slot].attackReadiness>0&&settling.actors[slot].attackReadiness<1);
+      assert.equal(actor.attackReadiness,1);
+      assert.equal(actor.role,pass.actors[slot].role);
+      assert.equal(actor.plantedStance,true);
+      near(actor.position,[x,0,z]);
+      assert.deepEqual(actor.feet,planted.actors[slot].feet);
+      assert.deepEqual(actor.facing,planted.actors[slot].facing);
+      const [lead,trail]=actor.feet;
+      assert.equal(lead[1],0);assert.equal(trail[1],0);
+      near([(lead[0]-trail[0])*dx+(lead[2]-trail[2])*dz],[.28]);
+      near([Math.sin(lead[3]),Math.cos(lead[3])],[dx,dz]);
+      // Ahead is toward the net; toward the inside is always toward the setter.
+      assert.ok(dz<0&&dx*(destinations[0][0]-x)>0);
+    }
+    assert.ok([0,4,6].every(slot=>finish.actors[slot].attackReadiness===undefined));
+    near(finish.ball,finish.setHand);
+  });
+});
+
+test('an attacker already at the opening mark repositions each shoe through the air, including left-handed stances',()=>{
+  const config=configFor('5-1',0,'Float',scenarios[0]),[x,z]=receptionDestinations('5-1',0)[1];
+  config.bases[1]=[x,0,z];
+  config.attackHands=[,'left'];
+  const {receiveContact}=sampleReception(0,config);
+  const at=t=>sampleReception(t,config).actors[1];
+  let previous=at(receiveContact);
+  const lifts=new Set();
+  for(let j=1;j<=200;j++){
+    const actor=at(receiveContact+(1-receiveContact)*j/200);
+    near(actor.position,[x,0,z]);
+    actor.feet.forEach((foot,side)=>{
+      if(foot[1]>.01)lifts.add(side);
+      if(foot[1]===0&&previous.feet[side][1]===0)near(foot,previous.feet[side]);
+    });
+    assert.ok(actor.feet.some(foot=>foot[1]===0));
+    previous=actor;
+  }
+  assert.equal(lifts.size,2);
+  assert.equal(previous.attackReadyLeft,true);
+  const [a,b]=previous.feet,[tx,tz]=previous.facing;
+  near([(a[0]-b[0])*(tx-x)+(a[2]-b[2])*(tz-z)],[-.28]);
 });
 
 test('the setter moves during the toss, keeps its destination and leaves the document bases untouched',()=>{
@@ -48,6 +132,30 @@ test('P1 starts forward at the toss while retaining its right-lane route before 
     const initial=sampleReception(0,config),early=sampleReception(initial.tossStart+.15/initial.duration,config).actors[0];
     assert.equal(early.position[0],config.bases[0][0]);
     assert.ok(early.position[2]<config.bases[0][2]);
+  });
+});
+
+test('P1 settles facing the live passer before first contact and opens to the set with alternating support',()=>{
+  eachScenario(config=>{
+    if(effectiveRotation(config.system,config.rotation)!==0)return;
+    const {receiveContact,duration,ballContact}=sampleReception(0,config);
+    const setter=progress=>sampleReception(progress,config).actors[0];
+    const read=setter(receiveContact),[x,,z]=read.position;
+    near(setter(receiveContact-.04/duration).position,read.position);
+    assert.equal(read.runCycle,undefined);
+    assert.equal(read.feetWeight,1);
+    assert.ok(read.feet.every(foot=>foot[1]===0));
+    const wanted=Math.atan2(ballContact[0]-x,ballContact[2]-z);
+    near(read.facing,[x+Math.sin(wanted),z+Math.cos(wanted)]);
+    const lifts=new Set();
+    for(let seconds=.04;seconds<.65;seconds+=.01){
+      const a=setter(receiveContact+seconds/duration);
+      assert.ok(a.feet?.some(foot=>foot[1]===0),'the adjustment keeps one shoe on the floor');
+      a.feet?.forEach((foot,side)=>{if(foot[1]>.03)lifts.add(side);});
+    }
+    assert.equal(lifts.size,2);
+    const front=setter(1);
+    assert.ok(front.facing[0]<x&&Math.abs(front.facing[1]-z)<1e-9);
   });
 });
 

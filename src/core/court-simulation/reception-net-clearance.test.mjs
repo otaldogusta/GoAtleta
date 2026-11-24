@@ -15,6 +15,37 @@ test('P1 plants the outside shoe before cutting inward and has flight between ru
  assert.ok(frames.some(frame=>frame.jump>.02&&frame.feet.every(foot=>foot[1]>0)));
 });
 
+test('the P1 setter pushes out, lengthens the stride and brakes in the rhythm of its real foot contacts',()=>{
+ const options={bases:[...receptionFormation('5-1',0),[1.7,0,-10.44]]};
+ const {duration,tossStart,receiveContact}=sampleReception(0,options);
+ const start=tossStart*duration,at=t=>sampleReception(t/duration,options).actors[0];
+ const speed=t=>{
+  const a=at(start+t),b=at(start+t+.001);
+  return Math.hypot(b.position[0]-a.position[0],b.position[2]-a.position[2])/.001;
+ };
+ assert.ok(speed(.04)<1&&speed(.45)>3.5);
+ assert.ok(at(start+.04).runDrive<.1&&at(start+.45).runDrive>.85);
+ const contacts=[],air=[false,false];
+ for(let ms=0;start+ms/1000<receiveContact*duration;ms++){
+  const actor=at(start+ms/1000);
+  if(actor.runCycle===undefined)continue;
+  for(let side=0;side<2;side++){
+   if(actor.feet[side][1]>0)air[side]=true;
+   else if(air[side]){
+    air[side]=false;
+    contacts.push(ms);
+    // Phase zero of the CMU run is a right landing, phase one a left landing.
+    const phaseError=Math.abs(actor.runCycle-(1-side));
+    assert.ok(Math.min(phaseError,2-phaseError)<.015);
+   }
+  }
+ }
+ assert.ok(contacts.length>=7&&contacts.length<=9);
+ assert.ok(contacts[0]>contacts[4]-contacts[3]+35,'first push lasts longer than the racing stride');
+ assert.ok(contacts.at(-1)-contacts.at(-2)>contacts[4]-contacts[3]+22,'last stride slows before gathering');
+ assert.ok(speed(2)<.5&&at(start+2).runDrive<.1);
+});
+
 test('the mocap foot swing keeps the opposite shoe planted and releases cleanly at the destination',()=>{
  const path=u=>[.3,u*2.1];
  const first=courtFootwork(path,.06),second=courtFootwork(path,.12);

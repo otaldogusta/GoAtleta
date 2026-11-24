@@ -28,6 +28,34 @@ const world=object=>object.getWorldPosition(new THREE.Vector3());
 function fixture(){const parent=new THREE.Group(),rig=createActorRig(parent);return {parent,group:rig.group,update:rig.update,get height(){return rig.height;}};}
 function matrices(rig){rig.group.updateMatrixWorld(true);return rig.group.children.map(object=>({name:object.name,matrix:[...object.matrixWorld.elements]}));}
 
+test('receive hitters release their arms into the first approach pose over their planted shoes',()=>{
+ const rig=fixture();
+ for(const leftHanded of [false,true]){
+  const lead=leftHanded?-1:1;
+  const actor={poseRole:'passer',pose:'ready',position:{x:0,y:0,z:0},facing:[0,1],poseScale:1,
+   feet:[[-.20,0,.14*lead,0],[.20,0,-.14*lead,0]],feetWeight:0,plantedStance:true,attackReadyLeft:leftHanded};
+  rig.update({...actor,attackReadiness:0});
+  const receiveHands=part(rig,'left-palm').position.distanceTo(part(rig,'right-palm').position);
+  rig.update({...actor,attackReadiness:1});
+  const pose=matrices(rig);
+  const handGap=part(rig,'left-palm').position.distanceTo(part(rig,'right-palm').position);
+  assert.ok(handGap>receiveHands+.15,'both arms open out of the passing platform');
+  assert.ok(part(rig,'head').position.z>part(rig,'pelvis').position.z+.10,'weight carried forward');
+  for(const [index,side] of ['left','right'].entries()){
+   const [x,,z]=actor.feet[index],foot=part(rig,side+'-foot').position;
+   near(foot.x,x);near(foot.z,z);near(foot.y,.055);
+   const knee=part(rig,side+'-knee').position, ankle=part(rig,side+'-ankle').position, hip=part(rig,side+'-hip').position;
+   assert.ok(knee.z>(hip.z+ankle.z)/2+.09,'knee flexes toward the toes');
+   assert.ok(part(rig,side+'-palm').position.y<hip.y+.15,'hands are available for the approach');
+  }
+  const atEnd=part(rig,'right-palm').position.clone();
+  rig.update({...actor,attackReadiness:.5});
+  assert.ok(part(rig,'right-palm').position.distanceTo(atEnd)>.04);
+  rig.update({...actor,attackReadiness:1});
+  assert.deepEqual(matrices(rig),pose);
+ }
+});
+
 test('P1 uses the captured limbs and keeps the outside shoe anchored while cutting',()=>{
  const rig=fixture(),bases=[...receptionFormation('5-1',0),[1.7,0,-10.44]];
  const frames=Array.from({length:1500},(_,index)=>sampleReception(index/1500,{bases}).actors[0]);
@@ -58,7 +86,8 @@ test('all sporting poses use one connected solid anatomy and a valid pose-specif
   rig.update({poseRole,pose,facing:[0,1],poseScale:.95,jump:0});rig.parent.updateMatrixWorld(true);
   assert.equal(rig.group.children.length,39);assert.ok(Number.isFinite(rig.height)&&rig.height>1.2&&rig.height<2.5,`${poseRole}/${pose}: ${rig.height}`);
   const box=new THREE.Box3().setFromObject(rig.group);assert.ok(rig.height>=box.max.y-1e-7);
-  near(box.min.y,0);assert.ok(matrices(rig).every(object=>object.matrix.every(Number.isFinite)));
+  const surface=new THREE.Box3().setFromObject(rig.group,true);
+  near(surface.min.y,0,.003);assert.ok(matrices(rig).every(object=>object.matrix.every(Number.isFinite)));
   for(const side of ['left','right'])for(const [bone,start,end] of [['upper-arm','shoulder','elbow'],['forearm','elbow','palm'],['thigh','hip','knee'],['shin','knee','ankle']]){
    const mesh=part(rig,`${side}-${bone}`),a=mesh.localToWorld(new THREE.Vector3(0,-.5,0)),b=mesh.localToWorld(new THREE.Vector3(0,.5,0));
    near(a.distanceTo(world(part(rig,`${side}-${start}`))),0);near(b.distanceTo(world(part(rig,`${side}-${end}`))),0);
@@ -499,6 +528,19 @@ test('procedural passers, setters and servers use world-space plant locations th
  }
 });
 
+test('a grounded attacker keeps the support shoe in place while the travel clip fades',()=>{
+ const rig=fixture(),feet=[[-.18,0,.12,0],[.20,0,-.08,0]];
+ for(const weight of [1,.5,0]){
+  const x=.08*(1-weight);
+  rig.parent.position.x=x;
+  rig.update({poseRole:'attacker',pose:'ready',position:{x,y:0,z:0},facing:[0,1],
+   feet,feetWeight:weight,plantedStance:true});
+  const support=world(part(rig,'left-foot'));
+  near(support.x,feet[0][0]);
+  near(support.z,feet[0][2]);
+ }
+});
+
 test('the run uses the foot ahead to swing the opposite arm without a second animation clock',()=>{
  const rig=fixture();
  for(const leadingFoot of [0,1]){
@@ -541,8 +583,9 @@ test('the Blender block approach keeps the rendered knee bent through the long c
    rig.parent.position.set(x,y,z);
    rig.update({...actor,poseRole:'blocker',position:{x,y,z}});
    const dip=.92-part(rig,'pelvis').position.y;
-   if(actor.blockFrame<32)runningDip=Math.max(runningDip,dip);
-   else plantDip=Math.max(plantDip,dip);
+   // The hips already begin accepting the plant on the penultimate shoe.
+   if(actor.blockFrame<=26)runningDip=Math.max(runningDip,dip);
+   if(actor.blockFrame>=32)plantDip=Math.max(plantDip,dip);
    if(Math.abs(rig.group.rotation.y)>Math.abs(strongestTurn))strongestTurn=rig.group.rotation.y;
    for(const side of ['left','right']){
     const hip=part(rig,side+'-hip').position,knee=part(rig,side+'-knee').position,ankle=part(rig,side+'-ankle').position;

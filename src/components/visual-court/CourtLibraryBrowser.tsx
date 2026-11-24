@@ -20,6 +20,7 @@ type Props = {
   onOpen: (item: CourtLibraryItem) => void; onMenu: (id: string) => void;
   menuId: string | null; registerMenu: (id: string, node: View | null) => void;
   compact?: boolean;
+  templatesOnly?: boolean;
 };
 
 export function CourtLibraryBrowser(props: Props) {
@@ -29,9 +30,9 @@ export function CourtLibraryBrowser(props: Props) {
   return <View style={styles.browser}>
     <View {...{ dataSet: { courtLibrarySearch: "true" } }} style={[styles.search, compact ? { minHeight: 34 } : null, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
       <GoAtletaIcon name="search" size={17} color={colors.muted} />
-      <TextInput accessibilityLabel="Buscar na biblioteca" placeholder="Buscar jogadas" placeholderTextColor={colors.muted} value={props.query} onChangeText={props.onQuery} style={{ flex: 1, minHeight: compact ? 32 : 44, color: colors.text, fontSize: compact ? 12 : 14, borderRadius: 0 }} />
+      <TextInput accessibilityLabel="Buscar na biblioteca" placeholder={props.templatesOnly ? "Buscar sistemas" : "Buscar jogadas"} placeholderTextColor={colors.muted} value={props.query} onChangeText={props.onQuery} style={{ flex: 1, minHeight: compact ? 32 : 44, color: colors.text, fontSize: compact ? 12 : 14, borderRadius: 0 }} />
     </View>
-    {props.filter !== "trash" ? <View style={styles.filters}>
+    {!props.templatesOnly && props.filter !== "trash" ? <View style={styles.filters}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: "center", gap: 2 }}>
         {([['all', 'Tudo'], ['local', 'Rascunhos'], ['team', 'Na turma'], ['template', 'Modelos']] as const).map(([id, label]) => <Pressable suppressWebHoverFeedback={compact} key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: props.filter === id }} onPress={() => props.onFilter(id)} style={({ hovered, pressed }) => [styles.filter, compact ? { minHeight: 34, borderRadius: 999, overflow: "hidden" } : null, { backgroundColor: props.filter === id ? colors.secondaryBg : compact && (hovered || pressed) ? colors.inputBg : "transparent" }]}><Text style={{ color: props.filter === id ? colors.text : colors.muted, fontSize: 12, fontWeight: compact ? props.filter === id ? "500" : "400" : props.filter === id ? "700" : "500" }}>{label}</Text></Pressable>)}
         {props.lessonDate ? <Pressable suppressWebHoverFeedback={compact} accessibilityRole="button" accessibilityLabel="Somente esta aula" accessibilityState={{ selected: props.onlyLesson }} onPress={props.onLesson} style={({ hovered, pressed }) => [styles.filter, compact ? { minHeight: 34, borderRadius: 999, overflow: "hidden" } : null, { backgroundColor: props.onlyLesson ? colors.secondaryBg : compact && (hovered || pressed) ? colors.inputBg : "transparent" }]}><Text style={{ color: props.onlyLesson ? colors.text : colors.muted, fontSize: 12, fontWeight: compact ? props.onlyLesson ? "500" : "400" : props.onlyLesson ? "700" : "500" }}>Esta aula</Text></Pressable> : null}
@@ -44,7 +45,7 @@ export function CourtLibraryBrowser(props: Props) {
         if (!items.length) return null;
         const label = group === "local" ? "Rascunhos" : group === "team" ? "Jogadas da turma" : group === "template" ? "Modelos" : "Lixeira deste dispositivo";
         return <View key={group} style={{ marginTop: spacing.sm }}>
-          <Text style={{ color: colors.muted, fontSize: 12, paddingVertical: spacing.sm }}>{label}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12, paddingVertical: spacing.sm }}>{props.templatesOnly ? "Sistemas" : label}</Text>
           {items.map(item => {
             const count = item.payload.timeline.steps.length;
             const date = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "";
@@ -55,7 +56,7 @@ export function CourtLibraryBrowser(props: Props) {
                 <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: compact ? 12 : 14, fontWeight: "600" }}>{item.title}</Text><Text numberOfLines={1} style={{ color: colors.muted, fontSize: compact ? 11 : 12, marginTop: 3 }}>{detail}</Text></View>
                 {item.current ? <Text style={{ color: colors.primaryBg, fontSize: compact ? 11 : 12, fontWeight: "600" }}>Editando</Text> : null}
               </Pressable>
-              {item.document ? <View ref={node => props.registerMenu(item.id, node)} collapsable={false}><Pressable suppressWebHoverFeedback={compact} accessibilityRole="button" accessibilityLabel={`Opções de ${item.title}`} accessibilityState={{ expanded: props.menuId === item.id }} disabled={props.disabled} onPress={() => props.onMenu(item.id)} style={({ hovered, pressed }) => [styles.more, compact ? { width: 34, height: 34, borderRadius: 999, overflow: "hidden", backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent" } : null]}><GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.muted} /></Pressable></View> : null}
+              {item.document && !props.templatesOnly ? <View ref={node => props.registerMenu(item.id, node)} collapsable={false}><Pressable suppressWebHoverFeedback={compact} accessibilityRole="button" accessibilityLabel={`Opções de ${item.title}`} accessibilityState={{ expanded: props.menuId === item.id }} disabled={props.disabled} onPress={() => props.onMenu(item.id)} style={({ hovered, pressed }) => [styles.more, compact ? { width: 34, height: 34, borderRadius: 999, overflow: "hidden", backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent" } : null]}><GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.muted} /></Pressable></View> : null}
             </View>;
           })}
         </View>;

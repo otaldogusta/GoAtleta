@@ -1,6 +1,6 @@
 import { buildEditable5x1ReceptionPreset, type CourtVisualPayload } from "../visual-court";
 import { frameDrawings, newCourtBoard, parseEditorImport, upgradeCourtEditor, type CourtDrawing } from "../visual-court-editor";
-import { configureCourtSimulation, getCourtSimulation, sampleCourtSimulation } from "../court-simulation";
+import { configureCourtSimulation, getCourtSimulation, receptionPlayerIdentity, sampleCourtSimulation } from "../court-simulation";
 import { sampleReception } from "../court-simulation/reception-motion.js";
 import { receptionFormation } from "../court-simulation/formations.js";
 import { sampleAttack } from "../court-simulation/attack-motion.js";
@@ -149,6 +149,37 @@ describe("shared receive/attack mode across the six-rotation sequence", () => {
 });
 
 describe("canonical six-rotation reception sequence", () => {
+  it.each(["4-2", "6-2"] as const)("keeps opposite setters in their own rotations and gives the second touch to the correct row in %s", system => {
+    const preset = buildSimulatedReceptionRotationPreset(system);
+    const payload = parseEditorImport(JSON.stringify({ format: "goatleta-court", version: 1, payload: preset }));
+    const attack = configureCourtRotationSequenceMode(payload, 0, "attack");
+    expect(payload.editor?.title).toBe(`${system.replace("-", "×")} · Recepção`);
+    expect(payload.timeline.steps.map(step => step.label)).toEqual(labels.map(label => `${label} · Recepção`));
+    for (let rotation = 0; rotation < 6; rotation++) {
+      const frame = sampleCourtSimulation(payload, rotation, 1)!;
+      expect(frame.config.system).toBe(system);
+      const own = frame.config.teamActorIds!;
+      const identities = own.map(id => receptionPlayerIdentity(frame.config, id)!);
+      expect(identities.map(player => player.position).sort()).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(identities[0]).toMatchObject({ label: "Levantador¹", position: [1, 6, 5, 4, 3, 2][rotation] });
+      expect(identities[1]).toMatchObject({ label: "Levantador²", position: [4, 3, 2, 1, 6, 5][rotation] });
+      const setBy = identities.slice(0, 2).findIndex(({ position }) => [2, 3, 4].includes(position) === (system === "4-2"));
+      const setter = frame.actors[0];
+      expect(setter).toMatchObject({ id: own[setBy], pose: "contact" });
+      expect(frame.actors[1].id).toBe(own[1 - setBy]);
+      expect(payload.actors.filter(actor => own.slice(0, 2).includes(actor.id)).map(actor => actor.role)).toEqual(["setter", "setter"]);
+      frame.ball.forEach((coordinate, axis) => expect(coordinate).toBeCloseTo(frame.setHand![axis], 8));
+      expect(frame.ball[0]).toBeCloseTo(setter.position[0] - .15);
+      expect(frame.ball[2]).toBeCloseTo(setter.position[2]);
+      expect(getCourtSimulation(attack, rotation)?.actorIds[0]).toBe(setter.id);
+      if (system === "4-2") {
+        expect(frame.bases[0][2]).toBeLessThan(3);
+        expect(frame.actors[1].position[2]).toBeGreaterThan(3);
+        expect(frame.actors[1].attackReadiness).toBeUndefined();
+      }
+    }
+  });
+
   it("keeps navigation and mode changes across all six rotations after opening defense", () => {
     const source = buildSimulatedReceptionRotationPreset();
     const { payload, stepIndex } = ensureCourtDefenseStep(source);

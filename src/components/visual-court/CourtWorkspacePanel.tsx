@@ -23,7 +23,6 @@ type Props = {
   dialogId?: string;
   disabled?: boolean;
   readOnly?: boolean;
-  hideLibrary?: boolean;
   uiScale?: number;
   top?: number;
   bottom?: number;
@@ -32,7 +31,6 @@ type Props = {
 const TABS = [
   ["adjustments", "Ajustes"],
   ["steps", "Etapas"],
-  ["library", "Biblioteca"],
 ] as const;
 const TABS_WITH_TOOLS = [...TABS, ["tools", "Ferramentas"]] as const;
 const TABBABLE = 'button, [href], input, select, textarea, [tabindex], [contenteditable="true"]';
@@ -114,7 +112,7 @@ function useCourtSheetFocus(open: boolean, dialogId: string, onRequestClose: () 
 }
 
 /** Shares one disclosure surface while retaining each tab's local view state. */
-export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTabChange, adjustments, steps, library, tools, triggerRef, dialogId = "court-workspace-sheet", disabled = false, readOnly = false, hideLibrary = false, uiScale = 1, top = 144, bottom = 88 }: Props) {
+export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTabChange, adjustments, steps, library, tools, triggerRef, dialogId = "court-workspace-sheet", disabled = false, readOnly = false, uiScale = 1, top = 144, bottom = 88 }: Props) {
   const { colors } = useAppTheme();
   const { width, height } = useWindowDimensions();
   const mobile = width <= 700;
@@ -134,13 +132,13 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
   const modal = hasTools || centered;
   const webDialog = modal && Platform.OS === "web";
   const stackSheetHeader = hasTools && width < 380;
-  const tabs = (hasTools ? TABS_WITH_TOOLS : TABS).filter(([value]) => !hideLibrary || value !== "library");
-  const contents = { adjustments, steps, library, tools };
+  const tabs = hasTools ? TABS_WITH_TOOLS : TABS;
+  const contents = { adjustments, steps, tools };
   useCourtSheetFocus(webDialog && open, dialogId, onRequestClose, triggerRef);
   const tabList = (
     <View accessibilityRole="tablist" accessibilityLabel="Áreas da jogada" style={[styles.tabs, modal && (stackSheetHeader ? styles.stackedSheetTabs : styles.sheetTabs), { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
       {tabs.map(([value, label]) => {
-        const unavailable = disabled || (readOnly && value === "library");
+        const unavailable = disabled;
         return <Pressable suppressWebHoverFeedback disableWebPressScale key={value} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: tab === value, disabled: unavailable }} aria-selected={tab === value} {...(webDialog ? { nativeID: `${dialogId}-tab-${value}`, "aria-controls": `${dialogId}-${value}`, tabIndex: !unavailable && tab === value ? 0 : -1, dataSet: { courtSheetTab: value } } : {})} disabled={unavailable} onPress={() => { if (!unavailable) onTabChange(value); }} style={({ hovered, pressed }) => [styles.tab, hasTools ? styles.sheetTab : mobile ? { minHeight: compactWeb ? 28 : 36 } : null, { backgroundColor: tab === value ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
           <Text numberOfLines={1} style={{ color: tab === value ? colors.primaryText : colors.muted, fontSize: compactWeb ? 11 : 12, fontWeight: mobile && tab === value ? "600" : "400" }}>{label}</Text>
         </Pressable>;
@@ -157,6 +155,9 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
           <GoAtletaIcon name="close" size={compactUiMetrics.iconSize} color={colors.text} />
         </Pressable>
       </View> : tabList}
+      <View accessibilityLabel="Conteúdo: Biblioteca" aria-hidden={!open || !centered} {...(Platform.OS === "web" ? { inert: !open || !centered } : {})} style={[styles.content, { display: centered ? "flex" : "none" }]}>
+        {library}
+      </View>
       {tabs.map(([value, label]) => {
         const active = open && tab === value;
         return <View key={value} accessibilityLabel={`Conteúdo: ${label}`} {...(webDialog && !centered ? { nativeID: `${dialogId}-${value}`, role: "tabpanel", "aria-labelledby": `${dialogId}-tab-${value}` } : {})} pointerEvents={active ? "auto" : "none"} accessibilityElementsHidden={!active} importantForAccessibility={active ? "auto" : "no-hide-descendants"} aria-hidden={!active} {...(Platform.OS === "web" ? { inert: !active } : {})} style={[styles.content, { display: tab === value ? "flex" : "none" }]}>

@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
 import { actorPoint, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
-import { receptionPlayerIdentity, receptionServerIdentity, sampleCourtSimulation } from "../../core/court-simulation";
+import { courtOpponentIdentity, receptionPlayerIdentity, sampleCourtSimulation } from "../../core/court-simulation";
 import { middleAttackColor } from "../../core/court-simulation/attack-settings.js";
 import { displayCourtDrawings, simulationFloorPoint, type DisplayedCourtDrawing } from "../../core/court-simulation-display";
 import { buildCourtPerspectiveSimulation } from "../../core/court-perspective-guides";
@@ -30,8 +30,9 @@ export function displayActors(p: CourtVisualPayload, index: number, progress?: n
     const simulated = sample?.actors.find(item => item.id === a.id);
     const trajectory = (s.trajectories ?? s.transitions)?.find(t => t.actorId === a.id);
     const identity = receptionPlayerIdentity(sample?.config, a.id);
-    const server = receptionServerIdentity(sample?.config, a);
-    return { ...a, label: identity?.label ?? server?.label ?? a.label, receptionRole: Boolean(identity || server), color: identity?.color ?? server?.color ?? middleAttackColor(sample?.config, a.id) ?? a.color, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
+    const opponent = courtOpponentIdentity(sample?.config, a);
+    const roleLabel = Boolean(opponent || (identity && sample?.config.system !== "6-0"));
+    return { ...a, label: identity?.label ?? opponent?.label ?? a.label, receptionRole: roleLabel, color: identity?.color ?? opponent?.color ?? middleAttackColor(sample?.config, a.id) ?? a.color, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
   });
 }
 const interpolate = (a: CourtPoint, b: CourtPoint, t: number): CourtPoint => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });

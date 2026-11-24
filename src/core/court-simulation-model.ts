@@ -1,4 +1,4 @@
-import { normalizeAttackSettings } from "./court-simulation/attack-settings.js";
+import { normalizeAttackSettings, SIX_ZERO_ATTACK_PRESETS } from "./court-simulation/attack-settings.js";
 import { attackPresets } from "./court-simulation/attack-motion.js";
 import { normalizeReceiveTarget } from "./court-simulation/reception-target.js";
 
@@ -23,7 +23,7 @@ export type CourtSimulationAttackSettings = {
 export type CourtSimulation = {
   version: 1;
   mode: "receive" | "attack" | "defense";
-  system: "5-1" | "6-2";
+  system: "5-1" | "4-2" | "6-2" | "6-0";
   rotation: number;
   serve: "Float" | "Topspin";
   seam: "Left" | "Right";
@@ -58,7 +58,15 @@ export type CourtSimulationActor = {
   poseBlend?: number;
   contactWeight?: number;
   attackFrame?: number;
+  /** Running cycle in steps [0, 2). At 0 the right shoe lands; at 1 the left lands. */
   runCycle?: number;
+  /** Running intensity from the current floor speed, from rest (0) to full drive (1). */
+  runDrive?: number;
+  /** Weight of the split stance at the start of the next hitting approach. */
+  attackReadiness?: number;
+  attackReadyLeft?: boolean;
+  plantedStance?: boolean;
+  travelMotion?: { kind: "walk" | "shuffle"; phase: number; direction: 1 | -1 };
   attackStrideScale?: number;
   attackLeadIn?: number;
   attackSlide?: boolean;
@@ -130,6 +138,8 @@ export type CourtSimulationSample = {
   attackContact?: number;
   passContact?: number | null;
   passHand?: CourtSimulationPoint | null;
+  setHand?: CourtSimulationPoint;
+  tossHand?: CourtSimulationPoint;
   setArc?: number;
   passArc?: number;
   attackArc?: number;
@@ -156,13 +166,20 @@ const object = (value: unknown): value is Record<string, unknown> => Boolean(val
 /** The document stores only bounded configuration and canonical references. */
 export function normalizeCourtSimulation(value: unknown, actorIds?: readonly string[], drawingIds?: readonly string[]): CourtSimulation | null {
   if (!object(value) || value.version !== 1 || !["receive", "attack", "defense"].includes(String(value.mode))) return null;
-  if (!Array.isArray(value.actorIds) || value.actorIds.length !== 7 || value.actorIds.some(id => typeof id !== "string" || !id || id.length > 120)
-    || new Set(value.actorIds).size !== 7 || typeof value.ballId !== "string" || !value.ballId || value.ballId.length > 120) return null;
+  const sixZeroAttack = value.system === "6-0" && value.mode === "attack";
+  const expectedActors = sixZeroAttack ? 9 : 7;
+  if (!Array.isArray(value.actorIds) || value.actorIds.length !== expectedActors || value.actorIds.some(id => typeof id !== "string" || !id || id.length > 120)
+    || new Set(value.actorIds).size !== expectedActors || typeof value.ballId !== "string" || !value.ballId || value.ballId.length > 120) return null;
   const references = value.actorIds as string[];
   if (actorIds && references.some(id => !actorIds.includes(id))) return null;
   if (value.teamActorIds !== undefined && (!Array.isArray(value.teamActorIds) || value.teamActorIds.length !== 6
     || value.teamActorIds.some(id => typeof id !== "string" || !id || id.length > 120)
     || new Set(value.teamActorIds).size !== 6 || actorIds && value.teamActorIds.some(id => !actorIds.includes(id)))) return null;
+  if (value.system === "6-0") {
+    const ownSlots = sixZeroAttack ? [0, 3, 4, 6, 7, 8] : [0, 1, 2, 3, 4, 5];
+    const team = value.teamActorIds;
+    if (!Array.isArray(team) || ownSlots.some(slot => !team.includes(references[slot]))) return null;
+  }
   if (drawingIds && !drawingIds.includes(value.ballId)) return null;
   let defenseSettings: CourtSimulationDefenseSettings | undefined;
   if (value.mode === "defense") {
@@ -179,10 +196,10 @@ export function normalizeCourtSimulation(value: unknown, actorIds?: readonly str
   const rotation = typeof value.rotation === "number" && Number.isFinite(value.rotation) ? Math.max(0, Math.min(5, Math.floor(value.rotation))) : 0;
   return {
     version: 1, mode: value.mode as CourtSimulation["mode"],
-    system: value.system === "6-2" ? "6-2" : "5-1", rotation,
+    system: value.system === "4-2" || value.system === "6-2" || value.system === "6-0" ? value.system : "5-1", rotation,
     serve: value.serve === "Topspin" ? "Topspin" : "Float",
     seam: value.seam === "Right" ? "Right" : "Left",
-    preset: presets.includes(String(value.preset)) ? String(value.preset) : "4",
+    preset: (sixZeroAttack ? SIX_ZERO_ATTACK_PRESETS : presets).includes(String(value.preset)) ? String(value.preset) : "4",
     format: value.format === "9-man" ? "9-man" : "Indoor",
     layers: { attack: layers.attack === true, pass: layers.pass === true, block: layers.block === true },
     blockers: Math.max(1, Math.min(3, Math.floor(Number(value.blockers) || 1))) as 1 | 2 | 3,

@@ -1,6 +1,6 @@
 import { newCourtBoard } from "../../../core/visual-court-editor";
 import type { CourtVisualDocument } from "../../../core/visual-court";
-import { buildCourtLibraryItems, filterCourtLibraryItems } from "../court-library";
+import { buildCourtLibraryItems, buildCourtSystemTemplates, filterCourtLibraryItems } from "../court-library";
 
 const document = (id: string, title: string, tags = ""): CourtVisualDocument => {
   const payload = newCourtBoard(title);
@@ -9,6 +9,21 @@ const document = (id: string, title: string, tags = ""): CourtVisualDocument => 
 };
 
 describe("court library", () => {
+  it("lists the reception systems in Tudo and Modelos and finds them with either multiplication sign", () => {
+    const templates = buildCourtSystemTemplates();
+    const items = buildCourtLibraryItems(templates, [], { payload: newCourtBoard(), documentId: null, dirty: false });
+    const search = (filter: "all" | "template" | "team", query = "") =>
+      filterCourtLibraryItems(items, { filter, query, favorites: false, onlyLesson: false });
+    const titles = ["5×1 · Recepção", "4×2 · Recepção", "6×2 · Recepção", "6×0 · Recepção"];
+    expect(search("all").map(item => item.title)).toEqual(titles);
+    expect(search("template", "Sistema").map(item => item.title)).toEqual(titles);
+    expect(search("team")).toEqual([]);
+    for (const query of ["4x2", "4×2"]) {
+      expect(search("template", query).map(item => item.title)).toEqual(["4×2 · Recepção"]);
+    }
+    expect(search("template", "6x0").map(item => item.title)).toEqual(["6×0 · Recepção"]);
+  });
+
   it("selects the opened version in its original group without a duplicate draft card", () => {
     const saved = document("saved_1", "Recepção original");
     const local = document("local_1", "Defesa", "sistema");
