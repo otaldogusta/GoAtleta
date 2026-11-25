@@ -118,19 +118,32 @@ export type CourtSceneProps = {
   payload: CourtVisualPayload; stepIndex: number; landscape: boolean;
   /** Transient canvas feedback; omitted by thumbnails and export callers. */
   hoveredId?: string;
+  rotationPreview?: import("../../core/visual-court-perspective").CourtRotationPreview;
   selected?: string[]; previewIds?: string[]; previewMotion?: boolean; progress?: number; draft?: CourtDrawing; grid?: boolean; half?: boolean; plain?: boolean; editingTextId?: string;
   viewBox?: string; width?: number | string; height?: number | string;
 };
 
 /** One geometric scene for the interactive canvas, thumbnails and image/PDF exports. */
-export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = [], hoveredId, previewIds, previewMotion, progress, draft, grid, half, plain, editingTextId, viewBox, width = "100%", height = "100%" }: CourtSceneProps) {
+export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = [], hoveredId, previewIds, previewMotion, progress, rotationPreview, draft, grid, half, plain, editingTextId, viewBox, width = "100%", height = "100%" }: CourtSceneProps) {
   const b = sceneBounds(landscape, half);
   const step = p.timeline.steps[stepIndex];
   const hide = p.editor?.hiddenLayers ?? [];
   const simulation = sampleCourtSimulation(p, stepIndex, progress ?? 0);
   const guides = simulation ? buildCourtPerspectiveSimulation(p, stepIndex, simulation, !hide.includes("movements")) : null;
   const drawings = new Map(displayCourtDrawings(p, stepIndex, progress).map(drawing => [drawing.id, drawing]));
-  const actors = new Map(displayActors(p, stepIndex, progress).map(actor => [actor.id, actor]));
+  const exiting = rotationPreview?.exiting ?? {};
+  const outgoing = p.actors.filter(actor => exiting[actor.id] && !p.editor?.actorMeta[actor.id]?.hidden)
+    .map(actor => ({ ...actor, ...exiting[actor.id], point: actor.initialPosition, receptionRole: true }));
+  const actors = new Map([...displayActors(p, stepIndex, progress), ...outgoing].map(actor => {
+    const path = rotationPreview?.paths[actor.id];
+    if (!path || !rotationPreview) return [actor.id, actor];
+    const [start, end] = path;
+    const t = rotationPreview.progress;
+    return [actor.id, { ...actor, point: {
+      x: .5 + (start[0] + (end[0] - start[0]) * t) / 9,
+      y: .5 + (start[2] + (end[2] - start[2]) * t) / 18,
+    } }];
+  }));
   const project = (x: number, y: number) => scenePoint({ x, y }, landscape);
   const line = (x1: number, y1: number, x2: number, y2: number, key: string, thickness = 5) => {
     const a = project(x1, y1), z = project(x2, y2);
@@ -175,7 +188,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
         </G>;
       })}
     </G> : null}
-    {resolveCourtLayers(p, stepIndex).map(ref => {
+    {[...resolveCourtLayers(p, stepIndex), ...outgoing.map(actor => ({ kind: "actor" as const, id: actor.id }))].map(ref => {
       if (ref.kind === "drawing") {
         const d = drawings.get(ref.id);
         if (!d || d.id === editingTextId || hide.includes("drawings")) return null;
@@ -186,11 +199,15 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
       }
       const a = actors.get(ref.id);
       if (!a || hide.includes("actors")) return null;
-      const pt = scenePoint(previewIds?.includes(a.id) ? actorPoint(p, stepIndex, a.id) : a.point, landscape);
+      const approachingServer = simulation?.config.serve === "Topspin" && simulation.mode === "receive" && simulation.actors[6]?.id === a.id;
+      const pt = scenePoint(previewIds?.includes(a.id) && !approachingServer ? actorPoint(p, stepIndex, a.id) : a.point, landscape);
       const person = (a.representation ?? p.editor?.actorRepresentation) === "person";
       const isSelected = selected.includes(a.id);
       const color = hoveredId === a.id ? courtHoverColor(a.color ?? "#19c87b") : a.color ?? "#19c87b";
-      return <G key={`actor:${a.id}`}>
+      const t = rotationPreview?.progress ?? 1;
+      const opacity = exiting[a.id] ? Math.min(1, (1 - t) / .35)
+        : rotationPreview?.entering?.includes(a.id) ? Math.min(1, t / .25) : 1;
+      return <G key={`actor:${a.id}`} opacity={opacity}>
         {isSelected && !person ? <Circle cx={pt.x} cy={pt.y} r={61} fill="none" stroke="#fff" strokeWidth={4} /> : null}
         {person ? <G>
           {isSelected ? <G pointerEvents="none">

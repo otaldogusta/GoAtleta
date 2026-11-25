@@ -1,4 +1,5 @@
 import {clamp,limitPoint} from './renderer-geometry.mjs';
+import {CAMERA_MOTION} from './renderer-camera-motion.mjs?v=court-close-camera-20261124';
 
 export const pointerDragThreshold=type=>type==='touch'?8:5;
 export const emptyTouchContacts=()=>({points:new Map(),pair:null,suppressed:false});
@@ -22,7 +23,7 @@ export function touchPair(state){return state.pair?.map(id=>state.points.get(id)
 
 export function orbitPointerDrag(start,pixel,current,viewport,pointerType){
  const touch=pointerType==='touch',yaw=touch?2.4/Math.max(320,viewport.width):.005,pitch=touch?1.5/Math.max(400,viewport.height):.003;
- return {azimuth:start.azimuth-(current.x-pixel.x)*yaw,elevation:clamp(start.elevation+(current.y-pixel.y)*pitch,.12,1.25)};
+ return {azimuth:start.azimuth-(current.x-pixel.x)*yaw,elevation:clamp(start.elevation+(current.y-pixel.y)*pitch,CAMERA_MOTION.minElevation,CAMERA_MOTION.maxElevation)};
 }
 
 /** Clamp the destination, never the grab point: high/edge hits retain their initial offset. */
@@ -55,6 +56,16 @@ const midpoint=pair=>({x:(pair[0].x+pair[1].x)/2,y:(pair[0].y+pair[1].y)/2});
 const span=pair=>Math.hypot(pair[0].x-pair[1].x,pair[0].y-pair[1].y);
 function basis(azimuth,elevation){
  return {right:{x:Math.cos(azimuth),y:0,z:-Math.sin(azimuth)},up:{x:-Math.sin(azimuth)*Math.sin(elevation),y:Math.cos(elevation),z:-Math.cos(azimuth)*Math.sin(elevation)}};
+}
+
+export function panPointerDrag(camera,dx,dy,height){
+ const {right,up}=basis(camera.azimuth,camera.elevation);
+ const scale=2*camera.distance*Math.tan(camera.fov*Math.PI/360)/Math.max(1,height);
+ return {
+  x:camera.target.x+(-dx*right.x+dy*up.x)*scale,
+  y:camera.target.y+dy*up.y*scale,
+  z:camera.target.z+(-dx*right.z+dy*up.z)*scale,
+ };
 }
 
 /** The midpoint holds one point on the camera-facing plane through the orbit target. */

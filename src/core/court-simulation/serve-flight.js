@@ -1,6 +1,7 @@
 // A predictive hand-to-floor flight. Reception samples the descending branch
 // before its floor endpoint, so the guide and the animated ball share one path.
 import {NET_TOP,BALL_RADIUS,TOP_BAND_DEPTH} from '../../../public/visual-court-3d/court-net.js';
+import {topspinMarkers,topspinRoot,topspinStrike} from '../../../public/visual-court-3d/topspin-motion-data.js';
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const mix=(a,b,u)=>a+(b-a)*u;
 const finite=(value,fallback)=>Number.isFinite(value)?value:fallback;
@@ -40,7 +41,10 @@ export function createServeFlight(serverXYZ,targetXZ,kind='Float'){
   const distance=Math.hypot(target[0]-server[0],target[1]-server[2]);
   const forward=[(target[0]-server[0])/distance,(target[1]-server[2])/distance];
   const right=[forward[1],-forward[0]];
-  const start=[server[0]+.38*forward[0]+.03*right[0],server[1]+2.28,server[2]+.38*forward[1]+.03*right[1]];
+  const [across,height,ahead]=kind==='Topspin'?topspinStrike:[.03,2.28,.38];
+  const elevation=kind==='Topspin'?topspinRoot[topspinMarkers.contact][1]:0;
+  const start=[server[0]+ahead*forward[0]+across*right[0],server[1]+height+elevation,
+    server[2]+ahead*forward[1]+across*right[1]];
   const end=[target[0],BALL_RADIUS,target[1]];
   const netFraction=-start[2]/(end[2]-start[2]);
   const preferredApex=kind==='Topspin'?.75*netFraction:netFraction;

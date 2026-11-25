@@ -1,10 +1,30 @@
 import { supabasePost } from '../db/client';
+import { supabaseRestGet } from './rest';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
 import { publishableCourt } from '../core/court-sharing';
 import type { CourtVisualPayload } from '../core/visual-court';
 
 export type CourtShareScope = { org: string; classId: string; key: string };
 export type CourtShare = { id: string; revoked: boolean; updatedAt: string };
+export type CourtShareClass = { id: string; name: string };
+
+export async function listCourtShareClasses(org: string, assertCurrent: () => void): Promise<CourtShareClass[]> {
+  const classes: CourtShareClass[] = [];
+  const path = `/classes?select=id,name&organization_id=eq.${encodeURIComponent(org)}&order=name.asc,id.asc`;
+  const pageSize = 250;
+  for (;;) {
+    assertCurrent();
+    const page = await supabaseRestGet<CourtShareClass[]>(`${path}&limit=${pageSize}&offset=${classes.length}`, assertCurrent);
+    classes.push(...page);
+    if (page.length < pageSize) return classes;
+  }
+}
+
+export async function canManageCourtShareClass({ org, classId }: Pick<CourtShareScope, 'org' | 'classId'>, assertCurrent: () => void) {
+  const path = `/rpc/court_share_can_manage?p_org=${encodeURIComponent(org)}&p_class=${encodeURIComponent(classId)}`;
+  return await supabaseRestGet<boolean>(path, assertCurrent) === true;
+}
+
 const args = (scope: CourtShareScope) => ({ p_org: scope.org, p_class: scope.classId, p_key: scope.key });
 export const getCourtShare = (scope: CourtShareScope) => supabasePost<CourtShare | null>('/rpc/get_court_share', args(scope));
 export const publishCourtShare = (scope: CourtShareScope, payload: CourtVisualPayload, code: string) =>

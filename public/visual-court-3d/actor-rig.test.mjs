@@ -4,6 +4,7 @@ import * as THREE from './three.module.min.js';
 import {createActorRig} from './actor-rig.mjs';
 import {ATTACK_CLIP_JOINT as joint,ATTACK_CLIP_SIZE,sampleAttackClip} from './attack-captured-clip.mjs';
 import {createBlocker} from './blocker-rig.mjs';
+import {shoeSupportHeight} from './court-shoe.mjs';
 import {attackFormation,sampleAttack} from '../../src/core/court-simulation/attack-motion.js';
 import {sampleReception} from '../../src/core/court-simulation/reception-motion.js';
 import {receptionFormation} from '../../src/core/court-simulation/formations.js';
@@ -25,8 +26,39 @@ test('reception runners keep the hips up through their entire supported stride',
  }
 });
 const world=object=>object.getWorldPosition(new THREE.Vector3());
+function checkSettingPads(rig,ball){
+ for(const side of ['left','right'])for(const name of ['thumb','finger-0','finger-1','finger-2','finger-3']){
+  const tip=part(rig,side+'-'+name).localToWorld(new THREE.Vector3(0,.5,0));
+  near(tip.distanceTo(ball),.12,.009);
+ }
+}
 function fixture(){const parent=new THREE.Group(),rig=createActorRig(parent);return {parent,group:rig.group,update:rig.update,get height(){return rig.height;}};}
 function matrices(rig){rig.group.updateMatrixWorld(true);return rig.group.children.map(object=>({name:object.name,matrix:[...object.matrixWorld.elements]}));}
+
+test('the two shoes share a tapered mesh with a stable heel and forefoot contact patch',()=>{
+ const rig=fixture(),left=part(rig,'left-foot'),right=part(rig,'right-foot');
+ assert.equal(left.geometry,right.geometry);
+ const vertices=left.geometry.getAttribute('position'),size=left.geometry.boundingBox.getSize(new THREE.Vector3());
+ near(size.x,.110,.001);near(size.z,.278,.001);
+ const sole=[];
+ for(let i=0;i<vertices.count;i++)if(vertices.getY(i)<-.05499)sole.push(vertices.getZ(i));
+ assert.ok(Math.max(...sole)-Math.min(...sole)>.16,'the level outsole contacts at heel and forefoot');
+ for(const actor of [
+  {poseRole:'passer',pose:'ready'}, {poseRole:'attacker',attackFrame:150},
+  {poseRole:'attacker',attackFrame:150,mirror:true}, {poseRole:'blocker',crouch:.19},
+ ]){
+  rig.update(actor);
+  for(const side of ['left','right']){
+   const shoe=part(rig,side+'-foot');
+   assert.equal(Math.sign(shoe.scale.x),-Math.sign(part(rig,side+'-hip').position.x-part(rig,'pelvis').position.x));
+  }
+ }
+ for(let pitch=-1;pitch<=1;pitch+=.1){
+  const cosine=Math.sqrt(1-pitch*pitch);let lowest=Infinity;
+  for(let i=0;i<vertices.count;i++)lowest=Math.min(lowest,vertices.getY(i)*cosine+vertices.getZ(i)*pitch);
+  near(shoeSupportHeight(pitch),-lowest);
+ }
+});
 
 test('receive hitters release their arms into the first approach pose over their planted shoes',()=>{
  const rig=fixture();
@@ -90,11 +122,14 @@ test('all sporting poses use one connected solid anatomy and a valid pose-specif
   near(surface.min.y,0,.003);assert.ok(matrices(rig).every(object=>object.matrix.every(Number.isFinite)));
   for(const side of ['left','right'])for(const [bone,start,end] of [['upper-arm','shoulder','elbow'],['forearm','elbow','palm'],['thigh','hip','knee'],['shin','knee','ankle']]){
    const mesh=part(rig,`${side}-${bone}`),a=mesh.localToWorld(new THREE.Vector3(0,-.5,0)),b=mesh.localToWorld(new THREE.Vector3(0,.5,0));
-   near(a.distanceTo(world(part(rig,`${side}-${start}`))),0);near(b.distanceTo(world(part(rig,`${side}-${end}`))),0);
+   near(a.distanceTo(world(part(rig,`${side}-${start}`))),0);
+   const joint=part(rig,`${side}-${end}`);
+   if(poseRole==='setter'&&end==='palm')assert.ok(joint.worldToLocal(b).length()<1,'forearm joins inside the palm');
+   else near(b.distanceTo(world(joint)),0);
   }
  }
  assert.deepEqual(rig.group.children,objects);assert.deepEqual(objects.map(object=>object.geometry),geometries);assert.deepEqual(objects.map(object=>object.material),materials);
- assert.equal(new Set(geometries).size,3);assert.equal(new Set(materials).size,1);
+ assert.ok(new Set(geometries).size<=10);assert.equal(new Set(materials).size,1);
  assert.ok(objects.every(object=>object.isMesh&&object.material.map===null));
 });
 
@@ -114,9 +149,11 @@ test('attack, set, pass and serve actions have distinct contact shapes and prese
  rig.update({poseRole:'attacker',pose:'contact'});const contact=part(rig,'right-palm').position.clone();
  assert.ok(contact.y>2.2&&contact.y>preparation.y+1);assert.ok(contact.z>0);assert.ok(part(rig,'left-palm').position.y<1.4);
  rig.update({poseRole:'attacker',pose:'contact',mirror:true});near(part(rig,'left-palm').position.x,-contact.x);near(part(rig,'left-palm').position.y,contact.y);near(part(rig,'left-palm').position.z,contact.z);
- rig.update({poseRole:'setter',pose:'contact'});assert.ok(part(rig,'left-palm').position.y>2.1&&part(rig,'right-palm').position.y>2.1);
+ rig.update({poseRole:'setter',pose:'contact'});
+ for(const side of ['left','right'])assert.ok(part(rig,side+'-palm').position.y>part(rig,'head').position.y+.20);
  rig.update({poseRole:'passer',pose:'contact'});assert.ok(part(rig,'left-palm').position.y<.8&&part(rig,'right-palm').position.y<.8);assert.ok(part(rig,'left-palm').position.distanceTo(part(rig,'right-palm').position)<.12);
- rig.update({poseRole:'server',pose:'toss'});assert.ok(part(rig,'left-palm').position.y>2&&part(rig,'right-palm').position.z<0);
+ rig.update({poseRole:'server',pose:'toss'});
+ assert.ok(part(rig,'left-palm').position.y>part(rig,'head').position.y&&part(rig,'right-palm').position.z<0);
  rig.update({poseRole:'server',pose:'contact'});assert.ok(part(rig,'right-palm').position.y>2.1&&part(rig,'left-palm').position.y<1.4);
 });
 
@@ -449,6 +486,49 @@ test('the captured arm swing and palm contact follow the set through replay, edi
  }
 });
 
+test('the spike strikes the rear surface and follows the outgoing shot with either hand',()=>{
+ const rig=fixture();
+ for(const preset of ['4','5','1','pipe','china'])for(const attackHand of ['left','right']){
+  const options={preset,attackHand,layers:{pass:true,attack:true,block:true}};
+  const timing=sampleAttack(0,options),velocity=timing.flight.segments[0].velocity;
+  const outgoing=new THREE.Vector3(...velocity).normalize(),ball=new THREE.Vector3(...timing.flight.hit);
+  const palm=part(rig,attackHand+'-palm');
+  const at=seconds=>{
+   const actor=sampleAttack(timing.attackContact+seconds/timing.duration,options).actors[3];
+   const [x,y,z]=actor.position;
+   rig.parent.position.set(x,y,z);
+   rig.update({...actor,poseRole:'attacker',poseScale:.9,position:{x,y,z},contactTarget:ball,spikeVelocity:velocity,
+    facing:[actor.facing[0]-x,actor.facing[1]-z]});
+   rig.parent.updateMatrixWorld(true);
+   return world(palm);
+  };
+  const before=at(-.010),contact=at(0),toBall=ball.clone().sub(contact);
+  near(toBall.length(),.12);
+  near(toBall.normalize().dot(outgoing),1);
+  const palmNormal=new THREE.Vector3(0,0,1).applyQuaternion(palm.getWorldQuaternion(new THREE.Quaternion()));
+  assert.ok(palmNormal.dot(outgoing)>.9,'the broad palm faces the ball');
+  assert.ok(contact.clone().sub(before).normalize().dot(outgoing)>.20,'the wrist advances into the shot');
+  assert.ok(at(.010).sub(contact).normalize().dot(outgoing)>.7,'the hand follows the departing ball');
+  near(at(0).distanceTo(contact),0);
+ }
+});
+
+test('dragging the shot target through the back of an edited approach keeps the landing side continuous',()=>{
+ const rig=fixture();
+ const feet=[];
+ for(const xTarget of [2.06346,2.07346]){
+  const options={preset:'5',hitOverride:[.5,.65],targetOverride:[xTarget,-4.95],layers:{pass:true,attack:true}};
+  const timing=sampleAttack(0,options),actor=sampleAttack(timing.attackContact,options).actors[3];
+  const [x,y,z]=actor.position;
+  rig.parent.position.set(x,y,z);
+  rig.update({...actor,poseRole:'attacker',poseScale:.9,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z],
+   spikeVelocity:timing.flight.segments[0].velocity,contactTarget:new THREE.Vector3(...timing.flight.hit)});
+  rig.parent.updateMatrixWorld(true);
+  feet.push(world(part(rig,'left-foot')));
+ }
+ assert.ok(feet[0].distanceTo(feet[1])<.005);
+});
+
 test('contact cache follows changes to parent position, jump, heading and scale without moving the ball',()=>{
  const rig=fixture(),target={x:.13,y:2.20,z:.25},before=JSON.stringify(target);
  const actor={poseRole:'attacker',pose:'contact',poseScale:1,jump:0,position:{x:0,y:0,z:0},facing:[0,1],contactTarget:target};
@@ -472,8 +552,7 @@ test('removing an unreachable or disabled contact restores the authored pose and
 test('the setter uses both hands while the server holds and tosses with the supporting hand',()=>{
  const rig=fixture();
  rig.update({poseRole:'setter',pose:'contact',poseScale:.86,jump:.23,position:{x:0,y:0,z:0},facing:[0,1],contactTarget:{x:0,y:2.28,z:.17}});rig.parent.updateMatrixWorld(true);
- const center=world(part(rig,'left-palm')).add(world(part(rig,'right-palm'))).multiplyScalar(.5);
- near(center.distanceTo(new THREE.Vector3(0,2.28,.17)),.12);
+ checkSettingPads(rig,new THREE.Vector3(0,2.28,.17));
  for(const pose of ['ready','toss'])for(const mirror of [false,true]){
   const target={x:.03,y:pose==='ready'?1.72:2.15,z:pose==='ready'?.6:.36};
   rig.update({poseRole:'server',pose,poseScale:1,mirror,position:{x:0,y:0,z:0},facing:[0,1],contactTarget:target});rig.parent.updateMatrixWorld(true);
@@ -496,7 +575,9 @@ test('the platform, overhead set and serving hands release the ball continuously
   const initialHands=['left','right'].map(side=>world(part(rig,side+'-palm')));
   const contactCenter=poseRole==='server'?initialHands[Number((previousPose==='contact')!==mirror)]:
    initialHands[0].clone().lerp(initialHands[1],.5);
-  near(contactCenter.distanceTo(new THREE.Vector3(target.x,target.y,target.z)),.12);
+  const ball=new THREE.Vector3(target.x,target.y,target.z);
+  if(poseRole==='setter')checkSettingPads(rig,ball);
+  else near(contactCenter.distanceTo(ball),.12);
   update(pose,previousPose,0);
   assert.deepEqual(matrices(rig),contact);
   update(pose,previousPose,.0001);
@@ -566,7 +647,9 @@ test('serve, reception and set in all six rotations put the designated hand or p
    rig.parent.updateMatrixWorld(true);
    const hand=world(part(rig,'left-palm'));
    if(!server)hand.lerp(world(part(rig,'right-palm')),.5);
-   near(hand.distanceTo(new THREE.Vector3(ballX,ballY,ballZ)),.12);
+   const ball=new THREE.Vector3(ballX,ballY,ballZ);
+   if(slot===0)checkSettingPads(rig,ball);
+   else near(hand.distanceTo(ball),.12);
   }
  }
 });

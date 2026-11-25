@@ -5,6 +5,13 @@ do documento abrem um diálogo com a composição e primitives do Studio Scoutin
 pessoas com acesso, acesso geral, permissão Leitor, copiar link, prévia e revogar.
 Exportar permanece uma ação independente. O nativo conserva a exportação existente.
 
+Desde o ajuste local de 25/11/2026, **⋯ → Compartilhar** também está disponível
+em **Atalhos → Quadra** na web. O professor escolhe uma turma da organização
+ativa e, com permissão, entra no mesmo diálogo para copiar ou revogar o link.
+A escolha da turma não salva a jogada na biblioteca. O atalho mantém uma chave
+própria para o modelo ou a jogada importada, separada dos documentos da turma.
+Sem sessão ou turma disponível, **Baixar jogada** entrega o arquivo editável.
+
 O link copiado sempre usa `https://goatleta.com/court/shared`, inclusive quando
 o editor está em localhost. Links locais já gerados conservam o mesmo ID/código
 ao copiar novamente, sem republicar a jogada. O visualizador abre `/court/shared` com ID e código aleatório de 256 bits no fragmento,

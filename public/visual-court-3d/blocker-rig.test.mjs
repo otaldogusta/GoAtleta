@@ -15,7 +15,10 @@ test('the entire anatomy is solid geometry with shared per-rig resources and no 
   assert.equal(part.material.map,null);assert.equal(part.material.depthWrite,true);
   geometries.add(part.geometry);materials.add(part.material);
  }
- assert.equal(geometries.size,3);assert.equal(materials.size,1);assert.ok(group.children.length<50);
+ assert.ok(geometries.size<=10);assert.equal(materials.size,1);assert.ok(group.children.length<50);
+ for(const name of ['forearm','upper-arm','thigh','shin','shorts','foot']){
+  assert.equal(group.getObjectByName('left-'+name).geometry,group.getObjectByName('right-'+name).geometry);
+ }
  for(const side of ['left','right']){
   assert.equal(group.children.filter(part=>part.name.startsWith(`${side}-finger-`)).length,4);
   assert.equal(group.children.filter(part=>part.name===`${side}-thumb`).length,1);
@@ -24,6 +27,23 @@ test('the entire anatomy is solid geometry with shared per-rig resources and no 
  near(box.min.y,0);near(box.max.y,1.8*.95);
  assert.ok(box.max.z-box.min.z>.2,'the body has actual depth at every camera angle');
  const another=fixture();assert.notEqual(another.group.getObjectByName('head').geometry,group.getObjectByName('head').geometry);
+});
+
+test('a blocker closes over the outside foot with the knee aligned to its toes',()=>{
+ const {group,update}=fixture();
+ for(const sign of [-1,1]){
+  const feet=[[-.32,0,.06,.75*sign],[.32,0,-.06,.75*sign]];
+  update({crouch:.19,feet,feetWeight:1,plantedStance:true});
+  for(const side of ['left','right']){
+   const position=name=>group.getObjectByName(side+'-'+name).position;
+   const hip=position('hip'),knee=position('knee'),ankle=position('ankle');
+   const axis=ankle.clone().sub(hip).normalize();
+   const bend=knee.clone().sub(hip).projectOnPlane(axis);
+   const forward=new THREE.Vector3(0,0,1).applyQuaternion(group.getObjectByName(side+'-foot').quaternion);
+   assert.ok(bend.length()>.1);
+   assert.ok(bend.normalize().dot(forward.projectOnPlane(axis).normalize())>.99);
+  }
+ }
 });
 
 test('the neck overlaps the shirt and head rather than floating between them',()=>{

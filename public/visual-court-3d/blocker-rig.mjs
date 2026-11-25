@@ -1,4 +1,4 @@
-import {createActorAnatomy} from './actor-anatomy.mjs?v=p1-running-stride-20261123';
+import {createActorAnatomy} from './actor-anatomy.mjs?v=athlete-anatomy-20261125';
 import {blockClipValue,blockTorso} from './block-captured-clip.js?v=swing-block-torso';
 import {Vector3} from './three.module.min.js';
 

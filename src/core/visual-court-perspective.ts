@@ -3,7 +3,7 @@ import type { CourtPoint, CourtVisualActor, CourtVisualPayload, CourtVisualStep 
 import { actorPoint, courtSelectionElevation, courtTrajectoryHeightTargets, drawingAtProgress, frameDrawings, pointAlong, resolveCourtDrawingAnchors, type CourtDrawing } from "./visual-court-editor";
 import { courtTrajectoryHeightAt, courtTrajectoryHeights, parseCourtTrajectoryHeights, type CourtTrajectoryHandleKind, type CourtTrajectoryHeights } from "./court-arrow-trajectory";
 import { courtOpponentIdentity, receptionPlayerIdentity, sampleCourtSimulation } from "./court-simulation";
-import type { CourtSimulationActor } from "./court-simulation-model";
+import type { CourtSimulationActor, CourtSimulationPoint } from "./court-simulation-model";
 import { courtDrawingTraceProgress } from "./court-simulation-display";
 import { buildCourtPerspectiveSimulation, type CourtPerspectiveSimulation } from "./court-perspective-guides";
 import { projectCourtBlockShadow, revealCourtBlockShadow } from "./court-block-shadow";
@@ -14,6 +14,7 @@ import { manualCourtTravel } from "./court-manual-travel";
 export type CourtWorldPoint = { x: number; y: number; z: number };
 export type CourtPerspectivePoseRole = "setter" | "passer" | "attacker" | "server" | "blocker";
 export type CourtPerspectiveActor = CourtSkillMotion & {
+  opacity?: number;
   id: string;
   label: string;
   rotationPosition?: number;
@@ -37,6 +38,7 @@ export type CourtPerspectiveActor = CourtSkillMotion & {
   poseBlend?: number;
   contactWeight?: number;
   attackFrame?: number;
+  spikeVelocity?: CourtSimulationPoint;
   runCycle?: number;
   runDrive?: number;
   attackReadiness?: number;
@@ -143,11 +145,20 @@ function perspectiveDrawing(drawing: CourtDrawing, showMovement: boolean, elevat
  * Sampling deliberately matches CourtEditorScene: equal time per authored segment.
  * An enabled simulation is sampled by the canonical engine for both projections.
  */
+export type CourtRotationPreview = {
+  paths: Record<string, [CourtSimulationPoint, CourtSimulationPoint]>;
+  entering?: readonly string[];
+  exiting?: Record<string, { label: string; color: string }>;
+  progress: number;
+  durationMs: number;
+};
+
 export function buildCourtPerspectiveFrame(
   payload: CourtVisualPayload,
   stepIndex: number,
   progress: number,
   selected: string[] = [],
+  rotationPreview?: CourtRotationPreview,
 ): CourtPerspectiveFrame {
   const index = Math.max(0, Math.min(payload.timeline.steps.length - 1, Math.floor(stepIndex) || 0));
   const step = payload.timeline.steps[index];
@@ -182,16 +193,17 @@ export function buildCourtPerspectiveFrame(
   }
   if (!hide.includes("actors")) frame.actors = payload.actors
     .filter(actor => !payload.editor?.actorMeta[actor.id]?.hidden)
-    .filter(actor => !step.visibleActorIds || step.visibleActorIds.includes(actor.id))
+    .filter(actor => !step.visibleActorIds || step.visibleActorIds.includes(actor.id) || Boolean(rotationPreview?.exiting?.[actor.id]))
     .filter(actor => !sampled.has(actor.id) || simulation!.visibleIds.includes(actor.id))
     .map(actor => {
       const path = (step.trajectories ?? step.transitions)?.find(item => item.actorId === actor.id)?.points ?? [];
       const position = path.length ? pointAlong(path, fraction) : actorPoint(payload, index, actor.id);
       const meta = payload.editor?.actorMeta[actor.id];
       const elevation = sampled.has(actor.id) && !authoredFinal ? undefined : courtSelectionElevation(payload, index, actor.id);
+      const exiting = rotationPreview?.exiting?.[actor.id];
       const identity = receptionPlayerIdentity(simulation?.config, actor.id);
       const opponent = courtOpponentIdentity(simulation?.config, actor);
-      const label = identity?.label ?? opponent?.label ?? (actor.label || String(actor.number ?? ""));
+      const label = exiting?.label ?? identity?.label ?? opponent?.label ?? (actor.label || String(actor.number ?? ""));
       const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || !/^\d+$/.test(label));
       const state = sampled.get(actor.id);
       const action = step.actorActions?.[actor.id];
@@ -200,7 +212,7 @@ export function buildCourtPerspectiveFrame(
       const result: CourtPerspectiveActor = {
         id: actor.id, label: showLabel ? label : "",
         ...(showLabel && identity ? { rotationPosition: identity.position } : {}),
-        role: actor.role, color: identity?.color ?? opponent?.color ?? middleAttackColor(simulation?.config, actor.id) ?? actor.color ?? actor.baseColor ?? (meta?.team === "B" ? "#4389ff" : "#19c87b"),
+        role: actor.role, color: exiting?.color ?? identity?.color ?? opponent?.color ?? middleAttackColor(simulation?.config, actor.id) ?? actor.color ?? actor.baseColor ?? (meta?.team === "B" ? "#4389ff" : "#19c87b"),
         locked: Boolean(meta?.locked), position: courtPointToWorld(position, elevation ?? 0),
         ...(elevation !== undefined ? { elevation } : {}),
         facing: heading(path, fraction, position), poseRole: poseRole(actor, step, meta?.team),
@@ -233,6 +245,10 @@ export function buildCourtPerspectiveFrame(
           ...courtSkillMotion(simulation!, state, state.slot),
           ...(state.contactWeight !== undefined ? { contactWeight: state.contactWeight } : {}),
           ...(state.attackFrame !== undefined ? { attackFrame: state.attackFrame } : {}),
+          ...(state.attackFrame !== undefined && simulation?.mode === "attack" && simulation.flight ? {
+            spikeVelocity: simulation.flight.segments[0].velocity,
+            contactTarget: { x: simulation.flight.hit[0], y: simulation.flight.hit[1], z: simulation.flight.hit[2] },
+          } : {}),
           ...(state.runCycle !== undefined ? { runCycle: state.runCycle } : {}),
           ...(state.runDrive !== undefined ? { runDrive: state.runDrive } : {}),
           ...(state.attackReadiness !== undefined ? { attackReadiness: state.attackReadiness, attackReadyLeft: state.attackReadyLeft } : {}),
@@ -247,6 +263,22 @@ export function buildCourtPerspectiveFrame(
           crouch: state.crouch, extension: state.extension, handAngle: state.handAngle,
           poseScale: state.role === "server" ? 1 : simulation!.mode === "receive" ? .9 : state.role === "setter" ? .86 : state.role === "passer" ? .96 : .9,
           path: [],
+        });
+      }
+      const rotationPath = rotationPreview?.paths[actor.id];
+      if (rotationPath && rotationPreview) {
+        const [start, end] = rotationPath;
+        const t = rotationPreview.progress;
+        const entering = rotationPreview.entering?.includes(actor.id);
+        if (entering || exiting) {
+          result.opacity = entering ? Math.min(1, t / .25) : Math.min(1, (1 - t) / .35);
+        }
+        const points = rotationPath.map(([x, , z]) => ({ x, z }));
+        const gait = manualCourtTravel(points, t, rotationPreview.durationMs);
+        Object.assign(result, gait, {
+          position: { x: start[0] + (end[0] - start[0]) * t, y: 0, z: start[2] + (end[2] - start[2]) * t },
+          poseRole: "passer", pose: gait ? "approach" : "ready", previousPose: "ready",
+          poseBlend: gait ? 1 : 0, jump: 0,
         });
       }
       return result;

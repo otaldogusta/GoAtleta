@@ -210,7 +210,11 @@ describe("canonical simulation in the perspective frame", () => {
     const setter = frame.actors.find(a => a.id === timing.config.actorIds[0])!;
     expect(setter).toMatchObject({ skillMotion: clip, skillProgress: 0 });
     for (const axis of ["x", "y", "z"] as const) expect(setter.contactTarget![axis]).toBeCloseTo(frame.simulation!.ball[axis], 8);
-    expect(frame.actors.find(a => a.id === timing.config.actorIds[3])?.skillMotion).toBeUndefined();
+    const hitter = frame.actors.find(a => a.id === timing.config.actorIds[3])!;
+    expect(hitter.skillMotion).toBeUndefined();
+    expect(hitter.spikeVelocity).toEqual(timing.flight!.segments[0].velocity);
+    const [x,y,z] = timing.flight!.hit;
+    expect(hitter.contactTarget).toEqual({x,y,z});
   });
 
   it("keeps the intended attack curve editable independently of contacts, floor targets and blockers", () => {

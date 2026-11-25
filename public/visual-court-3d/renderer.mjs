@@ -1,16 +1,16 @@
 import * as THREE from './three.module.min.js';
-import {createActorRig} from './actor-rig.mjs?v=reception-attack-ready-20261123';
+import {createActorRig} from './actor-rig.mjs?v=jump-serve-20261125';
 import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail,shouldCancelFrameGesture} from './renderer-geometry.mjs';
 import {isHeightHandle,previewAttackCurve,previewServeTarget,simulationHandleEdit} from './renderer-simulation-geometry.mjs?v=serve-target-preview-20261123';
 import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
 import {renderPixelRatio,syncRendererResolution} from './renderer-resolution.mjs';
-import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs';
+import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs?v=court-close-camera-20261124';
 import {collectFrameFitPoints,fitCameraDistance} from './renderer-camera-framing.mjs';
 import {bindRendererLifecycle} from './renderer-lifecycle.mjs';
 import {elevationTarget,elevationValue,elevationKeyValue,shouldCancelElevationDrag,elevationDragCommand,previewCourtObjects,elevationControlLayout,authorMovementPlaneY} from './renderer-elevation.mjs';
 import {targetPickSurface,pickCourtObject,pickCourtHit,pickCourtTouchHit,courtHoverState,createCourtHoverPainter} from './renderer-interaction.mjs';
 import {courtSolidMaterial,createContactShadow,updateContactShadow} from './renderer-appearance.mjs';
-import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs';
+import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,panPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs?v=court-close-camera-20261124';
 import {trajectoryStroke,trajectoryTipDirection,createTrajectorySelection,trajectoryHandleTarget,trajectoryHandlePoint,trajectoryControlLayout,trajectoryHeightValue,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,shouldCancelTrajectoryDrag,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs?v=defense-attack-trace-20261120';
 import {renderedNetContact,showsNetWarning,netWarningLayout} from './renderer-net-warning.mjs?v=net-floor-20261122';
 import {BALL_RADIUS,NET_TOP,NET_BOTTOM,NET_WIDTH,TOP_BAND_HEIGHT,BOTTOM_BAND_HEIGHT,TOP_BAND_DEPTH,BOTTOM_BAND_DEPTH,TOP_BAND_CENTER,BOTTOM_BAND_CENTER} from './court-net.js';
@@ -138,12 +138,23 @@ function applyActor(actor,object,contactBall,attackImpact){
  object.group.position.set(actor.position.x,actor.position.y,actor.position.z);
  updateContactShadow(object.shadow,actor.position.y,actor.position.y+Math.max(0,actor.jump||0));
  const tint=colorOf(actor.color);
- object.rig.group.traverse(child=>{if(child.material?.color)child.material.color.set(tint);});
+ const opacity=actor.opacity??1;
+ object.rig.group.traverse(child=>{
+  const mat=child.material;
+  if(!mat?.color)return;
+  mat.color.set(tint);
+  const transparent=opacity<1;
+  if(mat.transparent!==transparent){mat.transparent=transparent;mat.depthWrite=!transparent;mat.needsUpdate=true;}
+  mat.opacity=opacity;
+ });
+ object.label.style.opacity=String(opacity);
+ object.positionBadge.style.opacity=String(opacity);
+ object.shadow.visible=opacity===1;
  const contactTarget=actor.contactTarget ?? (actor.poseRole==='attacker'&&actor.contactWeight!==undefined?attackImpact:
   actor.pose==='contact'||actor.previousPose==='contact'&&(actor.poseBlend??1)<1||
   actor.poseRole==='server'&&(['ready','toss'].includes(actor.pose)||['ready','toss'].includes(actor.previousPose)&&(actor.poseBlend??1)<1)?contactBall:undefined);
  object.rig.update(contactTarget?{...actor,contactTarget}:actor);object.height=object.rig.height;
- object.group.visible=!frame.hide.includes('actors');object.selection.visible=frame.selected.includes(actor.id);object.label.textContent=actor.label;object.label.setAttribute('aria-label',`Selecionar jogador ${actor.label}${actor.rotationPosition ? ` · posição ${actor.rotationPosition}` : ""}`);object.label.setAttribute('aria-pressed',String(frame.selected.includes(actor.id)));object.label.disabled=packet.disabled;object.label.dataset.hovered=String(hoveredId===actor.id);
+ object.group.visible=opacity>0&&!frame.hide.includes('actors');object.selection.visible=frame.selected.includes(actor.id);object.label.textContent=actor.label;object.label.setAttribute('aria-label',`Selecionar jogador ${actor.label}${actor.rotationPosition ? ` · posição ${actor.rotationPosition}` : ""}`);object.label.setAttribute('aria-pressed',String(frame.selected.includes(actor.id)));object.label.disabled=packet.disabled;object.label.dataset.hovered=String(hoveredId===actor.id);
 }
 function makeText(text,color,size){
  const bitmap=document.createElement('canvas');bitmap.width=1024;bitmap.height=192;const context=bitmap.getContext('2d');context.font='600 64px Arial';context.textAlign='center';context.textBaseline='middle';context.fillStyle=color;context.fillText(String(text||'Anotação').slice(0,200),512,96,1000);
@@ -575,7 +586,7 @@ function holdTrajectoryPreview(drag){
  const held=pendingTrajectoryPreview;pendingTrajectoryTimer=setTimeout(()=>{if(pendingTrajectoryPreview===held){clearPendingTrajectoryPreview();invalidate();}},1200);
 }
 function cancelGesture(preserveContacts=false,forgetContacts=false){clearHover();stopCameraMotion();clearPendingMovePreview();clearPendingElevationPreview();clearPendingTrajectoryPreview();gesture=null;preview=null;if(handleDrag?.kind?.startsWith('approach-'))simulationKey='';handleDrag=null;elevationDrag=null;trajectoryDrag=null;touchCamera=null;if(!preserveContacts)touchContacts=forgetContacts?emptyTouchContacts():cancelTouchContacts(touchContacts);setDraft(null);canvas.style.cursor='default';invalidate();}
-function cameraDistanceLimits(){return {min:12,max:140};}
+function cameraDistanceLimits(){return {min:2.5,max:140};}
 function consumeTouch(event){event.preventDefault();event.stopPropagation();}
 document.addEventListener('pointerdown',event=>{
  if(event.pointerType!=='touch'){suppressTouchClick=false;return;}if(!frame||!active)return;
@@ -605,18 +616,28 @@ document.addEventListener('lostpointercapture',event=>{if(event.target===canvas&
 document.addEventListener('click',event=>{if(suppressTouchClick&&event.detail){event.preventDefault();event.stopPropagation();}},{capture:true});
 function moveCameraGesture(g,event){
  resizeZoomIntent=null;
+ if(g.cameraPan){
+  const next=panPointerDrag({azimuth,elevation,distance,target:g.cameraPan,fov:camera.fov},
+   event.clientX-g.pixel.x,event.clientY-g.pixel.y,innerHeight);
+  target.set(next.x,next.y,next.z);g.cameraPixel={x:event.clientX,y:event.clientY};updateCamera();invalidate();return;
+ }
  const next=orbitPointerDrag(g,g.pixel,{x:event.clientX,y:event.clientY},{width:innerWidth,height:innerHeight},g.pointerType),nextAzimuth=next.azimuth,nextElevation=next.elevation,now=performance.now();
  g.cameraVelocity=sampleCameraAngularVelocity(g.cameraVelocity,{azimuth:nextAzimuth-azimuth,elevation:nextElevation-elevation},now-g.cameraTime,now);
  g.cameraTime=now;g.cameraPixel={x:event.clientX,y:event.clientY};azimuth=nextAzimuth;elevation=nextElevation;updateCamera();invalidate();
 }
 canvas.addEventListener('pointerdown',event=>{
- stopCameraMotion();if(!frame||!active||event.button>1||gesture||elevationDrag||trajectoryDrag||handleDrag||touchContacts.suppressed||pendingMovePreview||pendingElevationPreview||pendingTrajectoryPreview)return;canvas.focus();const hit=pointerHit(event),id=hit?.id,tool=packet.tool||'select';
- const cameraDrag=tool==='pan'||packet.disabled||['select','animate'].includes(tool)&&!id||event.button===1;
+ stopCameraMotion();if(!frame||!active||event.button>2||gesture||elevationDrag||trajectoryDrag||handleDrag||touchContacts.suppressed||pendingMovePreview||pendingElevationPreview||pendingTrajectoryPreview)return;
+ const rightOrbit=event.button===2;
+ canvas.focus();const hit=rightOrbit?null:pointerHit(event),id=hit?.id,tool=packet.tool||'select';
+ if(rightOrbit)clearHover();
+ const cameraPan=!rightOrbit&&(event.button===1||event.shiftKey&&!id||tool==='pan'&&!packet.disabled);
+ const cameraDrag=rightOrbit||cameraPan||tool==='pan'||packet.disabled||['select','animate'].includes(tool)&&!id;
  const editingObject=!cameraDrag&&['select','animate'].includes(tool)&&Boolean(id),planeY=editingObject?(Number.isFinite(hit?.point?.y)?hit.point.y:authorMovementPlaneY(frame,id)):0,plane=planeY?new THREE.Plane(new THREE.Vector3(0,1,0),-planeY):ground;
  const start=cameraDrag?null:groundPoint(event,plane,!editingObject);if(!cameraDrag&&!start)return;let ids=[];
  if(!cameraDrag&&editingObject)ids=selectObject(id,event.shiftKey||packet.multiple);
  const point=start&&packet.grid&&!['select','animate','pan','pen','area'].includes(tool)?snapPoint(start):start;
  gesture={pointerId:event.pointerId,pointerType:event.pointerType,revision,start:point,plane,pixel:{x:event.clientX,y:event.clientY},last:point,points:point?[point]:[],ids:editableIds(ids,frame),anchor:anchorFor(ids[0]),cameraDrag,deselectOnTap:cameraDrag&&!id&&!packet.disabled&&tool==='select'&&!packet.multiple&&event.button===0,azimuth,elevation,cameraTime:performance.now(),cameraPixel:{x:event.clientX,y:event.clientY},cameraVelocity:null,tool,moved:false,duplicate:event.altKey&&tool==='select'};
+ if(cameraPan)gesture.cameraPan=target.clone();
  canvas.setPointerCapture(event.pointerId);canvas.style.cursor=cameraDrag?'grabbing':gesture.ids.length?'move':id?'pointer':'default';event.preventDefault();
 });
 function updatePointerGesture(g,event){
@@ -671,7 +692,7 @@ window.addEventListener('message',event=>{
  if(shouldCancelFrameGesture(gesture,data)||shouldCancelElevationDrag(elevationDrag,data)||shouldCancelAuthorGrip(trajectoryDrag,data)||changedTouch||handleDrag&&(handleDrag.revision!==data.revision||data.disabled&&!(data.allowServeHandle&&handleDrag.kind==='serve')||data.active===false))cancelGesture();token=data.token;revision=data.revision;packet=data;frame=next;active=data.active!==false;
  if(!active){cancelGesture();clearNetWarnings();if(pending){cancelAnimationFrame(pending);pending=0;}return;}
  if(layoutChanged)resize();
- const zoom=clamp(Number(data.zoom)||1,.3,4);if(zoom!==lastZoom){stopCameraMotion();resizeZoomIntent=null;const limits=cameraDistanceLimits();distance=clamp(distance*lastZoom/zoom,limits.min,limits.max);lastZoom=zoom;updateCamera();}
+ const zoom=clamp(Number(data.zoom)||1,.3,10);if(zoom!==lastZoom){stopCameraMotion();resizeZoomIntent=null;const limits=cameraDistanceLimits();distance=clamp(distance*lastZoom/zoom,limits.min,limits.max);lastZoom=zoom;updateCamera();}
  const simulationMode=frame.simulation?.mode||null,simulationChanged=simulationMode!==lastSimulationMode;lastSimulationMode=simulationMode;
  if(['front','side','orbit'].includes(data.cameraView)&&(simulationChanged||data.cameraView!==cameraView||data.cameraReset!==lastCameraReset||Boolean(data.half)!==lastHalf)){lastCameraReset=data.cameraReset;lastHalf=Boolean(data.half);applyView(data.cameraView);}
  if(!renderer)emit('error',{message:error.textContent});else invalidate();

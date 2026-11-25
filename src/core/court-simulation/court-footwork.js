@@ -68,20 +68,25 @@ export function setterPenetration(start,end,progress,startYaw,arrivalYaw=-Math.P
  return {position,facing,runDrive:smooth(clamp((speed-.25)/4.25)),...gait};
 }
 
-/** Take two short adjustment steps from reading the pass to the front set. */
-export function setterSettingBase(position,readYaw,progress){
+/** Pivot with two separate placements, optionally gathering onto a nearby mark. */
+export function setterSettingBase(position,readYaw,progress,targetYaw=-Math.PI/2,start=position){
  const u=clamp(progress);
- const delta=turnTowards(readYaw,-Math.PI/2,1)-readYaw;
+ const delta=turnTowards(readYaw,targetYaw,1)-readYaw;
  const heading=readYaw+delta*smooth(u);
+ // A wide turn needs an intermediate base; a single 150° step would
+ // land beside the other shoe before that supporting foot can move.
+ const stages=Math.max(1,Math.ceil(Math.abs(delta)/(Math.PI/2)));
+ const stage=Math.min(stages-1,Math.floor(u*stages)),within=u*stages-stage;
  const feet=[0,1].map(side=>{
   const first=(delta<0?0:1)===side;
-  const swing=clamp(2*u-(first?0:1));
-  const yaw=readYaw+delta*smooth(swing),width=side===0?-.14:.14;
+  const swing=clamp(2*within-(first?0:1));
+  const step=(stage+smooth(swing))/stages,yaw=readYaw+delta*step,width=side===0?-.14:.14;
   const lift=swing>0&&swing<1?.07*Math.sin(Math.PI*swing)**2:0;
-  return [position[0]+width*Math.cos(yaw),lift,
-   position[1]-width*Math.sin(yaw),yaw];
+  return [mix(start[0],position[0],step)+width*Math.cos(yaw),lift,
+   mix(start[1],position[1],step)-width*Math.sin(yaw),yaw];
  });
- return {feet,facing:[position[0]+Math.sin(heading),position[1]+Math.cos(heading)]};
+ return {feet,facing:[mix(start[0],position[0],smooth(u))+Math.sin(heading),
+  mix(start[1],position[1],smooth(u))+Math.cos(heading)]};
 }
 
 // Both the curved penetration and a straight sprint sample the same footfalls
@@ -121,10 +126,10 @@ function runningFeet(clock,steps,footprint,firstSide,cutBeat=-1,startingPush=.72
  * Alternating world-space footprints along an authored floor path.
  * @param {(progress: number) => number[]} pointAt
  * @param {number} progress
- * @param {{shuffle?: boolean, facing?: number[], travelSeconds?: number, stridePhase?: number, phasePerSecond?: number, startYaw?: number, endYaw?: number, endStagger?: number, holdStance?: boolean, holdRunStance?: boolean, route?: {length: number, headingAt: (fraction: number) => number, speed: number, running: boolean}}} [options]
+ * @param {{shuffle?: boolean, facing?: number[], travelSeconds?: number, stridePhase?: number, phasePerSecond?: number, startYaw?: number, endYaw?: number, endStagger?: number, endSpread?: number, holdStance?: boolean, holdRunStance?: boolean, startFromReady?: boolean, initialFeet?: number[][], route?: {length: number, headingAt: (fraction: number) => number, speed: number, running: boolean}}} [options]
  * @returns {{feet?: [[number, number, number, number], [number, number, number, number]], feetWeight?: number, runCycle?: number, runDrive?: number, plantedStance?: boolean, travelMotion?: {kind: "walk" | "shuffle", phase: number, direction: 1 | -1}, jump?: number, facing?: [number, number]}}
  */
-export function courtFootwork(pointAt,progress,{shuffle=false,facing,travelSeconds,stridePhase,phasePerSecond,startYaw,endYaw,endStagger=0,holdStance=false,holdRunStance=false,route}={}){
+export function courtFootwork(pointAt,progress,{shuffle=false,facing,travelSeconds,stridePhase,phasePerSecond,startYaw,endYaw,endStagger=0,endSpread=0,holdStance=false,holdRunStance=false,startFromReady=false,initialFeet,route}={}){
  const start=pointAt(0),end=pointAt(1);
  const distance=route?.length??Math.hypot(end[0]-start[0],end[1]-start[1]);
  const speed=travelSeconds>0?distance/travelSeconds:0;
@@ -150,7 +155,13 @@ export function courtFootwork(pointAt,progress,{shuffle=false,facing,travelSecon
  const leaveStance=(target,beat)=>turnTowards(initialYaw,target,smooth(clamp(beat/1.25)));
  const halfWidth=route ? .16 : (shuffle||running ? .17 : .15);
  function footprint(side,along,heading=initialYaw){
-  const [x,z]=pointAt(along),width=(side===0?-1:1)*halfWidth;
+  if(along===0&&initialFeet)return initialFeet[side];
+  if(startFromReady&&along===0){
+   const sign=side===0?-1:1,across=sign*.28,forward=.036;
+   return [start[0]+across*Math.cos(initialYaw)+forward*Math.sin(initialYaw),0,
+    start[1]-across*Math.sin(initialYaw)+forward*Math.cos(initialYaw),initialYaw+sign*.166];
+  }
+  const [x,z]=pointAt(along),width=(side===0?-1:1)*(halfWidth+endSpread*smooth(clamp((along-.65)/.35)));
   if(route)heading=route.headingAt(along);
   // Advance the lead shoe on its landing; a planted shoe never moves to adopt the stagger.
   const forward=(side===0?.5:-.5)*endStagger*smooth(clamp((along-.65)/.35));

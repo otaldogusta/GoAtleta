@@ -289,7 +289,7 @@ function sampleCore(t,{layers={},bases=attackFormation(),preset='4',blockers=1,x
  else if(u<.19){const passPhase=phase(t,passContact??0,lead+(1-lead)*.19);ball=layers.pass?arc(passHand,set,passPhase,passHeight):arc([setter[0],1.85,setter[2]],set,phase(u,0,.19),.08);}
  else if(t<contact)ball=arc(set,hit,phase(t,setContact,contact),setArc);
  else ball=layers.attack?sampleAttackFlight(flight,phase(u,contactPhase,1)):arc(hit,[x,0,z],phase(u,contactPhase,1),0);
- return {actors,ball,flight,walls,blockPreparation,setHand:set,attackTarget:target,...(backRow?{backRowApproach:[runStart,takeoff]}:{}),...(flight?{attackArc:flight.attackArc,attackGuide:flight.attackGuide}:{}),handSide,setArc,passArc:passHeight,passContact,passHand:layers.pass?passHand:null,visible:true,duration,setContact,attackContact:contact};
+ return {actors,ball,flight,walls,blockPreparation,setHand:set,setDestination:hit,attackTarget:target,...(backRow?{backRowApproach:[runStart,takeoff]}:{}),...(flight?{attackArc:flight.attackArc,attackGuide:flight.attackGuide}:{}),handSide,setArc,passArc:passHeight,passContact,passHand:layers.pass?passHand:null,visible:true,duration,setContact,attackContact:contact};
 }
 
 // Keep approach/contact clocks fixed in seconds. A longer rebound extends the

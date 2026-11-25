@@ -139,6 +139,7 @@ export type CourtSimulationSample = {
   passContact?: number | null;
   passHand?: CourtSimulationPoint | null;
   setHand?: CourtSimulationPoint;
+  setDestination?: CourtSimulationPoint;
   tossHand?: CourtSimulationPoint;
   setArc?: number;
   passArc?: number;

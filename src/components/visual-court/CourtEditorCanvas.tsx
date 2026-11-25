@@ -22,6 +22,7 @@ export type CourtEditorCanvasProps = {
   onSelect: (ids: string[]) => void; onMove: (ids: string[], delta: CourtPoint, path?: CourtPoint[], duplicate?: boolean) => void; onDraw: (d: CourtDrawing) => void;
   onEditText: (id: string, value: string) => void;
   onEditArrow?: (id: string, shape: CourtArrowShape) => void;
+  rotationPreview?: import("../../core/visual-court-perspective").CourtRotationPreview;
   onAddPlayer: (p: CourtPoint) => void; color: string; dashed: boolean; grid: boolean; progress?: number;
   zoom: number; pan: CourtPoint; onPan: (p: CourtPoint) => void; onZoom: (zoom: number) => void; half: boolean; plain: boolean; disabled?: boolean;
   selectionActions?: ReactNode;
@@ -593,7 +594,7 @@ export function CourtEditorCanvas(props: Props) {
   const linkingX = linkingPoint ? (layout.width - b.width * scale) / 2 + (linkingPoint.x - b.x) * scale : 0;
   const linkingY = linkingPoint ? (layout.height - b.height * scale) / 2 + (linkingPoint.y - b.y) * scale : 0;
   return <View ref={host} {...(Platform.OS === "web" ? {} : native.panHandlers)} onLayout={e => { const next = e.nativeEvent.layout; layoutRef.current = next; setLayout(next); }} style={{ flex: 1, backgroundColor: "#1676ac", ...(Platform.OS === "web" ? { touchAction: "none", userSelect: "none", ...(props.tool === "text" && !props.disabled ? { cursor: "text" } : {}) } as object : {}) }}>
-    <View pointerEvents="none" style={{ flex: 1 }}><CourtEditorScene payload={scenePayload} stepIndex={props.stepIndex} landscape={props.landscape} selected={props.selected} hoveredId={hoveredId} progress={props.progress} previewIds={previewIds} previewMotion={!!preview?.path} draft={areaDraft ?? (draft?.id === "placement-preview" && draft.kind !== props.tool ? undefined : draft)} grid={props.grid} half={props.half} plain={props.plain} editingTextId={textDraft?.id} viewBox={`${b.x} ${b.y} ${b.width} ${b.height}`} /></View>
+    <View pointerEvents="none" style={{ flex: 1 }}><CourtEditorScene payload={scenePayload} stepIndex={props.stepIndex} landscape={props.landscape} selected={props.selected} hoveredId={hoveredId} progress={props.progress} rotationPreview={props.rotationPreview} previewIds={previewIds} previewMotion={!!preview?.path} draft={areaDraft ?? (draft?.id === "placement-preview" && draft.kind !== props.tool ? undefined : draft)} grid={props.grid} half={props.half} plain={props.plain} editingTextId={textDraft?.id} viewBox={`${b.x} ${b.y} ${b.width} ${b.height}`} /></View>
     {pointsMode ? <>
       {areaPoints.map((point, index) => {
         const at = scenePoint(point, props.landscape), diameter = index === 0 ? 14 : 10;

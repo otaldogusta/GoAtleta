@@ -1,8 +1,8 @@
-import {createActorAnatomy} from './actor-anatomy.mjs?v=p1-running-stride-20261123';
-import {blockerRunYaw,updateBlockerAnatomy} from './blocker-rig.mjs?v=authored-travel-20261123';
-import {createCapturedAttacker} from './captured-attacker-rig.mjs?v=attack-knee-20261122';
-import {createReceptionRunner} from './reception-run-rig.mjs?v=court-running-stride-20261123';
-import {createSkillMotionRig} from './skill-motion-rig.mjs?v=reception-attack-ready-20261123';
+import {createActorAnatomy} from './actor-anatomy.mjs?v=athlete-anatomy-20261125';
+import {blockerRunYaw,updateBlockerAnatomy} from './blocker-rig.mjs?v=athlete-anatomy-20261125';
+import {createCapturedAttacker} from './captured-attacker-rig.mjs?v=athlete-anatomy-20261125';
+import {createReceptionRunner} from './reception-run-rig.mjs?v=athlete-anatomy-20261125';
+import {createSkillMotionRig} from './skill-motion-rig.mjs?v=jump-serve-20261125';
 
 // Joint positions are local metres, facing +Z. These are pose shapes, not a
 // second motion clock: the host supplies pose, blend, facing, position and jump.
@@ -49,6 +49,7 @@ export function createActorRig(parent){
  let lastRole,lastPose,lastPrevious,lastBlend,lastMirror,lastJump,lastScale,lastCrouch,lastExtension,lastAngle;
  let lastContactX,lastContactY,lastContactZ,lastContactWeight,lastFeet,lastSkill,lastProgress,lastSide;
  let lastReadiness,lastReadyLeft;
+ let lastReleaseX,lastReleaseY,lastReleaseZ;
  const feet=[new Float64Array(4),new Float64Array(4)];
  let capturedAttack,capturedRun,skillRig;
  function applyTravel(actor,weight){
@@ -58,7 +59,9 @@ export function createActorRig(parent){
   // Give the arms and trunk to the ball gesture as contact approaches.
   // Their planted footprints are already resolved by the underlying rig.
   if(Number.isFinite(actor.skillProgress)){
-   weight*=smooth(bounded((Math.abs(actor.skillProgress)-.38)/.42,0,1));
+   const authoredStep=actor.poseRole==='passer'&&actor.plantedStance&&actor.skillMotion==='passSide'&&actor.skillProgress<0;
+   weight*=authoredStep?smooth(bounded((-actor.skillProgress-.70)/.25,0,1))
+     :smooth(bounded((Math.abs(actor.skillProgress)-.38)/.42,0,1));
   }
   if(weight<=0)return;
   capturedRun??=createReceptionRunner(anatomy);
@@ -118,6 +121,7 @@ export function createActorRig(parent){
   }
   let contactX,contactY,contactZ;
   const contactWeight=bounded(finite(actor.contactWeight,1),0,1);
+  const release=actor.setReleaseDirection;
   if(contact&&position
     &&Number.isFinite(contact.x)&&Number.isFinite(contact.y)&&Number.isFinite(contact.z)&&Number.isFinite(position.x)&&Number.isFinite(position.y)&&Number.isFinite(position.z)){
    const dx=contact.x-position.x,dz=contact.z-position.z,cosine=Math.cos(yaw),sine=Math.sin(yaw);
@@ -127,11 +131,13 @@ export function createActorRig(parent){
   if(!planted&&!lastFeet&&lastRole===role&&lastPose===name&&lastPrevious===previous&&lastBlend===blend&&lastMirror===mirror&&lastJump===jump&&lastScale===scale
     &&lastContactX===contactX&&lastContactY===contactY&&lastContactZ===contactZ&&lastContactWeight===contactWeight
     &&lastSkill===actor.skillMotion&&lastProgress===actor.skillProgress&&lastSide===actor.skillSide
-    &&lastReadiness===readiness&&lastReadyLeft===actor.attackReadyLeft)return;
+    &&lastReadiness===readiness&&lastReadyLeft===actor.attackReadyLeft
+    &&lastReleaseX===release?.[0]&&lastReleaseY===release?.[1]&&lastReleaseZ===release?.[2])return;
   lastRole=role;lastPose=name;lastPrevious=previous;lastBlend=blend;lastMirror=mirror;lastJump=jump;lastScale=scale;
   lastContactX=contactX;lastContactY=contactY;lastContactZ=contactZ;lastContactWeight=contactWeight;
   lastFeet=planted;lastSkill=actor.skillMotion;lastProgress=actor.skillProgress;lastSide=actor.skillSide;
   lastReadiness=readiness;lastReadyLeft=actor.attackReadyLeft;
+  lastReleaseX=release?.[0];lastReleaseY=release?.[1];lastReleaseZ=release?.[2];
   if(role!=='attacker'){
    skillRig??=createSkillMotionRig(anatomy);
    skillRig(actor,role,name,previous,blend,yaw,scale,jump,planted?feet:null,contactWeight,

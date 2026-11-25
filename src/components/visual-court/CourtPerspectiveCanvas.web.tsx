@@ -26,7 +26,7 @@ export function CourtPerspectiveCanvas(props: CourtPerspectiveCanvasProps) {
   const selectionActionsBounds = useMemo(() => showSelectionActions && actionsSize.width > 0 && actionsSize.height > 0
     ? { x: actionsLeft, y: actionsTop, width: actionsSize.width, height: actionsSize.height } : null,
   [showSelectionActions, actionsLeft, actionsTop, actionsSize.width, actionsSize.height]);
-  const frame = useMemo(() => buildCourtPerspectiveFrame(props.payload, props.stepIndex, props.progress ?? 0, props.selected), [props.payload, props.stepIndex, props.progress, props.selected]);
+  const frame = useMemo(() => buildCourtPerspectiveFrame(props.payload, props.stepIndex, props.progress ?? 0, props.selected, props.rotationPreview), [props.payload, props.stepIndex, props.progress, props.selected, props.rotationPreview]);
   const outgoing = useRef<object | null>(null);
   const sendFrame = useCallback(() => {
     if (outgoing.current) iframe.current?.contentWindow?.postMessage(outgoing.current, window.location.origin);
@@ -91,7 +91,7 @@ export function CourtPerspectiveCanvas(props: CourtPerspectiveCanvasProps) {
     return () => cancelAnimationFrame(request);
   }, [ready, sendFrame, frame, props.active, props.tool, props.motionMode, props.grid, props.disabled, props.multiple, props.color, props.dashed, props.zoom, props.cameraView, props.cameraReset, props.half, props.plain, props.landscape, props.onSimulationHandle, props.onElevation, props.onTrajectoryHeight, props.onTrajectoryPoint, props.onAreaVertex, props.selectionTopInset, props.selectionBottomInset, selectionActionsBounds]);
   return <View style={{ flex: 1, backgroundColor: "#09090f" }} onLayout={event => setBounds(event.nativeEvent.layout)}>
-    <iframe ref={iframe} title="Quadra 3D da mesma jogada" src="/visual-court-3d/index.html?v=reception-attack-ready-20261123" referrerPolicy="no-referrer" onLoad={sendFrame} style={{ display: "block", border: 0, width: "100%", height: "100%", position: "absolute", inset: 0 }} />
+    <iframe ref={iframe} title="Quadra 3D da mesma jogada" src="/visual-court-3d/index.html?v=jump-serve-20261125" referrerPolicy="no-referrer" onLoad={sendFrame} style={{ display: "block", border: 0, width: "100%", height: "100%", position: "absolute", inset: 0 }} />
     {!ready && !failed && props.active ? <View pointerEvents="none" style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", gap: 10 }}><ActivityIndicator color={colors.primaryBg} /><Text style={{ color: "#e7edf8" }}>Abrindo vista 3D…</Text></View> : null}
     {failed ? <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", padding: 28 }}><Text accessibilityRole="alert" style={{ color: "#e7edf8", textAlign: "center" }}>Não foi possível abrir a vista 3D neste navegador. Sua jogada continua disponível em Quadra 2D.</Text></View> : null}
     {showSelectionActions ? <View onLayout={event => {

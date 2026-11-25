@@ -1,6 +1,8 @@
 import {BALL_RADIUS} from './court-net.js';
 import * as THREE from './three.module.min.js';
-import {ATTACK_CLIP_JOINT as joint, ATTACK_CLIP_SIZE, sampleAttackClip} from './attack-captured-clip.mjs?v=landing-20261122';
+import {shoeSupportHeight} from './court-shoe.mjs';
+import {ATTACK_CLIP_JOINT as joint, ATTACK_CLIP_SIZE, sampleAttackClip} from './attack-captured-clip.mjs?v=spike-release-20261124';
+import {createStrikePalm} from './strike-palm.mjs';
 
 const limbNames = ['Shoulder','Elbow','Wrist','Hand','Hip','Knee','Ankle','Toe','Heel'];
 const localName = name => name[0].toLowerCase() + name.slice(1);
@@ -26,6 +28,8 @@ export function createCapturedAttacker(anatomy) {
   const pelvisForward=new THREE.Vector3(), kneeForward=new THREE.Vector3(), up=new THREE.Vector3(0,1,0);
   const foot=new THREE.Vector3(), palm=new THREE.Vector3();
   const target=new THREE.Vector3(), shoulder=new THREE.Vector3();
+  const shot=new THREE.Vector3();
+  const aimPalm=createStrikePalm(anatomy);
   const lateralAxis=new THREE.Vector3(1,0,0),soleForward=new THREE.Vector3(0,0,1);
   const groundLine=new THREE.Plane();
   const gait={stride:1,release:0,leadIn:0,heightAboveFloor:0};
@@ -94,8 +98,7 @@ export function createCapturedAttacker(anatomy) {
     fitStride(hip,knee,ankle,dx+nx*clearance,dy,dz+nz*clearance);
     // Toe and heel are capture markers near the floor. Account for the size
     // of the court shoe, including the vertical projection of its tipped toe.
-    const soleRadius=Math.sqrt(.055**2*(1-direction.y**2)+.145**2*direction.y**2);
-    foot.y=Math.max(foot.y,soleRadius-heightAboveFloor);
+    foot.y=Math.max(foot.y,shoeSupportHeight(direction.y)-heightAboveFloor);
     anatomy.setCapturedLeg(n,hip,knee,ankle,foot,direction);
   }
   return function update(actor,yaw,scale,jump,feet) {
@@ -127,6 +130,21 @@ export function createCapturedAttacker(anatomy) {
         }
       }
     }
+    const velocity=actor.spikeVelocity;
+    const aimed=Number.isFinite(velocity?.[0])&&Number.isFinite(velocity?.[1])&&Number.isFinite(velocity?.[2])
+      &&Math.hypot(...velocity)>1e-6;
+    if(aimed){
+      // The last ground contacts face the set. Turn in flight and land on
+      // that heading so the shoes do not swivel back during recovery.
+      const delta=Math.atan2(velocity[0],velocity[2])-yaw;
+      const turn=Math.atan2(Math.sin(delta),Math.cos(delta));
+      const opening=THREE.MathUtils.smoothstep(actor.attackFrame,132,144);
+      // At a directly backwards edited target both turning sides meet.
+      // Keep the plant heading there instead of flipping the hips across it.
+      const sideWeight=1-THREE.MathUtils.smoothstep(Math.abs(turn),2*Math.PI/3,Math.PI);
+      yaw+=clamp(turn,-1.25,1.25)*sideWeight*opening;
+      shot.fromArray(velocity).normalize().applyAxisAngle(up,-yaw);
+    }
     const group=anatomy.group;
     group.rotation.set(0,yaw,0);group.scale.setScalar(scale);group.position.set(0,jump,0);
     const airborneHeight=Math.max(0,(root?.y||0)+jump);
@@ -141,7 +159,8 @@ export function createCapturedAttacker(anatomy) {
       palm.copy(hitPalm);palm.x*=sign;
       // Register the pose at impact, not the hand currently winding up. This
       // keeps the whip visible all the way to the near surface of the ball.
-      direction.subVectors(target,shoulder).normalize();
+      if(aimed)direction.copy(shot);
+      else direction.subVectors(target,shoulder).normalize();
       target.addScaledVector(direction,-BALL_RADIUS/scale).sub(palm).clampLength(0,contactReach).multiplyScalar(weight*scale);
       target.y=Math.max(-airborneHeight,target.y);
       group.position.set(target.x*c+target.z*s,jump+target.y,-target.x*s+target.z*c);
@@ -160,6 +179,11 @@ export function createCapturedAttacker(anatomy) {
       const pitch=Math.atan2(Math.hypot(direction.x,direction.z),direction.y);
       const twist=Math.atan2(direction.x,direction.z);
       anatomy.setArm(n,limb.elbow.x,limb.elbow.y,limb.elbow.z,palm.x,palm.y,palm.z,pitch,0,.15,twist);
+      if(aimed && n===(actor.mirror?0:1)){
+        const opening=THREE.MathUtils.smoothstep(actor.attackFrame,141,145);
+        const follow=1-THREE.MathUtils.smoothstep(actor.attackFrame,146,150);
+        if(opening*follow>0)aimPalm(n,up,shot,opening*follow);
+      }
     }
     anatomy.measureHeight();
   };

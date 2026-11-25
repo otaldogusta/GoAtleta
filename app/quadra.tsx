@@ -3,8 +3,7 @@ import { MemberPermissionBoundary } from "../src/auth/MemberPermissionBoundary";
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
-import { CourtWorkspaceView } from "../src/components/visual-court/CourtWorkspaceView";
-import { useStandaloneCourt } from "../src/components/visual-court/useStandaloneCourt";
+import { StandaloneCourtWorkspace } from "../src/components/visual-court/StandaloneCourtWorkspace";
 import { markRender } from "../src/observability/perf";
 
 // perf-check: ignore-measure — this route has no asynchronous data loading.
@@ -20,8 +19,7 @@ export default function StandaloneCourtRoute() {
 
 function StandaloneCourt() {
   const router = useRouter();
-  const editor = useStandaloneCourt();
-  return <CourtWorkspaceView classId="" standalone editor={editor} onBack={() => {
+  return <StandaloneCourtWorkspace onBack={() => {
     if (router.canGoBack()) router.back();
     else router.replace("/prof/home");
   }} />;

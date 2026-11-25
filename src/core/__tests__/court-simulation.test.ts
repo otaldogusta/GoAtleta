@@ -11,6 +11,18 @@ import { actorPoint, continueStepFromEnd, deleteSelection, duplicateStep, frameD
 const receiveBoard = () => upgradeCourtEditor(buildEditable5x1ReceptionPreset(), "Recepção da turma");
 const attackBoard = () => configureCourtSimulation(receiveBoard(), 0, { mode: "attack" });
 
+it("moves the jump server from its visible approach position when dragging before or after the strike", () => {
+  const board = configureCourtSimulation(receiveBoard(), 0, { serve: "Topspin" });
+  for (const time of [0, 1]) {
+    const before = sampleCourtSimulation(board, 0, time)!.actors[6];
+    const delta = { x: -.04, y: .03 };
+    const moved = moveSelection(board, 0, [before.id], delta, false, undefined, time);
+    const after = sampleCourtSimulation(moved, 0, time)!.actors[6];
+    expect(after.position[0]).toBeCloseTo(before.position[0] + 9 * delta.x, 5);
+    expect(after.position[2]).toBeCloseTo(before.position[2] + 18 * delta.y, 5);
+  }
+});
+
 it("sends a fast set to the opposite running along zone one", () => {
   const board = configureCourtSimulation(attackBoard(), 0, { preset: "fundo-1" });
   const timing = sampleCourtSimulation(board, 0, 0)!;

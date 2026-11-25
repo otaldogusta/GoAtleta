@@ -1,4 +1,4 @@
-import {frames, jointNames, positions} from './attack-captured-positions.mjs?v=landing-20261122';
+import {frames, jointNames, positions} from './attack-captured-positions.mjs?v=spike-release-20261124';
 
 // Offsets in the flat XYZ pose buffer. X points right, Y up and Z forward.
 // Horizontal joint positions are relative to the pelvis. The Y coordinate

@@ -7,7 +7,13 @@ passa aos demais jogadores, preservando documento, posições, ações e relógi
 
 - `actor-anatomy.mjs` concentra a anatomia local, com tronco, cabeça, pernas,
   braços, mãos e cinco dedos. Geometrias são reaproveitadas dentro da instância
-  e descartadas com ela. Não há novo asset, dependência ou carregamento remoto.
+  e descartadas com ela. Os perfis da camisa, calção e membros seguem o modelo
+  esportivo do Blender. O tênis usa a mesma malha para os dois pés, espelhada
+  para que os dedões fiquem voltados para dentro. Em escala 1, mede 27,8 cm
+  de comprimento por 11 cm de largura. O calcanhar, a sola e a biqueira
+  determinam a altura de apoio durante a passada e a aterrissagem.
+  A [fonte do tênis](../../scripts/author-court-shoe.py) gera o arquivo
+  editável do Blender e os vértices usados diretamente pelo renderer.
 - `actor-rig.mjs` interpreta as poses já fornecidas por Recepção, Ataque,
   Defesa e ações autorais: preparar, defender, bloquear, atacar, levantar e
   sacar. `previousPose` e `poseBlend` interpolam juntas, sem outro relógio.
@@ -58,13 +64,23 @@ As poses passam pela plantada com braços atrás, subida dos dois braços,
 armação do cotovelo dominante com a mão guia alta, aceleração até a
 extensão de contato, acompanhamento e aterrissagem. A sequência usa o
 mesmo relógio do levantamento e preserva a trajetória da bola.
-O atacante 3D usa a animação da cena editável **Go Atleta - Cortada com
-cotovelo suave**. No quadro 132 o pé sai do chão. No 141 o braço está
+O atacante 3D usa a cena editável **Go Atleta - Cortada com recolhimento do
+braço guia**. A camada de controles de braço pode ser recriada pelo script
+`scripts/refine-court-attack-swing.py` sobre a cena **Go Atleta - Cortada
+com pouso amortecido**. No quadro 132 o pé sai do chão. No 141 o braço está
 armado e no 145 a palma dominante encontra a superfície da bola. O ajuste
 gradual da posição do corpo durante o voo conserva o percurso da mão
 antes e depois da batida. No Ataque, o quadro 159 marca a aterrissagem e
 o 172 encerra a recuperação. Na Defesa, o quadro 145 permanece visível
 enquanto a etapa exibe as opções de direção da cortada.
+
+No modo Ataque, as mãos do levantador se estendem na direção inicial do
+levantamento e descem durante a recuperação. Após a impulsão, o atacante gira
+na direção da cortada. O braço guia recolhe junto ao tronco enquanto o cotovelo
+dominante conduz a mão aberta até a bola. A palma encontra a face oposta à
+direção de saída, e o braço continua o movimento após o contato. O alvo e a
+altura editados pelo professor determinam essa direção antes de qualquer
+desvio no bloqueio.
 Referência de fases: [Reeser et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC3445065/).
 
 A aproximação segue a direção do deslocamento. A plantada termina com
@@ -208,8 +224,19 @@ tempos descrevem o movimento estudado, enquanto a tabela mede o voo da bola.
 
 ## Gestos com bola na Quadra 3D
 
-Na recepção, o sacador solta a bola com uma mão e golpeia com a outra. O saque
-flutuante e o saque com rotação têm terminações diferentes. O receptor deixa
+Na recepção, o sacador solta a bola com uma mão e golpeia com a outra. No
+flutuante em pé, o destro começa com o pé esquerdo à frente e a bola sobre
+a palma esquerda aberta. O cotovelo direito já está alto, com a mão ao lado
+da cabeça. Após o lançamento curto, o braço-guia baixa e a palma direita
+encontra a face posterior da bola acima do ombro.
+
+No saque com rotação, o destro eleva a bola pela flexão do ombro esquerdo,
+com o cotovelo quase estendido. Avança em três apoios, fecha a passada e
+golpeia com a direita em suspensão. O Blender fornece a trajetória da palma
+até a soltura e o avanço e a elevação do corpo. A marca editável do sacador
+localiza o contato e a aproximação se orienta para o alvo do saque.
+
+O receptor deixa
 espaço à frente do tronco para juntar os antebraços. O levantador usa a direção
 da jogada e o salto da simulação. Na etapa de defesa, os jogadores baixam a base
 quando o adversário corta. O passe e o levantamento de preparação pertencem aos
@@ -222,6 +249,13 @@ bola. Arrastar a barra para trás reconstrói a pose daquele instante.
 [Sincronização no editor](../../src/core/court-skill-motion.ts) ·
 [Aplicação no boneco](../../public/visual-court-3d/skill-motion-rig.mjs).
 
+Nos levantamentos à frente, de costas e em suspensão, a cena do Blender
+fornece a base, a articulação e a polpa de cada dedo, além das curvas de
+abertura das mãos e extensão após a soltura. O encaixe em 3D considera
+o raio da bola e a escala do jogador. A comparação local de 24/11 usou
+a mesma câmera na recepção 6×0/P1 antes e depois do ajuste. O Ataque
+permitiu acompanhar também a saída da bola.
+
 No fim da recepção, o oposto, o central e os dois ponteiros soltam os braços,
 orientam o tronco entre o levantador e a rede e assentam um pé à frente do
 outro. A base vem do primeiro quadro da passada de ataque do Blender e se
@@ -229,6 +263,9 @@ espelha para canhotos. Quem recebeu conclui a manchete antes dessa transição.
 O levantador prepara o toque, e o líbero recompõe a cobertura.
 
 Para a manchete, a referência foi a manutenção da plataforma depois do contato.
+Na manchete lateral, a passada termina antes do passe e a sapatilha de
+apoio fica na mesma marca enquanto o quadril recebe o peso. A linha dos
+ombros orienta o passe para o levantador enquanto os braços ajustam o contato.
 Para o saque, foram usadas a armação, a aceleração do braço e a terminação.
 [USA Volleyball](https://usavolleyball.org/resource/5-keys-to-/) ·
 [Reeser e colaboradores](https://pmc.ncbi.nlm.nih.gov/articles/PMC3445065/).

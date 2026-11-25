@@ -294,7 +294,18 @@ export function moveSelection(p: CourtVisualPayload, index: number, ids: string[
       const existing = trajectories.find(t => t.actorId === a.id);
       const sampled = !animate ? simulation?.actors.find(actor => actor.id === a.id) : undefined;
       const from = sampled ? { x: sampled.position[0] / 9 + .5, y: sampled.position[2] / 18 + .5 } : typeof progress === "number" && existing?.points.length ? pointAlong(existing.points, progress) : actorPoint(p, index, a.id);
-      const to = limitPoint({ x: from.x + delta.x, y: from.y + delta.y });
+      let destination = { x: from.x + delta.x, y: from.y + delta.y };
+      if (s.simulation && sampled?.role === "server" && simulation?.config.serve === "Topspin" && simulation.serveTarget) {
+        // The dragged point is the athlete on the approach. The saved point
+        // locates the strike. Restore their signed separation along the new aim.
+        const [tx, tz] = simulation.serveTarget, [bx,,bz] = simulation.bases[sampled.slot];
+        const [px,,pz] = sampled.position;
+        const offset = Math.hypot(bx - tx, bz - tz) - Math.hypot(px - tx, pz - tz);
+        const dx = 9 * (destination.x - .5) - tx, dz = 18 * (destination.y - .5) - tz;
+        const distance = Math.hypot(dx, dz);
+        if (distance > 0) destination = { x: destination.x + offset * dx / distance / 9, y: destination.y + offset * dz / distance / 18 };
+      }
+      const to = limitPoint(destination);
       actorPositions[a.id] = to;
       if (animate) {
         trajectories = [...trajectories.filter(t => t.actorId !== a.id), { id: existing?.id ?? editorId(), actorId: a.id, points: path?.length ? path.map(pt => limitPoint({ x: from.x + pt.x, y: from.y + pt.y })) : [from, to], color: a.color }];

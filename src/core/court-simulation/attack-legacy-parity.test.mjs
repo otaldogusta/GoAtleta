@@ -8,7 +8,7 @@ import { sampleBlockerPose } from './blocker-motion.js';
 import { attackPresets as legacyPresets, sampleAttack as sampleReference } from '../__tests__/fixtures/court-reference/attack-motion.mjs';
 
 const legacyFrame = frame => {
- const { attackArc, attackGuide, backRowApproach, setHand, ...result } = frame;
+ const { attackArc, attackGuide, backRowApproach, setHand, setDestination, ...result } = frame;
  // The hitter and the blockers use new approaches. The remaining poses,
  // timing, contacts and flight still follow the same reference.
  result.actors = result.actors.map((actor, index) => {
@@ -114,7 +114,8 @@ test('a quick set leaves real time for the block to close, including the far win
    }
    const sameBall=sampleAttack(0,{...config,layers:{...config.layers,block:false}});
    assert.ok(Math.abs(hit-set-(sameBall.attackContact-sameBall.setContact)*sameBall.duration)<1e-8);
-   for(const [seconds,target] of [[set,initial.setHand],[hit,initial.flight.hit]]){
+   assert.deepEqual(initial.setDestination,initial.flight.hit);
+   for(const [seconds,target] of [[set,initial.setHand],[hit,initial.setDestination]]){
     assert.ok(Math.hypot(...at(seconds).ball.map((v,i)=>v-target[i]))<1e-8);
    }
    if(!pass&&blockers===3)assert.ok(set>sameBall.setContact*sameBall.duration);

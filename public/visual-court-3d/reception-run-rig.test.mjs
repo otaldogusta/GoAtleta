@@ -5,7 +5,81 @@ import {createActorRig} from './actor-rig.mjs';
 import {sampleReception} from '../../src/core/court-simulation/reception-motion.js';
 import {receptionFormation} from '../../src/core/court-simulation/formations.js';
 
-const reception=rotation=>({rotation,bases:[...receptionFormation('5-1',rotation),[1.7,0,-10.44]]});
+const reception=(rotation,system='5-1')=>({rotation,system,bases:[...receptionFormation(system,rotation),[1.7,0,-10.44]]});
+
+function render(rig,actor){
+ const [x,y,z]=actor.position;
+ rig.group.parent.position.set(x,y,z);
+ rig.update({...actor,poseRole:actor.role,poseScale:.9,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]});
+ rig.group.parent.updateMatrixWorld(true);
+}
+
+test('the planted shoe holds its heading and the loaded knee flexes toward the toes',()=>{
+ const rig=createActorRig(new Group());
+ for(const [system,rotation,time,slot,side] of [['5-1',0,.656,1,1],['6-0',5,.903125,1,0],['5-1',2,.50625,0,0]]){
+  const actor=sampleReception(time,reception(rotation,system)).actors[slot];
+  render(rig,actor);
+  const foot=actor.feet[side],heading=foot[3],name=side?'right':'left';
+  assert.equal(foot[1],0);
+  const mesh=part=>rig.group.getObjectByName(name+'-'+part);
+  const forward=mesh('foot').getWorldDirection(new Vector3());
+  assert.ok(forward.dot(new Vector3(Math.sin(heading),0,Math.cos(heading)))>.999999);
+  const [hip,knee,ankle]=['hip','knee','ankle'].map(part=>mesh(part).getWorldPosition(new Vector3()));
+  const legAxis=ankle.sub(hip).normalize(),flex=knee.sub(hip).projectOnPlane(legAxis);
+  assert.ok(flex.length()>.06,'this contact loads a bent supporting knee');
+  assert.ok(flex.angleTo(forward.projectOnPlane(legAxis))<Math.PI/4,'the knee flexes in front of the shoe');
+ }
+});
+
+test('the tipped recovery shoe clears the floor through the running stride',()=>{
+ const rig=createActorRig(new Group()),config=reception(0),vertex=new Vector3();
+ const shoes=['left-foot','right-foot'].map(name=>rig.group.getObjectByName(name));
+ let swinging=0;
+ for(let i=440;i<=490;i++){
+  const actor=sampleReception(i/1000,config).actors[0];
+  render(rig,actor);
+  for(const [side,shoe] of shoes.entries()){
+   const lift=actor.feet[side][1],positions=shoe.geometry.attributes.position;
+   if(lift>.02)swinging++;
+   let lowest=Infinity;
+   for(let j=0;j<positions.count;j++){
+    lowest=Math.min(lowest,vertex.fromBufferAttribute(positions,j).applyMatrix4(shoe.matrixWorld).y);
+   }
+   assert.ok(lowest>=lift-1e-6,`shoe intersects its swing clearance at ${i/1000}`);
+  }
+ }
+ assert.ok(swinging>20);
+});
+
+test('a setter already at the net steps around its support instead of snapping to the passer or to zone four',()=>{
+ const rig=createActorRig(new Group());
+ for(const [system,rotation] of [['6-0',1],['5-1',4],['4-2',1]]){
+  const config=reception(rotation,system),lifted=new Set();
+  let previous;
+  for(let i=0;i<=900;i++){
+   const actor=sampleReception(i/1000,config).actors[0];
+   render(rig,actor);
+   const yaw=Math.atan2(actor.facing[0]-actor.position[0],actor.facing[1]-actor.position[2]);
+   const feet=['left-foot','right-foot'].map(name=>rig.group.getObjectByName(name).getWorldPosition(new Vector3()));
+   assert.ok(actor.feet.some(foot=>foot[1]===0));
+   assert.ok(Math.hypot(feet[0].x-feet[1].x,feet[0].z-feet[1].z)>.18,'keep space between the shoes during the turn');
+   if(previous){
+    const turn=yaw-previous.yaw;
+    assert.ok(Math.abs(Math.atan2(Math.sin(turn),Math.cos(turn)))<.025);
+    for(const [side,foot] of feet.entries()){
+     const lift=actor.feet[side][1];
+     if(lift>.025)lifted.add(side);
+     const distance=foot.distanceTo(previous.feet[side]);
+     assert.ok(distance<.015,'each shoe follows a continuous step');
+     if(lift===0&&previous.anchors[side][1]===0)assert.ok(distance<1e-6,'stationary sole stays on its mark');
+    }
+   }
+   previous={yaw,feet,anchors:actor.feet};
+  }
+  assert.equal(lifted.size,2);
+  assert.ok(Math.abs(previous.yaw+Math.PI/2)<1e-8);
+ }
+});
 
 test('blocker keeps its ground marks while the running pose yields to the block',()=>{
  const parent=new Group(),rig=createActorRig(parent);
@@ -107,11 +181,13 @@ test('P1 swings the arms by the ribs and folds the recovering knee with constant
  assert.ok(maxKnee>1&&maxKnee<170*Math.PI/180,'recovering leg retains knee flexion');
 });
 
-test('P1 hands the last running stride to the setting stance without a jump in elbow or knee position',()=>{
- const rig=createActorRig(new Group()),config=reception(0);
+for(const serve of ['Float','Topspin'])test(`P1 hands the last running stride to the setting stance without a jump in elbow or knee position (${serve})`,()=>{
+ const rig=createActorRig(new Group()),config={...reception(0),serve};
+ const {tossStart,receiveContact}=sampleReception(0,config);
+ const handoff=tossStart+.75*(receiveContact-tossStart);
  const joints=['left-elbow','right-elbow','left-knee','right-knee'].map(name=>rig.group.getObjectByName(name));
  let previous;
- for(let i=2000;i<=2700;i++){
+ for(let i=Math.floor(handoff*4000);i<=Math.ceil((receiveContact+.045)*4000);i++){
   const actor=sampleReception(i/4000,config).actors[0], [x,y,z]=actor.position;
   rig.update({...actor,poseRole:actor.role,poseScale:.9,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]});
   const points=joints.map(joint=>joint.position.clone());

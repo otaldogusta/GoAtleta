@@ -30,7 +30,10 @@ export function courtOpponentIdentity(config: CourtSimulation | undefined, actor
 export function receptionPlayerIdentity(config: CourtSimulation | undefined, id: string) {
   if (config?.system === "6-0") {
     const jerseyIndex = config.teamActorIds?.indexOf(id) ?? -1;
-    return jerseyIndex < 0 ? undefined : { label: String(jerseyIndex + 1), color: "#19c87b", position: sixZeroZone(jerseyIndex, config.rotation) };
+    if (jerseyIndex < 0) return undefined;
+    const position = sixZeroZone(jerseyIndex, config.rotation);
+    const color = position === 2 && config.mode !== "defense" ? "#38bdf8" : "#19c87b";
+    return { label: String(jerseyIndex + 1), color, position };
   }
   if (config?.mode !== "receive") return undefined;
   const slot = (config.teamActorIds ?? config.actorIds).indexOf(id);

@@ -165,6 +165,26 @@ describe("court mobile tool flow", () => {
     expect(editor.stepIndex).toBe(firstDefense);
   });
 
+  it.each(["5-1", "4-2", "6-2", "6-0"] as const)("previews reception rotation changes in %s", async system => {
+    await mount(990, { payload: buildSimulatedReceptionRotationPreset(system) });
+    act(() => tree.root.findByType("QuickControls" as never).props.onChange({ rotation: 1 }));
+    expect(editor.stepIndex).toBe(1);
+    expect(canvas().progress).toBe(0);
+    expect(Object.keys(canvas().rotationPreview?.paths ?? {})).toHaveLength(6);
+  });
+
+  it("walks the first middle off and brings the second middle in from outside the court at P5", async () => {
+    await mount(990, { payload: buildSimulatedReceptionRotationPreset("5-1"), stepIndex: 1 });
+    act(() => tree.root.findByType("QuickControls" as never).props.onChange({ rotation: 2 }));
+    const preview = canvas().rotationPreview!;
+    const leaving = Object.keys(preview.exiting!)[0];
+    const entering = preview.entering![0];
+    expect(preview.exiting![leaving].label).toBe("Central¹");
+    expect(Math.abs(preview.paths[leaving][1][0])).toBeGreaterThan(4.5);
+    expect(Math.abs(preview.paths[entering][0][0])).toBeGreaterThan(4.5);
+    expect(Math.abs(preview.paths[entering][1][0])).toBeLessThan(4.5);
+  });
+
   it("takes the six-zero team from the active rotation when changing systems in settings", async () => {
     await mount(990, { payload: buildSimulatedReceptionRotationPreset("5-1"), stepIndex: 2 });
     act(() => tree.root.findByType("QuickControls" as never).props.onChange({ system: "6-0" }));

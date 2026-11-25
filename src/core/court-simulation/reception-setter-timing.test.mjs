@@ -33,11 +33,45 @@ test('the setter holds its authored base until the server releases the toss in e
   eachScenario((config,label)=>{
     const initial=sampleReception(0,config),base=config.bases[0];
     assert.ok(Number.isFinite(initial.tossStart),`${label}: missing toss event`);
-    assert.ok(Math.abs(initial.tossStart*initial.duration-.4)<1e-9,`${label}: toss event must follow the release clock`);
+    const tossFlight=(initial.serveContact-initial.tossStart)*initial.duration;
+    near([tossFlight],[config.serve==='Float'?.60:1.10]);
     for(const progress of [0,initial.tossStart-.01/initial.duration,initial.tossStart]){
       near(sampleReception(progress,config).actors[0].position,base);
     }
   });
+});
+
+test('the standing float leaves the palm continuously and peaks just above striking height',()=>{
+  for(const scenario of scenarios){
+    const config=configFor('5-1',0,'Float',scenario);
+    const {duration,tossStart,serveContact}=sampleReception(0,config);
+    const release=tossStart*duration,hit=serveContact*duration;
+    const at=second=>sampleReception(second/duration,config).ball;
+    const delta=.001,before=at(release-delta),ball=at(release),after=at(release+delta);
+    const velocityChange=ball.map((coordinate,i)=>(after[i]-2*coordinate+before[i])/delta);
+    assert.ok(Math.hypot(...velocityChange)<.08,'the rising ball keeps its speed and direction at release');
+    const heights=Array.from({length:61},(_,i)=>at(release+(hit-release)*i/60)[1]);
+    const peak=Math.max(...heights);
+    assert.ok(peak>at(hit)[1]+.25&&peak<at(hit)[1]+.40,'short toss above the open striking hand');
+    assert.ok(heights[0]<heights.at(-1)&&heights.at(-2)>heights.at(-1));
+  }
+});
+
+test('the jump serve releases forward and upward off the moving palm, then accelerates its spin on contact',()=>{
+  for(const scenario of scenarios){
+    const config=configFor('5-1',0,'Topspin',scenario);
+    const {duration,tossStart,serveContact}=sampleReception(0,config);
+    const at=seconds=>sampleReception(seconds/duration,config);
+    const release=tossStart*duration,strike=serveContact*duration,dt=.001;
+    const ball=at(release).ball,before=at(release-dt).ball,after=at(release+dt).ball;
+    const velocity=after.map((coordinate,i)=>(coordinate-ball[i])/dt);
+    const mismatch=velocity.map((value,i)=>value-(ball[i]-before[i])/dt);
+    assert.ok(velocity[1]>5&&Math.hypot(velocity[0],velocity[2])>1);
+    assert.ok(Math.hypot(...mismatch)<.35,'free flight continues the guide hand motion');
+    assert.ok(at(release).ballSpin<1e-7);
+    const spin=at(strike).ballSpin;
+    assert.ok(spin>0&&at(strike+dt).ballSpin-spin>2*(spin-at(strike-dt).ballSpin));
+  }
 });
 
 test('straight sprints keep their player role and ground marks as the capture gains and loses weight',()=>{
@@ -170,15 +204,14 @@ test('toss onset stays continuous and the setter returns to identical frames whe
   });
 });
 
-// Synthetic checkpoints captured before the setter-onset correction. The ball
-// retains the already validated toss, serve flight and pass while only Lv moves earlier.
+// World-space samples from the standing float and the forward jump serve.
 const ballCheckpoints={
-  'Float/default':[[1.6628485757002514,3.6926612237672716,-10.072935192542607],[.3245857182945813,2.7519673047466244,-2.3168953575435323],[-.026152841720606723,4.4544317137225224,3.3010029749059187]],
-  'Float/custom':[[-4.62746909309736,3.709550424576153,-10.873585614952479],[-1.2542378232584077,2.7401499721928486,-3.197818649113476],[1.72144754156434,4.430877987520084,2.8805959638817082]],
-  'Topspin/default':[[1.6629981201677708,3.627115420289929,-10.073746530621943],[.2264183621728728,3.644450458306359,-2.356039444274889],[.07909530970748535,4.522315496241021,3.1435190425988395]],
-  'Topspin/custom':[[-4.627818484800378,3.6452955022995184,-10.874400862259522],[-1.3539726910662426,3.7639134308102142,-3.199979391377222],[1.7043795581424401,4.509247300826351,2.7110512977092176]],
+  'Float/default':[[1.72068195638499,1.7833124987818534,-9.879764409465862],[.3245857182945813,2.7519673047466244,-2.3168953575435323],[-.026152841720606723,4.4544317137225224,3.3010029749059187]],
+  'Float/custom':[[-4.477357715418226,1.81939430905183,-10.750118144431603],[-1.2542378232584077,2.7401499721928486,-3.197818649113476],[1.72144754156434,4.430877987520084,2.8805959638817082]],
+  'Topspin/default':[[1.8845861546103415,3.6971159590425655,-11.002739471177927],[.2264183621728728,3.644450458306359,-2.356039444274889],[.07909530970748535,4.522315496241021,3.1435190425988395]],
+  'Topspin/custom':[[-4.9528409902386565,3.72358911170286,-11.756539221409009],[-1.3539726910662426,3.7660341012986156,-3.199979391377222],[1.7043795581424401,4.509247300826351,2.7110512977092176]],
 };
-test('moving the setter earlier preserves the ball through toss, flight and pass',()=>{
+test('serve toss, flight and pass agree with their court-space checkpoints',()=>{
   for(const serve of ['Float','Topspin'])for(const scenario of scenarios){
     const config=configFor('5-1',0,serve,scenario),expected=ballCheckpoints[`${serve}/${scenario.name}`];
     [.2,.5,.8].forEach((progress,index)=>near(sampleReception(progress,config).ball,expected[index]));

@@ -52,10 +52,15 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   e quem ocupa a zona 2 já está entre 2 e 3 para levantar para
   a ponta (4), o meio (3) ou o fundo 1. A zona de cada camisa acompanha o rodízio
   ao alternar entre Recepção, Ataque e Defesa.
+  Ao trocar o rodízio na Recepção, os atletas presentes nas duas formações
+  se deslocam até as novas posições. Isso vale para os quatro sistemas.
   Na base defensiva do 6×0, os ocupantes das zonas 5 e 6 do rodízio
   trocam de lado antes do ataque adversário.
   No atalho, a troca de modelo pode ser desfeita na sessão e dispensa carregar
   turma, elenco ou documentos da organização.
+  Na web, **⋯ → Compartilhar** permite escolher uma turma da organização ativa
+  e criar um link de leitura da jogada atual. A consulta de turmas começa ao
+  abrir a ação. Sem acesso a uma turma, é possível baixar a cópia editável.
 
 - A Quadra Visual aguarda a sessão e o workspace ativo antes de consultar a
   turma. A busca usa o escopo explícito e mantém visível a mensagem quando
@@ -95,8 +100,11 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 
 - Todos os jogadores 3D compartilham corpo articulado local, com ações e
   transições do sampler existente, facing independente da câmera e seleção
-  pelos meshes. Alvo transitório de contato aproxima as mãos da bola dentro
-  do alcance, sem alterar trajetória ou posição autoral.
+  pelos meshes. O tênis do Blender tem sola plana, calcanhar e biqueira
+  distintos. Nos apoios do bloqueio e da corrida, o joelho flexiona na
+  direção do pé plantado. Quando o levantador já está no destino, ele gira
+  com apoios alternados para preparar o toque. O alvo transitório de contato
+  aproxima as mãos da bola dentro do alcance, sem alterar trajetória ou posição autoral.
   [Contrato e validação](../../ui/QUADRA_CORPOS_3D_2026-11-12.md).
   O piso 3D usa y=0. A rede padrão usa 2,43 m até a borda superior,
   com as mesmas medidas de referência para o desenho, aviso e física
@@ -159,18 +167,33 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   encadeia subida dos braços, armação, extensão, contato e aterrissagem.
   O relógio da jogada fornece ao atacante 3D o quadro da animação capturada
   no Blender. A impulsão corresponde ao quadro 132 e a batida ao 145, quando
-  a palma toca a superfície da bola. O Ataque segue até a aterrissagem e a
+  a palma toca a superfície da bola. No Ataque, as mãos do levantador acompanham
+  a saída do levantamento. O atacante recolhe o braço guia e orienta a palma
+  dominante pela velocidade inicial da cortada, inclusive após editar sua curva.
+  O Ataque segue até a aterrissagem e a
   Defesa segura a pose de contato enquanto as direções da cortada se desenham.
   A representação 2D usa a chave da pose no mesmo relógio.
   No saque, na manchete e no levantamento, a Quadra 3D usa os marcadores
-  das ações do Blender com os contatos da bola da mesma jogada. Na defesa,
+  das ações do Blender com os contatos da bola da mesma jogada. No flutuante
+  em pé, a palma de apoio apresenta a bola à frente e a mão de golpe já
+  está armada. Após a soltura, o braço-guia baixa antes do contato alto. No
+  saque com rotação, o braço sobe pelo ombro no lançamento, e a passada, o
+  salto e o contato usam o mesmo relógio da bola. No toque,
+  as mãos abrem acima da testa, os polegares ficam abaixo dos indicadores
+  e as polpas encontram as laterais inferiores da bola. Na defesa,
   o time baixa a base à espera da cortada adversária. No P1, o levantador
   chega voltado para quem recebe. Na passada lateral, o líbero prepara a
-  plataforma depois do ajuste. O central consegue virar o quadril para
+  plataforma depois do ajuste. Na manchete lateral, o pé de apoio fica
+  fixo durante a transferência de peso e os ombros orientam o passe para
+  o levantador. No 6×0, a saída da expectativa parte da base defensiva,
+  com extensão gradual das pernas e apoio durante o primeiro passo.
+  O central consegue virar o quadril para
   correr e continuar acompanhando a jogada com a cabeça.
   [Gestos com bola e fontes editáveis](../../ui/QUADRA_CORPOS_3D_2026-11-12.md#gestos-com-bola-na-quadra-3d).
 
-- Gestos 3D distinguem mover objeto, girar o fundo e aproximar/deslocar com dois
+- Gestos 3D distinguem mover objeto, orbitar pelo fundo ou com o botão direito
+  pressionado, e deslocar a câmera pelo
+  comando Mover a vista ou com Shift no fundo, e aproximar/deslocar com dois
   dedos. Arraste conserva o ponto de pega elevado e a prévia até confirmação
   local. Enquadramento usa geometria, projeção e espaço dos controles; resize
   preserva intenção de zoom. [Contrato e validação](../../ui/QUADRA_CAMERA_GESTOS_3D_2026-11-12.md).

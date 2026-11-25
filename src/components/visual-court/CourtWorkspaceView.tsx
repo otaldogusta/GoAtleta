@@ -28,8 +28,8 @@ import { CourtEditorCanvas, type CourtEditorCanvasProps, type CourtTool } from "
 import type { useCourtEditor } from "./useCourtEditor";
 import { CourtPerspectiveCanvas } from "./CourtPerspectiveCanvas";
 import type { CourtPerspectiveShortcut } from "./CourtPerspectiveCanvas.types";
-import { buildCourtPerspectiveFrame, worldToCourtPoint, type CourtWorldPoint } from "../../core/visual-court-perspective";
-import { configureCourtSimulation, getCourtSimulation, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../../core/court-simulation";
+import { buildCourtPerspectiveFrame, worldToCourtPoint, type CourtWorldPoint, type CourtRotationPreview } from "../../core/visual-court-perspective";
+import { configureCourtSimulation, getCourtSimulation, receptionPlayerIdentity, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../../core/court-simulation";
 import { configureCourtRotationSequenceMode, getReceptionRotationStep, isLegacyReceptionRotationSequence, replaceReceptionRotationSequence } from "../../core/court-simulation-sequence";
 import type { CourtDefenseCoverage, CourtSimulationPatch } from "../../core/court-simulation-model";
 import { COURT_DEFENSE_ATTACKS, courtDefensePreset, ensureCourtDefenseStep, getCourtDefenseSideStepIndex, getCourtDefenseStepIndex, matchesCourtDefenseContext, type CourtDefensePreset } from "../../core/court-defense-preset";
@@ -308,7 +308,32 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const stop = useCallback(() => { setPlaying(false); }, []);
   const resetPlayback = useCallback(() => { setPlaying(false); playhead.current = 0; setProgress(0); }, []);
   const edit = (update: (p: CourtVisualPayload) => CourtVisualPayload, index?: number) => { stop(); commit(update, index); };
+  const [rotationMotion, setRotationMotion] = useState<{
+    payload: CourtVisualPayload; index: number; paths: CourtRotationPreview["paths"]; durationMs: number;
+    entering: string[]; exiting: NonNullable<CourtRotationPreview["exiting"]>;
+  } | null>(null);
+  const [rotationProgress, setRotationProgress] = useState(0);
+  const movingRotation = rotationMotion?.payload === payload && rotationMotion.index === stepIndex && !playing && progress === 0
+    ? rotationMotion : null;
+  useEffect(() => {
+    if (!movingRotation || typeof requestAnimationFrame !== "function") return;
+    let origin: number | undefined;
+    let frame: number;
+    const advance = (now: number) => {
+      origin ??= now;
+      const t = Math.min(1, (now - origin) / movingRotation.durationMs);
+      if (t === 1) setRotationMotion(null);
+      else {
+        setRotationProgress(t);
+        frame = requestAnimationFrame(advance);
+      }
+    };
+    frame = requestAnimationFrame(advance);
+    return () => cancelAnimationFrame(frame);
+  }, [movingRotation]);
+
   const selectStep = (i: number) => {
+    setRotationMotion(null);
     const targetStep = payload.timeline.steps[i];
     const targetProgress = targetStep?.simulation?.mode === "defense" ? 1 : 0;
     if (targetProgress === 1) lastDefenseStep.current = targetStep.id;
@@ -362,7 +387,50 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     }
     if (patch.rotation !== undefined && Object.keys(patch).length === 1) {
       const target = getReceptionRotationStep(payload, stepIndex, patch.rotation);
-      if (target >= 0) { selectStep(target); return; }
+      if (target >= 0) {
+        const destination = getCourtSimulation(payload, target);
+        const reducedMotion = Platform.OS === "web" && typeof window !== "undefined"
+          && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        const canAnimate = !reducedMotion && typeof requestAnimationFrame === "function" && target !== stepIndex
+          && simulation?.mode === "receive" && destination?.mode === "receive"
+          && simulation.system === destination.system;
+        const before = canAnimate ? sampleCourtSimulation(payload, stepIndex, progress) : null;
+        const after = canAnimate ? sampleCourtSimulation(payload, target, 0) : null;
+        selectStep(target);
+        if (before && after) {
+          const paths: CourtRotationPreview["paths"] = {};
+          const entering: string[] = [];
+          const exiting: NonNullable<CourtRotationPreview["exiting"]> = {};
+          const atSideline = ([x, , z]: NonNullable<typeof before>["actors"][number]["position"]): typeof before.actors[number]["position"] =>
+            [x < 0 ? -5.5 : 5.5, 0, z];
+          const team = after.config.teamActorIds ?? after.config.actorIds.slice(0, 6);
+          for (const actor of after.actors) {
+            if (!team.includes(actor.id)) continue;
+            const previous = before.actors.find(item => item.id === actor.id);
+            if (previous) {
+              const interrupted = movingRotation?.paths[actor.id];
+              const start = interrupted ? interrupted[0].map((value, axis) =>
+                value + (interrupted[1][axis] - value) * rotationProgress) as typeof previous.position : previous.position;
+              paths[actor.id] = [start, actor.position];
+            } else {
+              entering.push(actor.id);
+              paths[actor.id] = [atSideline(actor.position), actor.position];
+            }
+          }
+          const previousTeam = before.config.teamActorIds ?? before.config.actorIds.slice(0, 6);
+          for (const actor of before.actors) {
+            if (!previousTeam.includes(actor.id) || team.includes(actor.id)) continue;
+            const identity = receptionPlayerIdentity(before.config, actor.id);
+            if (!identity) continue;
+            exiting[actor.id] = identity;
+            paths[actor.id] = [actor.position, atSideline(actor.position)];
+          }
+          const longest = Math.max(0, ...Object.values(paths).map(([a, b]) => Math.hypot(a[0] - b[0], a[2] - b[2])));
+          setRotationProgress(0);
+          setRotationMotion({ payload, index: target, paths, entering, exiting, durationMs: Math.min(1800, Math.max(650, longest * 240)) });
+        }
+        return;
+      }
     }
     resetPlayback(); setSelected([]);
     if (patch.mode && Object.keys(patch).length === 1) {
@@ -556,6 +624,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     };
   }, [playing, step.durationMs, speed, hasDefenseTrace]);
   const playCurrentStep = () => {
+    setRotationMotion(null);
     if (playing) { setPlaying(false); return; }
     if (progress >= 1) { playhead.current = 0; setProgress(0); }
     setPlaying(true);
@@ -831,7 +900,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     { label: "Refazer", icon: "arrowForward", command: "redo", disabled: !editor.canRedo },
     ...(!standalone ? [{ label: "Nova quadra", icon: "add" as const, command: "new" as const, disabled: editor.saving }] : []),
     { label: "Exportar", icon: "download", command: "export" },
-    ...(Platform.OS === "web" && !standalone ? [{ label: "Compartilhar", icon: "link" as const, command: "share" as const }] : []),
+    ...(Platform.OS === "web" && onShare && !readOnly ? [{ label: "Compartilhar", icon: "link" as const, command: "share" as const }] : []),
     { label: "Configurar quadra", icon: "management", command: "settings" },
   ] : actionMenu === "step" ? [
     ...(isLegacyReceptionRotationSequence(payload) ? [{ label: "Atualizar rotações", icon: "restore" as const, command: "refresh-rotations" as const }] : []),
@@ -846,8 +915,9 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const canvasProps: CourtEditorCanvasProps = {
     payload: attackPreview?.payload ?? payload, stepIndex, landscape, selected: canvasSelected, readOnly, multiple: multi, onSelect: readOnly ? readonlyNoop : select, onMove: readOnly ? readonlyNoop : move, onDraw: readOnly ? readonlyNoop : draw,
     onEditText: readOnly ? readonlyNoop : editText, onEditArrow: readOnly ? undefined : editArrow, onAddPlayer: readOnly ? readonlyNoop : addPlayer, playerPreviewColor: team === "A" ? "#19c87b" : "#4389ff",
-    tool: readOnly ? "pan" : tool, motionMode, areaMode, onCancelArea: () => chooseTool("select"), color, dashed, grid, half, plain, progress: attackPreview?.progress ?? progress, zoom, pan, onPan: setPan, onZoom: setZoom,
-    disabled: authoringBlocked,
+    tool: readOnly ? "pan" : tool, motionMode, areaMode, onCancelArea: () => chooseTool("select"), color, dashed, grid, half, plain, progress: attackPreview?.progress ?? progress, zoom: courtView === "3d" ? zoom : Math.min(3, zoom), pan, onPan: setPan, onZoom: setZoom,
+    rotationPreview: movingRotation ? { ...movingRotation, progress: rotationProgress } : undefined,
+    disabled: authoringBlocked || Boolean(movingRotation),
     allowServeHandle: readOnly && !suspended && !playing && !busy,
     onSimulationHandle: edit => { if (readOnly && (edit.kind !== "serve" || suspended || playing || busy)) return; stop(); simulate(p => updateCourtSimulationHandle(p, stepIndex, edit)); },
     selectionTopInset: insets.top + 144 * uiScale,
@@ -945,7 +1015,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
           unavailableDefenseCoverage={readOnly ? (["front", "zone1"] as const).filter(coverage => getCourtDefenseStepIndex(payload, defensePreset, coverage, simulation) < 0) : undefined} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
-      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && simulationMode !== "receive"} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
+      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && simulationMode !== "receive"} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setRotationMotion(null); setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
 
       {!readOnly ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, toolScale === 1 ? undefined : overlayScale("top left"), { width: railTouchTarget ? compactUiMetrics.touchTarget + 6 : denseControls ? railButtonSize + 6 : 52, top: toolRailTop, left: insets.left + 10 * toolScale, maxHeight: toolRailHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
         {touchTools ? <View style={{ padding: 3, borderBottomWidth: 1, borderBottomColor: colors.border }}>{toolAction("Selecionar e mover", "courtCursor", () => chooseTool("select"), tool === "select")}</View> : null}
@@ -974,9 +1044,9 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
 
 
         {zoomHintVisible ? <View pointerEvents="none" style={{ position: "absolute", bottom: "100%", right: 8, marginBottom: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: surface }}><Text accessibilityLiveRegion="polite" accessibilityLabel={`Zoom ${Math.round(zoom * 100)} por cento`} style={{ color: ink, fontSize: 12, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{Math.round(zoom * 100)}%</Text></View> : null}
-        {action("Reduzir", "remove", () => setZoom(z => Math.max(0.75, z - 0.25)), false, zoom <= 0.75)}
-        {action("Ampliar", "add", () => setZoom(z => Math.min(3, z + 0.25)), false, zoom >= 3)}
-        {courtView === "2d" ? action("Mover a vista", "move", () => { stop(); setTool(tool === "pan" ? "select" : "pan"); }, tool === "pan") : null}
+        {action("Reduzir", "remove", () => setZoom(z => Math.max(0.75, Math.min(courtView === "3d" ? 10 : 3, z) - (courtView === "3d" && z > 3 ? 1 : 0.25))), false, zoom <= 0.75)}
+        {action("Ampliar", "add", () => setZoom(z => Math.min(courtView === "3d" ? 10 : 3, z + (courtView === "3d" && z >= 3 ? 1 : 0.25))), false, zoom >= (courtView === "3d" ? 10 : 3))}
+        {(!readOnly || courtView === "2d") ? action("Mover a vista", "move", () => { stop(); setTool(tool === "pan" ? "select" : "pan"); }, tool === "pan") : null}
         {action("Ajustar à tela", "expand", () => { setZoom(1); setPan({ x: 0, y: 0 }); setCameraReset(value => value + 1); })}
       </View>
 

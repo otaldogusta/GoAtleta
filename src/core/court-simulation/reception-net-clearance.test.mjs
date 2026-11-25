@@ -15,16 +15,18 @@ test('P1 plants the outside shoe before cutting inward and has flight between ru
  assert.ok(frames.some(frame=>frame.jump>.02&&frame.feet.every(foot=>foot[1]>0)));
 });
 
-test('the P1 setter pushes out, lengthens the stride and brakes in the rhythm of its real foot contacts',()=>{
- const options={bases:[...receptionFormation('5-1',0),[1.7,0,-10.44]]};
+for(const serve of ['Float','Topspin'])test(`the P1 setter pushes out, lengthens the stride and brakes in the rhythm of its real foot contacts (${serve})`,()=>{
+ const options={serve,bases:[...receptionFormation('5-1',0),[1.7,0,-10.44]]};
  const {duration,tossStart,receiveContact}=sampleReception(0,options);
  const start=tossStart*duration,at=t=>sampleReception(t/duration,options).actors[0];
+ const runSeconds=(receiveContact-tossStart)*duration;
+ const push=.018*runSeconds,cruise=.20*runSeconds,brake=.90*runSeconds;
  const speed=t=>{
   const a=at(start+t),b=at(start+t+.001);
   return Math.hypot(b.position[0]-a.position[0],b.position[2]-a.position[2])/.001;
  };
- assert.ok(speed(.04)<1&&speed(.45)>3.5);
- assert.ok(at(start+.04).runDrive<.1&&at(start+.45).runDrive>.85);
+ assert.ok(speed(push)<1&&speed(cruise)>3.5);
+ assert.ok(at(start+push).runDrive<.1&&at(start+cruise).runDrive>.85);
  const contacts=[],air=[false,false];
  for(let ms=0;start+ms/1000<receiveContact*duration;ms++){
   const actor=at(start+ms/1000);
@@ -43,7 +45,7 @@ test('the P1 setter pushes out, lengthens the stride and brakes in the rhythm of
  assert.ok(contacts.length>=7&&contacts.length<=9);
  assert.ok(contacts[0]>contacts[4]-contacts[3]+35,'first push lasts longer than the racing stride');
  assert.ok(contacts.at(-1)-contacts.at(-2)>contacts[4]-contacts[3]+22,'last stride slows before gathering');
- assert.ok(speed(2)<.5&&at(start+2).runDrive<.1);
+ assert.ok(speed(brake)<.5&&at(start+brake).runDrive<.1);
 });
 
 test('the mocap foot swing keeps the opposite shoe planted and releases cleanly at the destination',()=>{

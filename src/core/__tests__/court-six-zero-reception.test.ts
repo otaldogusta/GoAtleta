@@ -3,8 +3,24 @@ import { ensureCourtDefenseStep } from "../court-defense-preset";
 import { normalizeCourtSimulation } from "../court-simulation-model";
 import { buildSimulatedReceptionRotationPreset } from "../court-simulation-sequence";
 import { parseEditorImport } from "../visual-court-editor";
-import { buildCourtPerspectiveFrame } from "../visual-court-perspective";
+import { buildCourtPerspectiveFrame, type CourtRotationPreview } from "../visual-court-perspective";
 import { displayActors } from "../../components/visual-court/CourtEditorScene";
+
+it("previews the same jersey between rotations with footwork and the new setter color", () => {
+  const board = buildSimulatedReceptionRotationPreset("6-0");
+  const before = sampleCourtSimulation(board, 0, 0)!;
+  const after = sampleCourtSimulation(board, 1, 0)!;
+  const setter = after.actors[0];
+  const start = before.actors.find(actor => actor.id === setter.id)!.position;
+  const preview: CourtRotationPreview = { paths: { [setter.id]: [start, setter.position] }, progress: .5, durationMs: 1300 };
+  const frame = buildCourtPerspectiveFrame(board, 1, 0, [], preview);
+  const moving = frame.actors.find(actor => actor.id === setter.id)!;
+  expect(moving.position.x).toBeCloseTo((start[0] + setter.position[0]) / 2);
+  expect(moving.position.z).toBeCloseTo((start[2] + setter.position[2]) / 2);
+  expect(moving).toMatchObject({ label: "2", color: "#38bdf8", pose: "approach", jump: 0 });
+  expect(moving.feet).toHaveLength(2);
+  expect(frame.progress).toBe(0);
+});
 
 it("rotates the six numbered athletes through every zone and gives the second touch to zone 2", () => {
   const template = buildSimulatedReceptionRotationPreset("6-0");
@@ -29,7 +45,7 @@ it("rotates the six numbered athletes through every zone and gives the second to
     final.ball.forEach((coordinate, axis) => expect(coordinate).toBeCloseTo(final.setHand![axis], 8));
     const rendered = buildCourtPerspectiveFrame(board, rotation, 1);
     team.forEach((id, index) => expect(rendered.actors.find(actor => actor.id === id)).toMatchObject({
-      label: String(index + 1), rotationPosition: zones[index], color: "#19c87b",
+      label: String(index + 1), rotationPosition: zones[index], color: zones[index] === 2 ? "#38bdf8" : "#19c87b",
     }));
   }
   expect(new Set(setters)).toEqual(new Set(team));
@@ -79,6 +95,30 @@ it("starts in the W and holds it until the serve, then releases the three attack
   for (const slot of [4, 5]) expect(serving.actors[slot].position[2]).toBeGreaterThan(6);
   expect(passing.receiver).toBe(5);
   expect(passing.actors[5].pose).toBe("follow");
+  const receiver = passing.actors[5];
+  expect(receiver.plantedStance).toBe(true);
+  expect(receiver.feet?.map(foot => foot[1])).toEqual([0, 0]);
+  const later = sampleCourtSimulation(board, 0, start.receiveContact! + .015)!;
+  expect(later.actors[5].feet).toEqual(receiver.feet);
+  const liftedFeet = Array.from({ length: 40 }, (_, i) =>
+    sampleCourtSimulation(board, 0, start.serveContact! + (start.receiveContact! - start.serveContact!) * i / 40)!
+      .actors[5].feet?.map(foot => foot[1]) ?? []);
+  expect(liftedFeet.some(([left, right]) => left > .02 && right === 0)).toBe(true);
+  expect(liftedFeet.some(([left, right]) => right > .02 && left === 0)).toBe(true);
+  let startingApproaches = 0;
+  for (const slot of [1, 2, 3]) {
+    const takeoff = sampleCourtSimulation(board, 0, start.receiveContact! + .001)!.actors[slot];
+    if (takeoff.pose === "approach") {
+      startingApproaches++;
+      expect(takeoff.previousPose).toBe("ready");
+      expect(takeoff.poseBlend).toBeLessThan(.01);
+    }
+    expect(takeoff.jump).toBe(0);
+    const [left, right] = takeoff.feet!;
+    expect(Math.hypot(left[0] - right[0], left[2] - right[2])).toBeCloseTo(.56);
+    expect([left[1], right[1]]).toEqual([0, 0]);
+  }
+  expect(startingApproaches).toBeGreaterThan(0);
   expect(final.actors[3].position[0]).toBeLessThan(-4.5);
   expect(Math.abs(final.actors[2].position[0])).toBeLessThan(1);
   expect(final.actors[1].position[0]).toBeGreaterThan(3);

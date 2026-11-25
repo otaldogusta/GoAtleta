@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs';
+import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,panPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs';
 
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-10,`${a} != ${b}`);
 const point=(x,y)=>({x,y});
+
+test('mouse pan follows the camera plane at a close zoom',()=>{
+ const camera={azimuth:Math.PI/2,elevation:Math.PI/4,distance:2.5,fov:39,target:{x:0,y:1,z:0}};
+ const moved=panPointerDrag(camera,90,60,600);
+ assert.ok(moved.x<0&&moved.y>1&&moved.z>0);
+ near(moved.x,1-moved.y);
+ assert.deepEqual(panPointerDrag(camera,0,0,600),camera.target);
+});
 
 test('one finger permits editing; the second takes over once and never changes the first grab point',()=>{
  const first=advanceTouchContacts(emptyTouchContacts(),'down',7,point(90,200));
@@ -45,7 +53,7 @@ test('touch jitter threshold is eight pixels while mouse sensitivity remains com
  const phone=orbitPointerDrag(angles,point(0,0),point(390/4,844/4),{width:390,height:844},'touch');
  const tablet=orbitPointerDrag(angles,point(0,0),point(834/4,1194/4),{width:834,height:1194},'touch');
  near(phone.azimuth,tablet.azimuth);near(phone.elevation,tablet.elevation);
- assert.equal(orbitPointerDrag(angles,point(0,0),point(0,9999),{width:390,height:844},'touch').elevation,1.25);
+ assert.equal(orbitPointerDrag(angles,point(0,0),point(0,9999),{width:390,height:844},'touch').elevation,1.52);
 });
 
 test('an offset grab beyond the court remains stationary at zero delta and reaches the full destination bounds',()=>{

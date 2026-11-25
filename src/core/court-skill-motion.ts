@@ -1,4 +1,5 @@
 import type { CourtSimulationActor, CourtSimulationPoint, CourtSimulationSample } from "./court-simulation-model";
+import { serveMotionProgress } from "../../public/visual-court-3d/serve-motion-clock.js";
 
 type Skill = "pass" | "passSide" | "dig" | "set" | "setBack" | "setJump" | "serve" | "serveSpin";
 export type CourtSkillMotion = {
@@ -7,6 +8,8 @@ export type CourtSkillMotion = {
   skillProgress?: number;
   skillSide?: number;
   contactTarget?: { x: number; y: number; z: number };
+  /** Initial world-space tangent of the set, used for the fingertip follow-through. */
+  setReleaseDirection?: CourtSimulationPoint;
 };
 
 const point = ([x, y, z]: CourtSimulationPoint) => ({ x, y, z });
@@ -22,20 +25,27 @@ export function courtSkillMotion(
   const receiving = sample.mode === "receive", attacking = sample.mode === "attack";
   if (receiving && actor.role === "server" && sample.serveContact != null && sample.tossStart != null && sample.serveGuide?.length && sample.tossHand) {
     const release = sample.tossStart, strike = sample.serveContact;
-    let progress = atContact(sample, strike, 1, .64);
-    // The first part raises the ball; the tossing hand releases exactly where its flight begins.
-    if (sample.progress <= release) progress = -1 + .35 * sample.progress / release;
-    else if (sample.progress < strike) progress = -.65 * (strike - sample.progress) / (strike - release);
+    const progress = serveMotionProgress(sample.progress, release, strike, sample.duration);
     const target = progress <= -.65 ? sample.ball : progress < -.40 ? sample.tossHand : sample.serveGuide[0];
     return { skillMotion: sample.config.serve === "Topspin" ? "serveSpin" : "serve", skillProgress: progress, contactTarget: point(target) };
   }
   const illustration = sample.mode === "defense" && slot === undefined;
   if (actor.role === "setter" && (slot === 0 && (attacking || receiving) || illustration) && sample.setHand) {
     const back = attacking && ["tempo-costas", "china", "fundo-1"].includes(sample.config.preset);
+    const destination = attacking ? sample.setDestination ?? sample.flight?.hit : undefined;
+    let setReleaseDirection: CourtSimulationPoint | undefined;
+    if (destination) {
+      // The set arc adds 4h·u(1−u) to the straight line from the hands to the hitter.
+      const dx = destination[0] - sample.setHand[0], dz = destination[2] - sample.setHand[2];
+      const dy = destination[1] - sample.setHand[1] + 4 * (sample.setArc ?? 0);
+      const length = Math.hypot(dx, dy, dz);
+      if (length > 0) setReleaseDirection = [dx / length, dy / length, dz / length];
+    }
     return {
       skillMotion: back ? "setBack" : illustration ? "set" : "setJump",
       skillProgress: atContact(sample, sample.setContact ?? 1, .62, .52),
       contactTarget: point(sample.setHand),
+      ...(setReleaseDirection && { setReleaseDirection }),
     };
   }
   if (actor.role !== "passer") return;
