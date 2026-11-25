@@ -14,7 +14,7 @@ atualizar dependências apenas para organizar documentação.
 | [dev-setup.mjs](../../../scripts/dev-setup.mjs), [.nvmrc](../../../.nvmrc) | Setup e doctor de pré-requisitos |
 | [metro.config.js](../../../metro.config.js), [metro-cache-io.cjs](../../../scripts/metro-cache-io.cjs) | I/O de cache get/set em FIFO, oito slots e retry restrito para EMFILE/ENFILE |
 | [validate.cjs](../../../scripts/release/validate.cjs), [validation-cache.cjs](../../../scripts/release/validation-cache.cjs) | Executor limitado a dois processos por padrão, recibos por conteúdo/ambiente |
-| [core-ci.yml](../../../.github/workflows/core-ci.yml), [eas-update.yml](../../../.github/workflows/eas-update.yml) | Fluxos versionados de CI e atualização nativa |
+| [core-ci.yml](../../../.github/workflows/core-ci.yml), [eas-update.yml](../../../.github/workflows/eas-update.yml) | Validação e build web em paralelo no GitHub. O Expo publica após ambos passarem em **Core checks**. |
 | [build_inventory.py](../../product/build_inventory.py), [inventory-template.html](../../product/inventory-template.html) | Dados e apresentação do checklist gerado |
 | [sentry.ts](../../../src/observability/sentry.ts), [vercel-analytics.ts](../../../src/observability/vercel-analytics.ts) | Observabilidade com tratamento de privacidade |
 | [patches](../../../patches/) | Compatibilidades aplicadas pelo postinstall; não remover sem investigação |
