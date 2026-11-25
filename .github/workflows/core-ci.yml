@@ -8,18 +8,18 @@ on:
 permissions:
   contents: read
 
+env:
+  SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+
 concurrency:
   group: core-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  core:
-    # Preserve the existing check name used by branch protection; coverage is full app.
-    name: Core checks
+  validate:
+    name: Tests and validation
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,8 +49,33 @@ jobs:
       - name: Validate the complete app and isolated SQL transactions
         run: npm run validate:app -- --fresh
 
-      - name: Build web
-        run: npm run build
-
       - name: Verify PostgreSQL transactions across independent connections
         run: npm run test:sql:concurrency
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  core:
+    name: Core checks
+    needs: [validate, web]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require successful tests and web build
+        env:
+          VALIDATION_RESULT: ${{ needs.validate.result }}
+          WEB_RESULT: ${{ needs.web.result }}
+        run: |
+          echo "Tests and validation = $VALIDATION_RESULT, web build = $WEB_RESULT"
+          [[ "$VALIDATION_RESULT" == "success" && "$WEB_RESULT" == "success" ]]

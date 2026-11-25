@@ -54,9 +54,12 @@ atestação de segurança transferível nem um substituto do smoke autenticado.
 
 ## CI e publicação
 
-O job continua se chamando **Core checks**, preservando branch protection e o
-workflow EAS que depende dele. O CI sempre executa os checks, independentemente
-de recibos. Só caches internos de ESLint e Jest são restaurados pelo GitHub
+No GitHub Actions, **Tests and validation** e **Web build** podem começar juntos
+em runners separados. O primeiro executa a validação completa e o teste de
+concorrência em PostgreSQL. O segundo exporta o app web. **Core checks** reúne
+os resultados e só passa quando ambos terminam com sucesso. O workflow do Expo
+aguarda esse resultado antes de publicar. O CI sempre executa os checks,
+independentemente de recibos. Só caches internos de ESLint e Jest são restaurados pelo GitHub
 Actions; dependências, configuração e patches fazem parte da chave. Execuções
 anteriores da mesma referência são canceladas quando substituídas.
 
