@@ -213,17 +213,20 @@ describe("court mobile tool flow", () => {
     expect(canvas().progress).toBe(.5);
   });
 
-  it("only opens an existing defense in read-only mode without authoring", async () => {
-    await mount(390, {}, { readOnly: true });
+  it("opens defense from a shared 6-0 reception without changing the original board", async () => {
+    const original = buildSimulatedReceptionRotationPreset("6-0");
+    const before = JSON.stringify(original);
+    await mount(390, { payload: original }, { readOnly: true });
     const modes = () => tree.root.findByType("Modes" as never).props;
-    expect(modes().defenseAvailable).toBe(false);
     act(() => modes().onChange("defense"));
-    expect(editor.commit).not.toHaveBeenCalled();
-    const next = ensureCourtDefenseStep(editor.payload);
-    editor = { ...editor, payload: next.payload }; act(() => render({ readOnly: true }));
-    expect(modes().defenseAvailable).toBe(true);
-    act(() => modes().onChange("defense"));
-    expect(editor.stepIndex).toBe(next.stepIndex);
+    expect(modes().mode).toBe("defense");
+    const quick = () => tree.root.findByType("QuickControls" as never).props;
+    act(() => quick().onDefensePresetChange("5"));
+    expect(canvas().payload.timeline.steps[canvas().stepIndex].simulation).toMatchObject({ mode: "defense" });
+    act(() => modes().onChange("receive"));
+    expect(modes().mode).toBe("receive");
+    expect(JSON.stringify(original)).toBe(before);
+    expect(editor.payload).toBe(original);
     expect(editor.commit).not.toHaveBeenCalled();
   });
 

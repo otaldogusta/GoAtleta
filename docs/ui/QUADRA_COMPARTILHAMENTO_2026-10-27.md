@@ -90,6 +90,14 @@ reaproveitamento pelos hashes. Push/deploy e confirmação de produção são et
 separadas; o smoke local com backend real não comprova publicação do cliente.
 
 
+## Defesa no link público
+
+A leitura pública abre Defesa mesmo em um link criado a partir de Recepção.
+O visualizador reutiliza etapas de defesa compatíveis com o sistema e o rodízio
+quando elas existem. A simulação preenche em memória as combinações ausentes de
+ataque e cobertura. A etapa selecionada e as alterações da simulação ficam na
+sessão do visualizador e o documento publicado conserva o conteúdo original.
+
 ## Paridade do estúdio em leitura — validação local de 27/10
 
 A prévia e a rota compartilhada na 8081 usam o mesmo estúdio. Inspeção visual

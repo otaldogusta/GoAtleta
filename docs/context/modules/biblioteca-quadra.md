@@ -369,6 +369,9 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
 - Exportação/importação editável remove vínculos pessoais segundo o serializer;
   rótulos/notas visíveis ainda são conteúdo do autor. Não criar compartilhamento
   público implícito nem substituir autorização pela existência de arquivo/link.
+- No link público, Defesa usa uma etapa compatível do documento quando disponível
+  e calcula a etapa em memória quando falta. A seleção e a simulação ficam na
+  sessão de leitura. [Contrato de compartilhamento](../../ui/QUADRA_COMPARTILHAMENTO_2026-10-27.md).
 - Scouting de equipe preserva organização, turma, sessão, fundamento e resultado;
   ações sincronizam contagens legadas. Sessão concluída rejeita adição/exclusão de ações.
 - A coleta por jogada foi implementada localmente em 07/10: contatos vinculados

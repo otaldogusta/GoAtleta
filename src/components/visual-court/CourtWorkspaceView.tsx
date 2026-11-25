@@ -32,7 +32,7 @@ import { buildCourtPerspectiveFrame, worldToCourtPoint, type CourtWorldPoint, ty
 import { configureCourtSimulation, getCourtSimulation, receptionPlayerIdentity, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../../core/court-simulation";
 import { configureCourtRotationSequenceMode, getReceptionRotationStep, isLegacyReceptionRotationSequence, replaceReceptionRotationSequence } from "../../core/court-simulation-sequence";
 import type { CourtDefenseCoverage, CourtSimulationPatch } from "../../core/court-simulation-model";
-import { COURT_DEFENSE_ATTACKS, courtDefensePreset, ensureCourtDefenseStep, getCourtDefenseSideStepIndex, getCourtDefenseStepIndex, matchesCourtDefenseContext, type CourtDefensePreset } from "../../core/court-defense-preset";
+import { courtDefensePreset, ensureCourtDefenseStep, getCourtDefenseSideStepIndex, getCourtDefenseStepIndex, matchesCourtDefenseContext, type CourtDefensePreset } from "../../core/court-defense-preset";
 import { defensePlaybackClock } from "../../core/court-defense-motion";
 import { isDefenseAttackAlternative } from "../../core/court-simulation-display";
 import { CourtActorActionPicker } from "./CourtActorActionPicker";
@@ -102,12 +102,13 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     setNotice("");
     setError("");
   }, [editor.cls, error, notice, setError, setNotice, showSaveToast, standalone]);
-  const { stepIndex } = editor;
   const previousDefenseStep = useRef<string | null>(null);
   const lastDefenseStep = useRef<string | null>(null);
   const [viewerHiddenLayers, setViewerHiddenLayers] = useState<string[] | null>(null);
-  const [viewerSimulation, setViewerSimulation] = useState<{ source: CourtVisualPayload; payload: CourtVisualPayload } | null>(null);
-  const simulationPayload = readOnly && viewerSimulation?.source === editor.payload ? viewerSimulation.payload : editor.payload;
+  const [viewerSimulation, setViewerSimulation] = useState<{ source: CourtVisualPayload; payload: CourtVisualPayload; stepIndex?: number } | null>(null);
+  const activeViewerSimulation = readOnly && viewerSimulation?.source === editor.payload ? viewerSimulation : null;
+  const simulationPayload = activeViewerSimulation?.payload ?? editor.payload;
+  const stepIndex = activeViewerSimulation?.stepIndex ?? editor.stepIndex;
   const payload = useMemo(() => readOnly && viewerHiddenLayers ? { ...simulationPayload, editor: { ...simulationPayload.editor!, hiddenLayers: viewerHiddenLayers } } : simulationPayload, [simulationPayload, readOnly, viewerHiddenLayers]);
   const commit: typeof editor.commit = readOnly ? readonlyNoop : editor.commit;
   const { colors, mode } = useAppTheme();
@@ -338,29 +339,33 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
     const targetProgress = targetStep?.simulation?.mode === "defense" ? 1 : 0;
     if (targetProgress === 1) lastDefenseStep.current = targetStep.id;
     stop(); playhead.current = targetProgress; setProgress(targetProgress);
-    setSelected([]); editor.selectStep(i);
+    setSelected([]);
+    if (readOnly) simulate(p => p, i);
+    else editor.selectStep(i);
   };
   const selectDefensePreset = (preset: CourtDefensePreset, coverage?: CourtDefenseCoverage) => {
     if (simulationMode === "defense" && preset === defensePreset && coverage === defenseCoverage) { selectStep(stepIndex); return; }
     const existing = getCourtDefenseStepIndex(payload, preset, coverage, simulation);
     if (existing >= 0) { selectStep(existing); return; }
-    if (readOnly) return;
     const next = ensureCourtDefenseStep(payload, preset, coverage ?? "front", simulation);
     stop(); setSelected([]);
     lastDefenseStep.current = next.payload.timeline.steps[next.stepIndex].id;
-    commit(() => next.payload, next.stepIndex);
+    simulate(() => next.payload, next.stepIndex);
     playhead.current = 1; setProgress(1);
   };
   const findDefenseSide = (preset: CourtDefensePreset) => getCourtDefenseSideStepIndex(payload, preset, defenseCoverage, simulation);
   const matchesDefense = (item: typeof step) => item.simulation?.mode === "defense" && matchesCourtDefenseContext(item.simulation, simulation);
-  const unavailableDefensePresets = readOnly ? COURT_DEFENSE_ATTACKS.map(option => option.value).filter(preset => findDefenseSide(preset) < 0) : undefined;
   const changeDefenseAttack = (preset: CourtDefensePreset) => {
     if (!readOnly || preset === defensePreset) { selectDefensePreset(preset, defenseCoverage); return; }
     const existing = findDefenseSide(preset);
     if (existing >= 0) selectStep(existing);
+    else selectDefensePreset(preset, defenseCoverage);
   };
-  const simulate: typeof editor.commit = readOnly ? update => {
-    setViewerSimulation(previous => ({ source: editor.payload, payload: update(previous?.source === editor.payload ? previous.payload : editor.payload) }));
+  const simulate: typeof editor.commit = readOnly ? (update, target) => {
+    setViewerSimulation(previous => {
+      const current = previous?.source === editor.payload ? previous : null;
+      return { source: editor.payload, payload: update(current?.payload ?? editor.payload), stepIndex: target ?? current?.stepIndex };
+    });
   } : editor.commit;
   const [attackPreview, setAttackPreview] = useState<{ source: CourtVisualPayload; index: number; payload: CourtVisualPayload; progress: number } | null>(null);
   if (attackPreview && (!workspacePanelOpen || workspaceTab !== "adjustments" || attackPreview.source !== payload || attackPreview.index !== stepIndex)) {
@@ -450,7 +455,6 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         let target = remembered >= 0 ? remembered : payload.timeline.steps.findIndex(matchesRotation);
         let next = payload;
         if (target < 0) {
-          if (readOnly) return;
           const blank = addBlankStep(payload, stepIndex);
           target = blank.stepIndex;
           next = configureCourtSimulation(blank.payload, target, { mode: patch.mode, system: simulation?.system, rotation: simulation?.rotation }, { teamActorIds: simulation?.teamActorIds });
@@ -459,7 +463,11 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         const targetMode = next.timeline.steps[target].simulation?.mode ?? (next.timeline.steps[target].phase === "attack_shape" ? "attack" : "receive");
         if (targetMode !== patch.mode) next = configureCourtRotationSequenceMode(next, target, patch.mode);
         if (next === payload) selectStep(target);
-        else { simulate(() => next, target); if (readOnly) editor.selectStep(target); }
+        else {
+          simulate(() => next, target);
+          playhead.current = 0;
+          setProgress(0);
+        }
         return;
       }
       simulate(p => configureCourtRotationSequenceMode(p, stepIndex, patch.mode!));
@@ -993,7 +1001,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             else void editor.leaveWithDraft(onBack);
           })}
           {courtViews}
-          <CourtSimulationModes mode={simulationMode} defenseAvailable={!readOnly || payload.timeline.steps.some(matchesDefense)} disabled={changingCourt} onChange={next => configureSimulation({ mode: next })} />
+          <CourtSimulationModes mode={simulationMode} disabled={changingCourt} onChange={next => configureSimulation({ mode: next })} />
           {headerActions}
           {!readOnly && !standalone ? <CourtSaveStatus status={editor.draftError && editor.autosaveStatus !== "saved" ? "error" : editor.autosaveStatus} error={editor.autosaveError || editor.draftError} onRetry={editor.retryAutosave} disabled={suspended || busy || editor.opening} /> : null}
           </View>
@@ -1002,7 +1010,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
 
       {simulation ? <View style={[styles.top, overlayScale("top center"), { top: insets.top + (compactWeb ? 66 : 78) * uiScale, maxWidth: headerWidth, borderWidth: 0 }]} pointerEvents="box-none">
         <CourtSimulationQuickControls mode={simulationMode} config={simulation ?? null} disabled={changingCourt} backgroundColor={surface}
-          onChange={configureSimulation} onDefensePresetChange={changeDefenseAttack} unavailableDefensePresets={unavailableDefensePresets} />
+          onChange={configureSimulation} onDefensePresetChange={changeDefenseAttack} />
       </View> : null}
 
       {editor.draftError ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ position: "absolute", top: insets.top + 122 * uiScale, ...overlayScale("top center"), alignSelf: "center", maxWidth: headerWidth, color: colors.dangerText, fontSize: 11 }}>{editor.draftError}</Text> : null}
@@ -1011,8 +1019,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
         tools={useToolsSheet ? <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 6, paddingBottom: 4 }}>{toolsContent(true)}</ScrollView> : undefined}
         adjustments={<CourtSimulationSettings primarySelectorInHeader config={simulation ?? null} mode={simulationMode} showRotation={showRotationControls} attackArcValue={attackArcValue} disabled={changingCourt} exportDisabled={readOnly} onChange={configureSimulation} onAttackPreview={previewAttackAdjustment} onRestore={() => { resetPlayback(); setSelected([]); if (readOnly) { setViewerSimulation(null); setViewerHiddenLayers(null); } else commit(p => resetCourtSimulation(p, stepIndex)); }} onShare={() => { stop(); if (Platform.OS === "web" && !standalone) onShare?.(); else setPanel("export"); }} cameraView={cameraView} onCameraView={value => { setCameraView(value); setCameraReset(n => n + 1); }} labelsVisible={showSimulationGuides} onLabelsVisible={setSimulationGuides}
           onDefenseCoverageChange={coverage => selectDefensePreset(defensePreset, coverage)}
-          onDefensePresetChange={changeDefenseAttack} unavailableDefensePresets={unavailableDefensePresets}
-          unavailableDefenseCoverage={readOnly ? (["front", "zone1"] as const).filter(coverage => getCourtDefenseStepIndex(payload, defensePreset, coverage, simulation) < 0) : undefined} />}
+          onDefensePresetChange={changeDefenseAttack} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
       <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && simulationMode !== "receive"} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setRotationMotion(null); setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
