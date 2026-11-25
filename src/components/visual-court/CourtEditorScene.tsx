@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from "react-native-svg";
 import { actorPoint, pointAlong, motionTrail, type CourtDrawing } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualPayload } from "../../core/visual-court";
+import { courtRotationServeProgress, courtRotationTravel } from "../../core/visual-court-perspective";
 import { courtOpponentIdentity, receptionPlayerIdentity, sampleCourtSimulation } from "../../core/court-simulation";
 import { middleAttackColor } from "../../core/court-simulation/attack-settings.js";
 import { displayCourtDrawings, simulationFloorPoint, type DisplayedCourtDrawing } from "../../core/court-simulation-display";
@@ -31,8 +32,8 @@ export function displayActors(p: CourtVisualPayload, index: number, progress?: n
     const trajectory = (s.trajectories ?? s.transitions)?.find(t => t.actorId === a.id);
     const identity = receptionPlayerIdentity(sample?.config, a.id);
     const opponent = courtOpponentIdentity(sample?.config, a);
-    const roleLabel = Boolean(opponent || (identity && sample?.config.system !== "6-0"));
-    return { ...a, label: identity?.label ?? opponent?.label ?? a.label, receptionRole: roleLabel, color: identity?.color ?? opponent?.color ?? middleAttackColor(sample?.config, a.id) ?? a.color, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
+    const roleLabel = Boolean(opponent || identity);
+    return { ...a, label: identity?.label ?? opponent?.label ?? a.label, receptionRole: roleLabel, numberedPlayer: Boolean(identity && sample?.config.system === "6-0"), color: identity?.color ?? opponent?.color ?? middleAttackColor(sample?.config, a.id) ?? a.color, point: simulated ? simulationFloorPoint(simulated.position) : typeof progress === "number" && trajectory?.points.length ? pointAlong(trajectory.points, progress) : actorPoint(p, index, a.id) };
   });
 }
 const interpolate = (a: CourtPoint, b: CourtPoint, t: number): CourtPoint => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
@@ -129,16 +130,33 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
   const step = p.timeline.steps[stepIndex];
   const hide = p.editor?.hiddenLayers ?? [];
   const simulation = sampleCourtSimulation(p, stepIndex, progress ?? 0);
-  const guides = simulation ? buildCourtPerspectiveSimulation(p, stepIndex, simulation, !hide.includes("movements")) : null;
+  const servePreview = rotationPreview?.serve;
+  const serveProgress = courtRotationServeProgress(rotationPreview);
+  const ownServe = serveProgress === null ? null : sampleCourtSimulation(p, stepIndex, serveProgress);
+  const servingPlayer = ownServe?.actors.find(actor => actor.role === "server");
+  const opponentServerId = servePreview ? simulation?.actors.find(actor => actor.role === "server")?.id : undefined;
+  const guides = simulation && !servePreview ? buildCourtPerspectiveSimulation(p, stepIndex, simulation, !hide.includes("movements")) : null;
   const drawings = new Map(displayCourtDrawings(p, stepIndex, progress).map(drawing => [drawing.id, drawing]));
+  if (rotationPreview?.serve && simulation?.ballId) {
+    const ball = drawings.get(simulation.ballId);
+    if (ownServe && ball) {
+      const [x, , z] = ownServe.ball;
+      drawings.set(ball.id, { ...ball, points: [{ x: .5 - x / 9, y: .5 - z / 18 }] });
+    } else drawings.delete(simulation.ballId);
+  }
   const exiting = rotationPreview?.exiting ?? {};
   const outgoing = p.actors.filter(actor => exiting[actor.id] && !p.editor?.actorMeta[actor.id]?.hidden)
-    .map(actor => ({ ...actor, ...exiting[actor.id], point: actor.initialPosition, receptionRole: true }));
-  const actors = new Map([...displayActors(p, stepIndex, progress), ...outgoing].map(actor => {
+    .map(actor => ({ ...actor, ...exiting[actor.id], point: actor.initialPosition, receptionRole: true, numberedPlayer: false }));
+  const actors = new Map([...displayActors(p, stepIndex, progress), ...outgoing].filter(actor => actor.id !== opponentServerId).map(actor => {
+    if (servingPlayer && actor.id === servePreview?.serverId) {
+      const [x, , z] = servingPlayer.position;
+      return [actor.id, { ...actor, point: { x: .5 - x / 9, y: .5 - z / 18 } }];
+    }
     const path = rotationPreview?.paths[actor.id];
     if (!path || !rotationPreview) return [actor.id, actor];
-    const [start, end] = path;
-    const t = rotationPreview.progress;
+    const travel = courtRotationTravel(rotationPreview, actor.id);
+    const [start, end] = travel.path;
+    const t = travel.progress;
     return [actor.id, { ...actor, point: {
       x: .5 + (start[0] + (end[0] - start[0]) * t) / 9,
       y: .5 + (start[2] + (end[2] - start[2]) * t) / 18,
@@ -217,7 +235,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
           <Circle cx={pt.x} cy={pt.y - 35} r={16} fill={color} stroke="#10213880" strokeWidth={2} />
           <Path transform={`translate(${pt.x} ${pt.y})`} d={PERSON_BODY_PATH} fill={color} stroke="#10213880" strokeWidth={2} strokeLinejoin="round" />
         </G> : <Circle cx={pt.x} cy={pt.y} r={52} fill={color} stroke="#ffffff55" strokeWidth={2} />}
-        {!hide.includes("labels") && (p.editor?.showActorNumbers !== false || !/^\d+$/.test(String(a.label || a.number || ""))) ? <SvgText x={pt.x} y={pt.y + (a.receptionRole ? -72 : person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={a.receptionRole ? 24 : person ? 25 : 37} fill={a.receptionRole ? "#fff" : a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
+        {!hide.includes("labels") && (p.editor?.showActorNumbers !== false || !a.numberedPlayer && !/^\d+$/.test(String(a.label || a.number || ""))) ? <SvgText x={pt.x} y={pt.y + (a.receptionRole ? -72 : person ? 16 : 14)} fontFamily="Arial" fontWeight="700" fontSize={a.receptionRole ? 24 : person ? 25 : 37} fill={a.receptionRole ? "#fff" : a.role === "libero" ? "#102138" : "#fff"} textAnchor="middle">{a.label || a.number}</SvgText> : null}
         {p.editor?.actorMeta[a.id]?.locked ? <Circle cx={pt.x + 39} cy={pt.y - 39} r={7} fill="#fff" /> : null}
       </G>;
     })}

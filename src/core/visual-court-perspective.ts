@@ -151,7 +151,32 @@ export type CourtRotationPreview = {
   exiting?: Record<string, { label: string; color: string }>;
   progress: number;
   durationMs: number;
+  serve?: { serverId: string; positions: Record<string, CourtSimulationPoint>; netPlayers: string[]; defensePositions?: Record<string, CourtSimulationPoint> };
 };
+
+export function courtRotationServeProgress(preview?: CourtRotationPreview) {
+  const t = preview?.progress ?? 0;
+  return preview?.serve && t >= .33 && t < .68 ? (t - .33) / .35 * .62 : null;
+}
+
+export function courtRotationTravel(preview: CourtRotationPreview, id: string) {
+  const path = preview.paths[id];
+  const servePosition = preview.serve?.positions[id];
+  if (!servePosition) return { path, progress: preview.progress, durationMs: preview.durationMs };
+  const t = preview.progress;
+  const defense = preview.serve?.defensePositions?.[id];
+  const [start, end, from, to] = t < .33
+    ? [0, .33, path[0], servePosition] as const
+    : defense && t >= .88
+      ? [.90, 1, defense, path[1]] as const
+      : [.68, defense ? .88 : 1, servePosition, defense ?? path[1]] as const;
+  const progress = Math.max(0, Math.min(1, (t - start) / (end - start)));
+  return {
+    path: [from, to] as const,
+    progress: progress * progress * (3 - 2 * progress),
+    durationMs: preview.durationMs * (end - start),
+  };
+}
 
 export function buildCourtPerspectiveFrame(
   payload: CourtVisualPayload,
@@ -173,9 +198,14 @@ export function buildCourtPerspectiveFrame(
   const showMovement = !hide.includes("movements");
   const simulation = sampleCourtSimulation(payload, index, fraction);
   const authoredFinal = simulation?.mode === "defense" && fraction === 1;
+  const servePreview = rotationPreview?.serve;
+  const serveProgress = rotationPreview?.progress ?? 0;
+  const ownServeProgress = courtRotationServeProgress(rotationPreview);
+  const ownServe = ownServeProgress === null ? null : sampleCourtSimulation(payload, index, ownServeProgress);
+  const serveActor = ownServe?.actors.find(actor => actor.role === "server");
   const sampled = new Map(simulation?.actors.map(actor => [actor.id, actor]));
   if (simulation) {
-    frame.simulation = buildCourtPerspectiveSimulation(payload, index, simulation, showMovement);
+    frame.simulation = buildCourtPerspectiveSimulation(payload, index, simulation, showMovement && !servePreview);
     if (authoredFinal && showMovement && !hide.includes("drawings") && !hide.includes("actors")) {
       const blockers = simulation.actors.filter(actor => !payload.editor?.actorMeta[actor.id]?.hidden);
       const projection = projectCourtBlockShadow(simulation.ball, blockers);
@@ -204,7 +234,7 @@ export function buildCourtPerspectiveFrame(
       const identity = receptionPlayerIdentity(simulation?.config, actor.id);
       const opponent = courtOpponentIdentity(simulation?.config, actor);
       const label = exiting?.label ?? identity?.label ?? opponent?.label ?? (actor.label || String(actor.number ?? ""));
-      const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || !/^\d+$/.test(label));
+      const showLabel = !hide.includes("labels") && (payload.editor?.showActorNumbers !== false || !(identity && simulation?.config.system === "6-0") && !/^\d+$/.test(label));
       const state = sampled.get(actor.id);
       const action = step.actorActions?.[actor.id];
       const manualTravel = !state && !elevation && (!action || action === "ready") && path.length > 1;
@@ -265,21 +295,49 @@ export function buildCourtPerspectiveFrame(
           path: [],
         });
       }
+      if (servePreview && state?.role === "server") {
+        result.opacity = Math.max(0, 1 - Math.min(serveProgress / .12, (1 - serveProgress) / .12));
+      }
       const rotationPath = rotationPreview?.paths[actor.id];
       if (rotationPath && rotationPreview) {
-        const [start, end] = rotationPath;
-        const t = rotationPreview.progress;
+        const travel = courtRotationTravel(rotationPreview, actor.id);
+        const [start, end] = travel.path;
+        const t = travel.progress;
         const entering = rotationPreview.entering?.includes(actor.id);
         if (entering || exiting) {
           result.opacity = entering ? Math.min(1, t / .25) : Math.min(1, (1 - t) / .35);
         }
-        const points = rotationPath.map(([x, , z]) => ({ x, z }));
-        const gait = manualCourtTravel(points, t, rotationPreview.durationMs);
+        const points = travel.path.map(([x, , z]) => ({ x, z }));
+        const gait = ownServe ? undefined : manualCourtTravel(points, t, travel.durationMs);
         Object.assign(result, gait, {
           position: { x: start[0] + (end[0] - start[0]) * t, y: 0, z: start[2] + (end[2] - start[2]) * t },
           poseRole: "passer", pose: gait ? "approach" : "ready", previousPose: "ready",
           poseBlend: gait ? 1 : 0, jump: 0,
         });
+        if (ownServe) {
+          // The ready poses use their own stance, independent of the preceding steps.
+          Object.assign(result, {
+            facing: [0, -1], feet: undefined, feetWeight: undefined, plantedStance: false,
+          });
+        }
+        if (ownServe && serveActor && actor.id === servePreview?.serverId) {
+          const [x, , z] = serveActor.position;
+          const dx = serveActor.facing[0] - x, dz = serveActor.facing[1] - z;
+          const length = Math.hypot(dx, dz);
+          const motion = courtSkillMotion(ownServe, serveActor);
+          const contact = motion?.contactTarget;
+          Object.assign(result, {
+            position: { x: -x, y: 0, z: -z },
+            facing: length > .000001 ? [-dx / length, -dz / length] : [0, -1],
+            poseRole: "server", pose: serveActor.pose, jump: serveActor.jump,
+            previousPose: serveActor.previousPose, poseBlend: serveActor.poseBlend,
+            mirror: serveActor.mirror ?? true, poseScale: 1,
+            ...motion,
+            contactTarget: contact ? { x: -contact.x, y: contact.y, z: -contact.z } : undefined,
+          });
+        } else if (ownServe && servePreview?.netPlayers.includes(actor.id)) {
+          Object.assign(result, { poseRole: "blocker", pose: "ready", handAngle: 180, crouch: .13, extension: .28 * Math.min(1, (serveProgress - .33) / .05, (.68 - serveProgress) / .05) });
+        }
       }
       return result;
     });
@@ -304,7 +362,7 @@ export function buildCourtPerspectiveFrame(
       ...(step.arrows ?? []).map(arrow => ({ id: arrow.id, kind: "arrow" as const, points: [arrow.from, arrow.to], color: arrow.color ?? "#fff", size: 28, rotation: 0 })),
       ...payload.markers.filter(marker => !step.markerIds || step.markerIds.includes(marker.id)).map(marker => ({ id: marker.id, kind: marker.type, points: [marker.position], color: marker.color ?? "#ffdc53", size: 28, rotation: 0 })),
     ];
-    const drawings = [...legacy, ...frameDrawings(payload, index)].filter(drawing => courtDrawingTraceProgress(drawing, simulation) >= 0).map(drawing => simulation && drawing.id === simulation.ballId
+    const drawings = [...legacy, ...frameDrawings(payload, index)].filter(drawing => courtDrawingTraceProgress(drawing, simulation) >= 0 && (!servePreview || ownServe || drawing.id !== simulation?.ballId)).map(drawing => simulation && drawing.id === simulation.ballId
       ? { ...drawing, points: [{ x: (simulation.defenseContact ?? simulation.ball)[0] / 9 + .5, y: (simulation.defenseContact ?? simulation.ball)[2] / 18 + .5 }] }
       : drawingAtProgress(drawing, fraction));
     const projected = revealCourtBlockShadow(resolveCourtDrawingAnchors(drawings), simulation, payload.editor).map(drawing => {
@@ -313,7 +371,8 @@ export function buildCourtPerspectiveFrame(
       const traceProgress = courtDrawingTraceProgress(drawing, simulation);
       if (traceProgress < 1) result.traceProgress = traceProgress;
       if (simulation && drawing.id === simulation.ballId) {
-        result.points = [{ x: simulation.ball[0], y: simulation.ball[1], z: simulation.ball[2] }];
+        const [x, y, z] = ownServe?.ball ?? simulation.ball;
+        result.points = ownServe ? [{ x: -x, y, z: -z }] : servePreview ? [] : [{ x, y, z }];
         result.simulated = !authoredFinal;
         delete result.motion;
       }

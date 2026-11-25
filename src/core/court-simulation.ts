@@ -27,13 +27,15 @@ export function courtOpponentIdentity(config: CourtSimulation | undefined, actor
   return { label: "Sacador", color: !color || ["#3b82f6", "#4389ff"].includes(color.toLowerCase()) ? opponentRed : color };
 }
 /** Presentation follows the simulation slots, including boards with generic actor names. */
+const SIX_ZERO_DIAGONAL_COLORS = ["#38bdf8", "#a78bfa", "#19c87b", "#19c87b", "#a78bfa", "#38bdf8"];
+
 export function receptionPlayerIdentity(config: CourtSimulation | undefined, id: string) {
   if (config?.system === "6-0") {
     const jerseyIndex = config.teamActorIds?.indexOf(id) ?? -1;
-    if (jerseyIndex < 0) return undefined;
+    if (jerseyIndex < 0 || jerseyIndex >= SIX_ZERO_DIAGONAL_COLORS.length) return undefined;
     const position = sixZeroZone(jerseyIndex, config.rotation);
-    const color = position === 2 && config.mode !== "defense" ? "#38bdf8" : "#19c87b";
-    return { label: String(jerseyIndex + 1), color, position };
+    const setter = position === 2 && config.mode !== "defense";
+    return { label: `Jogador ${jerseyIndex + 1}${setter ? " • (Lv)" : ""}`, color: SIX_ZERO_DIAGONAL_COLORS[jerseyIndex], position };
   }
   if (config?.mode !== "receive") return undefined;
   const slot = (config.teamActorIds ?? config.actorIds).indexOf(id);

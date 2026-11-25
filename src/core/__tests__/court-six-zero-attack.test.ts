@@ -61,8 +61,8 @@ it("keeps a legal preset in the editor and all six numbered players in a reopene
   const perspective = buildCourtPerspectiveFrame(reopened, 0, .65);
   team.forEach((id, jersey) => {
     const player = perspective.actors.find(item => item.id === id)!;
-    expect(player.label).toBe(String(jersey + 1));
-    expect(player.color).toBe(id === sample.actors[0].id ? "#38bdf8" : "#19c87b");
+    expect(player.label).toBe(`Jogador ${jersey + 1}${id === sample.actors[0].id ? " • (Lv)" : ""}`);
+    expect(player.color).toBe(["#38bdf8", "#a78bfa", "#19c87b", "#19c87b", "#a78bfa", "#38bdf8"][jersey]);
     expect(worldToCourtPoint(player.position)).toEqual(simulationFloorPoint(sample.actors.find(item => item.id === id)!.position));
   });
   const otherSystem = configureCourtSimulation(reopened, 0, { system: "4-2" });

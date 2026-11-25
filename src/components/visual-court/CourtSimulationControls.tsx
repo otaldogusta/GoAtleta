@@ -13,7 +13,8 @@ import { courtEditingDock, courtPlaybackLayout } from "./court-overlay-layout";
 
 type SimulationMode = CourtSimulation["mode"];
 type CameraView = "front" | "side" | "orbit";
-const ROTATIONS = ["P1", "P6", "P5", "P4", "P3", "P2"] as const;
+const ROTATION_ORDER = [1, 6, 5, 4, 3, 2] as const;
+const rotationLabel = (index: number, system?: string) => `${system === "6-0" ? "R" : "P"}${ROTATION_ORDER[index]}`;
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2].map(value => ({ value, label: `${String(value).replace(".", ",")}×` }));
 const ATTACK_SET_OPTIONS = [
   { id: "4", label: "Bola alta na entrada" },
@@ -173,8 +174,8 @@ export function CourtSimulationModes({ mode, onChange, disabled = false, defense
   </View>;
 }
 
-export function CourtSimulationTransport({ playing, progress, speed, rotation, onPlay, onRestart, onPreviousRotation, onNextRotation, onSeek, onSpeed, onOpenSteps, editingControls, dockInsets, disabled = false, bottom = 20, showRotation = true, uiScale = 1 }: {
-  playing: boolean; progress: number; speed: number; rotation: number;
+export function CourtSimulationTransport({ playing, progress, speed, rotation, system, onPlay, onRestart, onPreviousRotation, onNextRotation, onSeek, onSpeed, onOpenSteps, editingControls, dockInsets, disabled = false, bottom = 20, showRotation = true, uiScale = 1 }: {
+  playing: boolean; progress: number; speed: number; rotation: number; system?: CourtSimulation["system"];
   onPlay: () => void; onRestart: () => void; onPreviousRotation: () => void; onNextRotation: () => void;
   onSeek: (value: number) => void; onSpeed: (value: number) => void; onOpenSteps: () => void;
   disabled?: boolean; bottom?: number; showRotation?: boolean; uiScale?: number;
@@ -221,9 +222,9 @@ export function CourtSimulationTransport({ playing, progress, speed, rotation, o
     setSpeedOpen(true);
   };
   const rotationControls = showRotation ? <View style={{ flexDirection: "row", alignItems: "center", gap: compactOptions ? 0 : 2 }}>
-        <IconButton transport compact={compactOptions} label={`Rotação anterior: ${ROTATIONS[(selectedRotation + 5) % 6]}`} icon="chevronBack" onPress={onPreviousRotation} disabled={disabled} />
-        <Text style={{ width: compactOptions ? 16 : 20, textAlign: "center", fontSize: compactOptions ? 10 : 11, color: colors.text }}>{ROTATIONS[selectedRotation]}</Text>
-        <IconButton transport compact={compactOptions} label={`Próxima rotação: ${ROTATIONS[(selectedRotation + 1) % 6]}`} icon="chevronForward" onPress={onNextRotation} disabled={disabled} />
+        <IconButton transport compact={compactOptions} label={`Rotação anterior: ${rotationLabel((selectedRotation + 5) % 6, system)}`} icon="chevronBack" onPress={onPreviousRotation} disabled={disabled} />
+        <Text style={{ width: compactOptions ? 16 : 20, textAlign: "center", fontSize: compactOptions ? 10 : 11, color: colors.text }}>{rotationLabel(selectedRotation, system)}</Text>
+        <IconButton transport compact={compactOptions} label={`Próxima rotação: ${rotationLabel((selectedRotation + 1) % 6, system)}`} icon="chevronForward" onPress={onNextRotation} disabled={disabled} />
       </View> : null;
   const speedControl = <View ref={speedTrigger} collapsable={false}>
     <Pressable suppressWebHoverFeedback disableWebPressScale accessibilityRole="button" accessibilityLabel="Velocidade da reprodução" accessibilityValue={{ text: rate }} accessibilityState={{ expanded: speedOpen && !disabled, disabled }} disabled={disabled} onPress={toggleSpeed} style={({ hovered, pressed }) => [styles.transportRow, { minWidth: compactOptions || editingDock ? 44 : 48, minHeight: editingDock ? 44 : Platform.OS === "web" ? 32 : 40, paddingHorizontal: compactOptions ? 4 : 6, justifyContent: "center", borderRadius: radius.full, backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 }]}>
@@ -300,7 +301,7 @@ export function CourtSimulationQuickControls({ mode, config, disabled, onChange,
   const compact = Platform.OS === "web" && width <= 700;
   return <View key={mode} {...{ dataSet: { courtQuickSlide: "true" } }} style={{ alignSelf: "center", width: mode === "receive" ? 252 : 218, maxWidth: "100%" }}>
     {mode === "receive" ? <Segments label="Rodízio" backgroundColor={backgroundColor} slideSelection compact={compact} disabled={disabled} value={config?.rotation ?? 0}
-      options={ROTATIONS.map((label, value) => ({ label, value, accessibilityLabel: `Rodízio ${label}` }))}
+      options={ROTATION_ORDER.map((_, value) => { const label = rotationLabel(value, config?.system); return { label, value, accessibilityLabel: `Rodízio ${label}` }; })}
       onChange={rotation => onChange({ rotation })} />
       : mode === "attack" ? <AttackSetPicker preset={config?.preset ?? "4"} system={config?.system} attackSettings={config?.attackSettings} onChange={onChange} disabled={disabled} compactWeb={compact} backgroundColor={backgroundColor} />
       : <Segments label="Ataque da defesa" backgroundColor={backgroundColor} slideSelection compact={compact} disabled={disabled} value={courtDefensePreset(config?.preset)}
@@ -341,7 +342,7 @@ export function CourtSimulationSettings({ config, mode, onChange, onRestore, onS
     ? { ...attackSettings, blockAngle: value, blockAngles: {} }
     : { ...attackSettings, blockAngles: { ...attackSettings.blockAngles, [activeAngleTarget]: value } };
 
-  const rotationControl = <Row label="RODÍZIO"><View accessibilityRole="radiogroup" accessibilityLabel="Rodízio" style={{ flexDirection: "row", gap: touch || compactWeb ? 1 : undefined, justifyContent: touch || compactWeb ? undefined : "space-between" }}>{ROTATIONS.map((label, rotation) => <Pressable suppressWebHoverFeedback disableWebPressScale key={label} accessibilityRole="radio" accessibilityLabel={`Rodízio ${label}`} accessibilityState={{ checked: (config?.rotation ?? 0) === rotation, disabled }} aria-checked={(config?.rotation ?? 0) === rotation} disabled={disabled} onPress={() => onChange({ rotation })} style={({ hovered, pressed }) => ({ flex: touch || compactWeb ? 1 : undefined, width: touch || compactWeb ? undefined : 30, minWidth: 0, height: compactWeb ? 28 : mobile && touch ? 44 : 30, borderRadius: radius.full, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: (config?.rotation ?? 0) === rotation ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 })}><Text style={{ color: (config?.rotation ?? 0) === rotation ? colors.primaryText : colors.muted, fontSize: touch || compactWeb ? 10 : 12 }}>{label}</Text></Pressable>)}</View></Row>;
+  const rotationControl = <Row label="RODÍZIO"><View accessibilityRole="radiogroup" accessibilityLabel="Rodízio" style={{ flexDirection: "row", gap: touch || compactWeb ? 1 : undefined, justifyContent: touch || compactWeb ? undefined : "space-between" }}>{ROTATION_ORDER.map((_, rotation) => { const label = rotationLabel(rotation, config?.system); return <Pressable suppressWebHoverFeedback disableWebPressScale key={label} accessibilityRole="radio" accessibilityLabel={`Rodízio ${label}`} accessibilityState={{ checked: (config?.rotation ?? 0) === rotation, disabled }} aria-checked={(config?.rotation ?? 0) === rotation} disabled={disabled} onPress={() => onChange({ rotation })} style={({ hovered, pressed }) => ({ flex: touch || compactWeb ? 1 : undefined, width: touch || compactWeb ? undefined : 30, minWidth: 0, height: compactWeb ? 28 : mobile && touch ? 44 : 30, borderRadius: radius.full, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: (config?.rotation ?? 0) === rotation ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", opacity: disabled ? 0.55 : 1 })}><Text style={{ color: (config?.rotation ?? 0) === rotation ? colors.primaryText : colors.muted, fontSize: touch || compactWeb ? 10 : 12 }}>{label}</Text></Pressable>; })}</View></Row>;
   return <ScrollView accessibilityLabel="Ajustes da jogada" keyboardShouldPersistTaps="handled" style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: compactWeb ? 8 : 10, paddingBottom: spacing.sm }}>
 
         {mode === "attack" && showRotation ? rotationControl : null}

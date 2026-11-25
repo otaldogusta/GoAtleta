@@ -48,6 +48,10 @@ Scouting registra observações técnicas da equipe e autorregistros individuais
   Defesa e exportação de arquivo. A Biblioteca oferece os mesmos modelos de
   recepção 5×1, 4×2 simples, 6×2 e 6×0 da quadra da turma. Cada um abre seis rodízios.
   No 4×2 levanta quem está na rede; no 6×2, quem vem do fundo.
+  No 6×0, os controles mostram R1, R6, R5, R4, R3 e R2. As cores identificam
+  as diagonais 1/6, 2/5 e 3/4 e o nome de quem levanta recebe • (Lv).
+  Ao trocar o rodízio na recepção, a zona 1 saca e as zonas 2 a 4 ficam em postura
+  de bloqueio. Os jogadores das zonas 5 e 6 mantêm seus lados até a formação final.
   No 6×0 as seis camisas rodam. O modelo abre com cinco passadores em W
   e quem ocupa a zona 2 já está entre 2 e 3 para levantar para
   a ponta (4), o meio (3) ou o fundo 1. A zona de cada camisa acompanha o rodízio

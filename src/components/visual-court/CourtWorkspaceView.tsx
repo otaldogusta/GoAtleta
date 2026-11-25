@@ -28,7 +28,7 @@ import { CourtEditorCanvas, type CourtEditorCanvasProps, type CourtTool } from "
 import type { useCourtEditor } from "./useCourtEditor";
 import { CourtPerspectiveCanvas } from "./CourtPerspectiveCanvas";
 import type { CourtPerspectiveShortcut } from "./CourtPerspectiveCanvas.types";
-import { buildCourtPerspectiveFrame, worldToCourtPoint, type CourtWorldPoint, type CourtRotationPreview } from "../../core/visual-court-perspective";
+import { buildCourtPerspectiveFrame, courtRotationTravel, worldToCourtPoint, type CourtWorldPoint, type CourtRotationPreview } from "../../core/visual-court-perspective";
 import { configureCourtSimulation, getCourtSimulation, receptionPlayerIdentity, resetCourtSimulation, sampleCourtSimulation, updateCourtSimulationHandle } from "../../core/court-simulation";
 import { configureCourtRotationSequenceMode, getReceptionRotationStep, isLegacyReceptionRotationSequence, replaceReceptionRotationSequence } from "../../core/court-simulation-sequence";
 import type { CourtDefenseCoverage, CourtSimulationPatch } from "../../core/court-simulation-model";
@@ -311,7 +311,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
   const edit = (update: (p: CourtVisualPayload) => CourtVisualPayload, index?: number) => { stop(); commit(update, index); };
   const [rotationMotion, setRotationMotion] = useState<{
     payload: CourtVisualPayload; index: number; paths: CourtRotationPreview["paths"]; durationMs: number;
-    entering: string[]; exiting: NonNullable<CourtRotationPreview["exiting"]>;
+    entering: string[]; exiting: NonNullable<CourtRotationPreview["exiting"]>; serve?: CourtRotationPreview["serve"];
   } | null>(null);
   const [rotationProgress, setRotationProgress] = useState(0);
   const movingRotation = rotationMotion?.payload === payload && rotationMotion.index === stepIndex && !playing && progress === 0
@@ -413,9 +413,9 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             if (!team.includes(actor.id)) continue;
             const previous = before.actors.find(item => item.id === actor.id);
             if (previous) {
-              const interrupted = movingRotation?.paths[actor.id];
-              const start = interrupted ? interrupted[0].map((value, axis) =>
-                value + (interrupted[1][axis] - value) * rotationProgress) as typeof previous.position : previous.position;
+              const interrupted = movingRotation?.paths[actor.id] && courtRotationTravel({ ...movingRotation, progress: rotationProgress }, actor.id);
+              const start = interrupted ? interrupted.path[0].map((value, axis) =>
+                value + (interrupted.path[1][axis] - value) * interrupted.progress) as typeof previous.position : previous.position;
               paths[actor.id] = [start, actor.position];
             } else {
               entering.push(actor.id);
@@ -431,8 +431,42 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
             paths[actor.id] = [actor.position, atSideline(actor.position)];
           }
           const longest = Math.max(0, ...Object.values(paths).map(([a, b]) => Math.hypot(a[0] - b[0], a[2] - b[2])));
+          const server = after.actors.find(actor => actor.role === "server");
+          let serve: CourtRotationPreview["serve"];
+          if (after.config.system === "6-0" && server) {
+            const positions: Record<string, typeof server.position> = {};
+            const netPlayers: string[] = [];
+            let serverId = "";
+            for (const id of team) {
+              const zone = receptionPlayerIdentity(after.config, id)?.position;
+              if (!paths[id] || !zone) continue;
+              if (zone === 1) {
+                serverId = id;
+                positions[id] = [-server.position[0], 0, -server.position[2]];
+              } else if (zone >= 2 && zone <= 4) {
+                netPlayers.push(id);
+                positions[id] = [(3 - zone) * 2.8, 0, .85];
+              } else positions[id] = paths[id][1];
+            }
+            if (serverId) {
+              const defense = ensureCourtDefenseStep(payload, "4", "front", after.config);
+              const defenseFrame = sampleCourtSimulation(defense.payload, defense.stepIndex, 0);
+              const defensePositions = Object.fromEntries((defenseFrame?.actors ?? [])
+                .filter(actor => team.includes(actor.id))
+                .map(actor => [actor.id, actor.position]));
+              // The two players already in the back row keep their lateral order
+              // through the temporary defensive formation.
+              const backRow = team.filter(id => {
+                const zone = receptionPlayerIdentity(after.config, id)?.position;
+                return (zone === 5 || zone === 6) && defensePositions[id];
+              }).sort((a, b) => positions[a][0] - positions[b][0]);
+              const backRowPositions = backRow.map(id => defensePositions[id]).sort((a, b) => a[0] - b[0]);
+              backRow.forEach((id, index) => { defensePositions[id] = backRowPositions[index]; });
+              serve = { serverId, positions, netPlayers, defensePositions };
+            }
+          }
           setRotationProgress(0);
-          setRotationMotion({ payload, index: target, paths, entering, exiting, durationMs: Math.min(1800, Math.max(650, longest * 240)) });
+          setRotationMotion({ payload, index: target, paths, entering, exiting, serve, durationMs: serve ? 6800 : Math.min(1800, Math.max(650, longest * 240)) });
         }
         return;
       }
@@ -1022,7 +1056,7 @@ export function CourtWorkspaceView({ classId, documentId, lessonDate, planId, on
           onDefensePresetChange={changeDefenseAttack} />}
         steps={<CourtStepGallery readOnly={readOnly} payload={payload} stepIndex={stepIndex} compact={denseControls} disabled={changingCourt} onSelect={selectStep} onMove={moveStepTo} onAdd={() => mutateStep(addBlankStep(payload, payload.timeline.steps.length - 1))} headerActions={<View ref={stepMenuRef} collapsable={false}><CourtActionButton tooltipScale={uiScale} compact={denseControls} label="Opções da etapa" icon="ellipsisHorizontal" disabled={readOnly} onPress={() => toggleActionMenu("step")} active={actionMenu === "step"} /></View>} />}
         library={libraryContent} />
-      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && simulationMode !== "receive"} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setRotationMotion(null); setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
+      <CourtSimulationTransport uiScale={uiScale} showRotation={showRotationControls && simulationMode !== "receive"} playing={playing} progress={progress} speed={speed} rotation={simulation?.rotation ?? 0} system={simulation?.system} disabled={changingCourt} onPlay={playCurrentStep} onRestart={restartCurrentStep} onPreviousRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 5) % 6 })} onNextRotation={() => configureSimulation({ rotation: ((simulation?.rotation ?? 0) + 1) % 6 })} onSeek={value => { setRotationMotion(null); setPlaying(false); playhead.current = value; setProgress(value); }} onSpeed={setSpeed} onOpenSteps={() => openWorkspaceTab("adjustments")} bottom={compactWeb ? mobileOverlays.transportBottom : insets.bottom + 20 * uiScale} />
 
       {!readOnly ? <View accessibilityLabel="Ferramentas da quadra" style={[styles.tools, toolScale === 1 ? undefined : overlayScale("top left"), { width: railTouchTarget ? compactUiMetrics.touchTarget + 6 : denseControls ? railButtonSize + 6 : 52, top: toolRailTop, left: insets.left + 10 * toolScale, maxHeight: toolRailHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
         {touchTools ? <View style={{ padding: 3, borderBottomWidth: 1, borderBottomColor: colors.border }}>{toolAction("Selecionar e mover", "courtCursor", () => chooseTool("select"), tool === "select")}</View> : null}

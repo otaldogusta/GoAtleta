@@ -6,7 +6,7 @@ import { parseEditorImport } from "../visual-court-editor";
 import { buildCourtPerspectiveFrame, type CourtRotationPreview } from "../visual-court-perspective";
 import { displayActors } from "../../components/visual-court/CourtEditorScene";
 
-it("previews the same jersey between rotations with footwork and the new setter color", () => {
+it("previews the same jersey between rotations with footwork and the setter label", () => {
   const board = buildSimulatedReceptionRotationPreset("6-0");
   const before = sampleCourtSimulation(board, 0, 0)!;
   const after = sampleCourtSimulation(board, 1, 0)!;
@@ -17,7 +17,7 @@ it("previews the same jersey between rotations with footwork and the new setter 
   const moving = frame.actors.find(actor => actor.id === setter.id)!;
   expect(moving.position.x).toBeCloseTo((start[0] + setter.position[0]) / 2);
   expect(moving.position.z).toBeCloseTo((start[2] + setter.position[2]) / 2);
-  expect(moving).toMatchObject({ label: "2", color: "#38bdf8", pose: "approach", jump: 0 });
+  expect(moving).toMatchObject({ label: "Jogador 2 • (Lv)", color: "#a78bfa", pose: "approach", jump: 0 });
   expect(moving.feet).toHaveLength(2);
   expect(frame.progress).toBe(0);
 });
@@ -36,7 +36,7 @@ it("rotates the six numbered athletes through every zone and gives the second to
     expect(initial.visibleIds).toHaveLength(7); // Six receivers and the opponent serving.
     expect(new Set(initial.config.actorIds.slice(0, 6))).toEqual(new Set(team));
     const identities = team.map(id => receptionPlayerIdentity(initial.config, id)!);
-    expect(identities.map(player => player.label)).toEqual(["1", "2", "3", "4", "5", "6"]);
+    expect(identities.map(player => player.label)).toEqual([4, 3, 2, 5, 6, 1].map((zone, index) => `Jogador ${index + 1}${(zone - 1 - rotation + 6) % 6 + 1 === 2 ? " • (Lv)" : ""}`));
     const zones = [4, 3, 2, 5, 6, 1].map(zone => (zone - 1 - rotation + 6) % 6 + 1);
     expect(identities.map(player => player.position)).toEqual(zones);
     const setter = final.actors[0];
@@ -45,7 +45,7 @@ it("rotates the six numbered athletes through every zone and gives the second to
     final.ball.forEach((coordinate, axis) => expect(coordinate).toBeCloseTo(final.setHand![axis], 8));
     const rendered = buildCourtPerspectiveFrame(board, rotation, 1);
     team.forEach((id, index) => expect(rendered.actors.find(actor => actor.id === id)).toMatchObject({
-      label: String(index + 1), rotationPosition: zones[index], color: zones[index] === 2 ? "#38bdf8" : "#19c87b",
+      label: `Jogador ${index + 1}${zones[index] === 2 ? " • (Lv)" : ""}`, rotationPosition: zones[index], color: ["#38bdf8", "#a78bfa", "#19c87b", "#19c87b", "#a78bfa", "#38bdf8"][index],
     }));
   }
   expect(new Set(setters)).toEqual(new Set(team));
@@ -126,4 +126,35 @@ it("starts in the W and holds it until the serve, then releases the three attack
   expect(final.actors.filter(actor => actor.attackReadiness === 1).map(actor => actor.slot)).toEqual([1, 2, 3]);
   const shortRight = configureCourtSimulation(board, 0, { landingOverride: { x: 3.6, z: 4 } });
   expect(sampleCourtSimulation(shortRight, 0, .5)!.receiver).toBe(1);
+});
+
+it("shows the zone 1 player serving with three teammates facing the net", () => {
+  const board = buildSimulatedReceptionRotationPreset("6-0");
+  const rotation = 1;
+  const initial = sampleCourtSimulation(board, rotation, 0)!;
+  const team = initial.config.teamActorIds!;
+  const zone = (id: string) => receptionPlayerIdentity(initial.config, id)!.position;
+  const serverId = team.find(id => zone(id) === 1)!;
+  const netPlayers = team.filter(id => zone(id) >= 2 && zone(id) <= 4);
+  const paths: CourtRotationPreview["paths"] = {};
+  const positions: NonNullable<CourtRotationPreview["serve"]>["positions"] = {};
+  for (const actor of initial.actors.filter(item => team.includes(item.id))) {
+    paths[actor.id] = [actor.position, actor.position];
+    positions[actor.id] = actor.id === serverId ? [0, 0, 9.6] : actor.position;
+  }
+  const preview: CourtRotationPreview = { paths, serve: { serverId, positions, netPlayers }, progress: .54, durationMs: 5100 };
+  const serving = buildCourtPerspectiveFrame(board, rotation, 0, [], preview);
+  const servingPlayer = serving.actors.find(actor => actor.id === serverId)!;
+  expect(servingPlayer).toMatchObject({ poseRole: "server", poseScale: 1 });
+  expect(servingPlayer.facing?.[1]).toBeLessThan(0);
+  expect(servingPlayer.contactTarget?.z).toBeGreaterThan(0);
+  for (const id of netPlayers) {
+    expect(serving.actors.find(actor => actor.id === id)).toMatchObject({ poseRole: "blocker", facing: [0, -1], handAngle: 180, plantedStance: false, feet: undefined });
+  }
+  for (const id of team.filter(id => id !== serverId && !netPlayers.includes(id))) {
+    expect(serving.actors.find(actor => actor.id === id)).toMatchObject({ poseRole: "passer", pose: "ready", facing: [0, -1], feet: undefined });
+  }
+  const final = buildCourtPerspectiveFrame(board, rotation, 0, [], { ...preview, progress: 1 });
+  const target = buildCourtPerspectiveFrame(board, rotation, 0);
+  for (const id of team) expect(final.actors.find(actor => actor.id === id)?.position).toEqual(target.actors.find(actor => actor.id === id)?.position);
 });
