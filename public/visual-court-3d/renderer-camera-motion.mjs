@@ -4,7 +4,7 @@ export const CAMERA_MOTION=Object.freeze({
  maxAzimuthVelocity:3,maxElevationVelocity:2,
  smoothingMs:24,maxSampleGapMs:100,releaseFreshnessMs:80,
  damping:14,cutoff:.02,maxDurationMs:350,
- minElevation:.04,maxElevation:1.52,
+ minElevation:-1.35,maxElevation:1.52,
 });
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const finite=Number.isFinite;

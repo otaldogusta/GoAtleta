@@ -86,7 +86,7 @@ test('the cutoff instant is exact across frame sizes, including a slow final dri
 });
 
 test('pitch reaches each pole without rebound or stored outward velocity, while yaw continues',()=>{
- for(const [elevation,pitch,bound] of [[1.51,2,1.52],[.05,-2,.04]]){
+ for(const [elevation,pitch,bound] of [[1.51,2,1.52],[CAMERA_MOTION.minElevation+.01,-2,CAMERA_MOTION.minElevation]]){
   const angles={azimuth:0,elevation},motion={azimuth:1,elevation:pitch,elapsedMs:0};
   const first=integrateCameraMotion(angles,motion,30);
   assert.equal(first.elevation,bound);assert.equal(first.motion.elevation,0);assert.ok(first.azimuth>0);
@@ -113,7 +113,7 @@ test('bounded elapsed time, malformed input and repeated stopped frames remain f
  assert.deepEqual(integrateCameraMotion(angles,null,16),{...angles,motion:null});
  for(const dt of [-1,NaN,Infinity])assert.deepEqual(integrateCameraMotion(angles,{...motion,elapsedMs:0},dt),{...angles,motion:null});
  const invalid=integrateCameraMotion({azimuth:NaN,elevation:Infinity},{azimuth:Infinity,elevation:0,elapsedMs:0},16,{minElevation:NaN,maxElevation:0});
- assert.deepEqual(invalid,{azimuth:0,elevation:.04,motion:null});
+ assert.deepEqual(invalid,{azimuth:0,elevation:CAMERA_MOTION.minElevation,motion:null});
  const long=integrateCameraMotion(angles,{...motion,elapsedMs:0},1000);
  assert.equal(long.motion,null);assert.ok(Number.isFinite(long.azimuth)&&Number.isFinite(long.elevation));
  assert.deepEqual(integrateCameraMotion(long,long.motion,16),long);

@@ -184,6 +184,40 @@ export function createActorAnatomy(parent){
   }
  }
  const handRoll=new THREE.Quaternion();
+ function rotateHand(limb,rotation){
+  limb.palm.quaternion.premultiply(rotation);
+  for(const digit of limb.digits){
+   digit.position.sub(limb.palm.position).applyQuaternion(rotation).add(limb.palm.position);
+   digit.quaternion.premultiply(rotation);
+  }
+ }
+ const chestForward=new THREE.Vector3(),fingerAxis=new THREE.Vector3(),thumbAxis=new THREE.Vector3(),palmNormal=new THREE.Vector3();
+ const restRotation=new THREE.Quaternion(),wristTurn=new THREE.Quaternion();
+ function relaxLoweredHands(influence,walkWeight=0){
+  if(influence<=0&&walkWeight<=0)return;
+  chestForward.set(0,0,1).applyQuaternion(torso.quaternion).setY(0).normalize();
+  for(const limb of limbs){
+   const palm=limb.palm;
+   fingerAxis.subVectors(palm.position,limb.elbow.position).normalize();
+   const reach=direction.subVectors(palm.position,limb.shoulder.position).dot(chestForward);
+   // A hanging arm carries the thumb forward. As the forearm lifts in
+   // front of the body, return the wrist smoothly to the skill pose.
+   const hanging=influence*THREE.MathUtils.smoothstep(-fingerAxis.y,.38,.75)
+    *(1-THREE.MathUtils.smoothstep(reach,.16,.32));
+   // Both wrists follow the arm swing throughout a walk, including the
+   // forward swing that would look like a passing stance in a still frame.
+   const blend=Math.max(hanging,walkWeight);
+   if(blend<=0)continue;
+   palmNormal.set(chestForward.z,0,-chestForward.x).multiplyScalar(-limb.side).projectOnPlane(fingerAxis);
+   if(palmNormal.lengthSq()<1e-6)continue;
+   palmNormal.normalize();
+   thumbAxis.crossVectors(fingerAxis,palmNormal);
+   restRotation.setFromRotationMatrix(basis.makeBasis(thumbAxis,fingerAxis,palmNormal));
+   wristTurn.copy(palm.quaternion).slerp(restRotation,blend);
+   handRoll.copy(palm.quaternion).invert();
+   rotateHand(limb,wristTurn.multiply(handRoll));
+  }
+ }
  function seatSettingWrist(n,openness){
   const {forearm,elbow,palm}=limbs[n];
   // The captured hand marker is at the centre of the palm. Join the visible
@@ -211,11 +245,7 @@ export function createActorAnatomy(parent){
   if(relaxedGrip>0||palmUp>0){
    // Roll the whole hand about its long axis, including the thumb.
    handRoll.setFromAxisAngle(direction.set(sy*sine,cosine,cy*sine),-side*(1.15*relaxedGrip+Math.PI*palmUp));
-   limb.palm.quaternion.premultiply(handRoll);
-   for(const digit of limb.digits){
-    digit.position.sub(limb.palm.position).applyQuaternion(handRoll).add(limb.palm.position);
-    digit.quaternion.premultiply(handRoll);
-   }
+   rotateHand(limb,handRoll);
   }
  }
  // The captured landmarks animate the same meshes as the procedural poses.
@@ -262,5 +292,5 @@ export function createActorAnatomy(parent){
   }
   height=group.position.y+top*group.scale.y;return height;
  }
- return {group,updateBody,setArm,seatSettingWrist,articulateTrunk,faceHead,setCapturedTrunk,setCapturedLeg,measureHeight,get height(){return height;}};
+ return {group,updateBody,setArm,relaxLoweredHands,seatSettingWrist,articulateTrunk,faceHead,setCapturedTrunk,setCapturedLeg,measureHeight,get height(){return height;}};
 }

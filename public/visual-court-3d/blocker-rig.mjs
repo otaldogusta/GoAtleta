@@ -11,8 +11,19 @@ const reachAxis=new Vector3(),bendAxis=new Vector3();
 function placeArm(anatomy,n,ex,ey,ez,hx,hy,hz,pitch,palmTilt,fan,yaw=0){
  const shoulder=anatomy.group.getObjectByName(n?'right-shoulder':'left-shoulder').position;
  reachAxis.set(hx,hy,hz).sub(shoulder);
- const reach=reachAxis.length();
+ let reach=reachAxis.length();
  reachAxis.multiplyScalar(1/Math.max(reach,1e-8));
+ // As the hands rise above the head, open the elbows through the last
+ // part of the reach. Keep the fully extended contact target intact.
+ const rise=Math.max(0,Math.min(1,(fan-.55)/.3));
+ const minimumReach=reach+Math.max(0,.644-reach)*rise*rise*(3-2*rise);
+ if(rise>0&&reach>1e-8&&reach<minimumReach){
+  const advance=minimumReach-reach;
+  hx+=reachAxis.x*advance;
+  hy+=reachAxis.y*advance;
+  hz+=reachAxis.z*advance;
+  reach=minimumReach;
+ }
  const distance=Math.min(reach,upperArm+elbowToPalm-.001);
  shoulder.addScaledVector(reachAxis,reach-distance);
  bendAxis.set(ex,ey,ez).sub(shoulder);
@@ -64,8 +75,10 @@ export function updateBlockerAnatomy(anatomy,pose={}){
   anatomy.faceHead(weight*(sign*blockClipValue(frame,blockTorso.gazeYaw)-runYaw));
  }
  for(let n=0;n<2;n++){
-  const side=n?1:-1,elbowX=side*(.32-.14*extension),elbowY=shoulder-.14+.45*extension,elbowZ=.07+.16*extension;
-  const handX=side*(.26-.06*extension),handY=shoulder+.12+.51*extension,handZ=.04+.40*extension;
+  const side=n?1:-1;
+  const reach=extension*extension*(3-2*extension);
+  const elbowX=side*(.15+.10*reach),elbowY=shoulder-.23+.54*extension,elbowZ=.13+.10*extension;
+  const handX=side*.26,handY=shoulder+.12+.51*extension,handZ=.20+.24*extension;
   if(!weight){placeArm(anatomy,n,elbowX,elbowY,elbowZ,handX,handY,handZ,0,-side*.08*extension,extension);continue;}
   const e=8+9*(pose.clipMirror?n:1-n),h=e+3,w=h+3,hip=.92-crouch,baseZ=-.13*crouch/.26*hipDepthScale;
   const vx=sign*(blockClipValue(frame,h)-blockClipValue(frame,w));
@@ -87,9 +100,12 @@ export function updateBlockerAnatomy(anatomy,pose={}){
   const foreScale=elbowToPalm/Math.max(1e-6,Math.hypot(foreX,foreY,foreZ));
   const handLength=Math.max(1e-6,Math.hypot(localVX,vy,localVZ));
   const fingerY=mix(1,vy/handLength),fingerForward=weight*Math.hypot(localVX,localVZ)/handLength;
+  // A nearly vertical hand has no horizontal heading. Use its lateral
+  // component for a small wrist turn while the palm faces the net.
+  const handYaw=.32*weight*localVX/handLength;
   placeArm(anatomy,n,mix(elbowX,clipElbowX),mix(elbowY,clipElbowY),mix(elbowZ,clipElbowZ),
    mix(handX,clipElbowX+foreX*foreScale),mix(handY,clipElbowY+foreY*foreScale),mix(handZ,clipElbowZ+foreZ*foreScale),
-   Math.atan2(fingerForward,fingerY),-side*.08*extension,extension,Math.atan2(localVX,localVZ)*weight);
+   Math.atan2(fingerForward,fingerY),-side*.08*extension,extension,handYaw);
  }
  anatomy.measureHeight();
 }

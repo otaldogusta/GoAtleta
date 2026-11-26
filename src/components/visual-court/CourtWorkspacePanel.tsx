@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { compactUiMetrics, radius, shadow, spacing } from "../../theme/tokens";
 import { Pressable } from "../../ui/Pressable";
@@ -119,7 +119,9 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
   const compactWeb = mobile && Platform.OS === "web";
   const scale = mobile ? 1 : uiScale;
   const motion = useDisclosureMotion(open, { axis: mobile ? "y" : "x", distance: 24, duration: 200 });
-  const centered = tab === "library";
+  const [lastOpenTab, setLastOpenTab] = useState(tab);
+  if (open && tab !== lastOpenTab) setLastOpenTab(tab);
+  const centered = (open ? tab : lastOpenTab) === "library" && motion.mounted;
   const panelWidth = centered ? Math.min(560, width - 24) : mobile ? Math.min(440, width - 24) : 360;
   const panelBottom = mobile ? compactWeb ? bottom : Math.max(bottom, width < 460 ? 120 : bottom) : undefined;
   const panelHeight = Math.max(160, Math.min(compactWeb ? Math.min(380, height * .62) : 600, mobile ? height - top - (panelBottom ?? bottom) : (height - top - bottom) / scale));
@@ -160,7 +162,7 @@ export function CourtWorkspacePanel({ open, onToggle, onRequestClose, tab, onTab
       </View>
       {tabs.map(([value, label]) => {
         const active = open && tab === value;
-        return <View key={value} accessibilityLabel={`Conteúdo: ${label}`} {...(webDialog && !centered ? { nativeID: `${dialogId}-${value}`, role: "tabpanel", "aria-labelledby": `${dialogId}-tab-${value}` } : {})} pointerEvents={active ? "auto" : "none"} accessibilityElementsHidden={!active} importantForAccessibility={active ? "auto" : "no-hide-descendants"} aria-hidden={!active} {...(Platform.OS === "web" ? { inert: !active } : {})} style={[styles.content, { display: tab === value ? "flex" : "none" }]}>
+        return <View key={value} accessibilityLabel={`Conteúdo: ${label}`} {...(webDialog && !centered ? { nativeID: `${dialogId}-${value}`, role: "tabpanel", "aria-labelledby": `${dialogId}-tab-${value}` } : {})} pointerEvents={active ? "auto" : "none"} accessibilityElementsHidden={!active} importantForAccessibility={active ? "auto" : "no-hide-descendants"} aria-hidden={!active} {...(Platform.OS === "web" ? { inert: !active } : {})} style={[styles.content, { display: !centered && tab === value ? "flex" : "none" }]}>
           {contents[value]}
         </View>;
       })}

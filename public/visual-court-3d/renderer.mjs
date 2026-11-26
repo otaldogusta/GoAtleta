@@ -1,16 +1,16 @@
 import * as THREE from './three.module.min.js';
-import {createActorRig} from './actor-rig.mjs?v=jump-serve-20261125';
+import {createActorRig} from './actor-rig.mjs?v=defense-ready-hands-20261126';
 import {clamp,isWorldPoint,worldToCourt,courtToWorld,limitPoint,snapPoint,snappedGesture,curvePoints,editableIds,movementTrail,shouldCancelFrameGesture} from './renderer-geometry.mjs';
 import {isHeightHandle,previewAttackCurve,previewServeTarget,simulationHandleEdit} from './renderer-simulation-geometry.mjs?v=serve-target-preview-20261123';
 import {createSimulationGuides,serveNetCrossing} from './renderer-simulation.mjs';
 import {renderPixelRatio,syncRendererResolution} from './renderer-resolution.mjs';
-import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs?v=court-close-camera-20261124';
+import {CAMERA_MOTION,sampleCameraAngularVelocity,releaseCameraMotion,integrateCameraMotion} from './renderer-camera-motion.mjs?v=court-under-orbit-20261125';
 import {collectFrameFitPoints,fitCameraDistance} from './renderer-camera-framing.mjs';
 import {bindRendererLifecycle} from './renderer-lifecycle.mjs';
 import {elevationTarget,elevationValue,elevationKeyValue,shouldCancelElevationDrag,elevationDragCommand,previewCourtObjects,elevationControlLayout,authorMovementPlaneY} from './renderer-elevation.mjs';
 import {targetPickSurface,pickCourtObject,pickCourtHit,pickCourtTouchHit,courtHoverState,createCourtHoverPainter} from './renderer-interaction.mjs';
 import {courtSolidMaterial,createContactShadow,updateContactShadow} from './renderer-appearance.mjs';
-import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,panPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs?v=court-close-camera-20261124';
+import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,panPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs?v=court-under-orbit-20261125';
 import {trajectoryStroke,trajectoryTipDirection,createTrajectorySelection,trajectoryHandleTarget,trajectoryHandlePoint,trajectoryControlLayout,trajectoryHeightValue,trajectoryDragPlane,trajectoryPlanePoint,trajectoryPointValue,trajectoryLateralDelta,shouldCancelTrajectoryDrag,trajectoryPointDragCommand,previewTrajectoryPoint} from './renderer-trajectory.mjs?v=defense-attack-trace-20261120';
 import {renderedNetContact,showsNetWarning,netWarningLayout} from './renderer-net-warning.mjs?v=net-floor-20261122';
 import {BALL_RADIUS,NET_TOP,NET_BOTTOM,NET_WIDTH,TOP_BAND_HEIGHT,BOTTOM_BAND_HEIGHT,TOP_BAND_DEPTH,BOTTOM_BAND_DEPTH,TOP_BAND_CENTER,BOTTOM_BAND_CENTER} from './court-net.js';
@@ -19,7 +19,7 @@ import {BALL_RADIUS,NET_TOP,NET_BOTTOM,NET_WIDTH,TOP_BAND_HEIGHT,BOTTOM_BAND_HEI
 // presets, persistence or undo stack. Only camera and uncommitted gestures live here.
 const CHANNEL='goatleta-court-3d',VERSION=1;
 const canvas=document.querySelector('#scene'),labels=document.querySelector('#labels'),error=document.querySelector('#error');
-const handleLayer=document.querySelector('#simulation-handles'),feedback=document.querySelector('#simulation-feedback');
+const handleLayer=document.querySelector('#simulation-handles');
 const netWarningLayer=document.querySelector('#net-warnings'),netWarnings=new Map();
 let token='',revision=0,active=true,packet=null,frame=null,pending=0,gesture=null,preview=null,lastAnchor=undefined;
 let elevationDrag=null,elevationButton=null,elevationTether=null;
@@ -201,7 +201,10 @@ function updateDrawings(drawings){
    const shadow=materialPoint?createContactShadow(drawing.kind,clamp(Number(drawing.size)||28,12,80)/100):null;if(shadow)group.add(shadow);
    object={group,key,selection,shadow};drawingMap.set(drawing.id,object);
   }
-  object.group.position.set(materialPoint?.x||0,materialPoint?.y||0,materialPoint?.z||0);object.group.visible=!frame.hide.includes('drawings');object.selection.visible=frame.selected.includes(drawing.id);
+  const height=materialPoint?.y||0;
+  // Keep the sphere clear of the painted lines at floor contact.
+  const renderedY=drawing.kind==='ball'&&materialPoint?Math.max(height,BALL_RADIUS+.003):height;
+  object.group.position.set(materialPoint?.x||0,renderedY,materialPoint?.z||0);object.group.visible=!frame.hide.includes('drawings');object.selection.visible=frame.selected.includes(drawing.id);
   if(object.shadow)updateContactShadow(object.shadow,materialPoint.y,materialPoint.y-(drawing.kind==='ball'?.12:.025),drawing.kind==='ladder'?drawing.rotation||0:0);
   if(drawing.simulated&&object.group.children[0]){
    const ball=object.group.children[0],simulation=frame.simulation;
@@ -222,7 +225,7 @@ function updateSimulation(){
  const original=frame.simulation,drag=handleDrag,edit=drag?.moved?simulationHandleEdit(drag.handle,drag.last,drag.last.y-drag.handle.point.y):null;
 
  const data=edit?.kind==='attack'?previewAttackCurve(original,edit.value):edit?.kind==='serve'?previewServeTarget(original,edit.point):original;
- if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';delete canvas.dataset.serveNetCrossing;for(const button of handleButtons.values())button.hidden=true;feedback.hidden=true;return;}
+ if(!data){if(simulationGuides){dispose(simulationGuides);simulationGuides=null;}simulationKey='';delete canvas.dataset.serveNetCrossing;for(const button of handleButtons.values())button.hidden=true;return;}
  const key=data===original?data.guideKey:JSON.stringify([data.guideKey,edit]);
  if(simulationKey!==key){if(simulationGuides)dispose(simulationGuides);simulationGuides=createSimulationGuides(data);scene.add(simulationGuides);simulationKey=key;const crossing=serveNetCrossing(simulationGuides);if(crossing)canvas.dataset.serveNetCrossing=JSON.stringify(crossing);else delete canvas.dataset.serveNetCrossing;}
  simulationGuides.visible=data.guidesVisible&&!frame.hide.includes('movements');
@@ -236,7 +239,6 @@ function updateSimulation(){
   }
  }
  for(const marker of simulationGuides.children)if(marker.userData.contactTime!==undefined){const elapsed=data.elapsedSeconds-marker.userData.contactTime,pulse=elapsed>=0?Math.exp(-elapsed*12):0;marker.scale.setScalar(1+pulse*.7);marker.material.opacity=.65+pulse*.35;}
- feedback.hidden=!data.outcome;if(feedback.textContent!==data.outcome)feedback.textContent=data.outcome;feedback.dataset.blocked=String(data.blocked);
  const handles=new Map((data.handles||[]).map(handle=>[handle.kind,handle]));
  for(const [kind,name] of Object.entries(handleNames)){
   let button=handleButtons.get(kind);if(!button){button=makeGuideHandle(kind,name);handleButtons.set(kind,button);handleLayer.append(button);}

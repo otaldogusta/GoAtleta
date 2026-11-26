@@ -8,6 +8,54 @@ const world=part=>part.getWorldPosition(new THREE.Vector3());
 function fixture(){const parent=new THREE.Group(),rig=createBlocker(parent);return {parent,...rig};}
 function snapshot(group){group.updateMatrixWorld(true);return group.children.map(part=>({name:part.name,matrix:[...part.matrixWorld.elements]}));}
 
+test('captured blocking wrists turn continuously into the ready pose',()=>{
+ const {group,update}=fixture();
+ for(const clipMirror of [false,true]){
+  let previous=[];
+  for(let clipFrame=1;clipFrame<=46;clipFrame+=.25){
+   update({clipFrame,clipMirror,extension:Math.min(1,Math.max(0,(clipFrame-32)/12))});
+   const palms=['left','right'].map(side=>group.getObjectByName(side+'-palm'));
+   palms.forEach((palm,index)=>{
+    assert.ok(Math.abs(palm.rotation.y)<=.32);
+    if(previous[index])assert.ok(palm.quaternion.angleTo(previous[index])<.35);
+   });
+   previous=palms.map(palm=>palm.quaternion.clone());
+  }
+ }
+});
+
+test('the ready block keeps elbows close and below the shoulders with hands raised',()=>{
+ const {group,update}=fixture();
+ for(const extension of [0,.28]){
+  update({crouch:.13,extension});
+  for(const side of ['left','right']){
+   const elbow=group.getObjectByName(side+'-elbow').position;
+   const shoulder=group.getObjectByName(side+'-shoulder').position;
+   const palm=group.getObjectByName(side+'-palm').position;
+   assert.ok(Math.abs(elbow.x-shoulder.x)<.08);
+   assert.ok(elbow.y<shoulder.y-.025);
+   assert.ok(elbow.z>shoulder.z);
+   assert.ok(palm.y>shoulder.y);
+  }
+ }
+});
+
+test('the elbows stay outside the head as the blocker rises',()=>{
+ const {group,update}=fixture();
+ for(const extension of [.5,.6,.7,.8,.9,1]){
+  update({extension,jump:.6});
+  for(const side of ['left','right']){
+   const elbow=group.getObjectByName(side+'-elbow').position;
+   assert.ok(Math.abs(elbow.x)>=.18);
+   if(extension>=.9){
+    const shoulder=group.getObjectByName(side+'-shoulder').position;
+    const palm=group.getObjectByName(side+'-palm').position;
+    assert.ok(elbow.clone().sub(shoulder).normalize().dot(palm.clone().sub(elbow).normalize())>.95);
+   }
+  }
+ }
+});
+
 test('the entire anatomy is solid geometry with shared per-rig resources and no pose texture',()=>{
  const {group}=fixture(),geometries=new Set(),materials=new Set();
  for(const part of group.children){
@@ -97,9 +145,9 @@ test('both palms preserve the canonical height, reach, single rotation and unsca
   near(group.position.y,jump);near(group.rotation.y,angle*Math.PI/180);
   for(const side of ['left','right']){
    const palm=group.getObjectByName(`${side}-palm`),at=world(palm);
-   near(palm.position.y,1.55+.51*extension-crouch);near(palm.position.z,.04+.40*extension);
+   near(palm.position.y,1.55+.51*extension-crouch);near(palm.position.z,.20+.24*extension);
    near(at.y,1.25+jump+.95*(1.55+.51*extension-crouch));
-   const sign=side==='left'?-1:1,x=sign*(.26-.06*extension),z=.04+.40*extension,radians=angle*Math.PI/180;
+   const sign=side==='left'?-1:1,x=sign*.26,z=.20+.24*extension,radians=angle*Math.PI/180;
    near(at.x,.95*(x*Math.cos(radians)+z*Math.sin(radians)));
    near(at.z,.95*(-x*Math.sin(radians)+z*Math.cos(radians)));
   }

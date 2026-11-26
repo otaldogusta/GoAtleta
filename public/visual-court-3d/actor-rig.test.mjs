@@ -35,6 +35,37 @@ function checkSettingPads(rig,ball){
 function fixture(){const parent=new THREE.Group(),rig=createActorRig(parent);return {parent,group:rig.group,update:rig.update,get height(){return rig.height;}};}
 function matrices(rig){rig.group.updateMatrixWorld(true);return rig.group.children.map(object=>({name:object.name,matrix:[...object.matrixWorld.elements]}));}
 
+test('lowered hands carry the thumbs forward while standing and on both halves of the R1 walking stride',()=>{
+ const rig=fixture(),options={system:'6-0',rotation:0,bases:[...receptionFormation('6-0',0),[1.7,0,-10.44]]};
+ function checkHands(){
+  for(const side of ['left','right']){
+   const [elbow,palm,thumb,finger]=['elbow','palm','thumb','finger-1'].map(name=>part(rig,side+'-'+name));
+   const forearm=palm.position.clone().sub(elbow.position).normalize();
+   const fingerDirection=new THREE.Vector3(0,1,0).applyQuaternion(finger.quaternion);
+   assert.ok(fingerDirection.dot(forearm)>.85,side+' fingers follow the lowered forearm');
+   assert.ok(thumb.position.z-palm.position.z>.03,side+' thumb points downcourt');
+  }
+ }
+ for(const poseRole of ['setter','attacker']){
+  rig.update({poseRole,pose:'ready'});
+  checkHands();
+ }
+ const walkers=sampleReception(.82,options).actors.filter(actor=>actor.travelMotion?.kind==='walk');
+ assert.ok(walkers.length>=2);
+ for(const actor of walkers){
+  const [x,y,z]=actor.position;
+  const frame={...actor,poseRole:actor.role,position:{x,y,z},facing:[actor.facing[0]-x,actor.facing[1]-z]};
+  const palms=['left','right'].map(side=>part(rig,side+'-palm'));
+  let last;
+  for(let step=0;step<=50;step++){
+   rig.update({...frame,feetWeight:step/50});
+   if(last)palms.forEach((palm,index)=>assert.ok(palm.quaternion.angleTo(last[index])<.25,'the wrist turns continuously'));
+   last=palms.map(palm=>palm.quaternion.clone());
+  }
+  checkHands();
+ }
+});
+
 test('the two shoes share a tapered mesh with a stable heel and forefoot contact patch',()=>{
  const rig=fixture(),left=part(rig,'left-foot'),right=part(rig,'right-foot');
  assert.equal(left.geometry,right.geometry);

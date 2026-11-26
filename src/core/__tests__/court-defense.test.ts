@@ -42,6 +42,32 @@ describe("authored zone-four defense", () => {
       }
     }
     expect(supported.size).toBe(blockersAt(.53).length);
+    const closing = blockersAt(.67).find(actor => actor.blockFrame !== undefined);
+    expect(closing?.blockFrame).toBeGreaterThan(1);
+    expect(closing?.blockFrame).toBeLessThan(32);
+    const rendered = buildCourtPerspectiveFrame(payload, stepIndex, .67).actors.find(actor => actor.id === closing?.id);
+    expect(rendered?.blockFrame).toBe(closing?.blockFrame);
+  });
+
+  it.each(["4", "5"] as const)("keeps the central blocker within a compact base while closing in defense %s", preset => {
+    const { payload, stepIndex } = ensureCourtDefenseStep(newCourtBoard(), preset);
+    let previous: ReturnType<typeof sampleCourtSimulation>;
+    let usedClosingClip = false;
+    for (let tick = 380; tick <= 780; tick++) {
+      const sample = sampleCourtSimulation(payload, stepIndex, tick / 1000)!;
+      const central = sample.actors[2];
+      const prior = previous?.actors[2];
+      previous = sample;
+      if (!central.feet) continue;
+      const [left, right] = central.feet;
+      expect(Math.hypot(left[0] - right[0], left[2] - right[2])).toBeLessThan(.78);
+      if (prior?.feet) central.feet.forEach(([x, lift, z], side) => {
+        const old = prior.feet![side];
+        expect(Math.hypot(x - old[0], lift - old[1], z - old[2])).toBeLessThan(.08);
+      });
+      usedClosingClip ||= (central.blockFrame ?? 0) > 1;
+    }
+    expect(usedClosingClip).toBe(true);
   });
 
   it("loads the defenders' stance as the opponent hits while only the pass and set support touch the ball", () => {
@@ -103,13 +129,20 @@ describe("authored zone-four defense", () => {
 
   it.each(["4", "1", "5"] as const)("drives only the hitter from the capture and holds its impact pose for defense %s", preset => {
     const { payload, stepIndex } = ensureCourtDefenseStep(newCourtBoard(), preset);
-    const contact = sampleCourtSimulation(payload, stepIndex, 0)!.attackContact!;
+    const timing = sampleCourtSimulation(payload, stepIndex, 0)!;
+    const contact = timing.attackContact!;
     const actorsAt = (progress: number) => buildCourtPerspectiveFrame(payload, stepIndex, progress).actors.filter(actor => actor.attackFrame !== undefined);
     const [impact] = actorsAt(contact);
     expect(actorsAt(contact)).toHaveLength(1);
     expect(impact.poseRole).toBe("attacker");
     expect(impact.attackFrame).toBeCloseTo(145);
     expect(impact.contactWeight).toBeCloseTo(1);
+    const [x, y, z] = timing.defenseContact!;
+    expect(impact.contactTarget).toEqual({ x, y, z });
+    const set = buildCourtPerspectiveFrame(payload, stepIndex, timing.setContact!).actors
+      .find(actor => actor.illustration && actor.poseRole === "setter");
+    expect(set?.skillProgress).toBeCloseTo(0);
+    expect(Math.hypot(...set!.setReleaseDirection!)).toBeCloseTo(1);
     const [tableau] = actorsAt(1);
     expect(tableau).toMatchObject({ id: impact.id, attackFrame: 145, contactWeight: 1, mirror: impact.mirror });
     for (const axis of ["x", "y", "z"] as const) expect(tableau.position[axis]).toBeCloseTo(impact.position[axis], 8);

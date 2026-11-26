@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { attackFormation, attackPresets, sampleAttack } from './attack-motion.js';
+import { BALL_RADIUS } from '../../../public/visual-court-3d/court-net.js';
+
 import { attackApproachLateral, attackApproachProgress, CAPTURED_APPROACH_METRES } from './attack-approach.js';
 import { ATTACK_CLIP_JOINT, ATTACK_CLIP_SIZE, sampleAttackClip } from '../../../public/visual-court-3d/attack-captured-clip.mjs';
 import { attackClipTiming } from './attack-clip-timing.js';
 import { sampleBlockerPose } from './blocker-motion.js';
 import { attackPresets as legacyPresets, sampleAttack as sampleReference } from '../__tests__/fixtures/court-reference/attack-motion.mjs';
+
+test('the simplified attack lands with the ball centre one radius above the floor',()=>{
+ const options={system:'6-0',preset:'4',layers:{pass:true,attack:false,block:true}};
+ assert.ok(Math.abs(sampleAttack(1,options).ball[1]-BALL_RADIUS)<1e-8);
+});
 
 const legacyFrame = frame => {
  const { attackArc, attackGuide, backRowApproach, setHand, setDestination, ...result } = frame;

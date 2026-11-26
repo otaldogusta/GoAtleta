@@ -9,6 +9,7 @@ import * as motion from './renderer-camera-motion.mjs';
 import * as elevationTools from './renderer-elevation.mjs';
 import * as trajectoryTools from './renderer-trajectory.mjs';
 import * as netWarningTools from './renderer-net-warning.mjs';
+import {BALL_RADIUS} from './court-net.js';
 
 // Run the renderer's actual handlers, rather than reproducing their branches.
 // This model covers capture -> target ordering, cancellation and warning DOM/cache;
@@ -59,6 +60,7 @@ function fixture({tool='select',disabled=false,objectId='ball'}={}){
  // Perspective cases replace this camera, retaining the renderer's actual cast().
  const camera=new THREE.OrthographicCamera(0,3.9,2,-6.44,.01,100);camera.position.set(0,0,20);camera.lookAt(0,0,0);camera.updateMatrixWorld();camera.fov=39;
  const state={
+  BALL_RADIUS,
   THREE,...geometry,...gestures,...motion,...elevationTools,...trajectoryTools,...netWarningTools,document,canvas,window,
   CHANNEL:'goatleta-court-3d',VERSION:1,parent:{},location:{origin:'http://localhost:8081'},renderer:{},error:{textContent:''},
   setTimeout:(callback,delay)=>{timers.set(++timerId,{callback,delay});return timerId;},clearTimeout:id=>timers.delete(id),cancelAnimationFrame(){},

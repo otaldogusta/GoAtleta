@@ -1,6 +1,8 @@
 import { courtActorActionPose, type CourtActorAction } from "./court-actor-actions";
 import { sampleBlockerPose } from "./court-simulation/blocker-motion.js";
 import { attackClipTiming, secondsFromTakeoffToHit } from "./court-simulation/attack-clip-timing.js";
+import { attackApproachProgress, CAPTURED_APPROACH_METRES } from "./court-simulation/attack-approach.js";
+import { blockClosingSchedule, closeBlock } from "./court-simulation/attack-motion.js";
 import { courtFootwork } from "./court-simulation/court-footwork.js";
 import type { CourtSimulationActor, CourtSimulationPoint } from "./court-simulation-model";
 
@@ -13,6 +15,7 @@ const arc = (start: CourtSimulationPoint, end: CourtSimulationPoint, progress: n
 ];
 const heading = (point: CourtSimulationPoint): [number, number] => [point[0], point[2]];
 const passContact = 0, setContact = .38, attackContact = .94;
+const setArc = 1.50;
 
 /** Stretch only the trace after contact while preserving normalized scrubbing. */
 export function defensePlaybackClock(durationMs: number, speed: number) {
@@ -49,9 +52,9 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
   const setter: CourtSimulationPoint = [0, 0, 1.05 * attackSide];
   const passHand: CourtSimulationPoint = [0, .85, 5.68 * attackSide];
   const setHand: CourtSimulationPoint = [0, 2.1, 1.02 * attackSide];
-  const ballAtArrival = arc(setHand, contact, phase(.78, setContact, attackContact), 1.50);
+  const ballAtArrival = arc(setHand, contact, phase(.78, setContact, attackContact), setArc);
   const ball = t >= attackContact ? [...contact] as CourtSimulationPoint : t < setContact ? arc(passHand, setHand, phase(t, passContact, setContact), 1.65)
-    : arc(setHand, contact, phase(t, setContact, attackContact), 1.50);
+    : arc(setHand, contact, phase(t, setContact, attackContact), setArc);
   const support: ActorMotion[] = [
     { role: "passer", position: passer, facing: heading(setter), ...poseAt(t, passPoses), jump: 0, side: true },
     { role: "setter", position: setter, facing: heading(contact), ...poseAt(t, setPoses), jump: 0, side: true },
@@ -74,16 +77,37 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
       if (slot === 6) {
         const impactSeconds = attackContact * duration;
         const approachSeconds = .32 * duration;
-        const jumpWindow = secondsFromTakeoffToHit(setContact, attackContact, contact[1] - setHand[1], 1.50, duration);
+        const jumpWindow = secondsFromTakeoffToHit(setContact, attackContact, contact[1] - setHand[1], setArc, duration);
         // Short authored stages still need a visible run-up before the jump.
         const takeoff = impactSeconds - Math.min(jumpWindow, (impactSeconds - approachSeconds) * .42);
         const elapsed = Math.min(t * duration, impactSeconds);
-        capture = attackClipTiming(elapsed, approachSeconds, takeoff, impactSeconds, impactSeconds + .44);
+        const dx = destination[0] - start[0], dz = destination[2] - start[2];
+        const distance = Math.hypot(dx, dz);
+        const captureMetres = CAPTURED_APPROACH_METRES * .9;
+        const surplus = Math.max(0, distance - captureMetres);
+        const extraSteps = ease(phase(surplus, .25, .65));
+        const leadDistance = surplus * extraSteps;
+        const leadFraction = distance > 0 ? leadDistance / distance : 0;
+        const captureStart = approachSeconds + (takeoff - approachSeconds) * leadFraction;
+        const timing = attackClipTiming(elapsed, captureStart, takeoff, impactSeconds, impactSeconds + .44, .22);
+        const approach = attackApproachProgress(timing.attackFrame);
+        const lead = leadDistance > 0 ? ease(phase(elapsed, approachSeconds, captureStart)) : 0;
+        const travel = leadFraction * lead + (1 - leadFraction) * approach;
+        const attackStrideScale = (distance - leadDistance) / captureMetres;
+        position[0] = travel === 1 ? destination[0] : start[0] + dx * travel;
+        position[2] = travel === 1 ? destination[2] : start[2] + dz * travel;
+        const runYaw = distance ? Math.atan2(dx, dz) : attackSide * Math.PI;
+        const hitYaw = attackSide > 0 ? Math.PI : 0;
+        const turn = hitYaw - runYaw;
+        const yaw = runYaw + Math.atan2(Math.sin(turn), Math.cos(turn)) * ease(phase(timing.attackFrame, 117, 130));
+        facing[0] = position[0] + Math.sin(yaw);
+        facing[1] = position[2] + Math.cos(yaw);
+        const leadPath = (u: number) => [start[0] + dx * leadFraction * u, start[2] + dz * leadFraction * u];
+        const gait = leadDistance > 0 ? courtFootwork(leadPath, lead) : {};
+        const attackLeadIn = gait.feet ? ease(phase(Math.min(lead, 1 - lead), 0, Math.min(.35, .50 / surplus))) * extraSteps : 0;
+        capture = { ...timing, attackStrideScale, attackLeadIn, feet: gait.feet, feetWeight: gait.feetWeight };
         const rise = phase(elapsed, takeoff, impactSeconds);
         position[1] = destination[1] * (1 - (1 - rise) ** 2);
-        const windup = ease(phase(t, .58, .82));
-        facing[0] = facing[0] * (1 - windup);
-        facing[1] = facing[1] + (-5 * attackSide - facing[1]) * windup;
       }
       const pose = poseAt(t, attackPoses);
       if (pose.pose === "approach" && t >= .345) {
@@ -100,9 +124,41 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
       // The rig's local +Z points through the palms: face the net from either half.
       const netDirection = destination[2] > 0 ? -1 : 1;
       const [midX, midZ] = floorPath(.5);
+      const closeX = destination[0] - start[0], closeZ = destination[2] - start[2];
+      const netYaw = netDirection < 0 ? Math.PI : 0;
+      const lateralClose = Math.abs(closeX) >= Math.abs(closeZ);
+      if (lateralClose && Math.abs(closeX) > .15) {
+        // The shared clip faces +Z. Rotate its full frame on the near side.
+        const local = (point: CourtSimulationPoint): CourtSimulationPoint => [point[0] * netDirection, 0, point[2] * netDirection];
+        const gait: Partial<ActorMotion> = {};
+        const seconds = 1 / duration;
+        const takeoff = attackContact - .154 * seconds;
+        const origin = local(start), end = local(destination);
+        const { read, plant } = blockClosingSchedule(Math.abs(closeX), setContact, takeoff, seconds, true);
+        // Fit the designated closing clip into the Defense transition. The
+        // authored back court remains still until the pass reaches the setter.
+        const sample = t < .78 ? read + (plant - read) * phase(t, setContact, .78)
+          : Math.min(attackContact - 1e-9, plant + (attackContact - plant) * phase(t, .78, attackContact));
+        closeBlock(sample, gait, origin, end, setContact, takeoff, seconds, true);
+        const point = gait.position ?? local(start);
+        const progress = phase(point[0], origin[0], end[0]);
+        const depth = progress === 1 ? destination[2] : start[2] + closeZ * progress;
+        const blockPosition: CourtSimulationPoint = [point[0] * netDirection, position[1], depth];
+        const blockFeet: CourtSimulationActor["feet"] = gait.feet?.map(([x, lift, z, yaw], index) => [
+          x * netDirection, lift, start[2] + closeZ * phase(x - (index === 0 ? .17 : -.17), origin[0], end[0]) + (z - origin[2]) * netDirection, yaw + netYaw,
+        ]) as CourtSimulationActor["feet"];
+        return {
+          ...terminal, ...hands, ...gait, position: blockPosition, feet: blockFeet,
+          facing: gait.facing ? [gait.facing[0] * netDirection, gait.facing[1] * netDirection] : facing,
+          handAngle: netYaw * 180 / Math.PI, jump: hands.jump + (gait.jump ?? 0),
+        };
+      }
       const gait = courtFootwork(floorPath, movement, {
         shuffle: true, facing: [midX, midZ + netDirection], travelSeconds, stridePhase, holdRunStance: true,
-        endYaw: netDirection < 0 ? Math.PI : 0,
+        startYaw: lateralClose ? netYaw : undefined, endYaw: netYaw,
+        ...(lateralClose ? {
+          route: { length: Math.hypot(closeX, closeZ), headingAt: () => netYaw, speed: Math.hypot(closeX, closeZ) / travelSeconds, running: false },
+        } : {}),
       });
       // The blocking clip numbers its feet from the opposite side of the net.
       const feet: CourtSimulationActor["feet"] = gait.feet && [gait.feet[1], gait.feet[0]];
@@ -117,7 +173,12 @@ export function sampleDefenseOrganization(progress: number, starts: CourtSimulat
         startYaw: Math.atan2(ballAtStart[0] - start[0], ballAtStart[2] - start[2]),
         endYaw: Math.atan2(ballAtArrival[0] - destination[0], ballAtArrival[2] - destination[2]) },
     ) : {};
+    // Keep the same upper-body ready pose as P6 while the defenders
+    // reposition. The foot anchors still drive the steps.
+    if (action === "defend") {
+      return { ...terminal, position, facing, feet: feet.feet, feetWeight: feet.feetWeight };
+    }
     return { ...terminal, position, facing, ...feet };
   });
-  return { actors, support, ball, passHand, setHand, passContact, setContact, attackContact, visible: true, duration };
+  return { actors, support, ball, passHand, setHand, setDestination: contact, setArc, passContact, setContact, attackContact, visible: true, duration };
 }

@@ -91,6 +91,18 @@ describe("shared court workspace panel", () => {
     expect(unmounted).not.toHaveBeenCalled();
   });
 
+  it("keeps the library centered during dismissal when the host resets to adjustments", async () => {
+    const value = props();
+    await mount({ ...value, tab: "library" });
+    act(() => pending.at(-1)!.complete());
+    update({ ...value, open: false });
+    expect(tree!.root.findByProps({ accessibilityLabel: "Biblioteca da quadra" }).props.inert).toBe(true);
+    expect(StyleSheet.flatten(content("Ajustes").props.style).display).toBe("none");
+    act(() => pending.at(-1)!.complete());
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "Biblioteca da quadra" })).toHaveLength(0);
+    expect(tree!.root.findByProps({ accessibilityLabel: "Abrir controles" }).props.accessibilityState.expanded).toBe(false);
+  });
+
   it("makes closing contents inert during the retained fade and keeps the toggle available", async () => {
     const value = props();
     await mount(value);

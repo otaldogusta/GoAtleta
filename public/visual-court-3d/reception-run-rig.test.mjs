@@ -16,11 +16,12 @@ function render(rig,actor){
 
 test('the planted shoe holds its heading and the loaded knee flexes toward the toes',()=>{
  const rig=createActorRig(new Group());
- for(const [system,rotation,time,slot,side] of [['5-1',0,.656,1,1],['6-0',5,.903125,1,0],['5-1',2,.50625,0,0]]){
+ for(const [system,rotation,time,slot] of [['5-1',0,.656,1],['6-0',5,.903125,1],['5-1',2,.50625,0]]){
   const actor=sampleReception(time,reception(rotation,system)).actors[slot];
   render(rig,actor);
+  const side=actor.feet.findIndex(foot=>foot[1]===0);
+  assert.notEqual(side,-1);
   const foot=actor.feet[side],heading=foot[3],name=side?'right':'left';
-  assert.equal(foot[1],0);
   const mesh=part=>rig.group.getObjectByName(name+'-'+part);
   const forward=mesh('foot').getWorldDirection(new Vector3());
   assert.ok(forward.dot(new Vector3(Math.sin(heading),0,Math.cos(heading)))>.999999);
@@ -28,6 +29,34 @@ test('the planted shoe holds its heading and the loaded knee flexes toward the t
   const legAxis=ankle.sub(hip).normalize(),flex=knee.sub(hip).projectOnPlane(legAxis);
   assert.ok(flex.length()>.06,'this contact loads a bent supporting knee');
   assert.ok(flex.angleTo(forward.projectOnPlane(legAxis))<Math.PI/4,'the knee flexes in front of the shoe');
+ }
+});
+
+test('the 6–0 right-back retreats facing the set and brakes over alternating supports',()=>{
+ const rig=createActorRig(new Group());
+ for(const hand of ['right','left']){
+  const config={...reception(0,'6-0'),attackHands:[undefined,hand]};
+  let previous;
+  const lifted=new Set();
+  for(let tick=650;tick<=985;tick++){
+   const actor=sampleReception(tick/1000,config).actors[1];
+   render(rig,actor);
+   const yaw=rig.group.rotation.y,hips=rig.group.getObjectByName('pelvis').position;
+   const ankleDepth=['left','right'].map(side=>rig.group.getObjectByName(side+'-ankle').position.z-hips.z);
+   assert.ok(Math.cos(yaw)<-.76,'keeps watching the net');
+   assert.ok(Math.max(...ankleDepth)>-.11&&Math.min(...ankleDepth)<.11,'hips stay over the stepping base');
+   assert.ok(ankleDepth.every(depth=>Math.abs(depth)<.38),'the stride stays within reach');
+   if(actor.feet){
+    assert.ok(actor.feet.some(foot=>foot[1]===0));
+    actor.feet.forEach((foot,side)=>{
+     if(foot[1]>0){lifted.add(side);return;}
+     assert.ok(Math.cos(foot[3]-yaw)>.8,'the planted shoe stays aligned with the hips');
+     if(previous?.[side][1]===0)assert.deepEqual(foot,previous[side]);
+    });
+   }
+   previous=actor.feet;
+  }
+  assert.equal(lifted.size,2);
  }
 });
 

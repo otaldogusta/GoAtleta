@@ -219,6 +219,9 @@ export function createSkillMotionRig(anatomy) {
     const readyWeight = timed
       ? progress >= 0 ? ease((progress - .2) / .65) : ease((-progress - .65) / .35)
       : mix(Number(previous === 'ready'), Number(name === 'ready'), blend);
+    // A defender loading for the spike has no ball contact in this stage.
+    // Keep the open ready hands as the legs lower into the defensive base.
+    const waitingForDig = role === 'passer' && clipName === 'dig' && !localBall;
     const stance = role === 'passer' && jump === 0 ? readyWeight * (1 - travelWeight) : 0;
     for (let joint = 0; joint < points.length; joint++) {
       const source = mirror && joint >= 3 ? joint + (joint < 11 ? 8 : -8) : joint;
@@ -366,9 +369,11 @@ export function createSkillMotionRig(anatomy) {
           if (timed || role === 'setter') handInfluence = influence;
         }
       }
+      const palmsUp = role === 'passer' && jump === 0 ? (waitingForDig ? 1 : readyWeight) * (1 - readiness) : 0;
       anatomy.setArm(index, elbow.x, elbow.y, elbow.z, palm.x, palm.y, palm.z,
-        Math.atan2(Math.hypot(direction.x, direction.z), direction.y), 0, role === 'passer' ? 0 : .3 + .55 * openHands,
-        Math.atan2(direction.x, direction.z), 0, stance * (1 - readiness), openHands > 0);
+        mix(Math.atan2(Math.hypot(direction.x, direction.z), direction.y), Math.PI / 2 - .15, palmsUp),
+        0, role === 'passer' ? 0 : .3 + .55 * openHands,
+        mix(Math.atan2(direction.x, direction.z), 0, palmsUp), 0, palmsUp, openHands > 0);
       if (openHands > 0) {
         if (followSet) contactNormal.lerp(setTangent, .65 * extension).normalize();
         settingHands.pose(index, direction, openHands, contactNormal, handInfluence, BALL_RADIUS / scale, release);
@@ -389,5 +394,6 @@ export function createSkillMotionRig(anatomy) {
         orientServingHand(index, direction, handNormal, 1);
       }
     }
+    return serve || waitingForDig ? 0 : Math.max(readyWeight, readiness);
   };
 }

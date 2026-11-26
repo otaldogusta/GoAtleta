@@ -279,6 +279,9 @@ export function buildCourtPerspectiveFrame(
             spikeVelocity: simulation.flight.segments[0].velocity,
             contactTarget: { x: simulation.flight.hit[0], y: simulation.flight.hit[1], z: simulation.flight.hit[2] },
           } : {}),
+          ...(state.attackFrame !== undefined && state.slot === 6 && simulation?.defenseContact ? {
+            contactTarget: { x: simulation.defenseContact[0], y: simulation.defenseContact[1], z: simulation.defenseContact[2] },
+          } : {}),
           ...(state.runCycle !== undefined ? { runCycle: state.runCycle } : {}),
           ...(state.runDrive !== undefined ? { runDrive: state.runDrive } : {}),
           ...(state.attackReadiness !== undefined ? { attackReadiness: state.attackReadiness, attackReadyLeft: state.attackReadyLeft } : {}),

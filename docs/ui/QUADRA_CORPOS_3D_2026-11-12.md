@@ -336,3 +336,9 @@ mostram o trabalho dos bloqueadores junto à rede.
 [Swing Blocking, Mike Sealy, no Pinterest](https://www.pinterest.com/pin/e1_AfqPShwYhInj6Xu7PndQlnxW5WPgf4Yf20RrkDnCQdMD_tIM4Uy0/) ·
 [Mark Rosen](https://www.theartofcoachingvolleyball.com/swing-blocking-footwork-for-beginners/) ·
 [Jed Stotsenberg no YouTube](https://www.youtube.com/watch?v=QRgANLdhOLU).
+## Gestos compartilhados entre os modos
+
+Na Defesa, o atacante adversário usa a passada da captura de cortada e
+alinha o gesto com o contato da bola. O levantador de apoio acompanha
+a direção inicial do levantamento. O bloqueio lateral usa a captura de
+fechamento do Ataque quando o percurso acompanha a rede.

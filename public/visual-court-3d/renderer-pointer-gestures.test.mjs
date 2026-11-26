@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pointerDragThreshold,emptyTouchContacts,advanceTouchContacts,cancelTouchContacts,touchPair,orbitPointerDrag,panPointerDrag,boundedObjectDrag,beginTouchCamera,moveTouchCamera,shouldReleaseMovePreview,resizeCameraZoom} from './renderer-pointer-gestures.mjs';
 
+test('mouse and touch can orbit below the court without reaching the pole',()=>{
+ const start={azimuth:0,elevation:.12},pixel={x:200,y:700},viewport={width:900,height:800};
+ for(const type of ['mouse','touch']){
+  const below=orbitPointerDrag(start,pixel,{x:200,y:150},viewport,type);
+  assert.ok(below.elevation<-.6&&below.elevation>-Math.PI/2);
+ }
+});
+
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-10,`${a} != ${b}`);
 const point=(x,y)=>({x,y});
 

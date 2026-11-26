@@ -1,5 +1,10 @@
 # Biblioteca, quadra visual e scouting
 
+Na Quadra 3D, o gesto acompanha a ação e o instante da bola em cada modo.
+Recepção vai do saque ao levantamento. Ataque e Defesa usam a captura da
+cortada no contato e sincronizam o fechamento do bloqueio com o levantamento.
+Ver [corpos e movimentos](../../ui/QUADRA_CORPOS_3D_2026-11-12.md).
+
 Atualização local de 24/10/2026: o workspace usa diretamente `CourtEditorCanvas`
 com as mesmas props, evitando carregar Skia pelo wrapper legado. Renderer e
 documentos legados permanecem preservados. Três suítes/49 testes aprovados;

@@ -194,7 +194,10 @@ export function sampleReception(t,{system='5-1',rotation=0,bases,landing=[-1.45,
       p=move(origin,destination,recovery);
       const endYaw=attackOption?attackBaseYaw(destination,setterTarget):bearing(destination,facing);
       const startYaw=bearing(origin,i===receiver?setterTarget:facing);
-      feet=courtFootwork(u=>move(origin,destination,u),recovery,{shuffle:i===receiver,facing:i===4?facing:setterTarget,
+      // Open the 6–0 attack lane with a backstep when the mark is behind
+      // the player. Keep reading the setter through both foot contacts.
+      const retreat=sixZero&&attackOption&&Math.cos(bearing(origin,destination)-endYaw)<-.7;
+      feet=courtFootwork(u=>move(origin,destination,u),recovery,{shuffle:i===receiver||retreat,facing:i===4?facing:setterTarget,
         travelSeconds,stridePhase:recoveryPhase,phasePerSecond,startYaw,endYaw,holdStance:attackOption||i===receiver,
         initialFeet:i===receiver?receiverFootwork(1).feet:undefined,
         endStagger:attackOption?(attackHands[i]==='left'?-.28:.28):0,holdRunStance:true,startFromReady:sixZero&&i!==receiver});

@@ -1,8 +1,8 @@
-import {createActorAnatomy} from './actor-anatomy.mjs?v=athlete-anatomy-20261125';
-import {blockerRunYaw,updateBlockerAnatomy} from './blocker-rig.mjs?v=athlete-anatomy-20261125';
+import {createActorAnatomy} from './actor-anatomy.mjs?v=resting-hands-20261125';
+import {blockerRunYaw,updateBlockerAnatomy} from './blocker-rig.mjs?v=block-wrist-20261125';
 import {createCapturedAttacker} from './captured-attacker-rig.mjs?v=athlete-anatomy-20261125';
-import {createReceptionRunner} from './reception-run-rig.mjs?v=athlete-anatomy-20261125';
-import {createSkillMotionRig} from './skill-motion-rig.mjs?v=jump-serve-20261125';
+import {createReceptionRunner} from './reception-run-rig.mjs?v=balanced-retreat-20261125';
+import {createSkillMotionRig} from './skill-motion-rig.mjs?v=defense-ready-hands-20261126';
 
 // Joint positions are local metres, facing +Z. These are pose shapes, not a
 // second motion clock: the host supplies pose, blend, facing, position and jump.
@@ -52,10 +52,10 @@ export function createActorRig(parent){
  let lastReleaseX,lastReleaseY,lastReleaseZ;
  const feet=[new Float64Array(4),new Float64Array(4)];
  let capturedAttack,capturedRun,skillRig;
- function applyTravel(actor,weight){
+ function applyTravel(actor,weight,palmsUp=0){
   const travel=actor.travelMotion;
   const cycle=travel?.phase??actor.runCycle;
-  if(!Number.isFinite(cycle)||cycle<0||cycle>=2)return;
+  if(!Number.isFinite(cycle)||cycle<0||cycle>=2)return 0;
   // Give the arms and trunk to the ball gesture as contact approaches.
   // Their planted footprints are already resolved by the underlying rig.
   if(Number.isFinite(actor.skillProgress)){
@@ -63,9 +63,10 @@ export function createActorRig(parent){
    weight*=authoredStep?smooth(bounded((-actor.skillProgress-.70)/.25,0,1))
      :smooth(bounded((Math.abs(actor.skillProgress)-.38)/.42,0,1));
   }
-  if(weight<=0)return;
+  if(weight<=0)return 0;
   capturedRun??=createReceptionRunner(anatomy);
-  capturedRun(cycle,weight,feet,travel,actor.runDrive);
+  capturedRun(cycle,weight,feet,travel,actor.runDrive,palmsUp);
+  return travel?.kind==='walk'?weight:0;
  }
  function update(actor={}){
   const role=actor.poseRole==='blocker'?'blocker':Object.hasOwn(poses,actor.poseRole)?actor.poseRole:'setter';
@@ -140,9 +141,14 @@ export function createActorRig(parent){
   lastReleaseX=release?.[0];lastReleaseY=release?.[1];lastReleaseZ=release?.[2];
   if(role!=='attacker'){
    skillRig??=createSkillMotionRig(anatomy);
-   skillRig(actor,role,name,previous,blend,yaw,scale,jump,planted?feet:null,contactWeight,
+   const restWeight=skillRig(actor,role,name,previous,blend,yaw,scale,jump,planted?feet:null,contactWeight,
     contactX===undefined?null:[contactX,contactY,contactZ],readiness);
-   if(planted)applyTravel(actor,bounded(finite(actor.feetWeight,1),0,1)*(1-readiness));
+   let walkWeight=0;
+   if(planted){
+    const readyWeight=role==='passer'&&jump===0?(Number(previous==='ready')*(1-blend)+Number(name==='ready')*blend)*(1-readiness):0;
+    walkWeight=applyTravel(actor,bounded(finite(actor.feetWeight,1),0,1)*(1-readiness),readyWeight);
+   }
+   anatomy.relaxLoweredHands(restWeight,role==='server'?0:walkWeight);
    anatomy.measureHeight();
    return;
   }
@@ -204,7 +210,8 @@ export function createActorRig(parent){
    }
    anatomy.setArm(n,arm[0],arm[1],arm[2],arm[3],arm[4],arm[5],pitch,0,.15,handYaw);
   }
-  if(planted)applyTravel(actor,feetWeight);
+  const walkWeight=planted?applyTravel(actor,feetWeight):0;
+  anatomy.relaxLoweredHands(readyWeight,walkWeight);
   anatomy.measureHeight();
  }
  update();return {group:anatomy.group,update,get height(){return anatomy.height;}};

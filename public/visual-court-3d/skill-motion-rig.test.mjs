@@ -98,6 +98,18 @@ test('stationary passers hold their hands low and apart over a flexed defensive 
   }
 });
 
+test('defenders keep palms up and thumbs outward while lowering into expectation', () => {
+  const { rig, position } = fixture();
+  for (let i = 0; i <= 26; i++) {
+    rig.update({ poseRole: 'passer', pose: 'ready', skillMotion: 'dig', skillProgress: -1 + i * .02 });
+    for (const side of ['left', 'right']) {
+      const palm = rig.group.getObjectByName(side + '-palm');
+      assert.ok(new Vector3(0, 0, 1).applyQuaternion(palm.quaternion).y > .9);
+      assert.ok(Math.abs(position(side + '-thumb').x) > Math.abs(palm.position.x));
+    }
+  }
+});
+
 test('a tilted shoe stays on the floor while the heel rises and the plant blends in', () => {
   const { rig } = fixture();
   for (const [skillMotion, poseRole] of [['serve', 'server'], ['setJump', 'setter']]) {

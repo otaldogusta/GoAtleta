@@ -32,7 +32,7 @@ export function courtSkillMotion(
   const illustration = sample.mode === "defense" && slot === undefined;
   if (actor.role === "setter" && (slot === 0 && (attacking || receiving) || illustration) && sample.setHand) {
     const back = attacking && ["tempo-costas", "china", "fundo-1"].includes(sample.config.preset);
-    const destination = attacking ? sample.setDestination ?? sample.flight?.hit : undefined;
+    const destination = attacking || illustration ? sample.setDestination ?? sample.flight?.hit : undefined;
     let setReleaseDirection: CourtSimulationPoint | undefined;
     if (destination) {
       // The set arc adds 4h·u(1−u) to the straight line from the hands to the hitter.

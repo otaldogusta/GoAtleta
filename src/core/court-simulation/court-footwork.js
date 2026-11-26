@@ -141,16 +141,28 @@ export function courtFootwork(pointAt,progress,{shuffle=false,facing,travelSecon
  const lateral=Math.sin(travelYaw-yaw);
  const pivot=endStagger!==0&&distance<.25;
  const sideStep=!pivot&&shuffle&&Math.abs(lateral)>.5;
- const leadSide=sideStep&&lateral>0?1:0;
+ const retreatToStance=shuffle&&!running&&!sideStep&&!pivot&&endStagger!==0&&Math.cos(travelYaw-yaw)<0;
  // A lateral beat opens and gathers both shoes. Widen the opening for a
  // quick adjustment; use a crossover run for longer, urgent coverage.
  const lateralStride=Math.max(.45,Math.min(.70,speed*.47));
- const steps=Math.max(sideStep||pivot?1:2,Math.ceil(distance/(sideStep?lateralStride:.39)));
+ const steps=Math.max(sideStep||pivot?1:2,Math.ceil(distance/(sideStep?lateralStride:retreatToStance?.30:.39)));
+ // On a retreat the deeper shoe closes last. The other shoe is already
+ // taking the weight as the body slows into its staggered attack stance.
+ const rearSide=endStagger>0?1:0;
+ const leadSide=retreatToStance?(steps+rearSide)%2:Number(sideStep&&lateral>0);
  // Blend into the floor anchors before the first shoe swings, and release
  // after both shoes arrive. The support shoe has full weight in every swing.
  const transition=Math.min(.025,.14/(steps+1));
  const swings=sideStep?steps*2:steps+1;
- const clock=clamp((progress-transition)/(1-2*transition))*swings;
+ const moving=clamp((progress-transition)/(1-2*transition));
+ let clock=moving*swings;
+ if(retreatToStance){
+  // Start and finish with a half step. Between them, each planted foot
+  // goes from half a step ahead of the hips to half a step behind.
+  const stride=moving*steps;
+  const departure=Math.max(0,1-2*stride),arrival=Math.max(0,1-2*(steps-stride));
+  clock=stride+.5*(1-departure**2+arrival**2);
+ }
  const initialYaw=startYaw??yaw;
  const leaveStance=(target,beat)=>turnTowards(initialYaw,target,smooth(clamp(beat/1.25)));
  const halfWidth=route ? .16 : (shuffle||running ? .17 : .15);
@@ -210,7 +222,7 @@ export function courtFootwork(pointAt,progress,{shuffle=false,facing,travelSecon
  // Both Blender clips start with the left shoe swinging. A rightward shuffle
  // mirrors the whole clip. A retreat plays the same walk backwards within its
  // two alternating contacts, keeping the chest toward the ball.
- const phase=(!sideStep&&direction<0?3-clock%2:clock)%2;
+ const phase=(!sideStep&&direction<0?3-clock%2+(retreatToStance?leadSide:0):clock)%2;
  const [x,z]=pointAt(progress),angle=route?.headingAt(progress)??heading(clock);
  return {feet,feetWeight:smooth(clamp(Math.min(progress,1-progress)/transition)),
   facing:[x+Math.sin(angle),z+Math.cos(angle)],travelMotion:{kind:sideStep?'shuffle':'walk',direction,phase}};

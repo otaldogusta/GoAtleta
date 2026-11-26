@@ -1,5 +1,5 @@
 import {clamp,limitPoint} from './renderer-geometry.mjs';
-import {CAMERA_MOTION} from './renderer-camera-motion.mjs?v=court-close-camera-20261124';
+import {CAMERA_MOTION} from './renderer-camera-motion.mjs?v=court-under-orbit-20261125';
 
 export const pointerDragThreshold=type=>type==='touch'?8:5;
 export const emptyTouchContacts=()=>({points:new Map(),pair:null,suppressed:false});

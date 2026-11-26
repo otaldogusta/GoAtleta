@@ -22,9 +22,10 @@ export function createReceptionRunner(anatomy){
  const plantedForward=new Vector3(),shoeDirection=new Vector3(),handDirection=new Vector3();
  const legLength=.46;
 
- return (cycle,weight,feet,travel,runDrive)=>{
+ return (cycle,weight,feet,travel,runDrive,palmsUp=0)=>{
   if(weight<=0)return;
   const running=!travel;
+  const retreating=travel?.kind==='walk'&&travel.direction<0;
   const drive=Number.isFinite(runDrive)?Math.max(0,Math.min(1,runDrive)):1;
   const poses=running?setterRunPoses:travel.kind==='shuffle'?shufflePoses:walkPoses;
   const upperLeg=running?.454:legLength,lowerLeg=running?.451:legLength;
@@ -60,7 +61,9 @@ export function createReceptionRunner(anatomy){
    const hipOffset=hip.y-capturedHeight;
    // A loaded knee still has flex. Match the reach of the stance in Blender.
    // The trailing leg folds in the air and mustn't pull the whole pelvis down.
-   const supportReach=running?Math.min(upperLeg+lowerLeg-.008,Math.max(.81,hip.distanceTo(recordedAnkle))):2*legLength;
+   // Leave knee flexion to absorb the player's weight on a backward step.
+   const walkingReach=2*legLength-(retreating?.025:0);
+   const supportReach=running?Math.min(upperLeg+lowerLeg-.008,Math.max(.81,hip.distanceTo(recordedAnkle))):walkingReach;
    const ceiling=ankle.y-hipOffset+Math.sqrt(Math.max(0,supportReach**2-span**2));
    const support=running?1-Math.min(1,feet[side][1]/.065):1;
    height+=Math.min(0,ceiling-height)*support;
@@ -151,9 +154,10 @@ export function createReceptionRunner(anatomy){
   anatomy.setCapturedTrunk(hips,chest,skull,captures[0],captures[1],true);
   for(const [side,{elbow,palm}] of captures.entries()){
    handDirection.subVectors(palm,elbow).normalize();
+   const pitch=Math.atan2(Math.hypot(handDirection.x,handDirection.z),handDirection.y);
    anatomy.setArm(side,elbow.x,elbow.y,elbow.z,palm.x,palm.y,palm.z,
-    Math.atan2(Math.hypot(handDirection.x,handDirection.z),handDirection.y),0,.15,
-    Math.atan2(handDirection.x,handDirection.z),running?weight:0);
+    pitch+(Math.PI/2-.15-pitch)*palmsUp,0,.15,
+    Math.atan2(handDirection.x,handDirection.z)*(1-palmsUp),running?weight*(1-palmsUp):0,palmsUp);
   }
  };
 }
