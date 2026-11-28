@@ -56,7 +56,10 @@ export function FamilyPlansPanel({ relationshipId, studentName, institutionName,
     }
   }, [relationshipId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initialLoad = setTimeout(() => void load(), 0);
+    return () => clearTimeout(initialLoad);
+  }, [load]);
 
   const requestPlan = async () => {
     if (!selected || saveInFlight.current) return;

@@ -361,7 +361,10 @@ export default function PendingScreen() {
     useState<(AccessRequestOrganization & { selectedBy: string }) | null>(null);
   const sessionUserId = session?.user.id;
   const selectedOrganization = organizationSelection?.selectedBy === sessionUserId ? organizationSelection : null;
-  const [enrollmentOrganization, setEnrollmentOrganization] = useState<typeof organizationSelection>(null);
+  const [enrollmentEntry, setEnrollmentEntry] = useState<{
+    organization: NonNullable<typeof organizationSelection>;
+    requestState: string;
+  } | null>(null);
   const [submittedAccessId, setSubmittedAccessId] = useState<string | null>(null);
   const [choosingAnotherInstitution, setChoosingAnotherInstitution] = useState(false);
   const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
@@ -844,11 +847,10 @@ export default function PendingScreen() {
   const isChoosingInstitution = pendingViewState === "waiting" && !studentAccessCopy &&
     accessRequest?.status !== "approved" && accessRequest?.status !== "pending";
   const hasOrganizationDraft = Boolean(selectedOrganization && selectedOrganization.name.trim() !== organizationQuery.trim());
+  const enrollmentRequestState = `${accessRequest?.id ?? ""}:${accessRequest?.status ?? ""}`;
   const showEnrollment = isChoosingInstitution && requestMode === "family" && requestIntent &&
-    validRelationshipRequest && !hasOrganizationDraft && selectedOrganization && enrollmentOrganization === selectedOrganization;
-  useEffect(() => {
-    if (!isChoosingInstitution) setEnrollmentOrganization(null);
-  }, [isChoosingInstitution]);
+    validRelationshipRequest && !hasOrganizationDraft && selectedOrganization &&
+    enrollmentEntry?.organization === selectedOrganization && enrollmentEntry.requestState === enrollmentRequestState;
   const compactContentWidth = Math.min(
     Math.max(viewportWidth - spacing.lg * 2, 0),
     440,
@@ -889,7 +891,7 @@ export default function PendingScreen() {
                 institutionName={selectedOrganization.name}
                 request={{ organizationId: selectedOrganization.id, kind: requestIntent, studentName: requestedStudentName,
                   relationshipLabel: requestedRelationshipLabel }}
-                onBack={() => setEnrollmentOrganization(null)} onSent={onFamilyRequestSent} />
+                onBack={() => setEnrollmentEntry(null)} onSent={onFamilyRequestSent} />
             </View>
           ) : <View
             style={{
@@ -1400,7 +1402,7 @@ export default function PendingScreen() {
                         {requestMode === "family" ? (
                           <Button label="Quero me inscrever"
                             disabled={hasOrganizationDraft || !validRelationshipRequest || accessRequestBusy}
-                            onPress={() => setEnrollmentOrganization(selectedOrganization)} />
+                            onPress={() => setEnrollmentEntry({ organization: selectedOrganization, requestState: enrollmentRequestState })} />
                         ) : null}
                       <Button
                         label={
