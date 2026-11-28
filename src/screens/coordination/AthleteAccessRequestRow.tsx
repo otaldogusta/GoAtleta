@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { familyCandidateSchedule } from "../../core/family-candidate-schedule";
+import { familyPlanKindLabel, formatFamilyPlanTerms } from "../../finance/application/family-plans";
 import { View } from "react-native";
 import { OperationalText as Text } from "../../ui/OperationalText";
 import { Pressable } from "../../ui/Pressable";
@@ -38,6 +39,7 @@ export function AthleteAccessRequestView({ request, state, createKey }: {
   </View>;
   const openDetails = () => { setDetailsOpen(true); if (state.candidates === null && !state.busy) void state.load(); };
   const selectedDraft = state.candidates?.find(candidate => candidate.id === draftStudentIds[0]);
+  const plan = request.enrollmentPlan;
   return <View style={{ padding: spacing.md, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
     <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm }}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Conferir vínculo de ${request.requesterName}`} onPress={openDetails} style={{ flexDirection: "row", gap: spacing.sm, flexGrow: 1, flexBasis: 240, minWidth: 0, padding: spacing.xs, borderRadius: radius.internal }}>
@@ -47,6 +49,7 @@ export function AthleteAccessRequestView({ request, state, createKey }: {
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
         {identity()}
         {request.requestedStudentName ? <Text style={{ color: colors.muted, fontSize: 12 }}>Atleta: {request.requestedStudentName}{request.requestedRelationshipLabel ? ` · ${request.requestedRelationshipLabel}` : ""}</Text> : null}
+        {plan ? <Text style={{ color: colors.text, fontSize: 12 }}>Plano solicitado · {plan.name}</Text> : null}
         </View>
       </Pressable>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
@@ -70,6 +73,12 @@ export function AthleteAccessRequestView({ request, state, createKey }: {
           ? `Solicita acompanhar ${request.requestedStudentName || "um atleta"}${request.requestedRelationshipLabel ? ` como ${request.requestedRelationshipLabel.toLocaleLowerCase("pt-BR")}` : ""}.`
           : `Solicita acesso ao próprio cadastro${request.requestedStudentName ? `: ${request.requestedStudentName}` : ""}.`}</Text>
       </View>
+      {plan ? <View style={{ gap: spacing.xs }}>
+        <Text style={{ color: colors.text, fontWeight: "700" }}>Plano solicitado · {plan.name}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {familyPlanKindLabel[plan.kind]} · {formatFamilyPlanTerms(plan.amount_cents, plan.billing_day)}
+        </Text>
+      </View> : null}
       {!suggestion ? <Text style={{ color: colors.text, fontWeight: "600" }}>Qual cadastro corresponde a esse atleta?</Text> : null}
     {state.candidates !== null ? <>
       {suggestion ? <View style={{ gap: spacing.xs }}>

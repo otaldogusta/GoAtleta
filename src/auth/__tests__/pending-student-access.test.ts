@@ -6,6 +6,8 @@ const mockResend = jest.fn();
 const mockSearchOrganizations = jest.fn();
 const mockListRequests = jest.fn();
 const mockRequestAthlete = jest.fn();
+const mockDiscoverablePlans = jest.fn();
+const mockRequestEnrollment = jest.fn();
 const mockRequestStaff = jest.fn();
 let mockReturnTo: string | undefined;
 const mockClaimTrainerInvite = jest.fn();
@@ -47,6 +49,10 @@ jest.mock("../../api/organization-access-requests", () => ({
   searchAccessRequestOrganizations: (...args: unknown[]) => mockSearchOrganizations(...args),
 }));
 jest.mock("../../api/family-access-request", () => ({ familyAccessErrorMessage: () => "Não foi possível concluir.", requestFamilyAccess: (...args: unknown[]) => mockRequestAthlete(...args) }));
+jest.mock("../../api/family-plans", () => ({
+  listDiscoverableFamilyPlanOffers: (...args: unknown[]) => mockDiscoverablePlans(...args),
+  requestFamilyEnrollment: (...args: unknown[]) => mockRequestEnrollment(...args),
+}));
 jest.mock("../../api/access-request", () => ({ requestAccessReview: (...args: unknown[]) => mockRequestStaff(...args) }));
 jest.mock("../../observability/perf", () => ({ markRender: jest.fn(), measureAsync: (_name: string, work: () => unknown) => work() }));
 jest.mock("../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { background: "#101827", text: "#ffffff", muted: "#8899bb", border: "#334155", primaryBg: "#2dd482", primaryText: "#101827", card: "#1e293b" } }) }));
@@ -149,6 +155,55 @@ it("submits an athlete link from profile without choosing a staff plan", async (
   fireEvent.press(screen.getByLabelText("Selecionar Rede Esportes Pinhais"));
   await act(async () => { fireEvent.press(screen.getByText("Solicitar vínculo")); });
   expect(mockRequestAthlete).toHaveBeenCalledWith({ organizationId: "org-1", kind: "athlete", studentName: "Ana Teste", relationshipLabel: "" });
+});
+
+it("opens enrollment from the guardian profile and retries with the same request key", async () => {
+  mockReturnTo = "/family/profile";
+  mockRole = "family";
+  const priorRequest = { id: "previous", requestKind: "guardian", status: "approved", organizationName: "Outra instituição" };
+  const pendingEnrollment = { id: "enrollment", requestKind: "guardian", status: "pending", organizationName: "Rede Esportes Pinhais" };
+  mockListRequests.mockResolvedValue([priorRequest]);
+  const offer = { offer_id: "offer-1", kind: "enrollment", name: "Matrícula de vôlei",
+    description: null, amount_cents: 7000, billing_day: null, status: "available" };
+  mockDiscoverablePlans.mockResolvedValue([offer]);
+  mockRequestEnrollment.mockRejectedValueOnce(new Error("Falha de rede")).mockImplementationOnce(async () => {
+    mockListRequests.mockResolvedValue([pendingEnrollment, priorRequest]);
+    return "enrollment";
+  });
+  await mountPending();
+  fireEvent.press(screen.getByText("Sou responsável"));
+  fireEvent.changeText(screen.getByLabelText("Nome do atleta"), "Ana Teste");
+  fireEvent.changeText(screen.getByLabelText("Parentesco"), "Mãe");
+  fireEvent(screen.getByLabelText("Buscar instituição"), "focus");
+  await waitFor(() => expect(screen.getByLabelText("Selecionar Rede Esportes Pinhais")).toBeTruthy());
+  fireEvent.press(screen.getByLabelText("Selecionar Rede Esportes Pinhais"));
+  fireEvent.press(screen.getByText("Quero me inscrever"));
+  await waitFor(() => expect(screen.getByLabelText("Selecionar Matrícula de vôlei")).toBeTruthy());
+  expect(mockDiscoverablePlans).toHaveBeenCalledWith("org-1", expect.any(Function));
+  fireEvent.press(screen.getByLabelText("Selecionar Matrícula de vôlei"));
+  await act(async () => { fireEvent.press(screen.getByText("Solicitar plano")); });
+  expect(screen.getByText("Não foi possível concluir.")).toBeTruthy();
+  const [request, selectedOffer, key] = mockRequestEnrollment.mock.calls[0];
+  expect(request).toEqual({ organizationId: "org-1", kind: "guardian", studentName: "Ana Teste", relationshipLabel: "Mãe" });
+  expect(selectedOffer).toEqual(offer);
+  expect(key).toMatch(/^[0-9a-f-]{36}$/i);
+  await act(async () => { fireEvent.press(screen.getByText("Solicitar plano")); });
+  expect(mockRequestEnrollment.mock.calls[1][2]).toBe(key);
+  expect(mockRequestAthlete).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByText("Solicitação enviada")).toBeTruthy());
+});
+
+it("lets a linked guardian return to their existing pending request after browsing other institutions", async () => {
+  mockReturnTo = "/family/profile";
+  mockRole = "family";
+  mockAccessStatus = "review_required";
+  mockListRequests.mockResolvedValue([{ id: "pending", requestKind: "athlete", status: "pending", organizationName: "Outra instituição" }]);
+  await mountPending();
+  fireEvent.press(screen.getByRole("button", { name: "Buscar outra instituição" }));
+  expect(screen.getByLabelText("Buscar instituição")).toBeTruthy();
+  fireEvent.press(screen.getByRole("button", { name: "Voltar à solicitação em análise" }));
+  expect(screen.getByText("Solicitação enviada")).toBeTruthy();
+  expect(mockRequestAthlete).not.toHaveBeenCalled();
 });
 
 it("requests staff access directly for the selected institution", async () => {

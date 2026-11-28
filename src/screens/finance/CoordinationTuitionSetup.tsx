@@ -2,9 +2,11 @@ import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import { CLASS_MODALITY_OPTIONS, type ClassModality } from "../../core/class-modality";
 import { PositionPicker } from "../../ui/PositionPicker";
 import { PlanModalityEditor } from "./PlanModalityEditor";
+import { CoordinationFamilyPlans } from "./CoordinationFamilyPlans";
+import { FinanceCompactInput } from "./FinanceCompactInput";
 import { getPlanModalities } from "../../api/athlete-modalities";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useOptionalCopilotOpen } from "../../copilot/CopilotProvider";
 import { usesFinanceAssistantButton } from "../../copilot/route-visibility";
 import { OperationalText as Text } from "../../ui/OperationalText";
@@ -95,60 +97,6 @@ const currentInvoiceDates = (dueDay: number) => {
   const due = new Date(today.getFullYear(), today.getMonth(), dueDay, 12);
   return { competenceMonth: dateOnly(month), dueDate: dateOnly(due) };
 };
-
-function CompactInput({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  placeholder: string;
-  keyboardType?: "default" | "decimal-pad" | "number-pad";
-}) {
-  const { colors } = useAppTheme();
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-        {label}
-      </Text>
-      <View
-        style={{
-          minHeight: 50,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.inputBg,
-          paddingHorizontal: 14,
-          justifyContent: "center",
-        }}
-      >
-        <TextInput
-          accessibilityLabel={label}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.placeholder}
-          keyboardType={keyboardType}
-          style={[
-            {
-              minHeight: 50,
-              paddingVertical: 0,
-              borderWidth: 0,
-              borderRadius: 0,
-              color: colors.inputText,
-              backgroundColor: "transparent",
-            },
-            Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
 
 type CoordinationTuitionSetupProps = {
   embedded?: boolean;
@@ -512,7 +460,7 @@ function CoordinationTuitionSetupOrganizationScope({
                   Valor mensal recebido pela instituição.
                 </Text>
               </View>
-              <CompactInput
+              <FinanceCompactInput
                 label="Nome"
                 value={name}
                 onChangeText={setName}
@@ -522,21 +470,21 @@ function CoordinationTuitionSetupOrganizationScope({
                 <Text style={{ color: colors.muted }}>Modalidade</Text>
                 <PositionPicker value={modality} options={CLASS_MODALITY_OPTIONS} onChange={setModality} maxSelections={1} searchLabel="Pesquisar modalidade" />
               </View>
-              <CompactInput
+              <FinanceCompactInput
                 label="Valor (R$)"
                 value={amount}
                 onChangeText={setAmount}
                 placeholder="149,90"
                 keyboardType="decimal-pad"
               />
-              <CompactInput
+              <FinanceCompactInput
                 label="Dia do vencimento"
                 value={dueDay}
                 onChangeText={setDueDay}
                 placeholder="10"
                 keyboardType="number-pad"
               />
-              <CompactInput
+              <FinanceCompactInput
                 label="Descrição (opcional)"
                 value={description}
                 onChangeText={setDescription}
@@ -732,6 +680,10 @@ function CoordinationTuitionSetupOrganizationScope({
                   </View>
                 ) : null}
               </View>
+              {organizationId && !permissionsLoading &&
+              ((activeOrganization?.role_level ?? 0) >= 50 || memberPermissions.financial === true) ? (
+                <CoordinationFamilyPlans organizationId={organizationId} plans={scopedPlans} onAgreementActivated={load} />
+              ) : null}
             </View>
           </ResponsiveGrid>
         </ResponsivePage>

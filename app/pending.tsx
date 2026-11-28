@@ -45,6 +45,7 @@ import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Button } from "../src/ui/Button";
+import { InstitutionEnrollmentPanel } from "../src/screens/auth/InstitutionEnrollmentPanel";
 import { usePendingAccessRequest } from "../src/screens/auth/usePendingAccessRequest";
 
 // perf-check: ignore-inline-row-style - the capped five-item dropdown uses theme-dependent row colors and is not a virtualized list.
@@ -356,19 +357,37 @@ export default function PendingScreen() {
   const [organizations, setOrganizations] = useState<
     AccessRequestOrganization[]
   >([]);
-  const [selectedOrganization, setSelectedOrganization] =
-    useState<AccessRequestOrganization | null>(null);
+  const [organizationSelection, setOrganizationSelection] =
+    useState<(AccessRequestOrganization & { selectedBy: string }) | null>(null);
+  const sessionUserId = session?.user.id;
+  const selectedOrganization = organizationSelection?.selectedBy === sessionUserId ? organizationSelection : null;
+  const [enrollmentOrganization, setEnrollmentOrganization] = useState<typeof organizationSelection>(null);
+  const [submittedAccessId, setSubmittedAccessId] = useState<string | null>(null);
+  const [choosingAnotherInstitution, setChoosingAnotherInstitution] = useState(false);
   const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
   const organizationOverlayZIndex = Platform.OS === "web" && organizationPickerOpen ? 10 : undefined;
   const [organizationCatalogLoading, setOrganizationCatalogLoading] =
     useState(false);
   const {
-    request: accessRequest,
+    request: latestAccessRequest,
     error: accessRequestError,
     loading: accessRequestLoading,
     observedPending: observedAthletePending,
     reload: loadAccessRequest,
-  } = usePendingAccessRequest(session?.user.id ?? null);
+  } = usePendingAccessRequest(sessionUserId ?? null);
+  const linkingFromFamily = returnTo === "/family/profile" && (role === "family" || availableRoles.includes("family"));
+  const hidePriorRequest = linkingFromFamily && (
+    choosingAnotherInstitution || (latestAccessRequest?.status === "approved" &&
+      !observedAthletePending && latestAccessRequest.id !== submittedAccessId)
+  );
+  const accessRequest = hidePriorRequest ? null : latestAccessRequest;
+  const onFamilyRequestSent = (id?: string) => {
+    if (id) {
+      setSubmittedAccessId(id);
+      setChoosingAnotherInstitution(false);
+    }
+    return loadAccessRequest();
+  };
   const [accessRequestBusy, setAccessRequestBusy] = useState(false);
   const requestLock = useRef(false);
   const autoClaimedRef = useRef(false);
@@ -421,14 +440,14 @@ export default function PendingScreen() {
     try {
       if (!requestIntent || !validRelationshipRequest)
         throw new Error("Informe seu vínculo e os dados do atleta.");
-      await requestFamilyAccess({
+      const requestId = await requestFamilyAccess({
         organizationId: organization.id,
         kind: requestIntent,
         studentName: requestedStudentName,
         relationshipLabel: requestedRelationshipLabel,
       });
       setCorrectingRequest(false);
-      await loadAccessRequest();
+      await onFamilyRequestSent(requestId);
     } catch (error) {
       setMessage(familyAccessErrorMessage(error));
     } finally {
@@ -737,7 +756,7 @@ export default function PendingScreen() {
       if (!token && !trainerCode) {
         if (
           resolvedRoleHome &&
-          observedAthletePending &&
+          (observedAthletePending || accessRequest?.id === submittedAccessId) &&
           accessRequest?.status === "approved"
         ) {
           const nextRole =
@@ -775,6 +794,8 @@ export default function PendingScreen() {
     session,
     accessRequest?.status,
     accessRequest?.requestKind,
+    accessRequest?.id,
+    submittedAccessId,
     observedAthletePending,
     availableRoles,
     role,
@@ -788,7 +809,7 @@ export default function PendingScreen() {
     hasStoredInvite: Boolean(storedToken || storedTrainerCode),
   });
   const studentAccessCopy =
-    pendingViewState === "waiting" && !accessRequest
+    pendingViewState === "waiting" && !accessRequest && !linkingFromFamily
       ? getStudentAccessPendingCopy(studentAccessResolution)
       : null;
   const statusMessage = message || accessRequestError;
@@ -820,6 +841,14 @@ export default function PendingScreen() {
               subtitle: "Solicite seu vínculo com a instituição.",
             };
   const hasTerminalInviteIssue = isTerminalPendingInviteIssue(pendingViewState);
+  const isChoosingInstitution = pendingViewState === "waiting" && !studentAccessCopy &&
+    accessRequest?.status !== "approved" && accessRequest?.status !== "pending";
+  const hasOrganizationDraft = Boolean(selectedOrganization && selectedOrganization.name.trim() !== organizationQuery.trim());
+  const showEnrollment = isChoosingInstitution && requestMode === "family" && requestIntent &&
+    validRelationshipRequest && !hasOrganizationDraft && selectedOrganization && enrollmentOrganization === selectedOrganization;
+  useEffect(() => {
+    if (!isChoosingInstitution) setEnrollmentOrganization(null);
+  }, [isChoosingInstitution]);
   const compactContentWidth = Math.min(
     Math.max(viewportWidth - spacing.lg * 2, 0),
     440,
@@ -854,7 +883,15 @@ export default function PendingScreen() {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <View
+          {showEnrollment ? (
+            <View style={{ width: compactContentWidth }}>
+              <InstitutionEnrollmentPanel key={`${selectedOrganization.selectedBy}:${selectedOrganization.id}`}
+                institutionName={selectedOrganization.name}
+                request={{ organizationId: selectedOrganization.id, kind: requestIntent, studentName: requestedStudentName,
+                  relationshipLabel: requestedRelationshipLabel }}
+                onBack={() => setEnrollmentOrganization(null)} onSent={onFamilyRequestSent} />
+            </View>
+          ) : <View
             style={{
               width: compactContentWidth,
               alignSelf: "center",
@@ -867,7 +904,7 @@ export default function PendingScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Ir para início"
                 onPress={() => {
-                  const safeReturnTo =
+                  const safeReturnTo = linkingFromFamily ? "/family/profile" :
                     typeof returnTo === "string" &&
                     returnTo.startsWith("/student/")
                       ? returnTo
@@ -1146,6 +1183,10 @@ export default function PendingScreen() {
                         Atualizar status
                       </Text>
                     </Pressable>
+                    {linkingFromFamily && !correctingRequest ? (
+                      <Button label="Buscar outra instituição" variant="outline"
+                        onPress={() => { setMessage(""); setChoosingAnotherInstitution(true); }} />
+                    ) : null}
                   </View>
                 ) : (
                   <View style={{ gap: spacing.sm, zIndex: organizationOverlayZIndex }}>
@@ -1238,7 +1279,7 @@ export default function PendingScreen() {
                           }}
                           onChangeText={(value) => {
                             setOrganizationQuery(value);
-                            setSelectedOrganization(null);
+                            setOrganizationSelection(null);
                             setOrganizationPickerOpen(true);
                             setMessage("");
                           }}
@@ -1313,7 +1354,8 @@ export default function PendingScreen() {
                                 accessibilityRole="button"
                                 accessibilityLabel={`Selecionar ${organization.name}`}
                                 onPress={() => {
-                                  setSelectedOrganization(organization);
+                                  if (!sessionUserId) return;
+                                  setOrganizationSelection({ ...organization, selectedBy: sessionUserId });
                                   setOrganizationQuery(organization.name);
                                   setOrganizationPickerOpen(false);
                                 }}
@@ -1354,6 +1396,12 @@ export default function PendingScreen() {
                     </ScrollView> : null}
                     </View>
                     {selectedOrganization ? (
+                      <>
+                        {requestMode === "family" ? (
+                          <Button label="Quero me inscrever"
+                            disabled={hasOrganizationDraft || !validRelationshipRequest || accessRequestBusy}
+                            onPress={() => setEnrollmentOrganization(selectedOrganization)} />
+                        ) : null}
                       <Button
                         label={
                           requestMode === "staff"
@@ -1361,15 +1409,17 @@ export default function PendingScreen() {
                             : "Solicitar vínculo"
                         }
                         disabled={
-                          requestMode === "family" && !validRelationshipRequest
+                          hasOrganizationDraft || (requestMode === "family" && !validRelationshipRequest)
                         }
                         loading={accessRequestBusy}
+                        variant={requestMode === "family" ? "outline" : "primary"}
                         onPress={() =>
                           requestMode === "staff"
                             ? void submitStaffAccessRequest()
                             : void submitAccessRequest()
                         }
                       />
+                      </>
                     ) : null}
                     {statusMessage ? (
                       <Text
@@ -1378,6 +1428,10 @@ export default function PendingScreen() {
                       >
                         {statusMessage}
                       </Text>
+                    ) : null}
+                    {choosingAnotherInstitution ? (
+                      <Button label="Voltar à solicitação em análise" variant="ghost"
+                        onPress={() => { setMessage(""); setChoosingAnotherInstitution(false); }} />
                     ) : null}
                   </View>
                 )}
@@ -1615,7 +1669,7 @@ export default function PendingScreen() {
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </View>}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

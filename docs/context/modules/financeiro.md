@@ -23,6 +23,11 @@ autoriza emissão/captura real. Ativação/configuração remota não foi consul
 
 ## Contratos a preservar
 
+- **Planos para famílias → Mostrar na inscrição** publica a oferta também na
+  busca autenticada de instituições. O financeiro consulta o plano escolhido e
+  o estado do vínculo em **Inscrições pela busca de instituições**. A decisão
+  de acesso, a matrícula em turma e as cobranças seguem fluxos próprios.
+
 - Falha ao consultar o Asaas deve ter nova tentativa antes de exibir a ação de
   conectar conta. [Revisão por abas](../../ui/REVISAO_POR_ABAS_LOTE_2_2026-11-13.md).
 

@@ -1,4 +1,5 @@
 import { assertSessionIdentity, getSessionIdentity, type SessionIdentity } from "../auth/session";
+import type { FamilyEnrollmentPlan } from "./family-plans";
 import { supabaseRestPost, supabaseRestRequest } from "./rest";
 
 export type AccessRequestOrganization = { id: string; name: string };
@@ -9,6 +10,7 @@ export type OrganizationAccessRequest = {
   requestKind?: "staff" | "athlete" | "guardian";
   requestedStudentName?: string | null;
   requestedRelationshipLabel?: string | null;
+  enrollmentPlan?: FamilyEnrollmentPlan | null;
   id: string;
   organizationId: string;
   requesterUserId: string;
@@ -28,6 +30,7 @@ type OrganizationAccessRequestRow = {
   request_kind?: "staff" | "athlete" | "guardian";
   requested_student_name?: string | null;
   requested_relationship_label?: string | null;
+  enrollment_plan?: FamilyEnrollmentPlan | null;
   id: string;
   organization_id: string;
   requester_user_id?: string;
@@ -67,6 +70,7 @@ const mapAccessRequest = (
   requestKind: row.request_kind ?? "staff",
   requestedStudentName: row.requested_student_name,
   requestedRelationshipLabel: row.requested_relationship_label,
+  ...(row.enrollment_plan === undefined ? {} : { enrollmentPlan: row.enrollment_plan }),
   id: row.id,
   organizationId: row.organization_id,
   requesterUserId: row.requester_user_id ?? "",

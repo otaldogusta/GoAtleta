@@ -12,6 +12,9 @@ explícitas. Leia ao alterar cadastro/importação, ficha da pessoa, vínculos o
 Na Home, a lupa do aluno oferece atalhos do próprio perfil e aulas da semana
 já carregadas na tela. Na família, Agenda
 e Pagamentos dependem das capacidades do vínculo selecionado.
+**Vincular outro atleta → Quero me inscrever** mostra as ofertas publicadas para
+inscrição na instituição escolhida. A fila da coordenação mostra o plano junto
+ao pedido de vínculo.
 
 | Arquivo principal | Responsabilidade atual |
 | --- | --- |

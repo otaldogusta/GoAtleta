@@ -1,6 +1,8 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, ScrollView, Text, View } from "react-native";
 
+import type { FamilyPlanOffer } from "../../api/family-plans";
+import { familyPlanKindLabel, formatFamilyPlanTerms } from "../../finance/application/family-plans";
 import type { InstitutionAccessPlan } from "../institution-access-plans";
 import { getPlanBillingPreview, type PlanEnrollmentStep, type PlanPaymentPreference } from "../plan-enrollment-flow";
 import { radius, spacing } from "../../theme/tokens";
@@ -20,6 +22,193 @@ function DetailRow({ label, value, danger = false }: { label: string; value: str
       <Text style={{ flex: 1.25, color: danger ? colors.dangerText : colors.text, fontSize: 13, lineHeight: 19, fontWeight: danger ? "800" : "600" }}>
         {value}
       </Text>
+    </View>
+  );
+}
+
+type CatalogOffer = Pick<FamilyPlanOffer, "offer_id" | "kind" | "name" | "description" | "amount_cents" | "billing_day">;
+
+function PlanCatalogBack({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Voltar para ${label.toLocaleLowerCase("pt-BR")}`}
+      onPress={onPress}
+      disabled={disabled}
+      style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, minHeight: 38, opacity: disabled ? 0.55 : 1 }}
+      suppressWebHoverFeedback
+    >
+      <GoAtletaIcon name="chevronBack" size={18} color={colors.muted} />
+      <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "700" }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function PlanCatalogLayout({ institutionName, contentHeight, fitContent = false, backLabel, onBack, children }: {
+  institutionName: string;
+  contentHeight?: number;
+  fitContent?: boolean;
+  backLabel: string;
+  onBack?: () => void;
+  children: ReactNode;
+}) {
+  const { colors } = useAppTheme();
+  const fixedHeight = fitContent ? undefined : contentHeight;
+  return (
+    <View style={{ width: "100%", height: fixedHeight, maxHeight: fitContent ? contentHeight : undefined, flexShrink: 1, minHeight: 0, gap: spacing.sm }}>
+      {onBack ? <PlanCatalogBack label={backLabel} onPress={onBack} /> : null}
+      <View style={{ gap: 3, paddingBottom: spacing.sm }}>
+        <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "800" }}>Planos</Text>
+        <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{institutionName}</Text>
+      </View>
+      <ScrollView
+        style={{ flexGrow: fixedHeight ? 1 : 0, flexShrink: 1, minHeight: 0 }}
+        contentContainerStyle={{ gap: spacing.md, paddingBottom: fixedHeight ? spacing.xl : 0 }}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        showsVerticalScrollIndicator
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
+
+function PlanCatalogEmpty() {
+  const { colors } = useAppTheme();
+  return (
+    <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.container, backgroundColor: colors.card, padding: spacing.md, gap: 5 }}>
+      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Nenhum plano disponível</Text>
+    </View>
+  );
+}
+
+function PlanCatalogCard({ name, price, caption, badges, details, expanded, onToggleDetails, onSelect, busy }: {
+  name: string;
+  price: string;
+  caption?: string;
+  badges: string[];
+  details: ReactNode;
+  expanded: boolean;
+  onToggleDetails: () => void;
+  onSelect: () => void;
+  busy: boolean;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.container, backgroundColor: colors.card, padding: spacing.md, gap: spacing.sm }}>
+      <View style={{ gap: 5 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+          {badges.map(badge => (
+            <View key={badge} style={{ flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", borderRadius: radius.full, backgroundColor: colors.successBg, paddingHorizontal: 9, paddingVertical: 5 }}>
+              <GoAtletaIcon name="training" size={13} color={colors.primaryBg} />
+              <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "800" }}>{badge}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={{ color: colors.text, fontSize: 16, lineHeight: 22, fontWeight: "800" }}>{name}</Text>
+        <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>{price}</Text>
+        {caption ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{caption}</Text> : null}
+      </View>
+
+      <View style={{ minHeight: 44, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${expanded ? "Ocultar" : "Mostrar"} detalhes de ${name}`}
+          accessibilityState={{ expanded }}
+          onPress={onToggleDetails}
+          style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44 }}
+          suppressWebHoverFeedback
+        >
+          <GoAtletaIcon name={expanded ? "chevronUp" : "chevronDown"} size={18} color={expanded ? colors.primaryBg : colors.muted} />
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Detalhes</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Selecionar ${name}`}
+          disabled={busy}
+          onPress={onSelect}
+          style={{ minWidth: 112, minHeight: 44, alignItems: "center", justifyContent: "center" }}
+          suppressWebHoverFeedback
+        >
+          {({ pressed }) => (
+            <View style={{ minHeight: 38, width: "100%", borderRadius: radius.full, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, backgroundColor: colors.primaryBg, opacity: busy ? 0.55 : pressed ? 0.84 : 1 }}>
+              <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "800" }}>{busy ? "Enviando..." : "Selecionar"}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
+      <AnimatedFieldDetails open={expanded}>
+        <View style={{ gap: spacing.sm }}>
+          <View style={{ height: 1, backgroundColor: colors.border }} />
+          {details}
+        </View>
+      </AnimatedFieldDetails>
+    </View>
+  );
+}
+
+export function InstitutionPlanCatalog({ institutionName, offers, onSelect, onBack, backLabel = "Instituições", busy = false, contentHeight }: {
+  institutionName: string;
+  offers: CatalogOffer[];
+  onSelect: (offerId: string) => void;
+  onBack?: () => void;
+  backLabel?: string;
+  busy?: boolean;
+  contentHeight?: number;
+}) {
+  const { colors } = useAppTheme();
+  const [expandedOfferId, setExpandedOfferId] = useState("");
+  return (
+    <PlanCatalogLayout institutionName={institutionName} contentHeight={contentHeight} fitContent backLabel={backLabel} onBack={onBack}>
+      {offers.length ? offers.map(offer => (
+        <PlanCatalogCard
+          key={offer.offer_id}
+          name={offer.name}
+          price={formatFamilyPlanTerms(offer.amount_cents, offer.billing_day)}
+          badges={[familyPlanKindLabel[offer.kind]]}
+          expanded={expandedOfferId === offer.offer_id}
+          onToggleDetails={() => setExpandedOfferId(current => current === offer.offer_id ? "" : offer.offer_id)}
+          onSelect={() => onSelect(offer.offer_id)}
+          busy={busy}
+          details={
+            <>
+              <DetailRow label="Periodicidade" value={offer.kind === "monthly" ? "Mensal" : "Valor único"} />
+              {offer.billing_day === null ? null : <DetailRow label="Vencimento" value={`Dia ${offer.billing_day}`} />}
+              {offer.description ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{offer.description}</Text> : null}
+            </>
+          }
+        />
+      )) : <PlanCatalogEmpty />}
+    </PlanCatalogLayout>
+  );
+}
+
+export function InstitutionPlanRequestReview({ institutionName, athleteName, offer, busy = false, onBack, onSubmit, error }: {
+  institutionName: string;
+  athleteName: string;
+  offer: CatalogOffer;
+  busy?: boolean;
+  onBack: () => void;
+  onSubmit: () => void;
+  error?: string;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={{ width: "100%", gap: spacing.sm }}>
+      <PlanCatalogBack label="Planos" onPress={onBack} disabled={busy} />
+      <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "800" }}>Revisar solicitação</Text>
+      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{institutionName}</Text>
+      <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.container, backgroundColor: colors.card, padding: spacing.md, gap: spacing.sm }}>
+        <DetailRow label="Atleta" value={athleteName} />
+        <DetailRow label={familyPlanKindLabel[offer.kind]} value={offer.name} />
+        <DetailRow label="Valor" value={formatFamilyPlanTerms(offer.amount_cents, offer.billing_day)} />
+      </View>
+      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>A solicitação passa pela análise da instituição.</Text>
+      {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: 13, lineHeight: 19 }}>{error}</Text> : null}
+      <Button label="Solicitar plano" loading={busy} disabled={busy} onPress={onSubmit} />
     </View>
   );
 }
@@ -86,92 +275,21 @@ export function InstitutionPlanPicker({
   }
 
   return (
-    <View style={{ width: "100%", height: contentHeight, gap: spacing.sm }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Voltar para instituições"
-        onPress={onBack}
-        style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}
-        suppressWebHoverFeedback
-      >
-        <GoAtletaIcon name="chevronBack" size={18} color={colors.muted} />
-        <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "700" }}>Instituições</Text>
-      </Pressable>
-
-      <View style={{ gap: 3, paddingBottom: spacing.sm }}>
-        <Text style={{ color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "800" }}>Planos</Text>
-        <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{institutionName}</Text>
-      </View>
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}
-        keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled
-        showsVerticalScrollIndicator
-      >
-
-      {plans.length === 0 ? (
-        <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.container, backgroundColor: colors.card, padding: spacing.md, gap: 5 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Nenhum plano disponível</Text>
-          <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>A instituição ainda não publicou planos para solicitação.</Text>
-        </View>
-      ) : null}
-
-      {plans.map((plan) => {
-        const expanded = expandedPlanId === plan.id;
-        return (
-          <View key={plan.id} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.container, backgroundColor: colors.card, padding: spacing.md, gap: spacing.sm }}>
-            <View style={{ gap: 5 }}>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {plan.modalities.map((modality) => (
-                  <View key={modality} style={{ flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", borderRadius: radius.full, backgroundColor: colors.successBg, paddingHorizontal: 9, paddingVertical: 5 }}>
-                    <GoAtletaIcon name="training" size={13} color={colors.primaryBg} />
-                    <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "800" }}>{modality}</Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={{ color: colors.text, fontSize: 16, lineHeight: 22, fontWeight: "800" }}>{plan.name}</Text>
-              <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }}>
-                {plan.enrollmentLabel} + {plan.installmentLabel}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{plan.frequencyLabel}</Text>
-            </View>
-
-            <View style={{ minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${expanded ? "Ocultar" : "Mostrar"} detalhes de ${plan.name}`}
-                onPress={() => setExpandedPlanId(expanded ? "" : plan.id)}
-                style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 40 }}
-                suppressWebHoverFeedback
-              >
-                <GoAtletaIcon name={expanded ? "chevronUp" : "chevronDown"} size={18} color={expanded ? colors.primaryBg : colors.muted} />
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Detalhes</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Selecionar ${plan.name}`}
-                disabled={busy}
-                onPress={() => openPlanConfirmation(plan)}
-                style={({ pressed }) => ({
-                  minWidth: 112,
-                  minHeight: 38,
-                  borderRadius: radius.full,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  paddingHorizontal: 16,
-                  backgroundColor: colors.primaryBg,
-                  opacity: busy ? 0.55 : pressed ? 0.84 : 1,
-                })}
-              >
-                <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "800" }}>{busy ? "Enviando..." : "Selecionar"}</Text>
-              </Pressable>
-            </View>
-
-            <AnimatedFieldDetails open={expanded}>
-              <View style={{ gap: spacing.sm }}>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
+    <>
+      <PlanCatalogLayout institutionName={institutionName} contentHeight={contentHeight} backLabel="Instituições" onBack={onBack}>
+        {plans.length ? plans.map(plan => (
+          <PlanCatalogCard
+            key={plan.id}
+            name={plan.name}
+            price={`${plan.enrollmentLabel} + ${plan.installmentLabel}`}
+            caption={plan.frequencyLabel}
+            badges={plan.modalities}
+            expanded={expandedPlanId === plan.id}
+            onToggleDetails={() => setExpandedPlanId(current => current === plan.id ? "" : plan.id)}
+            onSelect={() => openPlanConfirmation(plan)}
+            busy={busy}
+            details={
+              <>
                 <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Cobrança</Text>
                 <DetailRow label="Modalidade" value={plan.modalities.join(" · ")} />
                 <DetailRow label="Vencimento" value={`Dia ${plan.billingDay}`} />
@@ -186,22 +304,18 @@ export function InstitutionPlanPicker({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Ler termos do plano"
-                  onPress={() => {
-                    setTermsPlanId(plan.id);
-                  }}
+                  onPress={() => setTermsPlanId(plan.id)}
                   style={{ minHeight: 44, borderRadius: radius.internal, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
                 >
                   <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>Ler termos</Text>
                 </Pressable>
-              </View>
-            </AnimatedFieldDetails>
-          </View>
-        );
-      })}
-      </ScrollView>
-
+              </>
+            }
+          />
+        )) : <PlanCatalogEmpty />}
+      </PlanCatalogLayout>
       <PlanTermsModal institutionName={institutionName} plan={termsPlan} cardStyle={termsModalStyle} onClose={closeTerms} />
-    </View>
+    </>
   );
 }
 

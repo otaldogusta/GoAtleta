@@ -76,3 +76,21 @@ Manter local até autorização explícita para aplicar a migração e publicar 
 - PGlite passou novamente após a correção do schema; typecheck, org-scope, perf-hygiene strict e diff check passaram.
 - Os prints anteriores continuam sendo prévias visuais. Não foram promovidos a evidência de jornada autenticada por causa dos testes de API.
 - Não foi alterada a conexão do app aberto em localhost nem o banco Supabase original.
+
+## Catálogo de planos de inscrição e Pagamentos
+
+Em **Vincular instituição → Quero me inscrever**, a família vê as ofertas
+publicadas para inscrição. A confirmação guarda a oferta, o valor e o
+vencimento com o pedido de vínculo; a fila da coordenação e o histórico
+financeiro exibem esse registro. O envio usa uma chave idempotente e pede
+nova confirmação se o preço ou o vencimento mudou.
+
+Em **Pagamentos → Adicionar plano**, o responsável autorizado usa o mesmo
+catálogo para solicitar uma oferta no vínculo ativo. Em **Planos para famílias**,
+a coordenação pode ativar **Mostrar na inscrição** em cada oferta publicada.
+O pedido de inscrição segue a análise de vínculo e a cobrança segue o fluxo
+financeiro próprio.
+
+A migração `20261127211000_family_plan_offers.sql` funda as ofertas familiares.
+A migração `20261128001652_family_enrollment_discovery_offers.sql` adiciona o
+catálogo da entrada e está validada no ambiente local de QA.

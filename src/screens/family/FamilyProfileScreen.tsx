@@ -152,7 +152,7 @@ export function FamilyProfileScreen() {
           ) : null}
           <FamilySurface title="Ações da conta" padding={padding}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: metrics.smallGap }}>
-              <FamilyButton label="Vincular outro atleta" onPress={() => router.push("/pending" as never)} />
+              <FamilyButton label="Vincular outro atleta" onPress={() => router.push({ pathname: "/pending", params: { returnTo: "/family/profile" } })} />
               <FamilyButton label="Sair da conta" variant="danger" onPress={() => void signOut()} />
             </View>
           </FamilySurface>

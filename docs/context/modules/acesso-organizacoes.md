@@ -17,6 +17,10 @@ Em `/pending`, a solicitação profissional pede a instituição. O formulário
 não apresenta escolha de plano. Na web, os resultados se sobrepõem ao
 formulário logo abaixo do campo de busca.
 
+Em `/pending`, **Quero me inscrever** abre os planos que a instituição exibiu
+na inscrição. A confirmação guarda a oferta e seus valores com o pedido de
+vínculo. **Solicitar vínculo** continua disponível para quem já tem cadastro.
+
 | Arquivo principal | Responsabilidade atual |
 | --- | --- |
 | [app/_layout.tsx](../../../app/_layout.tsx) | Bootstrap, composição dos provedores, interceptação de links e bloqueios de rota. |

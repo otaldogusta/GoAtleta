@@ -7,11 +7,13 @@ import {
   type FamilyFinanceData,
   type FamilyInvoiceStatus,
 } from "../../api/family-access";
+import { useAuth } from "../../auth/auth";
 import { useRole } from "../../auth/role";
 import { markRender, measureAsync } from "../../observability/perf";
 import { compactUiMetrics as metrics } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import { FamilyPlansPanel } from "./FamilyPlansPanel";
 import { FamilyScreenShell } from "./FamilyScreenShell";
 import { FamilyStudentSwitcher } from "./FamilyStudentSwitcher";
 import { FamilyButton, FamilyEmptyState, FamilySurface } from "./FamilyUi";
@@ -151,6 +153,7 @@ export function FamilyPaymentsScreen() {
   const { colors } = useAppTheme();
   const layout = useResponsiveLayout("dashboard");
   const padding = layout.density.cardPadding;
+  const { session } = useAuth();
   const { selectedFamilyStudent } = useRole();
   const selectedStudentId = selectedFamilyStudent?.studentId ?? null;
   const selectedRelationshipId = selectedFamilyStudent?.relationshipId ?? null;
@@ -172,7 +175,7 @@ export function FamilyPaymentsScreen() {
   return (
     <FamilyScreenShell
       title="Pagamentos"
-      subtitle="Mensalidades vinculadas ao atleta."
+      subtitle="Planos e cobranças do atleta."
       refreshing={loading}
       onRefresh={selectedFamilyStudent?.canViewFinance ? load : undefined}
     >
@@ -208,6 +211,15 @@ export function FamilyPaymentsScreen() {
         />
       ) : (
         <>
+          {session?.user.id && selectedFamilyStudent.relationshipType === "guardian" && selectedFamilyStudent.canPay ? (
+            <FamilyPlansPanel
+              key={`${session.user.id}:${selectedFamilyStudent.organizationId}:${selectedFamilyStudent.relationshipId}`}
+              relationshipId={selectedFamilyStudent.relationshipId}
+              studentName={selectedFamilyStudent.studentName}
+              institutionName={selectedFamilyStudent.organizationName}
+              padding={padding}
+            />
+          ) : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: metrics.gap }}>
             <View style={{ flexGrow: 1, flexBasis: 160, minWidth: 160 }}>
             <FamilySurface title="Em aberto" padding={padding} accessory={
