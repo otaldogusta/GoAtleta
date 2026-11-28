@@ -432,7 +432,7 @@ export default function PendingScreen() {
     session,
   ]);
 
-  const submitAccessRequest = async (organization = selectedOrganization) => {
+  const submitAccessRequest = async (organization: AccessRequestOrganization | null = selectedOrganization) => {
     if (!organization || requestLock.current) return;
     requestLock.current = true;
     setAccessRequestBusy(true);
